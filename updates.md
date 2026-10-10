@@ -56,3 +56,4 @@
 - [2026-10-11] Owner saved the production environment variables in Vercel; pushed this entry to start a new production build, since saving variables does not redeploy
 - [2026-10-11] First production deployment is live at https://touchpoint-sandy.vercel.app; checked headers, CSP, auth redirects and the tick endpoint against it
 - [2026-10-11] plan.md Step 8 now records the live URL and the two owner steps left (create the owner account, add the cron-job.org job)
+- [2026-10-11] Owner created the production account and the cron-job.org job; confirmed one owner, closed sign-up and a scheduler heartbeat in Neon main, and marked plan.md Step 8 and Phase 2 complete
