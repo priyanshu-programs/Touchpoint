@@ -13,7 +13,7 @@ Vercel's Hobby plan is for non-commercial personal use. If that does not fit how
 
 1. Go to https://vercel.com/new and import your copy of this repository.
 2. Leave the framework and build settings as detected. `vercel.json` already sets the build command, which applies database migrations before each build.
-3. Add these environment variables for the Production environment:
+3. Before the first deploy, add these environment variables for the Production environment. The build runs the database migrations, so it fails without them:
 
    | Name | Value |
    |---|---|
@@ -55,6 +55,7 @@ Vercel also calls the same endpoint once a day as a backup; that is configured i
 
 | Symptom | Cause and fix |
 |---|---|
+| Build fails with "DATABASE_URL is not set" (older versions: `url: ''`) | The project has no `DATABASE_URL` for Production. Add the variables under Settings → Environment Variables, then redeploy |
 | Build fails with "Invalid or missing environment variables" | A variable from step 2 is missing or a secret is shorter than 32 characters |
 | Build fails during `pnpm db:migrate` | `DATABASE_URL` is wrong or the database is unreachable |
 | Sign-up or sign-in fails with an origin error | `APP_URL` is set to a different address than the one you are visiting; remove it or correct it |

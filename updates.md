@@ -51,3 +51,5 @@
 - [2026-10-11] Applied migration 0000 to the Neon main (production) branch
 - [2026-10-11] Added .env.vercel-production (gitignored) holding the production DATABASE_URL, AUTH_SECRET and CRON_SECRET for pasting into Vercel
 - [2026-10-11] Added docs/DEPLOYMENT.md with the Vercel, Neon and cron-job.org steps; the Vercel connector could not create the project (403), so the owner imports the repo in the dashboard
+- [2026-10-11] drizzle.config.ts now fails with "DATABASE_URL is not set" and where to set it, after the first Vercel build died on an opaque empty-url error
+- [2026-10-11] docs/DEPLOYMENT.md: environment variables must be saved before the first deploy, plus a troubleshooting row for the missing DATABASE_URL build failure
