@@ -54,3 +54,5 @@
 - [2026-10-11] drizzle.config.ts now fails with "DATABASE_URL is not set" and where to set it, after the first Vercel build died on an opaque empty-url error
 - [2026-10-11] docs/DEPLOYMENT.md: environment variables must be saved before the first deploy, plus a troubleshooting row for the missing DATABASE_URL build failure
 - [2026-10-11] Owner saved the production environment variables in Vercel; pushed this entry to start a new production build, since saving variables does not redeploy
+- [2026-10-11] First production deployment is live at https://touchpoint-sandy.vercel.app; checked headers, CSP, auth redirects and the tick endpoint against it
+- [2026-10-11] plan.md Step 8 now records the live URL and the two owner steps left (create the owner account, add the cron-job.org job)

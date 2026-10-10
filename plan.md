@@ -22,7 +22,7 @@ Phase 2 — Functional foundation (PRD section 16)
 - [x] Step 5: onboarding and settings
 - [x] Step 6: jobs runner (tick endpoint and worker loop)
 - [x] Step 7: audit log
-- [ ] Step 8: CI and first deployment — code is on GitHub (`priyanshu-programs/Touchpoint`) and Neon `main` is migrated. Waiting on the owner: import the repo at vercel.com/new with the values in `.env.vercel-production`, then add the cron-job.org job (see `docs/DEPLOYMENT.md`). After that, verify the live URL and the first CI run.
+- [ ] Step 8: CI and first deployment — live at https://touchpoint-sandy.vercel.app (Vercel `sin1`, Neon `main`), CI green. Verified on the live site: security headers and CSP, auth redirects, tick endpoint 401 without the secret and 200 with it. Waiting on the owner: create the owner account at `/setup`, then add the cron-job.org job (see `docs/DEPLOYMENT.md` section 3). Until that job exists, the scheduler only runs from Vercel's daily cron.
 
 Known gaps in Phase 2 work:
 
