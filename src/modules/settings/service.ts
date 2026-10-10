@@ -1,0 +1,49 @@
+import { eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { settings } from "@/db/schema";
+import { audit } from "@/modules/audit/service";
+import type { SettingsInput } from "./schema";
+
+export async function getSettings(ownerId: string) {
+  const [row] = await db
+    .select()
+    .from(settings)
+    .where(eq(settings.ownerId, ownerId));
+  return row ?? null;
+}
+
+const pick = (row: SettingsInput): SettingsInput => ({
+  baseCurrency: row.baseCurrency,
+  timezone: row.timezone,
+  weekStart: row.weekStart,
+  fiscalYearStartMonth: row.fiscalYearStartMonth,
+});
+
+export async function saveSettings(ownerId: string, input: SettingsInput) {
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(settings)
+      .where(eq(settings.ownerId, ownerId));
+
+    const [saved] = await tx
+      .insert(settings)
+      .values({ ownerId, ...input, onboardingCompletedAt: new Date() })
+      .onConflictDoUpdate({
+        target: settings.ownerId,
+        set: { ...input, updatedAt: new Date() },
+      })
+      .returning();
+
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: existing ? "settings.update" : "settings.create",
+      entityType: "settings",
+      entityId: ownerId,
+      before: existing ? pick(existing) : undefined,
+      after: pick(saved),
+    });
+    return saved;
+  });
+}
