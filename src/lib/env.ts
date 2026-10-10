@@ -13,7 +13,13 @@ const schema = z.object({
 export type Env = z.infer<typeof schema>;
 
 export function parseEnv(source: Record<string, string | undefined>): Env {
-  const result = schema.safeParse(source);
+  // Vercel supplies the production domain, so APP_URL need not be known before the first deploy.
+  const platformUrl = source.VERCEL_PROJECT_PRODUCTION_URL;
+  const result = schema.safeParse({
+    ...source,
+    APP_URL:
+      source.APP_URL || (platformUrl ? `https://${platformUrl}` : undefined),
+  });
   if (!result.success) {
     // Names only: the values may be secrets.
     const names = [

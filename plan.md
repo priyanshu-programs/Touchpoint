@@ -22,7 +22,7 @@ Phase 2 — Functional foundation (PRD section 16)
 - [x] Step 5: onboarding and settings
 - [x] Step 6: jobs runner (tick endpoint and worker loop)
 - [x] Step 7: audit log
-- [ ] Step 8: CI and first deployment — `ci.yml` and `vercel.json` are written; still to do, each needing the owner's go-ahead: first git commit, GitHub repo, Vercel project (set region to Singapore), migrate Neon `main`, cron-job.org job every 15 minutes
+- [ ] Step 8: CI and first deployment — code is on GitHub (`priyanshu-programs/Touchpoint`) and Neon `main` is migrated. Waiting on the owner: import the repo at vercel.com/new with the values in `.env.vercel-production`, then add the cron-job.org job (see `docs/DEPLOYMENT.md`). After that, verify the live URL and the first CI run.
 
 Known gaps in Phase 2 work:
 

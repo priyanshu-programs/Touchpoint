@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { env } from "@/lib/env";
 
 export function buildCsp(
   nonce: string,
@@ -26,7 +27,7 @@ export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const csp = buildCsp(nonce, {
     isDev: process.env.NODE_ENV === "development",
-    isHttps: process.env.APP_URL?.startsWith("https://") ?? false,
+    isHttps: env.APP_URL.startsWith("https://"),
   });
 
   const requestHeaders = new Headers(request.headers);

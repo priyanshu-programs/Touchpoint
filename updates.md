@@ -45,3 +45,9 @@
 - [2026-10-10] Moved shadcn to devDependencies because pnpm audit flagged its braces dependency and it is only needed at build time
 - [2026-10-10] Added .github/workflows/ci.yml (audit, lint, typecheck, unit and e2e tests with a Postgres service); not yet run on GitHub
 - [2026-10-10] Added vercel.json with a migrate-then-build command and the daily backup cron; not yet deployed
+- [2026-10-11] First commit pushed to github.com/priyanshu-programs/Touchpoint (main)
+- [2026-10-11] APP_URL now falls back to Vercel's production domain, so the first deploy does not need the URL in advance; src/proxy.ts reads it through env.ts
+- [2026-10-11] Pinned Vercel functions to sin1 in vercel.json to sit next to the Singapore database
+- [2026-10-11] Applied migration 0000 to the Neon main (production) branch
+- [2026-10-11] Added .env.vercel-production (gitignored) holding the production DATABASE_URL, AUTH_SECRET and CRON_SECRET for pasting into Vercel
+- [2026-10-11] Added docs/DEPLOYMENT.md with the Vercel, Neon and cron-job.org steps; the Vercel connector could not create the project (403), so the owner imports the repo in the dashboard

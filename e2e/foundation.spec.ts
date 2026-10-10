@@ -165,8 +165,13 @@ test.describe("signed in", () => {
     page,
   }) => {
     await page.goto("/");
-    await page.keyboard.press("Control+k");
-    await page.getByPlaceholder("Type to filter…").fill("sett");
+    const filter = page.getByPlaceholder("Type to filter…");
+    // The shortcut is bound after hydration, so an early key press can be missed.
+    await expect(async () => {
+      await page.keyboard.press("Control+k");
+      await expect(filter).toBeVisible({ timeout: 1_000 });
+    }).toPass();
+    await filter.fill("sett");
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/settings\/profile$/);
 

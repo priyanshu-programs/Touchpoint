@@ -25,6 +25,20 @@ describe("parseEnv", () => {
     expect(attempt).not.toThrow(/too-short/);
   });
 
+  it("falls back to the Vercel production domain when APP_URL is unset", () => {
+    expect(
+      parseEnv({
+        ...valid,
+        APP_URL: undefined,
+        VERCEL_PROJECT_PRODUCTION_URL: "touchpoint.vercel.app",
+      }).APP_URL,
+    ).toBe("https://touchpoint.vercel.app");
+    expect(
+      parseEnv({ ...valid, VERCEL_PROJECT_PRODUCTION_URL: "other.vercel.app" })
+        .APP_URL,
+    ).toBe(valid.APP_URL);
+  });
+
   it("rejects a malformed URL", () => {
     expect(() => parseEnv({ ...valid, APP_URL: "not a url" })).toThrow(
       /APP_URL/,
