@@ -17,7 +17,11 @@ export const companyHref = (
   tab?: "contacts" | "activity" | "tasks",
 ) => `/people/organizations?company=${id}${tab ? `&tab=${tab}` : ""}`;
 
-// A contact at a company can be shown inside that company's panel.
+// A person opens as a panel over the people list.
+export const contactHref = (id: string, tab?: "activity" | "tasks") =>
+  `/people/contacts?contact=${id}${tab ? `&tab=${tab}` : ""}`;
+
+// A contact at a company can also be shown inside that company's panel.
 export const contactPanelHref = (organizationId: string, contactId: string) =>
   `${companyHref(organizationId)}&contact=${contactId}`;
 

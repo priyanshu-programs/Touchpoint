@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { companyHref } from "@/app/(app)/people/labels";
+import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import {
@@ -89,7 +89,7 @@ const timelineOf = (links: {
   organizationId: string | null;
 }) =>
   links.contactIds[0]
-    ? `/people/contacts/${links.contactIds[0]}/timeline`
+    ? contactHref(links.contactIds[0], "activity")
     : links.organizationId
       ? companyHref(links.organizationId, "activity")
       : "/people/contacts";

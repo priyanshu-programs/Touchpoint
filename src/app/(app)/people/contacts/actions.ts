@@ -26,7 +26,7 @@ import {
   type ContactResult,
 } from "@/modules/contacts/service";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { contactPanelHref } from "../labels";
+import { contactHref, contactPanelHref } from "../labels";
 
 const FIELDS = [
   "firstName",
@@ -64,7 +64,7 @@ function failure(
       values,
       links: [
         {
-          href: `/people/contacts/${result.existing.id}`,
+          href: contactHref(result.existing.id),
           label: result.existing.name,
         },
       ],
@@ -76,7 +76,7 @@ function failure(
       "A contact with a similar name already exists. Check before creating another.",
     values,
     links: result.candidates.map((candidate) => ({
-      href: `/people/contacts/${candidate.id}`,
+      href: contactHref(candidate.id),
       label: candidate.name,
     })),
     canConfirm: true,
@@ -103,7 +103,7 @@ export async function createContactAction(
   if (!result.ok) return failure(result, values);
 
   revalidatePath("/people", "layout");
-  redirect(`/people/contacts/${result.id}`);
+  redirect(contactHref(result.id));
 }
 
 // The short form inside a company's panel; everything it does not ask for takes the default.
@@ -144,7 +144,8 @@ export async function addCompanyContactAction(
   return { ok: true, message: `${parsed.data.firstName} added.` };
 }
 
-// `toPanel` is set when the edit was opened from the company's panel, so saving returns there.
+// `toPanel` is set when the edit was opened from the company's panel, so saving returns there
+// and not to the person's own panel over the people list.
 export async function updateContactAction(
   id: string,
   toPanel: boolean,
@@ -165,7 +166,7 @@ export async function updateContactAction(
   redirect(
     toPanel && parsed.data.organizationId
       ? contactPanelHref(parsed.data.organizationId, contactId)
-      : `/people/contacts/${contactId}`,
+      : contactHref(contactId),
   );
 }
 

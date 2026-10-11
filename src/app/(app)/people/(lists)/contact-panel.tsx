@@ -11,11 +11,12 @@ import type { getContact } from "@/modules/contacts/queries";
 import type { getOrganization } from "@/modules/organizations/queries";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
-import { setContactArchivedAction } from "../../contacts/actions";
-import { ContactDetails } from "../../contacts/contact-details";
-import { ContactEmailsAndLinks } from "../../contacts/contact-emails-links";
-import { labelFor } from "../../labels";
-import { companiesHref, type CompanyListParams } from "../list-controls";
+import { setContactArchivedAction } from "../contacts/actions";
+import { ContactDetails } from "../contacts/contact-details";
+import { ContactEmailsAndLinks } from "../contacts/contact-emails-links";
+import { labelFor } from "../labels";
+
+type Tab = "activity" | "tasks" | undefined;
 
 const TABS = [
   { tab: undefined, label: "Overview" },
@@ -23,35 +24,48 @@ const TABS = [
   { tab: "tasks", label: "Tasks" },
 ] as const;
 
-// One person at the open company, shown in the company's panel with a way back.
+// One person, shown in the panel over the people list or inside their company's panel.
 export function ContactPanel({
   ownerId,
-  organization,
   contact,
-  params,
+  company,
+  tab,
+  after,
+  hrefFor,
+  back,
+  editFrom,
 }: {
   ownerId: string;
-  organization: NonNullable<Awaited<ReturnType<typeof getOrganization>>>;
   contact: NonNullable<Awaited<ReturnType<typeof getContact>>>;
-  params: CompanyListParams;
+  // The person's company and where its name leads from here.
+  company: {
+    organization: NonNullable<Awaited<ReturnType<typeof getOrganization>>>;
+    href: string;
+  } | null;
+  tab: Tab;
+  // Where the Activity tab's page of history starts.
+  after?: string;
+  hrefFor: (change: { tab: Tab; after?: string }) => string;
+  // Set inside a company's panel, which this view replaces until the owner goes back.
+  back?: { href: string; label: string };
+  editFrom?: "company";
 }) {
   const filter = { contactId: contact.id };
-  const company = { contact: undefined, after: undefined };
   const email = contact.emails.find((row) => row.isPrimary)?.email;
-  // A company has no "contacts" tab of its own here, so an address carrying one shows the overview.
-  const tab = params.tab === "contacts" ? undefined : params.tab;
 
   return (
     <>
       <header className="flex flex-wrap items-start gap-3 border-b p-4 pr-12">
-        <Link
-          href={companiesHref(params, { ...company, tab: "contacts" })}
-          scroll={false}
-          aria-label={`Back to ${organization.name}`}
-          className="mt-1.5 rounded-md p-1 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft aria-hidden className="size-4" />
-        </Link>
+        {back && (
+          <Link
+            href={back.href}
+            scroll={false}
+            aria-label={back.label}
+            className="mt-1.5 rounded-md p-1 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft aria-hidden className="size-4" />
+          </Link>
+        )}
         <Monogram
           name={contact.fullName}
           className="size-10 rounded-full text-sm"
@@ -60,12 +74,16 @@ export function ContactPanel({
           <SheetTitle className="text-lg break-words">
             {contact.fullName}
           </SheetTitle>
-          <SheetDescription>
-            {[contact.jobTitle, organization.name].filter(Boolean).join(" at ")}
-          </SheetDescription>
+          {(contact.jobTitle || company) && (
+            <SheetDescription>
+              {[contact.jobTitle, company?.organization.name]
+                .filter(Boolean)
+                .join(" at ")}
+            </SheetDescription>
+          )}
           <div className="flex flex-wrap gap-1">
-            {contact.isPrimary && (
-              <Badge>Primary contact at {organization.name}</Badge>
+            {contact.isPrimary && company && (
+              <Badge>Primary contact at {company.organization.name}</Badge>
             )}
             <Badge variant="secondary">
               {labelFor(contact.relationshipType)}
@@ -83,7 +101,7 @@ export function ContactPanel({
         </div>
         <div className="flex gap-2">
           <ButtonLink
-            href={`/people/contacts/${contact.id}/edit?from=company`}
+            href={`/people/contacts/${contact.id}/edit${editFrom ? `?from=${editFrom}` : ""}`}
             variant="outline"
             size="sm"
           >
@@ -108,19 +126,25 @@ export function ContactPanel({
         <div className="grid min-w-0 gap-1 p-4">
           <dt className="text-xs text-muted-foreground">Company</dt>
           <dd className="flex min-w-0 items-center gap-2 font-medium">
-            <CompanyLogo
-              id={organization.id}
-              name={organization.name}
-              logoVersion={organization.logoVersion}
-              className="size-5 text-[0.625rem]"
-            />
-            <Link
-              href={companiesHref(params, { ...company, tab: undefined })}
-              scroll={false}
-              className="truncate underline-offset-4 hover:underline"
-            >
-              {organization.name}
-            </Link>
+            {company ? (
+              <>
+                <CompanyLogo
+                  id={company.organization.id}
+                  name={company.organization.name}
+                  logoVersion={company.organization.logoVersion}
+                  className="size-5 text-[0.625rem]"
+                />
+                <Link
+                  href={company.href}
+                  scroll={false}
+                  className="truncate underline-offset-4 hover:underline"
+                >
+                  {company.organization.name}
+                </Link>
+              </>
+            ) : (
+              "—"
+            )}
           </dd>
         </div>
         <div className="grid min-w-0 gap-1 p-4">
@@ -135,13 +159,12 @@ export function ContactPanel({
 
       <nav
         aria-label="Contact"
-        // The sheet is a column that scrolls: without this the tab bar is squeezed away under long content.
-        className="flex shrink-0 gap-1 overflow-x-auto border-b px-2"
+        className="flex gap-1 overflow-x-auto border-b px-2"
       >
         {TABS.map((item) => (
           <Link
             key={item.label}
-            href={companiesHref(params, { tab: item.tab, after: undefined })}
+            href={hrefFor({ tab: item.tab })}
             scroll={false}
             aria-current={tab === item.tab ? "page" : undefined}
             className={cn(
@@ -171,11 +194,9 @@ export function ContactPanel({
           <RecordTimeline
             ownerId={ownerId}
             filter={filter}
-            moreHref={(earlier) =>
-              companiesHref(params, { tab: "activity", after: earlier })
-            }
+            moreHref={(earlier) => hrefFor({ tab: "activity", after: earlier })}
             newHref={`/activities/new?contact=${contact.id}`}
-            after={params.after}
+            after={after}
           />
         )}
 

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { companyHref } from "@/app/(app)/people/labels";
+import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import { taskInput } from "@/modules/tasks/schema";
@@ -73,7 +73,7 @@ export async function createTaskAction(
   // Back to the record the task was started from, when there was one.
   const from = formData.get("from");
   if (from === "contact" && parsed.data.contactId) {
-    redirect(`/people/contacts/${parsed.data.contactId}/tasks`);
+    redirect(contactHref(parsed.data.contactId, "tasks"));
   }
   if (from === "organization" && parsed.data.organizationId) {
     redirect(companyHref(parsed.data.organizationId, "tasks"));

@@ -1,6 +1,7 @@
 import { Star } from "lucide-react";
 import Link from "next/link";
 import { ButtonLink } from "@/components/button-link";
+import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo, Monogram } from "@/components/company-logo";
 import {
   DetailRows,
@@ -160,6 +161,8 @@ export async function CompanyPanel({
     { label: "Region", note: fromWebsite("region"), value: organization.region },
     { label: "Country", note: fromWebsite("country"), value: organization.country },
   ];
+  const contactLink = (id: string) =>
+    companiesHref(params, { contact: id, tab: undefined, after: undefined });
   const tiles = [
     { label: "Contacts", value: upTo(contacts) },
     { label: "Open tasks", value: upTo(openTasks) },
@@ -235,8 +238,7 @@ export async function CompanyPanel({
 
       <nav
         aria-label="Company"
-        // The sheet is a column that scrolls: without this the tab bar is squeezed away under long content.
-        className="flex shrink-0 gap-1 overflow-x-auto border-b px-2"
+        className="flex gap-1 overflow-x-auto border-b px-2"
       >
         {TABS.map(({ tab, label }) => (
           <Link
@@ -320,7 +322,10 @@ export async function CompanyPanel({
                   </TableHeader>
                   <TableBody>
                     {contacts.rows.map((contact) => (
-                      <TableRow key={contact.id}>
+                      <ClickableRow
+                        key={contact.id}
+                        href={contactLink(contact.id)}
+                      >
                         <TableCell className="whitespace-normal">
                           <div className="flex items-center gap-2">
                             <form action={setPrimaryContactAction}>
@@ -352,11 +357,7 @@ export async function CompanyPanel({
                             />
                             <div className="grid min-w-0 gap-0.5">
                               <Link
-                                href={companiesHref(params, {
-                                  contact: contact.id,
-                                  tab: undefined,
-                                  after: undefined,
-                                })}
+                                href={contactLink(contact.id)}
                                 scroll={false}
                                 className="font-medium underline-offset-4 hover:underline"
                               >
@@ -387,7 +388,7 @@ export async function CompanyPanel({
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                      </TableRow>
+                      </ClickableRow>
                     ))}
                   </TableBody>
                 </Table>

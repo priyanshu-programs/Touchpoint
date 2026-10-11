@@ -21,8 +21,9 @@ const localDate = (offsetDays = 0) =>
 async function openContactTimeline(page: Page, name: string) {
   await page.goto("/people/contacts");
   await page.getByRole("link", { name, exact: true }).click();
-  await contactTabs(page).getByRole("link", { name: "Timeline" }).click();
+  await contactTabs(page).getByRole("link", { name: "Activity" }).click();
 }
+const ON_ACTIVITY = /\/people\/contacts\?contact=[0-9a-f-]+&tab=activity$/;
 
 test("log a call from a contact; the timeline and the task list update together", async ({
   page,
@@ -53,7 +54,7 @@ test("log a call from a contact; the timeline and the task list update together"
   await page.getByLabel("Follow-up task").fill("Send the proposal draft");
   await page.getByRole("button", { name: "Log activity" }).click();
 
-  await expect(page).toHaveURL(/\/people\/contacts\/[0-9a-f-]+\/timeline$/);
+  await expect(page).toHaveURL(ON_ACTIVITY);
   await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Intro call" })).toBeVisible();
   await expect(page.getByText("Wants a proposal by Friday")).toBeVisible();
@@ -91,7 +92,7 @@ test("an activity can involve a second contact, be edited and be deleted", async
 
   await page.getByRole("link", { name: "Discovery call" }).click();
   await page.getByRole("button", { name: "Delete" }).click();
-  await expect(page).toHaveURL(/\/people\/contacts\/[0-9a-f-]+\/timeline$/);
+  await expect(page).toHaveURL(ON_ACTIVITY);
   await expect(page.getByText("Nothing logged yet.")).toBeVisible();
 });
 
@@ -133,7 +134,7 @@ test.describe("on a phone", () => {
       .getByLabel("Summary")
       .fill("A long note about a conversation that ran over several topics");
     await page.getByRole("button", { name: "Log activity" }).click();
-    await expect(page).toHaveURL(/\/timeline$/);
+    await expect(page).toHaveURL(ON_ACTIVITY);
 
     const fits = () =>
       page.evaluate(

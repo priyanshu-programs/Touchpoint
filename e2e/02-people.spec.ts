@@ -131,7 +131,7 @@ test("add contacts inside a company; duplicates are caught", async ({
     panel(page).getByRole("link", { name: "Priya Sharmaa" }),
   ).toBeVisible();
 
-  // Contacts added inside a company are also under People, linked back to it.
+  // Contacts added inside a company are also under People, where a person opens in a panel too.
   await page.goto("/people/contacts");
   await expect(page.getByRole("link", { name: "Acme Design" })).toHaveCount(2);
   await page.getByRole("link", { name: "Priya Sharma", exact: true }).click();
@@ -145,7 +145,9 @@ test("add contacts inside a company; duplicates are caught", async ({
   await page.getByRole("link", { name: "Edit" }).click();
   await page.getByLabel("Tags").fill("vip");
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByText("vip", { exact: true })).toBeVisible();
+  // Saving returns to the person's panel over the list.
+  await expect(page).toHaveURL(/\/people\/contacts\?contact=[0-9a-f-]+$/);
+  await expect(panel(page).getByText("vip", { exact: true })).toBeVisible();
   expect(consoleErrors).toEqual([]);
 });
 
@@ -160,6 +162,8 @@ test("the companies list sorts, filters and searches by domain", async ({
     panel(page).getByRole("heading", { name: "Borealis Labs" }),
   ).toBeVisible();
   await panel(page).getByRole("button", { name: "Close" }).click();
+  // The panel slides away before the list is in reach again.
+  await expect(panel(page)).toHaveCount(0);
 
   const names = page.getByRole("row").getByRole("link");
   await expect(names).toHaveText(["Company", "Contacts", "Last activity", "Acme Design", "Borealis Labs"]);

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
 import { getContact } from "@/modules/contacts/queries";
-import { contactPanelHref } from "../../../labels";
+import { contactHref, contactPanelHref } from "../../../labels";
 import { updateContactAction } from "../../actions";
 import { ContactForm } from "../../contact-form";
 import { contactFormOptions } from "../../form-options";
@@ -55,7 +55,7 @@ export default async function EditContactPage({
           cancelHref={
             toPanel && contact.organizationId
               ? contactPanelHref(contact.organizationId, contact.id)
-              : `/people/contacts/${contact.id}`
+              : contactHref(contact.id)
           }
         />
       </CardContent>

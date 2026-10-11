@@ -34,17 +34,33 @@ export const companyListParams = listParams.extend({
 });
 export type CompanyListParams = z.infer<typeof companyListParams>;
 
-export function companiesHref(
-  params: CompanyListParams,
-  change: Partial<CompanyListParams> = {},
-) {
+// `contact` and `tab` say whose panel is open over the people list. `earlier` pages
+// that person's timeline, since `after` already pages the list.
+export const contactListParams = listParams.extend({
+  contact: optional(z.uuid()),
+  tab: optional(z.enum(["activity", "tasks"])),
+  earlier: optional(z.uuid()),
+});
+export type ContactListParams = z.infer<typeof contactListParams>;
+
+function listHref(path: string, params: Record<string, unknown>) {
   const search = new URLSearchParams();
-  for (const [key, value] of Object.entries({ ...params, ...change })) {
+  for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) search.set(key, String(value));
   }
   const query = search.toString();
-  return `/people/organizations${query ? `?${query}` : ""}`;
+  return `${path}${query ? `?${query}` : ""}`;
 }
+
+export const companiesHref = (
+  params: CompanyListParams,
+  change: Partial<CompanyListParams> = {},
+) => listHref("/people/organizations", { ...params, ...change });
+
+export const contactsHref = (
+  params: ContactListParams,
+  change: Partial<ContactListParams> = {},
+) => listHref("/people/contacts", { ...params, ...change });
 
 export function ListFilters({
   path,

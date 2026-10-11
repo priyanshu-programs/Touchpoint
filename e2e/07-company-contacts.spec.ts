@@ -42,7 +42,12 @@ test("the star moves to another contact, and a contact opens inside the company 
   await expect(star(page, "Arjun Rao")).toHaveAttribute("aria-pressed", "true");
   await expect(star(page, "Priya Sharma")).toHaveAttribute("aria-pressed", "false");
 
-  await panel(page).getByRole("link", { name: "Arjun Rao" }).click();
+  // The star did its own job without opening anyone; a click anywhere else on the row opens the person.
+  await panel(page)
+    .getByRole("row", { name: /Arjun Rao/ })
+    .getByRole("cell")
+    .nth(1)
+    .click();
   await expect(page).toHaveURL(IN_PANEL);
   await expect(panel(page).getByRole("heading", { name: "Arjun Rao" })).toBeVisible();
   await expect(

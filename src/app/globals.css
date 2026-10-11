@@ -67,6 +67,8 @@
 }
 
 :root {
+  /* Tells the browser which theme its own controls (dropdown lists, scrollbars, date pickers) should take. */
+  color-scheme: light;
   --background: oklch(0.9875 0.0026 106.4475);
   --foreground: oklch(0.1448 0 0);
   --card: oklch(1 0 0);
@@ -118,6 +120,7 @@
 /* Dark theme follows the system setting, so no inline theme script is needed under the CSP. */
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --background: oklch(0.1448 0 0);
     --foreground: oklch(0.9875 0.0026 106.4475);
     --card: oklch(0.1913 0 0);
@@ -171,5 +174,55 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/*
+ * Dropdown lists drawn in the app's own style where the browser lets a page style them
+ * (Chromium). Elsewhere the browser's own list shows, in the right theme through color-scheme.
+ */
+@supports (appearance: base-select) {
+  [data-slot="native-select"],
+  [data-slot="native-select"]::picker(select) {
+    appearance: base-select;
+  }
+
+  /* The component draws its own chevron. */
+  [data-slot="native-select"]::picker-icon {
+    display: none;
+  }
+
+  [data-slot="native-select"]::picker(select) {
+    margin-block: 0.25rem;
+    padding: 0.25rem;
+    max-height: 18rem;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow: var(--shadow-lg);
+    font-size: 0.875rem;
+    letter-spacing: var(--tracking-normal);
+  }
+
+  [data-slot="native-select"] option {
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    border-radius: calc(var(--radius) - 4px);
+    outline: none;
+  }
+
+  [data-slot="native-select"] option:hover,
+  [data-slot="native-select"] option:focus-visible {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  /* The tick marks the chosen option, at the end of its row. */
+  [data-slot="native-select"] option::checkmark {
+    order: 1;
+    margin-inline-start: auto;
+    color: var(--muted-foreground);
   }
 }

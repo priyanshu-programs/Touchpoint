@@ -45,7 +45,10 @@ test("add a task from a contact and complete it on Today", async ({ page }) => {
   await page.getByLabel("Due date").fill(localDate());
   await page.getByRole("button", { name: "Add task" }).click();
 
-  await expect(page).toHaveURL(/\/people\/contacts\/[0-9a-f-]+\/tasks$/);
+  // Back in the person's panel, on the tab the task was added from.
+  await expect(page).toHaveURL(
+    /\/people\/contacts\?contact=[0-9a-f-]+&tab=tasks$/,
+  );
   await expect(page.getByRole("link", { name: "Send proposal" })).toBeVisible();
 
   await page.goto("/");

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ButtonLink } from "@/components/button-link";
+import { ClickableRow } from "@/components/clickable-row";
 import {
   Table,
   TableBody,
@@ -10,21 +11,30 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { requireOwner } from "@/lib/session";
-import { listContacts } from "@/modules/contacts/queries";
+import { getContact, listContacts } from "@/modules/contacts/queries";
+import { getOrganization } from "@/modules/organizations/queries";
 import { listTags } from "@/modules/tags/queries";
 import { companyHref, labelFor } from "../../labels";
-import { ListFilters, listParams, NextPageLink } from "../list-controls";
+import { ContactPanel } from "../contact-panel";
+import {
+  contactListParams,
+  contactsHref,
+  ListFilters,
+  NextPageLink,
+} from "../list-controls";
+import { RecordSheet } from "../record-sheet";
 
 export const metadata: Metadata = { title: "Contacts" };
 
 const PATH = "/people/contacts";
+const NO_PANEL = { contact: undefined, tab: undefined, earlier: undefined };
 
 export default async function ContactsPage({
   searchParams,
 }: PageProps<"/people/contacts">) {
   const owner = await requireOwner();
-  const params = listParams.parse(await searchParams);
-  const [page, tags] = await Promise.all([
+  const params = contactListParams.parse(await searchParams);
+  const [page, tags, open] = await Promise.all([
     listContacts(owner.id, {
       q: params.q,
       tagId: params.tag,
@@ -32,7 +42,11 @@ export default async function ContactsPage({
       after: params.after,
     }),
     listTags(owner.id),
+    params.contact ? getContact(owner.id, params.contact) : null,
   ]);
+  const company = open?.organizationId
+    ? await getOrganization(owner.id, open.organizationId)
+    : null;
   const filtered = Boolean(params.q || params.tag || params.archived);
 
   return (
@@ -59,41 +73,68 @@ export default async function ContactsPage({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {page.rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="whitespace-normal">
-                  <Link
-                    href={`${PATH}/${row.id}`}
-                    className="font-medium underline-offset-4 hover:underline"
-                  >
-                    {row.fullName}
-                  </Link>
-                  {row.jobTitle && (
-                    <p className="text-muted-foreground">{row.jobTitle}</p>
-                  )}
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  {row.organizationId && (
+            {page.rows.map((row) => {
+              const href = contactsHref(params, {
+                ...NO_PANEL,
+                contact: row.id,
+              });
+              return (
+                <ClickableRow key={row.id} href={href}>
+                  <TableCell className="whitespace-normal">
                     <Link
-                      href={companyHref(row.organizationId)}
-                      className="underline-offset-4 hover:underline"
+                      href={href}
+                      scroll={false}
+                      className="font-medium underline-offset-4 hover:underline"
                     >
-                      {row.organizationName}
+                      {row.fullName}
                     </Link>
-                  )}
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {row.primaryEmail}
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  {labelFor(row.relationshipType)}
-                </TableCell>
-              </TableRow>
-            ))}
+                    {row.jobTitle && (
+                      <p className="text-muted-foreground">{row.jobTitle}</p>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {row.organizationId && (
+                      <Link
+                        href={companyHref(row.organizationId)}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {row.organizationName}
+                      </Link>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {row.primaryEmail}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {labelFor(row.relationshipType)}
+                  </TableCell>
+                </ClickableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
       <NextPageLink path={PATH} params={params} after={page.nextAfter} />
+
+      {open && (
+        <RecordSheet
+          closeHref={contactsHref(params, NO_PANEL)}
+          recordKey={open.id}
+        >
+          <ContactPanel
+            ownerId={owner.id}
+            contact={open}
+            company={
+              company && { organization: company, href: companyHref(company.id) }
+            }
+            tab={params.tab}
+            after={params.earlier}
+            hrefFor={({ tab, after }) =>
+              contactsHref(params, { tab, earlier: after })
+            }
+          />
+        </RecordSheet>
+      )}
     </div>
   );
 }

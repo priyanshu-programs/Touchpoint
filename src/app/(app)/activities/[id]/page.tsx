@@ -8,7 +8,7 @@ import { requireOwner } from "@/lib/session";
 import { formatDateTime, toLocalInput } from "@/lib/time";
 import { getActivity } from "@/modules/activities/queries";
 import { getSettings } from "@/modules/settings/service";
-import { companyHref, labelFor } from "../../people/labels";
+import { companyHref, contactHref, labelFor } from "../../people/labels";
 import { deleteActivityAction, updateActivityAction } from "../actions";
 import { ActivityForm } from "../activity-form";
 import { activityFormOptions } from "../form-options";
@@ -28,7 +28,7 @@ export default async function ActivityPage({
   if (!activity) notFound();
   const timezone = settings?.timezone ?? "UTC";
   const back = activity.contacts[0]
-    ? `/people/contacts/${activity.contacts[0].id}/timeline`
+    ? contactHref(activity.contacts[0].id, "activity")
     : activity.organizationId
       ? companyHref(activity.organizationId, "activity")
       : "/people/contacts";

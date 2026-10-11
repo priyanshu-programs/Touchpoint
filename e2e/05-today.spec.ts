@@ -27,7 +27,7 @@ test("Today shows the week ahead, recent activity and people counts", async ({
   await page.getByLabel("Type").selectOption("meeting");
   await page.getByLabel("Summary").fill("Kickoff meeting");
   await page.getByRole("button", { name: "Log activity" }).click();
-  await expect(page).toHaveURL(/\/timeline$/);
+  await expect(page).toHaveURL(/tab=activity$/);
 
   await page.goto("/tasks/new");
   await page.getByLabel("Task", { exact: true }).fill("Prepare kickoff notes");

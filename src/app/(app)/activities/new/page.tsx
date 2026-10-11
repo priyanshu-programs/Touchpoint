@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
-import { companyHref } from "@/app/(app)/people/labels";
+import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import { toLocalInput } from "@/lib/time";
 import { getContact } from "@/modules/contacts/queries";
 import { getOrganization } from "@/modules/organizations/queries";
@@ -61,7 +61,7 @@ export default async function NewActivityPage({
           submitLabel="Log activity"
           cancelHref={
             contact
-              ? `/people/contacts/${contact.id}/timeline`
+              ? contactHref(contact.id, "activity")
               : organization
                 ? companyHref(organization.id, "activity")
                 : "/people/contacts"

@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
+import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,9 +34,9 @@ import {
   companyListParams,
   type CompanyListParams,
 } from "../list-controls";
+import { ContactPanel } from "../contact-panel";
+import { RecordSheet } from "../record-sheet";
 import { CompanyPanel } from "./company-panel";
-import { CompanySheet } from "./company-sheet";
-import { ContactPanel } from "./contact-panel";
 import { NewCompanyDialog } from "./new-company-dialog";
 
 export const metadata: Metadata = { title: "Companies" };
@@ -44,12 +45,8 @@ const PAGE_SIZE = 50;
 type Sort = NonNullable<CompanyListParams["sort"]>;
 // The direction a column takes when it is first chosen: names A to Z, numbers and dates largest first.
 const FIRST_DIRECTION = { name: "asc", contacts: "desc", activity: "desc" } as const;
-const NO_PANEL = {
-  company: undefined,
-  contact: undefined,
-  tab: undefined,
-  after: undefined,
-};
+const NO_CONTACT = { contact: undefined, tab: undefined, after: undefined };
+const NO_PANEL = { ...NO_CONTACT, company: undefined };
 
 function SortHead({
   params,
@@ -216,43 +213,46 @@ export default async function OrganizationsPage({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {page.rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="whitespace-normal">
-                  <div className="flex items-center gap-3">
-                    <CompanyLogo
-                      id={row.id}
-                      name={row.name}
-                      logoVersion={row.logoVersion}
-                    />
-                    <Link
-                      href={companiesHref(params, {
-                        ...NO_PANEL,
-                        company: row.id,
-                      })}
-                      scroll={false}
-                      className="font-medium underline-offset-4 hover:underline"
-                    >
-                      {row.name}
-                    </Link>
-                  </div>
-                </TableCell>
-                <TableCell className="hidden text-muted-foreground sm:table-cell">
-                  {row.domain ?? "—"}
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {row.industry ?? "—"}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {row.contactCount}
-                </TableCell>
-                <TableCell className="hidden text-right sm:table-cell">
-                  {row.lastActivityAt
-                    ? formatDate(dateIn(timezone, row.lastActivityAt))
-                    : "—"}
-                </TableCell>
-              </TableRow>
-            ))}
+            {page.rows.map((row) => {
+              const href = companiesHref(params, {
+                ...NO_PANEL,
+                company: row.id,
+              });
+              return (
+                <ClickableRow key={row.id} href={href}>
+                  <TableCell className="whitespace-normal">
+                    <div className="flex items-center gap-3">
+                      <CompanyLogo
+                        id={row.id}
+                        name={row.name}
+                        logoVersion={row.logoVersion}
+                      />
+                      <Link
+                        href={href}
+                        scroll={false}
+                        className="font-medium underline-offset-4 hover:underline"
+                      >
+                        {row.name}
+                      </Link>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden text-muted-foreground sm:table-cell">
+                    {row.domain ?? "—"}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {row.industry ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {row.contactCount}
+                  </TableCell>
+                  <TableCell className="hidden text-right sm:table-cell">
+                    {row.lastActivityAt
+                      ? formatDate(dateIn(timezone, row.lastActivityAt))
+                      : "—"}
+                  </TableCell>
+                </ClickableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
@@ -285,13 +285,27 @@ export default async function OrganizationsPage({
       )}
 
       {open && (
-        <CompanySheet closeHref={companiesHref(params, NO_PANEL)}>
+        <RecordSheet
+          closeHref={companiesHref(params, NO_PANEL)}
+          recordKey={contact?.id ?? open.id}
+        >
           {contact ? (
             <ContactPanel
               ownerId={owner.id}
-              organization={open}
               contact={contact}
-              params={params}
+              company={{
+                organization: open,
+                href: companiesHref(params, NO_CONTACT),
+              }}
+              // A company's own "contacts" tab means nothing for one person.
+              tab={params.tab === "contacts" ? undefined : params.tab}
+              after={params.after}
+              hrefFor={({ tab, after }) => companiesHref(params, { tab, after })}
+              back={{
+                href: companiesHref(params, { ...NO_CONTACT, tab: "contacts" }),
+                label: `Back to ${open.name}`,
+              }}
+              editFrom="company"
             />
           ) : (
             <CompanyPanel
@@ -300,7 +314,7 @@ export default async function OrganizationsPage({
               params={{ ...params, contact: undefined }}
             />
           )}
-        </CompanySheet>
+        </RecordSheet>
       )}
     </div>
   );

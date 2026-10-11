@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import type { TimelineRow } from "@/modules/activities/queries";
-import { labelFor } from "../people/labels";
+import { contactHref, labelFor } from "../people/labels";
 
 // The heading lines of one timeline entry, as shown on both a record's Timeline tab and Today.
 export function TimelineEvent({
@@ -28,7 +28,7 @@ export function TimelineEvent({
         {event.contacts.map((contact) => (
           <Link
             key={contact.id}
-            href={`/people/contacts/${contact.id}`}
+            href={contactHref(contact.id)}
             className="underline"
           >
             {contact.name}
