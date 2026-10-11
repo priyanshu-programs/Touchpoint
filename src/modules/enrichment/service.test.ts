@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { enrichmentRuns, fieldProvenance, jobs } from "@/db/schema";
 import { listAudit } from "@/modules/audit/service";
+import { countContacts } from "@/modules/contacts/queries";
+import { newContactInput } from "@/modules/contacts/schema";
+import { createContact, setContactArchived } from "@/modules/contacts/service";
 import { runDueJobs } from "@/modules/jobs/service";
 import { getOrganization, listOrganizations } from "@/modules/organizations/queries";
 import { organizationInput } from "@/modules/organizations/schema";
@@ -11,7 +14,12 @@ import {
   updateOrganization,
 } from "@/modules/organizations/service";
 import { createTestOwner, resetDatabase } from "@/test/owner";
-import { getLogo, latestRun, websiteFields } from "./queries";
+import {
+  getLogo,
+  latestRun,
+  suggestedPeople,
+  websiteFields,
+} from "./queries";
 import { ENRICHMENT_JOB, requestEnrichment, runEnrichment } from "./service";
 import type { ReadResult, Reading } from "./website/read";
 
@@ -47,6 +55,7 @@ const reading = (override: Partial<Reading> = {}): ReadResult => ({
       bytes: PNG,
       sourceUrl: "https://www.acme.test/touch.png",
     },
+    people: [],
     ...override,
   },
 });
@@ -250,6 +259,86 @@ describe("enrichment", () => {
     await requestEnrichment(ownerId, id);
     await work(reading({ logo: null }));
     expect(await getLogo(ownerId, id)).toMatchObject({ contentType: "image/jpeg" });
+  });
+
+  it("keeps the people a read found as suggestions, and creates no contact", async () => {
+    const id = await create();
+    const people = [
+      { name: "Asha Rao", title: "Founder" },
+      { name: "Vikram Shah", title: null },
+    ];
+
+    await work(reading({ people }));
+
+    const [run] = await db.select().from(enrichmentRuns);
+    expect(run.rawResult).toMatchObject({ people });
+    expect(await suggestedPeople(ownerId, id)).toEqual(people);
+    expect(await countContacts(ownerId)).toBe(0);
+  });
+
+  it("stops suggesting someone who is already a contact at the company, archived or not", async () => {
+    const id = await create();
+    const elsewhere = await create({ name: "Borealis", domain: "" });
+    await work(
+      reading({
+        people: [
+          { name: "Asha Rao", title: "Founder" },
+          { name: "Vikram Shah", title: null },
+          { name: "Meera Iyer", title: "Director" },
+        ],
+      }),
+    );
+    const add = async (firstName: string, lastName: string, organizationId: string) => {
+      const result = await createContact(
+        ownerId,
+        newContactInput.parse({
+          firstName,
+          lastName,
+          organizationId,
+          jobTitle: "",
+          department: "",
+          phoneE164: "",
+          city: "",
+          region: "",
+          country: "",
+          timezone: "",
+          preferredChannel: "",
+          status: "active",
+          relationshipType: "prospect",
+          tags: "",
+          email: "",
+        }),
+        { confirmSimilar: true },
+      );
+      if (!result.ok) throw new Error(`create failed: ${result.reason}`);
+      return result.id;
+    };
+
+    await add("asha", "RAO", id);
+    await setContactArchived(ownerId, await add("Vikram", "Shah", id), true);
+    await add("Meera", "Iyer", elsewhere);
+
+    expect(await suggestedPeople(ownerId, id)).toEqual([
+      { name: "Meera Iyer", title: "Director" },
+    ]);
+  });
+
+  it("goes on suggesting from the last read that worked, and nothing it cannot trust", async () => {
+    const id = await create();
+    await work(reading({ people: [{ name: "Asha Rao", title: "Founder" }] }));
+
+    await aMinuteLater();
+    await requestEnrichment(ownerId, id);
+    await work({ ok: false, error: "unreachable" });
+    expect(await suggestedPeople(ownerId, id)).toEqual([
+      { name: "Asha Rao", title: "Founder" },
+    ]);
+
+    await db
+      .update(enrichmentRuns)
+      .set({ rawResult: { people: [{ name: "Asha Rao", title: "Founder", email: "x" }] } });
+    expect(await suggestedPeople(ownerId, id)).toEqual([]);
+    expect(await suggestedPeople(await createTestOwner("other@example.com"), id)).toEqual([]);
   });
 
   it("records a site that cannot be read and leaves the company as it was", async () => {

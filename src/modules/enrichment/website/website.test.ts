@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createFetcher, FetchError, type Fetcher } from "@/lib/safe-fetch";
 import { extract } from "./extract";
 import { imageType } from "./image";
+import { extractPeople, listPeople } from "./people";
 import { readWebsite } from "./read";
 import { robotsAllows } from "./robots";
 
@@ -209,6 +210,105 @@ describe("extract", () => {
   it("survives a page that is not really HTML", () => {
     expect(extract("\u0000\u0001<<<>>><meta <link", base).description).toBeNull();
   });
+
+  it("finds the site's own team page and the people its JSON-LD names", () => {
+    const found = extract(
+      `<a href="https://elsewhere.test/team">Partner's team</a>
+       <a href="/blog/team-building/tips">Post</a>
+       <a href="/about/our-team/#founders">Our team</a>
+       <a href="/people">People</a>
+       <script type="application/ld+json">
+        {"@type":"Organization",
+         "founder":{"@type":"Person","name":" Asha  Rao ","jobTitle":"Founder"},
+         "employee":[{"@type":"Person","name":"Vikram Shah"},{"name":42},"Someone"]}
+       </script>`,
+      base,
+    );
+
+    expect(found.teamPage).toBe("https://www.acme.test/about/our-team/");
+    expect(found.staff).toEqual([
+      { name: "Asha Rao", title: "Founder" },
+      { name: "Vikram Shah", title: null },
+    ]);
+    expect(extract(`<a href="/contact">Contact</a>`, base)).toMatchObject({
+      teamPage: null,
+      staff: [],
+    });
+  });
+});
+
+describe("extractPeople", () => {
+  // The shape of the page that prompted this: site links first, then the team.
+  const teamPage = `
+    <header><h2>Acme Design</h2></header>
+    <footer>
+      <h3>THE STUDIO</h3><ul><li><a href="/about">About Us</a></li></ul>
+      <h3>FINE PRINT</h3><ul><li><a href="/privacy">Privacy Policy</a></li></ul>
+    </footer>
+    <h2>Our Team</h2><p>The people behind it all</p>
+    <div><div>AR</div><div><h3 class="x">Mrs. Asha Rao</h3><p>Founder</p></div></div>
+    <div><div>VS</div><div><h3>Mr Vikram <span>Shah</span></h3><p>Design <b>Lead</b> &amp; Partner</p></div></div>
+    <div><div>MD</div><div><h3>Ms. Meera D'Souza</h3><p>Part of the team</p></div></div>`;
+
+  it("reads names in headings with the role under each", () => {
+    expect(extractPeople(teamPage)).toEqual([
+      { name: "Asha Rao", title: "Founder" },
+      { name: "Vikram Shah", title: "Design Lead & Partner" },
+      { name: "Meera D'Souza", title: "Part of the team" },
+    ]);
+  });
+
+  it("takes a lone founder, and nobody from headings without a position among them", () => {
+    expect(
+      extractPeople(`<h2>Our Story</h2><p>Since 1990</p><h4>Asha Rao</h4><span>Co-Founder</span>`),
+    ).toEqual([{ name: "Asha Rao", title: "Co-Founder" }]);
+    expect(
+      extractPeople(
+        `<h3>Priya Sharma</h3><p>The quality feels premium.</p>
+         <h3>Ananya Roy</h3><p>It exceeded expectations.</p>`,
+      ),
+    ).toEqual([]);
+  });
+
+  it("leaves out what is not a name and keeps a biography out of the role", () => {
+    expect(
+      extractPeople(
+        `<h3>Asha Rao</h3><p>Managing Director</p>
+         <h3>careers at acme</h3><p>Head of nothing</p>
+         <h3>Five Words Are Too Many</h3><p>Manager</p>
+         <h3>R2 D2</h3><p>Director</p>
+         <h3><script>alert(1)</script></h3><p>Owner</p>
+         <h3>Vikram Shah</h3><style>p{color:red}</style><p>${"Long ago. ".repeat(40)}</p>`,
+      ),
+    ).toEqual([
+      { name: "Asha Rao", title: "Managing Director" },
+      { name: "Vikram Shah", title: null },
+    ]);
+  });
+
+  it("lists each person once, without honorifics, and stops at twelve", () => {
+    expect(
+      listPeople([
+        { name: "Dr. Asha Rao", title: "Founder" },
+        { name: "asha rao", title: "Director" },
+        { name: "Mr. ", title: null },
+      ]),
+    ).toEqual([{ name: "Asha Rao", title: "Founder" }]);
+    expect(
+      listPeople(
+        Array.from({ length: 30 }, (_, index) => ({
+          name: `Person ${index}`,
+          title: null,
+        })),
+      ),
+    ).toHaveLength(12);
+  });
+
+  it("does not slow down on a hostile page", () => {
+    const started = Date.now();
+    extractPeople(`<h3>${"A ".repeat(100_000)}</h3>${"<h3>Aa Bb</h3><p>x</p>".repeat(20_000)}`);
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
 });
 
 describe("readWebsite", () => {
@@ -256,7 +356,89 @@ describe("readWebsite", () => {
           bytes: PNG,
           sourceUrl: "https://www.acme.test/logo.svg.png",
         },
+        people: [],
       },
+    });
+  });
+
+  it("reads the team page for the company's people", async () => {
+    const result = await readWebsite(
+      "https://acme.test",
+      site({
+        "https://acme.test/": page(
+          `<a href="/our-team">Our team</a>
+           <script type="application/ld+json">
+            {"@type":"Organization","founder":[{"name":"Asha Rao","jobTitle":"CEO"},{"name":"Kabir Mehta"}]}
+           </script>`,
+        ),
+        "https://acme.test/our-team": page(
+          `<h3>Mrs. Asha Rao</h3><p>Founder</p><h3>Vikram Shah</h3><p>Design Lead</p>`,
+        ),
+      }),
+    );
+
+    expect(result.ok && result.reading.people).toEqual([
+      { name: "Asha Rao", title: "Founder" },
+      { name: "Vikram Shah", title: "Design Lead" },
+      { name: "Kabir Mehta", title: null },
+    ]);
+  });
+
+  it.each([
+    [
+      "the site asks readers to keep out of it",
+      {
+        "https://acme.test/robots.txt": {
+          status: 200,
+          contentType: "text/plain",
+          body: Buffer.from("User-agent: *\nDisallow: /team"),
+        },
+      },
+    ],
+    [
+      "it forwards to another site",
+      {
+        "https://acme.test/team": {
+          status: 200,
+          contentType: "text/html",
+          body: Buffer.from(`<h3>Asha Rao</h3><p>Founder</p>`),
+          url: "https://hiring.test/acme",
+        },
+      },
+    ],
+    ["it is missing", { "https://acme.test/team": { status: 404 } }],
+  ])("goes without the team page when %s", async (_label, pages) => {
+    const result = await readWebsite(
+      "https://acme.test",
+      site({
+        "https://acme.test/": page(
+          `<meta name="description" content="Anvils"><a href="/team">Team</a>`,
+        ),
+        "https://acme.test/team": page(`<h3>Asha Rao</h3><p>Founder</p>`),
+        ...pages,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      reading: { fields: { description: "Anvils" }, people: [] },
+    });
+  });
+
+  it("keeps the rest of the read when the team page cannot be fetched", async () => {
+    const pages = site({
+      "https://acme.test/": page(
+        `<meta name="description" content="Anvils"><a href="/team">Team</a>`,
+      ),
+    });
+    const result = await readWebsite("https://acme.test", async (url, options) => {
+      if (url.endsWith("/team")) throw new FetchError("timeout");
+      return pages(url, options);
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      reading: { fields: { description: "Anvils" }, people: [] },
     });
   });
 

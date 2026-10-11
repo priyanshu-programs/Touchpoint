@@ -25,6 +25,7 @@ import {
   updateContact,
   type ContactResult,
 } from "@/modules/contacts/service";
+import { suggestedPeople } from "@/modules/enrichment/queries";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
 import { contactHref, contactPanelHref } from "../labels";
 
@@ -142,6 +143,63 @@ export async function addCompanyContactAction(
 
   revalidatePath("/people", "layout");
   return { ok: true, message: `${parsed.data.firstName} added.` };
+}
+
+const suggestedChoice = z.strictObject({
+  organizationId: z.uuid(),
+  names: z.array(z.string().max(60)).min(1).max(12),
+});
+
+// Adds people the website read found. The form carries names only, and each is
+// looked up in what the read stored, so nothing else can be created through it.
+export async function addSuggestedContactsAction(
+  organizationId: string,
+  _previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const parsed = suggestedChoice.safeParse({
+    organizationId,
+    names: formData.getAll("name"),
+  });
+  if (!parsed.success) return { ok: false, message: "Choose someone to add." };
+
+  const chosen = new Set(parsed.data.names);
+  const people = (await suggestedPeople(owner.id, organizationId)).filter(
+    (person) => chosen.has(person.name),
+  );
+  let added = 0;
+  for (const person of people) {
+    const [firstName, ...rest] = person.name.split(" ");
+    const input = newContactInput.safeParse({
+      firstName,
+      lastName: rest.join(" "),
+      organizationId,
+      jobTitle: person.title ?? "",
+      email: "",
+      department: "",
+      phoneE164: "",
+      city: "",
+      region: "",
+      country: "",
+      timezone: "",
+      preferredChannel: "",
+      status: "active",
+      relationshipType: "prospect",
+      tags: "",
+    });
+    if (!input.success) continue;
+    const result = await createContact(owner.id, input.data);
+    if (result.ok) added += 1;
+  }
+
+  if (added > 0) revalidatePath("/people", "layout");
+  const skipped = chosen.size - added;
+  if (skipped === 0) return { ok: true, message: `${added} added.` };
+  const why = "a contact with a similar name already exists";
+  return added > 0
+    ? { ok: true, message: `${added} added, ${skipped} left out: ${why}.` }
+    : { ok: false, message: `Not added: ${why}.` };
 }
 
 // `toPanel` is set when the edit was opened from the company's panel, so saving returns there

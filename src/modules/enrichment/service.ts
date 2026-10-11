@@ -238,6 +238,7 @@ async function applyReading(run: Run, reading: Reading) {
         rawResult: {
           fields: reading.fields,
           links: reading.links,
+          people: reading.people,
           logo: reading.logo && {
             sourceUrl: reading.logo.sourceUrl,
             contentType: reading.logo.contentType,

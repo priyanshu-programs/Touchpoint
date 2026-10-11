@@ -14,6 +14,10 @@ export type Extracted = {
   icons: string[];
   // The site's own contact page, when this page links to one.
   contactPage: string | null;
+  // The page listing the company's people, when this page links to one.
+  teamPage: string | null;
+  // People the company names as its own (JSON-LD founder, employee, member).
+  staff: { name: string; title: string | null }[];
 };
 
 const MAX_JSON_LD = 200_000;
@@ -21,9 +25,12 @@ const MAX_LINKS = 10;
 const MAX_CONTACT_LINKS = 20;
 const ORGANIZATION_TYPE = /(Organization|Business|Corporation|ProfessionalService)$/;
 const CONTACT_PATH = /\/contact[^/]*\/?$/i;
+const TEAM_PATH =
+  /\/(our-)?(team|people|leadership|management|founders?)[^/]*\/?$/i;
+const MAX_STAFF = 50;
 
 // Page text is someone else's: one line, no control characters, no longer than the field allows.
-function clean(value: unknown, max: number) {
+export function clean(value: unknown, max: number) {
   if (typeof value !== "string") return null;
   const text = value
     .replace(/\p{Cc}+/gu, " ")
@@ -105,6 +112,7 @@ export function extract(html: string, baseUrl: string): Extracted {
   const phoneLinks: string[] = [];
   const emailLinks: string[] = [];
   const contactPages: string[] = [];
+  const teamPages: string[] = [];
   let organization: Node | null = null;
   let jsonLd: string | null = null;
 
@@ -141,16 +149,15 @@ export function extract(html: string, baseUrl: string): Extracted {
             if (phoneLinks.length < MAX_CONTACT_LINKS) phoneLinks.push(decoded(href));
           } else if (/^mailto:/i.test(href)) {
             if (emailLinks.length < MAX_CONTACT_LINKS) emailLinks.push(decoded(href));
-          } else if (contactPages.length === 0) {
+          } else if (contactPages.length === 0 || teamPages.length === 0) {
             const url = webUrl(href, baseUrl);
             const target = url && new URL(url);
-            if (
-              target &&
-              target.hostname.toLowerCase() === site &&
-              CONTACT_PATH.test(target.pathname)
-            ) {
-              target.hash = "";
-              contactPages.push(target.href);
+            if (!target || target.hostname.toLowerCase() !== site) return;
+            target.hash = "";
+            if (CONTACT_PATH.test(target.pathname)) {
+              if (contactPages.length === 0) contactPages.push(target.href);
+            } else if (TEAM_PATH.test(target.pathname) && teamPages.length === 0) {
+              teamPages.push(target.href);
             }
           }
         } else if (
@@ -221,5 +228,14 @@ export function extract(html: string, baseUrl: string): Extracted {
       ]),
     ],
     contactPage: contactPages[0] ?? null,
+    teamPage: teamPages[0] ?? null,
+    staff: [found?.founder, found?.employee, found?.member]
+      .flatMap(list)
+      .filter(isNode)
+      .slice(0, MAX_STAFF)
+      .flatMap((person) => {
+        const name = clean(person.name, 60);
+        return name ? [{ name, title: clean(person.jobTitle, 150) }] : [];
+      }),
   };
 }

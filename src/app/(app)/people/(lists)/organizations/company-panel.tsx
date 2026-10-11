@@ -23,7 +23,11 @@ import { dateIn, formatDate } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { listTimeline } from "@/modules/activities/queries";
 import { listContacts } from "@/modules/contacts/queries";
-import { latestRun, websiteFields } from "@/modules/enrichment/queries";
+import {
+  latestRun,
+  suggestedPeople,
+  websiteFields,
+} from "@/modules/enrichment/queries";
 import type { getOrganization } from "@/modules/organizations/queries";
 import { getSettings } from "@/modules/settings/service";
 import { listTasks } from "@/modules/tasks/queries";
@@ -31,6 +35,7 @@ import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
 import {
   addCompanyContactAction,
+  addSuggestedContactsAction,
   setPrimaryContactAction,
 } from "../../contacts/actions";
 import { labelFor } from "../../labels";
@@ -38,6 +43,7 @@ import { setOrganizationArchivedAction } from "../../organizations/actions";
 import { companiesHref, type CompanyListParams } from "../list-controls";
 import { AddContactForm } from "./add-contact-form";
 import { DeleteCompanyDialog } from "./delete-company-dialog";
+import { SuggestedContacts } from "./suggested-contacts";
 import { WebsiteDetails } from "./website-details";
 
 const READ_FAILURES: Record<string, string> = {
@@ -78,7 +84,7 @@ function websiteStatus(
   }
   return {
     summary: `Reading ${site}…`,
-    detail: "Description, phone, email, location and logo",
+    detail: "Description, phone, email, location, logo and people",
     reading: true,
     actionLabel: "",
   };
@@ -105,7 +111,7 @@ export async function CompanyPanel({
   params: CompanyListParams;
 }) {
   const filter = { organizationId: organization.id };
-  const [settings, contacts, openTasks, latest, run, sourced] =
+  const [settings, contacts, openTasks, latest, run, sourced, suggested] =
     await Promise.all([
       getSettings(ownerId),
       listContacts(ownerId, { ...filter, limit: 100 }),
@@ -113,6 +119,9 @@ export async function CompanyPanel({
       listTimeline(ownerId, { ...filter, limit: 1 }),
       latestRun(ownerId, organization.id),
       websiteFields(ownerId, organization.id),
+      params.tab === "contacts"
+        ? suggestedPeople(ownerId, organization.id)
+        : [],
     ]);
   const timezone = settings?.timezone ?? "UTC";
   const lastActivity = latest.rows[0]?.occurredAt;
@@ -393,6 +402,10 @@ export async function CompanyPanel({
                   </TableBody>
                 </Table>
               )}
+              <SuggestedContacts
+                people={suggested}
+                action={addSuggestedContactsAction.bind(null, organization.id)}
+              />
               <AddContactForm
                 action={addCompanyContactAction.bind(null, organization.id)}
               />

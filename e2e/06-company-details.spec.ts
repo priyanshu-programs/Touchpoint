@@ -150,6 +150,59 @@ test("a stored logo replaces the initials in the panel and the list", async ({
   expect(consoleErrors).toEqual([]);
 });
 
+test("people a read found on the website are offered on Contacts and added on request", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  // Placed directly, standing in for a read that found a team page, and dated
+  // before the failed read so that one stays the company's latest.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  await pool.query(
+    `insert into enrichment_runs (owner_id, organization_id, status, input, raw_result, created_at, finished_at)
+     select owner_id, id, 'done', $2::jsonb, $3::jsonb, now() - interval '1 day', now() - interval '1 day'
+     from organizations where id = $1`,
+    [
+      companyId,
+      JSON.stringify({ url: "https://nowhere.invalid/" }),
+      JSON.stringify({
+        people: [
+          { name: "Leela Menon", title: "Founder" },
+          { name: "Dev Kapoor", title: "Studio Manager" },
+          { name: "Noor Fatima", title: null },
+        ],
+      }),
+    ],
+  );
+  await pool.end();
+  const found = panel(page).getByRole("region", { name: "Found on the website" });
+  const contactsTab = companyTabs(page).getByRole("link", { name: "Contacts" });
+
+  await page.goto(`/people/organizations?company=${companyId}&tab=contacts`);
+  await expect(found.getByRole("listitem")).toHaveCount(3);
+  await expect(found.getByText("Studio Manager")).toBeVisible();
+  // Offered, not added.
+  await expect(page.getByText("No contacts at this company yet.")).toBeVisible();
+
+  await found.getByRole("button", { name: "Add Leela Menon" }).click();
+  await expect(panel(page).getByText("1 added.")).toBeVisible();
+  await expect(found.getByRole("listitem")).toHaveCount(2);
+  await expect(
+    panel(page).getByRole("button", { name: "Primary contact: Leela Menon" }),
+  ).toHaveAttribute("aria-pressed", "true");
+
+  await found.getByRole("button", { name: "Add all" }).click();
+  await expect(panel(page).getByText("2 added.")).toBeVisible();
+  await expect(found).toHaveCount(0);
+  await expect(contactsTab).toContainText("3");
+  await expect(panel(page).getByRole("row", { name: /Dev Kapoor/ })).toContainText(
+    "Studio Manager",
+  );
+  expect(consoleErrors).toEqual([]);
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -181,7 +234,8 @@ test("a company can be deleted after confirming", async ({ page }) => {
   await page.goto(`/people/organizations?company=${companyId}`);
   await panel(page).getByRole("button", { name: "Delete" }).click();
   await expect(
-    confirmation.getByText("Its tasks and logged activity are kept"),
+    // The three people added from the website above.
+    confirmation.getByText("Its contacts (3), tasks and logged activity are kept"),
   ).toBeVisible();
   await confirmation.getByRole("button", { name: "Cancel" }).click();
   await expect(confirmation).toBeHidden();

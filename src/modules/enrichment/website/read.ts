@@ -1,6 +1,7 @@
 import { FetchError, safeFetch, type Fetcher, type FetchResult } from "@/lib/safe-fetch";
 import { extract, type Extracted } from "./extract";
 import { imageType, MAX_LOGO_BYTES } from "./image";
+import { extractPeople, listPeople, type Person } from "./people";
 import { robotsAllows } from "./robots";
 
 export const ENRICHABLE_FIELDS = [
@@ -31,6 +32,8 @@ export type Reading = {
   fields: Partial<Record<EnrichableField, string>>;
   links: string[];
   logo: { contentType: string; bytes: Buffer; sourceUrl: string } | null;
+  // People the site names as the company's own; offered to the owner, never added unasked.
+  people: Person[];
 };
 export type ReadResult =
   | { ok: true; reading: Reading }
@@ -63,8 +66,9 @@ function text(page: FetchResult) {
   }
 }
 
-// Reads a company's home page once, and its contact page when the home page
-// leaves contact details out, and returns what the site says about itself.
+// Reads a company's home page once, its contact page when the home page leaves
+// contact details out and its team page when it links to one, and returns what
+// the site says about itself.
 export async function readWebsite(
   start: string,
   fetcher: Fetcher = safeFetch,
@@ -152,7 +156,37 @@ export async function readWebsite(
       }
     }
 
-    return { ok: true, reading: { fields, links: found.links, logo } };
+    const named: Person[] = [];
+    const team = found.teamPage ? new URL(found.teamPage) : null;
+    if (team && team.href !== landed.href && allowed(team)) {
+      try {
+        const more = await fetcher(team.href, {
+          maxBytes: MAX_PAGE_BYTES,
+          deadline,
+          accept: "text/html",
+        });
+        if (
+          ok(more.status) &&
+          html(more.contentType) &&
+          sameSite(landed.hostname, new URL(more.url).hostname)
+        ) {
+          named.push(...extractPeople(text(more)));
+        }
+      } catch (error) {
+        // As with the contact page: the company's own details were read.
+        if (!(error instanceof FetchError)) throw error;
+      }
+    }
+
+    return {
+      ok: true,
+      reading: {
+        fields,
+        links: found.links,
+        logo,
+        people: listPeople([...named, ...found.staff]),
+      },
+    };
   } catch (error) {
     if (error instanceof FetchError) return fail(error.code);
     throw error;
