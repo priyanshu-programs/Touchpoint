@@ -12,23 +12,24 @@ import {
 } from "@/components/ui/command";
 
 export type PickerOption = { id: string; label: string; hint?: string | null };
+type Search = (query: string) => Promise<PickerOption[]>;
 
-// Chooses one record by searching on the server, so the list never has to be loaded whole.
-export function RecordPicker({
-  name,
-  labelName,
+// Searches on the server, so the list never has to be loaded whole.
+function RecordSearchDialog({
+  open,
+  onOpenChange,
   noun,
-  initial,
   search,
+  exclude = [],
+  onSelect,
 }: {
-  name: string;
-  labelName: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   noun: string;
-  initial: PickerOption | null;
-  search: (query: string) => Promise<PickerOption[]>;
+  search: Search;
+  exclude?: string[];
+  onSelect: (option: PickerOption) => void;
 }) {
-  const [selected, setSelected] = useState(initial);
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PickerOption[] | null>(null);
 
@@ -44,6 +45,60 @@ export function RecordPicker({
       clearTimeout(timer);
     };
   }, [open, query, search]);
+
+  const shown = results?.filter((option) => !exclude.includes(option.id));
+
+  return (
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Choose ${noun}`}
+      description={`Search for the ${noun} by name`}
+    >
+      <Command shouldFilter={false}>
+        <CommandInput
+          value={query}
+          onValueChange={setQuery}
+          placeholder={`Search ${noun}s…`}
+        />
+        <CommandList>
+          {shown && <CommandEmpty>Nothing matches.</CommandEmpty>}
+          {shown?.map((option) => (
+            <CommandItem
+              key={option.id}
+              value={option.id}
+              onSelect={() => {
+                onSelect(option);
+                onOpenChange(false);
+              }}
+            >
+              {option.label}
+              {option.hint && (
+                <span className="text-muted-foreground">{option.hint}</span>
+              )}
+            </CommandItem>
+          ))}
+        </CommandList>
+      </Command>
+    </CommandDialog>
+  );
+}
+
+export function RecordPicker({
+  name,
+  labelName,
+  noun,
+  initial,
+  search,
+}: {
+  name: string;
+  labelName: string;
+  noun: string;
+  initial: PickerOption | null;
+  search: Search;
+}) {
+  const [selected, setSelected] = useState(initial);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="grid content-start gap-2">
@@ -76,38 +131,82 @@ export function RecordPicker({
       <input type="hidden" name={name} value={selected?.id ?? ""} />
       <input type="hidden" name={labelName} value={selected?.label ?? ""} />
 
-      <CommandDialog
+      <RecordSearchDialog
         open={open}
         onOpenChange={setOpen}
-        title={`Choose ${noun}`}
-        description={`Search for the ${noun} by name`}
-      >
-        <Command shouldFilter={false}>
-          <CommandInput
-            value={query}
-            onValueChange={setQuery}
-            placeholder={`Search ${noun}s…`}
-          />
-          <CommandList>
-            {results !== null && <CommandEmpty>Nothing matches.</CommandEmpty>}
-            {results?.map((option) => (
-              <CommandItem
-                key={option.id}
-                value={option.id}
-                onSelect={() => {
-                  setSelected(option);
-                  setOpen(false);
-                }}
-              >
+        noun={noun}
+        search={search}
+        onSelect={setSelected}
+      />
+    </div>
+  );
+}
+
+// Chooses several records. They are submitted as one JSON field of ids and labels, so a
+// rejected form can show the choices again.
+export function RecordsPicker({
+  name,
+  noun,
+  initial,
+  search,
+}: {
+  name: string;
+  noun: string;
+  initial: PickerOption[];
+  search: Search;
+}) {
+  const [selected, setSelected] = useState(initial);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="grid content-start gap-2">
+      <p className="text-sm leading-none font-medium capitalize">{noun}s</p>
+      {selected.length > 0 && (
+        <ul className="grid gap-1">
+          {selected.map((option) => (
+            <li key={option.id} className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm">
                 {option.label}
-                {option.hint && (
-                  <span className="text-muted-foreground">{option.hint}</span>
-                )}
-              </CommandItem>
-            ))}
-          </CommandList>
-        </Command>
-      </CommandDialog>
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={`Remove ${noun}: ${option.label}`}
+                onClick={() =>
+                  setSelected(selected.filter((other) => other.id !== option.id))
+                }
+              >
+                Remove
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        className="justify-start"
+        onClick={() => setOpen(true)}
+      >
+        Add {noun}
+      </Button>
+      <input
+        type="hidden"
+        name={name}
+        value={JSON.stringify(
+          selected.map(({ id, label }) => ({ id, label })),
+        )}
+      />
+
+      <RecordSearchDialog
+        open={open}
+        onOpenChange={setOpen}
+        noun={noun}
+        search={search}
+        exclude={selected.map((option) => option.id)}
+        onSelect={(option) => setSelected([...selected, option])}
+      />
     </div>
   );
 }

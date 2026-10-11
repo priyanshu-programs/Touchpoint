@@ -4,6 +4,7 @@ import {
   dateIn,
   daysBetween,
   formatDate,
+  formatTime,
   fromLocalInput,
   toLocalInput,
 } from "./time";
@@ -46,6 +47,12 @@ describe("time zone conversion", () => {
     const instant = new Date("2026-10-10T20:00:00Z");
     expect(dateIn("UTC", instant)).toBe("2026-10-10");
     expect(dateIn("Asia/Kolkata", instant)).toBe("2026-10-11");
+  });
+
+  it("shows the time of day in the zone", () => {
+    const instant = new Date("2026-10-10T20:00:00Z");
+    expect(formatTime(instant, "UTC")).toBe("20:00");
+    expect(formatTime(instant, "Asia/Kolkata")).toBe("01:30");
   });
 });
 

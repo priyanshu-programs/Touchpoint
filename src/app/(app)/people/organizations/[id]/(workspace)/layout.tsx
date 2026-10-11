@@ -54,6 +54,7 @@ export default async function OrganizationWorkspaceLayout({
         label="Organization"
         tabs={[
           { href: path, label: "Overview" },
+          { href: `${path}/timeline`, label: "Timeline" },
           { href: `${path}/tasks`, label: "Tasks" },
         ]}
       />

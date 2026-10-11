@@ -3,6 +3,7 @@
 import {
   ListChecks,
   LogOut,
+  NotebookPen,
   Search,
   Settings,
   Sun,
@@ -182,6 +183,17 @@ export function AppShell({
                   {item.label}
                 </CommandItem>
               ))}
+            </CommandGroup>
+            <CommandGroup heading="Actions">
+              <CommandItem
+                onSelect={() => {
+                  setPaletteOpen(false);
+                  router.push("/activities/new");
+                }}
+              >
+                <NotebookPen aria-hidden />
+                Log activity
+              </CommandItem>
             </CommandGroup>
             <CommandGroup heading="Account">
               <CommandItem onSelect={() => void signOutAction()}>

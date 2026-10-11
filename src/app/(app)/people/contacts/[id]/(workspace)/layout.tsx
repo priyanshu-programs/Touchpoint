@@ -72,6 +72,7 @@ export default async function ContactWorkspaceLayout({
         label="Contact"
         tabs={[
           { href: path, label: "Overview" },
+          { href: `${path}/timeline`, label: "Timeline" },
           { href: `${path}/tasks`, label: "Tasks" },
         ]}
       />

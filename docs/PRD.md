@@ -333,15 +333,17 @@ All instants are stored in UTC and displayed in the owner's time zone; all-day i
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `activities` | kind (note/call/meeting/email/linkedin/message/decision/objection/commitment), direction, occurred_at, title, body, outcome, source (manual/gmail/calendar/ai), optional organization/opportunity/engagement/email_message/calendar_event links | The manual and communication log |
-| `activity_contacts` | | |
+| `activities` | kind (note/call/meeting/email/linkedin/message/decision/objection/commitment), direction (inbound/outbound, optional), occurred_at, title, body, outcome, source (manual/gmail/calendar/ai), optional organization/opportunity/engagement/email_message/calendar_event links | The manual and communication log. An activity has at least one contact or an organization. Link columns other than organization are added in the phase step that builds their target. A mistaken entry is deleted outright and kept in the audit log |
+| `activity_contacts` | activity_id, contact_id | An activity can involve several contacts |
 | `email_threads` | connection_id, external_thread_id, subject, last_message_at, optional opportunity/engagement links | |
 | `email_messages` | thread_id, external_message_id, from, to, cc, sent_at, direction, snippet, body_text (size-capped), has_attachments | Only threads involving a known contact are stored |
 | `email_message_contacts` | | |
 | `email_attachments` | message_id, filename, mime, size, external_attachment_id | Metadata only; content fetched on demand |
 | `email_drafts` | connection_id, thread_id, to, subject, body, status (draft/approved/sent/failed), created_by (user/ai), sent_message_id, error | "Sent" is set only after Gmail returns a message ID |
 
-The **timeline** is a database view that unions activities, stage transitions, payments, material sends and email messages, ordered by time. System events are therefore not duplicated into the activity table.
+The **timeline** is a database view that unions activities, stage transitions, payments, material sends and email messages, ordered by time. System events are therefore not duplicated into the activity table. Each row carries owner_id, event_type, event_id, occurred_at, kind, direction, title, body, outcome, organization_id and contact_ids (an array), so one query serves a contact's or an organization's Timeline tab. It holds activities only until the other sources exist; each later step adds its own branch to the union.
+
+Logging an activity can create a follow-up task (origin `follow_up`) in the same transaction, linked to the first contact and the organization.
 
 ### 8.7 Materials
 

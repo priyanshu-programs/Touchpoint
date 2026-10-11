@@ -90,3 +90,12 @@
 - [2026-10-11] plan.md and docs/PRD.md record the rule that time zone names are never passed to Postgres
 - [2026-10-11] src/app/globals.css now carries the owner's theme (lime primary, warm off-white neutrals, 0.75rem radius, soft shadows, tighter letter-spacing); dark values stay under prefers-color-scheme because the CSP rules out a class toggle, and the light-mode focus ring is dark neutral because lime on off-white cannot be seen
 - [2026-10-11] The interface font is now Inter (next/font, self-hosted) in place of Geist Sans, as the theme specifies; Geist Mono stays
+- [2026-10-11] Added src/db/schema/activities.ts and migration 0004_activities (activities, activity_contacts and the timeline view, which holds activities only until later steps add their events); applied to Neon dev
+- [2026-10-11] Split insertTask out of createTask in src/modules/tasks/service.ts so a follow-up task can be written inside the transaction that logs its activity
+- [2026-10-11] Added src/modules/activities (schema, service, queries): log, update and delete an activity with audit rows; a follow-up date creates a task with origin follow_up in the same transaction; listTimeline reads the view by contact or organization, newest first
+- [2026-10-11] src/components/record-picker.tsx now also exports RecordsPicker for choosing several records, sharing one search dialog with RecordPicker, because an activity can involve more than one contact
+- [2026-10-11] Added formatTime to src/lib/time.ts for the time of day shown on timeline entries
+- [2026-10-11] Added the activity screens (/activities/new, /activities/[id] with edit and delete) and a Timeline tab on contact and organization pages, grouped by the owner's calendar day
+- [2026-10-11] Added "Log activity" to the Ctrl+K palette; no sidebar entry, since the timeline lives on each record
+- [2026-10-11] Added e2e/04-activities.spec.ts (4 tests): log a call with a follow-up from a contact, second contact with edit and delete, form validation, phone widths
+- [2026-10-11] docs/PRD.md 8.6 updated for the activity columns built so far, the timeline view's shape and the follow-up task; plan.md Step 3 ticked

@@ -1,6 +1,12 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
-import { contacts, organizations, reminders, tasks } from "@/db/schema";
+import {
+  contacts,
+  organizations,
+  reminders,
+  tasks,
+  type TASK_ORIGINS,
+} from "@/db/schema";
 import {
   addDays,
   dateIn,
@@ -151,6 +157,38 @@ async function setReminder(
   if (remindAt) await scheduleReminder(tx, ownerId, taskId, remindAt);
 }
 
+// Takes the caller's transaction so a follow-up task commits with the activity that asked
+// for it. The caller has already checked that the linked records belong to the owner.
+export async function insertTask(
+  tx: Tx,
+  ownerId: string,
+  timezone: string,
+  input: TaskInput,
+  origin: (typeof TASK_ORIGINS)[number] = "manual",
+) {
+  const [row] = await tx
+    .insert(tasks)
+    .values({ ownerId, origin, ...columns(input, timezone) })
+    .returning();
+  if (input.remindAt) {
+    await scheduleReminder(
+      tx,
+      ownerId,
+      row.id,
+      fromLocalInput(input.remindAt, timezone),
+    );
+  }
+  await audit(tx, {
+    ownerId,
+    actor: "user",
+    action: "task.create",
+    entityType: "task",
+    entityId: row.id,
+    after: snapshot(row),
+  });
+  return row.id;
+}
+
 export async function createTask(
   ownerId: string,
   input: TaskInput,
@@ -160,27 +198,7 @@ export async function createTask(
     if (problem) return { ok: false, reason: problem };
 
     const timezone = await ownerTimezone(tx, ownerId);
-    const [row] = await tx
-      .insert(tasks)
-      .values({ ownerId, ...columns(input, timezone) })
-      .returning();
-    if (input.remindAt) {
-      await scheduleReminder(
-        tx,
-        ownerId,
-        row.id,
-        fromLocalInput(input.remindAt, timezone),
-      );
-    }
-    await audit(tx, {
-      ownerId,
-      actor: "user",
-      action: "task.create",
-      entityType: "task",
-      entityId: row.id,
-      after: snapshot(row),
-    });
-    return { ok: true, id: row.id };
+    return { ok: true, id: await insertTask(tx, ownerId, timezone, input) };
   });
 }
 

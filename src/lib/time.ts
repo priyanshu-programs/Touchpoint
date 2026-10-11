@@ -6,6 +6,13 @@ export function formatDateTime(date: Date, timezone: string) {
   }).format(date);
 }
 
+export function formatTime(date: Date, timezone: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeStyle: "short",
+    timeZone: timezone,
+  }).format(date);
+}
+
 // For calendar dates ("2026-10-11") that carry no time zone.
 export function formatDate(date: string) {
   return new Intl.DateTimeFormat("en-GB", {
