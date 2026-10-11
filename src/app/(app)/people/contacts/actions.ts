@@ -25,6 +25,7 @@ import {
   type ContactResult,
 } from "@/modules/contacts/service";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
+import { companyHref } from "../labels";
 
 const FIELDS = [
   "firstName",
@@ -102,6 +103,44 @@ export async function createContactAction(
 
   revalidatePath("/people", "layout");
   redirect(`/people/contacts/${result.id}`);
+}
+
+// The short form inside a company's panel; everything it does not ask for takes the default.
+export async function addCompanyContactAction(
+  organizationId: string,
+  _previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const values = readFields(formData, [
+    "firstName",
+    "lastName",
+    "jobTitle",
+    "email",
+    "phoneE164",
+  ]);
+  const parsed = newContactInput.safeParse({
+    ...values,
+    organizationId,
+    department: "",
+    city: "",
+    region: "",
+    country: "",
+    timezone: "",
+    preferredChannel: "",
+    status: "active",
+    relationshipType: "prospect",
+    tags: "",
+  });
+  if (!parsed.success) return invalid(parsed.error, values);
+
+  const result = await createContact(owner.id, parsed.data, {
+    confirmSimilar: formData.get("confirmSimilar") === "yes",
+  });
+  if (!result.ok) return failure(result, values);
+
+  revalidatePath("/people", "layout");
+  redirect(companyHref(organizationId, "contacts"));
 }
 
 export async function updateContactAction(

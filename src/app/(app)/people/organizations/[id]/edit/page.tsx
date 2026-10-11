@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
 import { getOrganization } from "@/modules/organizations/queries";
 import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
-import { toOptions } from "../../../labels";
+import { companyHref, toOptions } from "../../../labels";
 import { updateOrganizationAction } from "../../actions";
 import { OrganizationForm } from "../../organization-form";
 
@@ -44,7 +44,7 @@ export default async function EditOrganizationPage({
           }}
           statuses={toOptions(ORGANIZATION_STATUSES)}
           submitLabel="Save changes"
-          cancelHref={`/people/organizations/${organization.id}`}
+          cancelHref={companyHref(organization.id)}
         />
       </CardContent>
     </Card>

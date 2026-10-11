@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
+import { companyHref } from "@/app/(app)/people/labels";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import { taskInput } from "@/modules/tasks/schema";
@@ -75,7 +76,7 @@ export async function createTaskAction(
     redirect(`/people/contacts/${parsed.data.contactId}/tasks`);
   }
   if (from === "organization" && parsed.data.organizationId) {
-    redirect(`/people/organizations/${parsed.data.organizationId}/tasks`);
+    redirect(companyHref(parsed.data.organizationId, "tasks"));
   }
   redirect("/tasks/all");
 }

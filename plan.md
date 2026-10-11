@@ -24,7 +24,7 @@ Each step is a vertical slice: migration, module (zod schema, service, queries, 
 - [x] Between steps 3 and 4: Today also shows contact and organization counts, the week ahead (Coming up) and recent activity, using data from steps 1–3. Pipeline and revenue figures join it with opportunities (step 4) and Phase 4
 - [ ] Between steps 3 and 4: Companies workspace, asked for by the owner with reference screenshots. Organizations are called companies in the interface; routes, tables and modules keep the name `organizations`
   - [x] Slice 1: top bar with the account menu, collapsible sidebar (icon rail by default, remembered in a cookie, Ctrl+B), sidebar item Companies with Companies and People tabs, wording
-  - [ ] Slice 2: companies table (logo, domain, industry, contacts, last activity, sort, filters), company side panel opened from the list, New company dialog (name and website), add a contact inside a company
+  - [x] Slice 2: companies table (monogram until slice 3 adds logos, domain, industry, contacts, last activity, sort, filters), company side panel opened from the list by `?company=<id>`, New company dialog (name and website), add a contact inside a company. The company workspace pages are gone; `/people/organizations/<id>` redirects to the panel
   - [ ] Slice 3: built-in enrichment from the company's own website (no third-party API): `enrichment_runs`, `field_provenance`, logos stored in Postgres, SSRF-guarded fetch, fills empty fields only and never overwrites what the owner typed
 - [ ] Step 4: Opportunities — value, probability, contacts, won and lost; `src/lib/money.ts`
 - [ ] Step 5: Workflow engine — templates, list editor, instances, `transition()`, stage tasks, roadmap, starter templates

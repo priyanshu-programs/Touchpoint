@@ -7,6 +7,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
+import { ORGANIZATION_SORTS } from "@/modules/organizations/queries";
+import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
 
 const optional = <T extends z.ZodType>(schema: T) =>
   schema.optional().catch(undefined);
@@ -18,6 +20,29 @@ export const listParams = z.object({
   after: optional(z.uuid()),
 });
 type ListParams = z.infer<typeof listParams>;
+
+// `company` and `tab` say which company panel is open over the list; `after` pages its timeline.
+export const companyListParams = listParams.extend({
+  status: optional(z.enum(ORGANIZATION_STATUSES)),
+  sort: optional(z.enum(ORGANIZATION_SORTS)),
+  dir: optional(z.enum(["asc", "desc"])),
+  page: optional(z.coerce.number().int().min(1).max(1000)),
+  company: optional(z.uuid()),
+  tab: optional(z.enum(["contacts", "activity", "tasks"])),
+});
+export type CompanyListParams = z.infer<typeof companyListParams>;
+
+export function companiesHref(
+  params: CompanyListParams,
+  change: Partial<CompanyListParams> = {},
+) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries({ ...params, ...change })) {
+    if (value !== undefined) search.set(key, String(value));
+  }
+  const query = search.toString();
+  return `/people/organizations${query ? `?${query}` : ""}`;
+}
 
 export function ListFilters({
   path,

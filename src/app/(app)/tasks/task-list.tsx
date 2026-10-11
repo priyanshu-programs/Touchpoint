@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { dateIn, formatDate, formatDateTime, isFuture } from "@/lib/time";
 import type { TaskListRow } from "@/modules/tasks/queries";
+import { companyHref } from "@/app/(app)/people/labels";
 import {
   completeTaskAction,
   reopenTaskAction,
@@ -100,7 +101,7 @@ export function TaskList({
                 )}
                 {task.organizationId && (
                   <Link
-                    href={`/people/organizations/${task.organizationId}`}
+                    href={companyHref(task.organizationId)}
                     className="underline"
                   >
                     {task.organizationName}

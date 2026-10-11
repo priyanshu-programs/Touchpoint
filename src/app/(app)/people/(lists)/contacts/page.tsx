@@ -12,7 +12,7 @@ import {
 import { requireOwner } from "@/lib/session";
 import { listContacts } from "@/modules/contacts/queries";
 import { listTags } from "@/modules/tags/queries";
-import { labelFor } from "../../labels";
+import { companyHref, labelFor } from "../../labels";
 import { ListFilters, listParams, NextPageLink } from "../list-controls";
 
 export const metadata: Metadata = { title: "Contacts" };
@@ -75,7 +75,7 @@ export default async function ContactsPage({
                 <TableCell className="hidden sm:table-cell">
                   {row.organizationId && (
                     <Link
-                      href={`/people/organizations/${row.organizationId}`}
+                      href={companyHref(row.organizationId)}
                       className="underline-offset-4 hover:underline"
                     >
                       {row.organizationName}

@@ -67,7 +67,7 @@ test("log a call from a contact; the timeline and the task list update together"
   // The same call is part of the organization's history.
   await page.goto("/people/organizations");
   await page.getByRole("link", { name: "Acme Design" }).click();
-  await organizationTabs(page).getByRole("link", { name: "Timeline" }).click();
+  await organizationTabs(page).getByRole("link", { name: "Activity" }).click();
   await expect(page.getByRole("link", { name: "Intro call" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Priya Sharma" })).toBeVisible();
   expect(consoleErrors).toEqual([]);

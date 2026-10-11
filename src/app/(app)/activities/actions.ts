@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
+import { companyHref } from "@/app/(app)/people/labels";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import {
@@ -90,7 +91,7 @@ const timelineOf = (links: {
   links.contactIds[0]
     ? `/people/contacts/${links.contactIds[0]}/timeline`
     : links.organizationId
-      ? `/people/organizations/${links.organizationId}/timeline`
+      ? companyHref(links.organizationId, "activity")
       : "/people/contacts";
 
 export async function logActivityAction(
@@ -112,7 +113,7 @@ export async function logActivityAction(
   refresh();
   // Back to the record the activity was logged from.
   if (formData.get("from") === "organization" && parsed.data.organizationId) {
-    redirect(`/people/organizations/${parsed.data.organizationId}/timeline`);
+    redirect(companyHref(parsed.data.organizationId, "activity"));
   }
   redirect(timelineOf(parsed.data));
 }

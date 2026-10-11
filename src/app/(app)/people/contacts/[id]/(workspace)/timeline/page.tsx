@@ -16,7 +16,9 @@ export default async function ContactTimelinePage({
     <RecordTimeline
       ownerId={owner.id}
       filter={{ contactId: contact.id }}
-      path={`/people/contacts/${contact.id}/timeline`}
+      moreHref={(earlier) =>
+        `/people/contacts/${contact.id}/timeline?after=${earlier}`
+      }
       newHref={`/activities/new?contact=${contact.id}`}
       after={after.data}
     />

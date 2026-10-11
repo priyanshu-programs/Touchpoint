@@ -13,6 +13,11 @@ function collectConsoleErrors(page: Page) {
   return errors;
 }
 
+// A company opens in a side panel; while it is open the list behind it is inert.
+const panel = (page: Page) => page.getByRole("dialog");
+const companyTabs = (page: Page) =>
+  page.getByRole("navigation", { name: "Company", exact: true });
+
 test("add a company; a second one on the same domain is refused", async ({
   page,
 }) => {
@@ -33,14 +38,28 @@ test("add a company; a second one on the same domain is refused", async ({
   await expect(page.getByText("No contacts yet")).toBeVisible();
 
   await tabs.getByRole("link", { name: "Companies" }).click();
-  await page.getByRole("link", { name: "Add company" }).click();
+  await page.getByRole("button", { name: "New company" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Acme Design");
-  await page.getByLabel("Domain").fill("https://www.acme.com/about");
-  await page.getByLabel("Tags").fill("design, vip");
-  await page.getByRole("button", { name: "Add company" }).click();
+  await page.getByLabel("Website").fill("www.acme.com/about");
+  await page.getByRole("button", { name: "Create company" }).click();
 
-  await expect(page.getByRole("heading", { name: "Acme Design" })).toBeVisible();
-  await expect(page.getByText("acme.com", { exact: true })).toBeVisible();
+  // The new company opens as a panel over the list, with its domain read from the website.
+  await expect(page).toHaveURL(/\/people\/organizations\?company=[0-9a-f-]+$/);
+  await expect(panel(page).getByRole("heading", { name: "Acme Design" })).toBeVisible();
+  await expect(
+    panel(page).getByRole("link", { name: "https://www.acme.com/about" }),
+  ).toBeVisible();
+  await expect(
+    panel(page).getByText("acme.com", { exact: true }).first(),
+  ).toBeVisible();
+
+  // An address from before the panel existed still lands on it.
+  const id = new URL(page.url()).searchParams.get("company");
+  await page.goto(`/people/organizations/${id}`);
+  await expect(page).toHaveURL(new RegExp(`\\?company=${id}$`));
+  await panel(page).getByRole("button", { name: "Close" }).click();
+  await expect(page).toHaveURL(/\/people\/organizations$/);
+  await expect(page.getByRole("link", { name: "Acme Design" })).toBeVisible();
 
   await page.goto("/people/organizations/new");
   await page.getByLabel("Name", { exact: true }).fill("Entirely Different");
@@ -59,52 +78,97 @@ test("add a company; a second one on the same domain is refused", async ({
   expect(consoleErrors).toEqual([]);
 });
 
-test("add a contact from its company; duplicates are caught", async ({
+test("add contacts inside a company; duplicates are caught", async ({
   page,
 }) => {
   const consoleErrors = collectConsoleErrors(page);
 
   await page.goto("/people/organizations");
   await page.getByRole("link", { name: "Acme Design" }).click();
-  await page.getByRole("link", { name: "Add contact" }).click();
+  await companyTabs(page).getByRole("link", { name: "Contacts" }).click();
+  await expect(page.getByText("No contacts at this company yet.")).toBeVisible();
+
+  const form = page.getByRole("form", { name: "Add contact" });
+  await form.getByLabel("First name").fill("Priya");
+  await form.getByLabel("Last name").fill("Sharma");
+  await form.getByLabel("Job title").fill("Founder");
+  await form.getByLabel("Email").fill("priya@acme.com");
+  await form.getByLabel("Phone").fill("+91 98765 43210");
+  await form.getByRole("button", { name: "Add contact" }).click();
+
+  // The contact is listed in the panel and the form is ready for the next one.
   await expect(
-    page.getByRole("button", { name: /company: Acme Design/ }),
+    panel(page).getByRole("link", { name: "Priya Sharma" }),
+  ).toBeVisible();
+  await expect(panel(page).getByText("Founder · priya@acme.com")).toBeVisible();
+  await expect(form.getByLabel("First name")).toHaveValue("");
+
+  await form.getByLabel("First name").fill("Someone");
+  await form.getByLabel("Email").fill("PRIYA@acme.com");
+  await form.getByRole("button", { name: "Add contact" }).click();
+  await expect(
+    page.getByText("That email already belongs to Priya Sharma."),
   ).toBeVisible();
 
-  await page.getByLabel("First name").fill("Priya");
-  await page.getByLabel("Last name").fill("Sharma");
-  await page.getByLabel("Email", { exact: true }).fill("priya@acme.com");
-  await page.getByLabel("Phone").fill("+91 98765 43210");
-  await page.getByLabel("Job title").fill("Founder");
-  await page.getByLabel("Tags").fill("vip");
-  await page.getByRole("button", { name: "Add contact" }).click();
+  await form.getByLabel("First name").fill("Priya");
+  await form.getByLabel("Last name").fill("Sharmaa");
+  await form.getByLabel("Email").fill("");
+  await form.getByRole("button", { name: "Add contact" }).click();
+  await expect(
+    page.getByText("A contact with a similar name already exists."),
+  ).toBeVisible();
+  await form.getByRole("button", { name: "Create anyway" }).click();
+  await expect(
+    panel(page).getByRole("link", { name: "Priya Sharmaa" }),
+  ).toBeVisible();
 
+  // Contacts added inside a company are also under People, linked back to it.
+  await page.goto("/people/contacts");
+  await expect(page.getByRole("link", { name: "Acme Design" })).toHaveCount(2);
+  await page.getByRole("link", { name: "Priya Sharma", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Priya Sharma" })).toBeVisible();
   await expect(page.getByText("Founder at")).toBeVisible();
   await expect(page.getByRole("link", { name: "priya@acme.com" })).toBeVisible();
   await expect(page.getByText("Primary", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "+919876543210" })).toBeVisible();
 
-  await page.goto("/people/contacts/new");
-  await page.getByLabel("First name").fill("Someone");
-  await page.getByLabel("Email", { exact: true }).fill("PRIYA@acme.com");
-  await page.getByRole("button", { name: "Add contact" }).click();
-  await expect(
-    page.getByText("That email already belongs to Priya Sharma."),
-  ).toBeVisible();
-
-  await page.getByLabel("First name").fill("Priya");
-  await page.getByLabel("Last name").fill("Sharmaa");
-  await page.getByLabel("Email", { exact: true }).fill("");
-  await page.getByRole("button", { name: "Add contact" }).click();
-  await expect(
-    page.getByText("A contact with a similar name already exists."),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Create anyway" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Priya Sharmaa" }),
-  ).toBeVisible();
+  await page.getByRole("link", { name: "Edit" }).click();
+  await page.getByLabel("Tags").fill("vip");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("vip", { exact: true })).toBeVisible();
   expect(consoleErrors).toEqual([]);
+});
+
+test("the companies list sorts, filters and searches by domain", async ({
+  page,
+}) => {
+  await page.goto("/people/organizations");
+  await page.getByRole("button", { name: "New company" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Borealis Labs");
+  await page.getByRole("button", { name: "Create company" }).click();
+  await expect(
+    panel(page).getByRole("heading", { name: "Borealis Labs" }),
+  ).toBeVisible();
+  await panel(page).getByRole("button", { name: "Close" }).click();
+
+  const names = page.getByRole("row").getByRole("link");
+  await expect(names).toHaveText(["Company", "Contacts", "Last activity", "Acme Design", "Borealis Labs"]);
+  await page.getByRole("link", { name: "Contacts", exact: true }).click();
+  await expect(page).toHaveURL(/sort=contacts&dir=desc/);
+  await expect(names.nth(3)).toHaveText("Acme Design");
+  await page.getByRole("link", { name: "Contacts", exact: true }).click();
+  await expect(page).toHaveURL(/sort=contacts&dir=asc/);
+  await expect(names.nth(3)).toHaveText("Borealis Labs");
+
+  await page.getByLabel("Search companies by name or domain").fill("acme.com");
+  await page.getByRole("button", { name: "Filter" }).click();
+  await expect(page.getByRole("link", { name: "Acme Design" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Borealis Labs" })).toBeHidden();
+
+  await page.goto("/people/organizations");
+  await page.getByLabel("Status").selectOption("client");
+  await page.getByRole("button", { name: "Filter" }).click();
+  await expect(page.getByText("No companies match these filters.")).toBeVisible();
 });
 
 test("pick a company, then filter and archive contacts", async ({
@@ -203,6 +267,17 @@ test.describe("on a phone", () => {
       );
       expect(overflows, path).toBe(false);
     }
+    await page.goto("/people/organizations");
+    await page.getByRole("link", { name: "Acme Design" }).click();
+    await companyTabs(page).getByRole("link", { name: "Contacts" }).click();
+    await expect(page.getByRole("form", { name: "Add contact" })).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      ),
+      "company panel",
+    ).toBe(false);
+
     await page.goto("/people/contacts");
     await page.getByRole("link", { name: "Priya Sharma", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Priya Sharma" })).toBeVisible();

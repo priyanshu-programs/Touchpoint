@@ -3,7 +3,7 @@ import { ButtonLink } from "@/components/button-link";
 import { TabNav } from "@/components/tab-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { labelFor } from "../../../labels";
+import { companyHref, labelFor } from "../../../labels";
 import { setContactArchivedAction } from "../../actions";
 import { loadContact } from "../load";
 
@@ -27,7 +27,7 @@ export default async function ContactWorkspaceLayout({
               {contact.jobTitle && contact.organizationId && " at "}
               {contact.organizationId && (
                 <Link
-                  href={`/people/organizations/${contact.organizationId}`}
+                  href={companyHref(contact.organizationId)}
                   className="underline"
                 >
                   {contact.organizationName}

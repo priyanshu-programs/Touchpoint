@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
+import { companyHref } from "../../labels";
 import { getOrganization } from "@/modules/organizations/queries";
 import { createContactAction } from "../actions";
 import { ContactForm } from "../contact-form";
@@ -51,7 +52,7 @@ export default async function NewContactPage({
           submitLabel="Add contact"
           cancelHref={
             organization
-              ? `/people/organizations/${organization.id}`
+              ? companyHref(organization.id, "contacts")
               : "/people/contacts"
           }
         />

@@ -1,0 +1,242 @@
+import Link from "next/link";
+import { ButtonLink } from "@/components/button-link";
+import { CompanyLogo } from "@/components/company-logo";
+import { DetailList } from "@/components/detail-list";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { dateIn, formatDate } from "@/lib/time";
+import { cn } from "@/lib/utils";
+import { listTimeline } from "@/modules/activities/queries";
+import { listContacts } from "@/modules/contacts/queries";
+import type { getOrganization } from "@/modules/organizations/queries";
+import { getSettings } from "@/modules/settings/service";
+import { listTasks } from "@/modules/tasks/queries";
+import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
+import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
+import { addCompanyContactAction } from "../../contacts/actions";
+import { labelFor } from "../../labels";
+import { setOrganizationArchivedAction } from "../../organizations/actions";
+import { companiesHref, type CompanyListParams } from "../list-controls";
+import { AddContactForm } from "./add-contact-form";
+
+const TABS = [
+  { tab: undefined, label: "Overview" },
+  { tab: "contacts", label: "Contacts" },
+  { tab: "activity", label: "Activity" },
+  { tab: "tasks", label: "Tasks" },
+] as const;
+
+// Counts come from one capped page, so a full page is shown as "100+".
+const upTo = (page: { rows: unknown[]; nextAfter: string | null }) =>
+  `${page.rows.length}${page.nextAfter ? "+" : ""}`;
+
+export async function CompanyPanel({
+  ownerId,
+  organization,
+  params,
+}: {
+  ownerId: string;
+  organization: NonNullable<Awaited<ReturnType<typeof getOrganization>>>;
+  params: CompanyListParams;
+}) {
+  const filter = { organizationId: organization.id };
+  const [settings, contacts, openTasks, latest] = await Promise.all([
+    getSettings(ownerId),
+    listContacts(ownerId, { ...filter, limit: 100 }),
+    listTasks(ownerId, { ...filter, limit: 100 }),
+    listTimeline(ownerId, { ...filter, limit: 1 }),
+  ]);
+  const lastActivity = latest.rows[0]?.occurredAt;
+  const tiles = [
+    { label: "Contacts", value: upTo(contacts) },
+    { label: "Open tasks", value: upTo(openTasks) },
+    {
+      label: "Last activity",
+      value: lastActivity
+        ? formatDate(dateIn(settings?.timezone ?? "UTC", lastActivity))
+        : "—",
+    },
+  ];
+
+  return (
+    <>
+      <header className="flex flex-wrap items-start gap-3 border-b p-4 pr-12">
+        <CompanyLogo name={organization.name} className="size-10 text-sm" />
+        <div className="grid min-w-0 flex-1 gap-1">
+          <SheetTitle className="text-lg break-words">
+            {organization.name}
+          </SheetTitle>
+          {organization.domain && (
+            <SheetDescription>{organization.domain}</SheetDescription>
+          )}
+          <div className="flex flex-wrap gap-1">
+            <Badge variant="secondary">{labelFor(organization.status)}</Badge>
+            {organization.archivedAt && (
+              <Badge variant="destructive">Archived</Badge>
+            )}
+            {organization.tags.map((tag) => (
+              <Badge key={tag} variant="outline">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <ButtonLink
+            href={`/people/organizations/${organization.id}/edit`}
+            variant="outline"
+            size="sm"
+          >
+            Edit
+          </ButtonLink>
+          <form action={setOrganizationArchivedAction}>
+            <input type="hidden" name="id" value={organization.id} />
+            <input
+              type="hidden"
+              name="archived"
+              value={organization.archivedAt ? "0" : "1"}
+            />
+            <Button type="submit" variant="outline" size="sm">
+              {organization.archivedAt ? "Restore" : "Archive"}
+            </Button>
+          </form>
+        </div>
+      </header>
+
+      <dl className="grid grid-cols-3 divide-x border-b">
+        {tiles.map((tile) => (
+          <div key={tile.label} className="grid gap-1 p-4">
+            <dt className="text-xs text-muted-foreground">{tile.label}</dt>
+            <dd className="font-medium">{tile.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <nav
+        aria-label="Company"
+        className="flex gap-1 overflow-x-auto border-b px-2"
+      >
+        {TABS.map(({ tab, label }) => (
+          <Link
+            key={label}
+            href={companiesHref(params, { tab, after: undefined })}
+            scroll={false}
+            aria-current={params.tab === tab ? "page" : undefined}
+            className={cn(
+              "-mb-px border-b-2 border-transparent px-3 py-2 text-sm whitespace-nowrap text-muted-foreground hover:text-foreground",
+              params.tab === tab &&
+                "border-foreground font-medium text-foreground",
+            )}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+
+      <div className="grid gap-6 p-4">
+        {params.tab === undefined && (
+          <DetailList
+            items={[
+              { label: "Name", value: organization.name },
+              { label: "Domain", value: organization.domain },
+              {
+                label: "Website",
+                value: organization.website && (
+                  <a
+                    href={organization.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all underline"
+                  >
+                    {organization.website}
+                  </a>
+                ),
+              },
+              { label: "Industry", value: organization.industry },
+              {
+                label: "Location",
+                value: [
+                  organization.city,
+                  organization.region,
+                  organization.country,
+                ]
+                  .filter(Boolean)
+                  .join(", "),
+              },
+              {
+                label: "Description",
+                value: organization.description && (
+                  <span className="whitespace-pre-wrap">
+                    {organization.description}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        )}
+
+        {params.tab === "contacts" && (
+          <>
+            {contacts.rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No contacts at this company yet.
+              </p>
+            ) : (
+              <ul className="grid gap-3">
+                {contacts.rows.map((contact) => (
+                  <li key={contact.id} className="grid min-w-0 gap-0.5">
+                    <Link
+                      href={`/people/contacts/${contact.id}`}
+                      className="font-medium underline-offset-4 hover:underline"
+                    >
+                      {contact.fullName}
+                    </Link>
+                    <p className="text-sm break-words text-muted-foreground">
+                      {[contact.jobTitle, contact.primaryEmail]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <section
+              aria-labelledby="add-contact-heading"
+              className="grid gap-4 border-t pt-4"
+            >
+              <h3 id="add-contact-heading" className="font-medium">
+                Add a contact
+              </h3>
+              {/* Remounted after each new contact, so the fields start empty again. */}
+              <AddContactForm
+                key={contacts.rows.length}
+                action={addCompanyContactAction.bind(null, organization.id)}
+              />
+            </section>
+          </>
+        )}
+
+        {params.tab === "activity" && (
+          <RecordTimeline
+            ownerId={ownerId}
+            filter={filter}
+            moreHref={(earlier) =>
+              companiesHref(params, { tab: "activity", after: earlier })
+            }
+            newHref={`/activities/new?organization=${organization.id}`}
+            after={params.after}
+          />
+        )}
+
+        {params.tab === "tasks" && (
+          <RecordTasks
+            ownerId={ownerId}
+            filter={filter}
+            newHref={`/tasks/new?organization=${organization.id}`}
+          />
+        )}
+      </div>
+    </>
+  );
+}

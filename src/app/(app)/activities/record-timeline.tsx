@@ -16,13 +16,13 @@ import { TimelineEvent } from "./timeline-event";
 export async function RecordTimeline({
   ownerId,
   filter,
-  path,
+  moreHref,
   newHref,
   after,
 }: {
   ownerId: string;
   filter: { contactId: string } | { organizationId: string };
-  path: string;
+  moreHref: (after: string) => string;
   newHref: string;
   after?: string;
 }) {
@@ -84,7 +84,7 @@ export async function RecordTimeline({
         ))}
         {page.nextAfter && (
           <Link
-            href={`${path}?after=${page.nextAfter}`}
+            href={moreHref(page.nextAfter)}
             className="justify-self-start text-sm underline"
           >
             Earlier

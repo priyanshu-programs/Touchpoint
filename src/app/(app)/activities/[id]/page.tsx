@@ -8,7 +8,7 @@ import { requireOwner } from "@/lib/session";
 import { formatDateTime, toLocalInput } from "@/lib/time";
 import { getActivity } from "@/modules/activities/queries";
 import { getSettings } from "@/modules/settings/service";
-import { labelFor } from "../../people/labels";
+import { companyHref, labelFor } from "../../people/labels";
 import { deleteActivityAction, updateActivityAction } from "../actions";
 import { ActivityForm } from "../activity-form";
 import { activityFormOptions } from "../form-options";
@@ -30,7 +30,7 @@ export default async function ActivityPage({
   const back = activity.contacts[0]
     ? `/people/contacts/${activity.contacts[0].id}/timeline`
     : activity.organizationId
-      ? `/people/organizations/${activity.organizationId}/timeline`
+      ? companyHref(activity.organizationId, "activity")
       : "/people/contacts";
 
   return (

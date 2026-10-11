@@ -114,3 +114,14 @@
 - [2026-10-11] Organizations are called companies in every visible string (forms, pickers, messages, page titles, Today count); routes, tables and module names are unchanged
 - [2026-10-11] RecordPicker takes an optional plural, since "company" does not pluralise by adding an s
 - [2026-10-11] e2e specs updated for the new wording and the account menu, plus a new test that the sidebar expands, stays expanded after a reload and still navigates (29 tests)
+- [2026-10-11] listOrganizations (src/modules/organizations/queries.ts) now returns industry and last activity, filters by status, sorts by name, contacts or last activity in either direction, and pages by offset instead of by name cursor, because a cursor only works for one sort order
+- [2026-10-11] Company search also matches the start of the domain, since a whole domain ("acme.com") is one search token that the word-prefix query could not reach
+- [2026-10-11] Added src/components/ui/sheet.tsx with the shadcn CLI (Base UI dialog, no new package) for the company side panel
+- [2026-10-11] The companies list (/people/organizations) is now a table of company, domain, industry, contacts and last activity with sortable headers, a status filter and page links; src/components/company-logo.tsx shows initials until logos arrive with enrichment
+- [2026-10-11] A company opens as a side panel over the list (?company=<id>&tab=...), with Overview, Contacts, Activity and Tasks tabs, counts, Edit and Archive; closing it returns to the list with its filters kept
+- [2026-10-11] Removed the company workspace pages (overview, timeline, tasks); /people/organizations/<id> now redirects to the panel, and companyHref() in people/labels.ts replaces the hard-coded company links in tasks, activities and contacts
+- [2026-10-11] Added a New company dialog asking only for a name and website (createCompanyQuickAction); a website typed without https:// is accepted and the domain is read from it, with the same duplicate checks as the full form
+- [2026-10-11] Added a short Add contact form inside the company panel (addCompanyContactAction), reusing createContact and its duplicate-email and similar-name checks
+- [2026-10-11] RecordTimeline takes moreHref(after) instead of path, so its "Earlier" link can keep the panel's query string
+- [2026-10-11] Tests: organization queries cover offset paging, status, each sort and domain search (138 unit tests); e2e covers the dialog, the panel, contacts added inside a company, list sorting and filtering, the old-link redirect and the panel at phone width (30 tests)
+- [2026-10-11] docs/PRD.md section 6 and plan.md record that a company is a panel over the list, and slice 2 is ticked

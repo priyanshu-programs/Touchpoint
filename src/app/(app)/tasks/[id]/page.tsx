@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
+import { companyHref } from "@/app/(app)/people/labels";
 import { formatDate, formatDateTime, isFuture, toLocalInput } from "@/lib/time";
 import { getSettings } from "@/modules/settings/service";
 import { getTask } from "@/modules/tasks/queries";
@@ -202,7 +203,7 @@ export default async function TaskPage({ params }: PageProps<"/tasks/[id]">) {
                   label: "Company",
                   value: task.organizationId && (
                     <Link
-                      href={`/people/organizations/${task.organizationId}`}
+                      href={companyHref(task.organizationId)}
                       className="underline"
                     >
                       {task.organizationName}

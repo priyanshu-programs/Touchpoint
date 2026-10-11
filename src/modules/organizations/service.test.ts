@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { db } from "@/db/client";
+import { activities } from "@/db/schema";
 import { listAudit } from "@/modules/audit/service";
+import { newContactInput } from "@/modules/contacts/schema";
+import { createContact } from "@/modules/contacts/service";
 import { listTags } from "@/modules/tags/queries";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import {
@@ -190,6 +194,12 @@ describe("organizations", () => {
     const byName = await listOrganizations(ownerId, { q: "bore" });
     expect(byName.rows.map((row) => row.name)).toEqual(["Borealis Labs"]);
 
+    await create({ name: "Cobalt Works", domain: "cobalt.example.com" });
+    const byDomain = await listOrganizations(ownerId, {
+      q: "Cobalt.Example.com",
+    });
+    expect(byDomain.rows.map((row) => row.name)).toEqual(["Cobalt Works"]);
+
     const design = (await listTags(ownerId)).find((tag) => tag.name === "design");
     const byTag = await listOrganizations(ownerId, { tagId: design!.id });
     expect(byTag.rows.map((row) => row.name)).toEqual(["Acme Design"]);
@@ -200,20 +210,103 @@ describe("organizations", () => {
       await create({ name });
     }
 
-    const first = await listOrganizations(ownerId, { limit: 2 });
-    const second = await listOrganizations(ownerId, {
-      limit: 2,
-      after: first.nextAfter!,
-    });
-    const third = await listOrganizations(ownerId, {
-      limit: 2,
-      after: second.nextAfter!,
-    });
+    const pages = await Promise.all(
+      [0, 2, 4].map((offset) =>
+        listOrganizations(ownerId, { limit: 2, offset }),
+      ),
+    );
 
-    expect(
-      [...first.rows, ...second.rows, ...third.rows].map((row) => row.name),
-    ).toEqual(["Alpha", "Bravo", "charlie", "delta", "echo"]);
-    expect(third.nextAfter).toBeNull();
+    expect(pages.flatMap((page) => page.rows.map((row) => row.name))).toEqual([
+      "Alpha",
+      "Bravo",
+      "charlie",
+      "delta",
+      "echo",
+    ]);
+    expect(pages.map((page) => page.hasMore)).toEqual([true, true, false]);
+  });
+
+  it("filters by status", async () => {
+    await create();
+    await create({ name: "Borealis Labs", status: "client" });
+
+    const clients = await listOrganizations(ownerId, { status: "client" });
+    expect(clients.rows.map((row) => row.name)).toEqual(["Borealis Labs"]);
+  });
+
+  it("sorts by contacts and by last activity, with untouched companies last", async () => {
+    const acme = await create({ industry: "Design" });
+    const borealis = await create({ name: "Borealis Labs" });
+    await create({ name: "Cobalt Works" });
+    const contact = (organizationId: string, firstName: string) =>
+      createContact(
+        ownerId,
+        newContactInput.parse({
+          email: "",
+          firstName,
+          lastName: "",
+          organizationId,
+          jobTitle: "",
+          department: "",
+          phoneE164: "",
+          city: "",
+          region: "",
+          country: "",
+          timezone: "",
+          preferredChannel: "",
+          status: "active",
+          relationshipType: "prospect",
+          tags: "",
+        }),
+      );
+    await contact(acme, "Asha");
+    await contact(borealis, "Bilal");
+    await contact(borealis, "Chitra");
+    const earlier = new Date("2026-10-01T09:00:00Z");
+    const later = new Date("2026-10-05T09:00:00Z");
+    await db.insert(activities).values([
+      { ownerId, kind: "call", title: "First call", occurredAt: earlier, organizationId: acme },
+      { ownerId, kind: "call", title: "Second call", occurredAt: later, organizationId: acme },
+      { ownerId, kind: "note", title: "Intro", occurredAt: earlier, organizationId: borealis },
+    ]);
+    const names = async (
+      options: Parameters<typeof listOrganizations>[1],
+    ) => (await listOrganizations(ownerId, options)).rows.map((row) => row.name);
+
+    expect(await names({ sort: "contacts", dir: "desc" })).toEqual([
+      "Borealis Labs",
+      "Acme Design",
+      "Cobalt Works",
+    ]);
+    expect(await names({ sort: "contacts", dir: "asc" })).toEqual([
+      "Cobalt Works",
+      "Acme Design",
+      "Borealis Labs",
+    ]);
+    expect(await names({ sort: "activity", dir: "desc" })).toEqual([
+      "Acme Design",
+      "Borealis Labs",
+      "Cobalt Works",
+    ]);
+    expect(await names({ sort: "activity", dir: "asc" })).toEqual([
+      "Borealis Labs",
+      "Acme Design",
+      "Cobalt Works",
+    ]);
+    expect(await names({ sort: "name", dir: "desc" })).toEqual([
+      "Cobalt Works",
+      "Borealis Labs",
+      "Acme Design",
+    ]);
+
+    const { rows } = await listOrganizations(ownerId);
+    expect(rows[0]).toMatchObject({
+      name: "Acme Design",
+      industry: "Design",
+      contactCount: 1,
+      lastActivityAt: later,
+    });
+    expect(rows[2].lastActivityAt).toBeNull();
   });
 
   it("keeps another owner's organizations out of reach", async () => {

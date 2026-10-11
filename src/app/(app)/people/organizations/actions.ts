@@ -14,6 +14,7 @@ import {
   type OrganizationResult,
 } from "@/modules/organizations/service";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
+import { companyHref } from "../labels";
 
 const FIELDS = [
   "name",
@@ -40,7 +41,7 @@ function failure(
       values,
       links: [
         {
-          href: `/people/organizations/${result.existing.id}`,
+          href: companyHref(result.existing.id),
           label: result.existing.name,
         },
       ],
@@ -52,7 +53,7 @@ function failure(
       "A company with a similar name already exists. Check it before creating another.",
     values,
     links: result.candidates.map((candidate) => ({
-      href: `/people/organizations/${candidate.id}`,
+      href: companyHref(candidate.id),
       label: candidate.name,
     })),
     canConfirm: true,
@@ -74,7 +75,40 @@ export async function createOrganizationAction(
   if (!result.ok) return failure(result, values);
 
   revalidatePath("/people/organizations");
-  redirect(`/people/organizations/${result.id}`);
+  redirect(companyHref(result.id));
+}
+
+// The short form: a name and, optionally, a website the domain is read from.
+export async function createCompanyQuickAction(
+  _previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const values = readFields(formData, ["name", "website"]);
+  const typed = values.website.trim();
+  const website =
+    typed && !/^[a-z][a-z0-9+.-]*:/i.test(typed) ? `https://${typed}` : typed;
+  const parsed = organizationInput.safeParse({
+    name: values.name,
+    domain: website,
+    website,
+    industry: "",
+    description: "",
+    city: "",
+    region: "",
+    country: "",
+    status: "prospect",
+    tags: "",
+  });
+  if (!parsed.success) return invalid(parsed.error, values);
+
+  const result = await createOrganization(owner.id, parsed.data, {
+    confirmSimilar: formData.get("confirmSimilar") === "yes",
+  });
+  if (!result.ok) return failure(result, values);
+
+  revalidatePath("/people/organizations");
+  redirect(companyHref(result.id));
 }
 
 export async function updateOrganizationAction(
@@ -92,7 +126,7 @@ export async function updateOrganizationAction(
   if (!result.ok) return failure(result, values);
 
   revalidatePath("/people", "layout");
-  redirect(`/people/organizations/${organizationId}`);
+  redirect(companyHref(organizationId));
 }
 
 export async function setOrganizationArchivedAction(formData: FormData) {
