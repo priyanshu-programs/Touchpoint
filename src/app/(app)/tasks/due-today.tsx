@@ -11,8 +11,7 @@ export function DueToday({
   timezone: string;
 }) {
   const today = dateIn(timezone);
-  const isOverdue = (task: TaskListRow) =>
-    (task.dueOn ?? dateIn(timezone, task.dueAt!)) < today;
+  const isOverdue = (task: TaskListRow) => task.dueOn! < today;
   const overdue = tasks.filter(isOverdue);
   const dueToday = tasks.filter((task) => !isOverdue(task));
 

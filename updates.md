@@ -82,3 +82,9 @@
 - [2026-10-11] docs/PRD.md 8.5 updated for the due_on/due_at split, the reminder columns actually built and how recurrence and in-app reminders behave
 - [2026-10-11] Step 2 deployed to production (migration 0002 confirmed on Neon main), but its CI run failed in the e2e step although the suite passes locally
 - [2026-10-11] Playwright now uses the github reporter on GitHub Actions, so a failing e2e test shows as an annotation on the commit instead of only in logs that need a sign-in
+- [2026-10-11] Graft's Codex setup files (.agents/skills/graft/SKILL.md, .codex/config.toml, .codex/hooks.json) were committed along with the reporter change by a broad git add; they hold no secrets and match the Claude-side files already tracked
+- [2026-10-11] CI annotation showed the task list failing once a task exists; the list queries passed the owner's zone name (Asia/Calcutta) to Postgres, which Neon accepts and the stock image is not expected to
+- [2026-10-11] Migration 0003_task_due_dates: every task with a due date now stores the owner's calendar date in due_on, and due_at as well when it has a time, so task queries need no time zone; the production tasks table was empty when this ran
+- [2026-10-11] Task queries (listDueTasks, listTasks) no longer take a time zone and compare due_on directly; screens and tests updated to match
+- [2026-10-11] Saving settings with a different time zone now recomputes due_on for open timed tasks (src/modules/tasks/rebase.ts), so their calendar date stays right
+- [2026-10-11] plan.md and docs/PRD.md record the rule that time zone names are never passed to Postgres

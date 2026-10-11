@@ -25,7 +25,7 @@ export default async function TodayPage() {
   const owner = await requireOwner();
   const timezone = (await getSettings(owner.id))?.timezone ?? "UTC";
   const [tasks, reminders] = await Promise.all([
-    listDueTasks(owner.id, timezone, {
+    listDueTasks(owner.id, {
       through: dateIn(timezone),
       hideSnoozed: true,
     }),

@@ -124,17 +124,36 @@ describe("tasks", () => {
       .where(eq(reminders.taskId, taskId))
       .orderBy(reminders.createdAt);
 
-  it("stores an all-day task as a date and a timed task as an instant", async () => {
+  it("stores the owner's date for every due task, and the instant too when it has a time", async () => {
     const allDay = await getTask(ownerId, await create({ dueDate: "2026-10-12" }));
     expect(allDay).toMatchObject({ dueOn: "2026-10-12", dueAt: null });
 
     const timed = await getTask(
       ownerId,
-      await create({ dueDate: "2026-10-12", dueTime: "09:30" }),
+      await create({ dueDate: "2026-10-12", dueTime: "00:30" }),
     );
-    expect(timed!.dueOn).toBeNull();
-    // 09:30 in Kolkata is 04:00 UTC.
-    expect(timed!.dueAt!.toISOString()).toBe("2026-10-12T04:00:00.000Z");
+    // 00:30 on the 12th in Kolkata is still the 11th in UTC; the date kept is the owner's.
+    expect(timed!.dueOn).toBe("2026-10-12");
+    expect(timed!.dueAt!.toISOString()).toBe("2026-10-11T19:00:00.000Z");
+  });
+
+  it("moves a timed task to its new calendar date when the owner changes time zone", async () => {
+    const timed = await create({ dueDate: "2026-10-12", dueTime: "00:30" });
+    const allDay = await create({ dueDate: "2026-10-12" });
+    const done = await create({ dueDate: "2026-10-12", dueTime: "00:30" });
+    await completeTask(ownerId, done);
+
+    await saveSettings(ownerId, {
+      baseCurrency: "INR",
+      timezone: "UTC",
+      weekStart: 1,
+      fiscalYearStartMonth: 4,
+    });
+
+    expect((await getTask(ownerId, timed))!.dueOn).toBe("2026-10-11");
+    expect((await getTask(ownerId, allDay))!.dueOn).toBe("2026-10-12");
+    // A closed task keeps the date it had.
+    expect((await getTask(ownerId, done))!.dueOn).toBe("2026-10-12");
   });
 
   it("links a task to a contact and writes an audit row", async () => {
@@ -325,7 +344,7 @@ describe("tasks", () => {
     await reopenTask(ownerId, id);
 
     expect((await getTask(ownerId, id))!.recurrenceRule).toBeNull();
-    expect((await listTasks(ownerId, ZONE)).rows).toHaveLength(2);
+    expect((await listTasks(ownerId)).rows).toHaveLength(2);
   });
 
   it("lists what is due by the owner's calendar, soonest first", async () => {
@@ -335,8 +354,8 @@ describe("tasks", () => {
     await create({ title: "today, all day", dueDate: today });
     await create({ title: "overdue", dueDate: addDays(today, -1) });
     await create({ title: "undated" });
-    const titles = async (range: Parameters<typeof listDueTasks>[2]) =>
-      (await listDueTasks(ownerId, ZONE, range)).map((row) => row.title);
+    const titles = async (range: Parameters<typeof listDueTasks>[1]) =>
+      (await listDueTasks(ownerId, range)).map((row) => row.title);
 
     expect(await titles({ through: today })).toEqual([
       "overdue",
@@ -352,11 +371,11 @@ describe("tasks", () => {
 
   it("hides a snoozed task from today until the snooze ends", async () => {
     const id = await create({ dueDate: today });
-    const todays = () => listDueTasks(ownerId, ZONE, { through: today, hideSnoozed: true });
+    const todays = () => listDueTasks(ownerId, { through: today, hideSnoozed: true });
 
     expect(await snoozeTask(ownerId, id, 1)).toBe(true);
     expect(await todays()).toHaveLength(0);
-    expect(await listDueTasks(ownerId, ZONE, { through: today })).toHaveLength(1);
+    expect(await listDueTasks(ownerId, { through: today })).toHaveLength(1);
     expect(toLocalInput((await getTask(ownerId, id))!.snoozedUntil!, ZONE)).toBe(
       `${addDays(today, 1)}T00:00`,
     );
@@ -375,7 +394,7 @@ describe("tasks", () => {
     const seen: string[] = [];
     let after: string | undefined;
     do {
-      const page = await listTasks(ownerId, ZONE, { limit: 2, after });
+      const page = await listTasks(ownerId, { limit: 2, after });
       seen.push(...page.rows.map((row) => row.title));
       after = page.nextAfter ?? undefined;
     } while (after);
@@ -391,12 +410,12 @@ describe("tasks", () => {
     await completeTask(ownerId, first);
     await completeTask(ownerId, second);
 
-    const done = await listTasks(ownerId, ZONE, { status: "done" });
+    const done = await listTasks(ownerId, { status: "done" });
     expect(done.rows.map((row) => row.title)).toEqual([
       "second done",
       "first done",
     ]);
-    expect((await listTasks(ownerId, ZONE)).rows.map((row) => row.title)).toEqual([
+    expect((await listTasks(ownerId)).rows.map((row) => row.title)).toEqual([
       "still open",
     ]);
   });
@@ -406,7 +425,7 @@ describe("tasks", () => {
     await create({ title: "for Priya", contactId });
     await create({ title: "unrelated" });
 
-    const { rows } = await listTasks(ownerId, ZONE, { contactId });
+    const { rows } = await listTasks(ownerId, { contactId });
     expect(rows.map((row) => row.title)).toEqual(["for Priya"]);
   });
 
@@ -420,8 +439,8 @@ describe("tasks", () => {
     const [reminder] = await listDeliveredReminders(ownerId);
 
     expect(await getTask(otherId, id)).toBeNull();
-    expect((await listTasks(otherId, ZONE)).rows).toHaveLength(0);
-    expect(await listDueTasks(otherId, ZONE, { through: today })).toHaveLength(0);
+    expect((await listTasks(otherId)).rows).toHaveLength(0);
+    expect(await listDueTasks(otherId, { through: today })).toHaveLength(0);
     expect(await listDeliveredReminders(otherId)).toEqual([]);
     expect(await updateTask(otherId, id, input())).toEqual({
       ok: false,

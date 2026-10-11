@@ -22,8 +22,8 @@ export async function RecordTasks({
 }) {
   const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
   const [open, done] = await Promise.all([
-    listTasks(ownerId, timezone, { ...filter, limit: 100 }),
-    listTasks(ownerId, timezone, { ...filter, status: "done", limit: 10 }),
+    listTasks(ownerId, { ...filter, limit: 100 }),
+    listTasks(ownerId, { ...filter, status: "done", limit: 10 }),
   ]);
 
   return (

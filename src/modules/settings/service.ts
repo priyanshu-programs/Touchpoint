@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, type Executor } from "@/db/client";
 import { settings } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
+import { rebaseTimedTasks } from "@/modules/tasks/rebase";
 import type { SettingsInput } from "./schema";
 
 export async function getSettings(ownerId: string) {
@@ -42,6 +43,9 @@ export async function saveSettings(ownerId: string, input: SettingsInput) {
         set: { ...input, updatedAt: new Date() },
       })
       .returning();
+    if (existing && existing.timezone !== saved.timezone) {
+      await rebaseTimedTasks(tx, ownerId, saved.timezone);
+    }
 
     await audit(tx, {
       ownerId,

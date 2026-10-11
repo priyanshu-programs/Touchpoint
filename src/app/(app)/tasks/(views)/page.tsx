@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Tasks today" };
 export default async function TasksTodayPage() {
   const owner = await requireOwner();
   const timezone = (await getSettings(owner.id))?.timezone ?? "UTC";
-  const tasks = await listDueTasks(owner.id, timezone, {
+  const tasks = await listDueTasks(owner.id, {
     through: dateIn(timezone),
     hideSnoozed: true,
   });

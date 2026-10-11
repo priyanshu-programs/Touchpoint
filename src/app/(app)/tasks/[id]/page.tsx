@@ -122,7 +122,7 @@ export default async function TaskPage({ params }: PageProps<"/tasks/[id]">) {
                   title: task.title,
                   notes: task.notes ?? "",
                   priority: task.priority,
-                  dueDate: task.dueOn ?? dueLocal?.slice(0, 10) ?? "",
+                  dueDate: task.dueOn ?? "",
                   dueTime: dueLocal?.slice(11) ?? "",
                   repeat: rule?.frequency ?? "",
                   repeatEvery: String(rule?.interval ?? 1),

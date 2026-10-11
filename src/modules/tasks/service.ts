@@ -69,7 +69,7 @@ function columns(input: TaskInput, timezone: string) {
     title: input.title,
     notes: input.notes,
     priority: input.priority,
-    dueOn: timed ? null : input.dueDate,
+    dueOn: input.dueDate,
     dueAt: timed
       ? fromLocalInput(`${input.dueDate}T${input.dueTime}`, timezone)
       : null,
@@ -231,7 +231,7 @@ async function createNextOccurrence(
   const rule = parseRule(task.recurrenceRule!);
   // Working in the owner's wall-clock time keeps "9:00 every Monday" at 9:00 across clock changes.
   const dueLocal = task.dueAt ? toLocalInput(task.dueAt, timezone) : null;
-  const dueDate = task.dueOn ?? dueLocal!.slice(0, 10);
+  const dueDate = task.dueOn!;
   const nextDate = nextOccurrence(dueDate, rule, dateIn(timezone));
 
   const [next] = await tx
@@ -245,7 +245,7 @@ async function createNextOccurrence(
       recurrenceRule: task.recurrenceRule,
       contactId: task.contactId,
       organizationId: task.organizationId,
-      dueOn: task.dueOn ? nextDate : null,
+      dueOn: nextDate,
       dueAt: dueLocal
         ? fromLocalInput(`${nextDate}${dueLocal.slice(10)}`, timezone)
         : null,

@@ -33,9 +33,7 @@ export function TaskList({
     <ul className="grid gap-3">
       {tasks.map((task) => {
         const open = task.status === "open";
-        const dueDate =
-          task.dueOn ?? (task.dueAt ? dateIn(timezone, task.dueAt) : null);
-        const overdue = open && dueDate !== null && dueDate < today;
+        const overdue = open && task.dueOn !== null && task.dueOn < today;
         const due = dueLabel(task, timezone, today);
         const snoozed = task.snoozedUntil && isFuture(task.snoozedUntil);
 

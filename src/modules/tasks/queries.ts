@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { contacts, organizations, reminders, tasks } from "@/db/schema";
 import type { TASK_STATUSES } from "./schema";
@@ -28,19 +28,17 @@ const withLinks = () =>
 
 export type TaskListRow = Awaited<ReturnType<typeof withLinks>>[number];
 
-// The owner's calendar date a task falls on, whether it is all-day or timed.
-const dueDate = (timezone: string) =>
-  sql`coalesce(${tasks.dueOn}, (${tasks.dueAt} at time zone ${timezone})::date)`;
-
-// One ordering for both kinds: an all-day task sorts at the start of its day, undated tasks last.
-const dueOrder = (timezone: string) =>
-  sql`coalesce(${tasks.dueAt}, ${tasks.dueOn}::timestamp at time zone ${timezone}, 'infinity'::timestamptz)`;
+// Soonest first: by calendar date, all-day tasks before timed ones on the same day,
+// undated tasks last. Dates are the owner's own, so no time zone is involved here.
+const dueOrder = [
+  sql`coalesce(${tasks.dueOn}, 'infinity'::date)`,
+  sql`coalesce(${tasks.dueAt}, '-infinity'::timestamptz)`,
+];
 
 // Open tasks due within a range of the owner's calendar dates. Overdue tasks are included
 // when no start is given.
 export async function listDueTasks(
   ownerId: string,
-  timezone: string,
   range: { from?: string; through: string; hideSnoozed?: boolean },
 ) {
   return withLinks()
@@ -48,20 +46,19 @@ export async function listDueTasks(
       and(
         eq(tasks.ownerId, ownerId),
         eq(tasks.status, "open"),
-        sql`${dueDate(timezone)} <= ${range.through}`,
-        range.from ? sql`${dueDate(timezone)} >= ${range.from}` : undefined,
+        lte(tasks.dueOn, range.through),
+        range.from ? gte(tasks.dueOn, range.from) : undefined,
         range.hideSnoozed
           ? sql`(${tasks.snoozedUntil} is null or ${tasks.snoozedUntil} <= now())`
           : undefined,
       ),
     )
-    .orderBy(dueOrder(timezone), asc(tasks.createdAt))
+    .orderBy(...dueOrder, asc(tasks.createdAt))
     .limit(200);
 }
 
 export async function listTasks(
   ownerId: string,
-  timezone: string,
   options: {
     status?: (typeof TASK_STATUSES)[number];
     contactId?: string;
@@ -76,8 +73,8 @@ export async function listTasks(
   const byDue = status === "open";
   const cursor = options.after
     ? byDue
-      ? sql`(${dueOrder(timezone)}, ${tasks.id}) > (
-          select coalesce(due_at, due_on::timestamp at time zone ${timezone}, 'infinity'::timestamptz), id
+      ? sql`(${dueOrder[0]}, ${dueOrder[1]}, ${tasks.id}) > (
+          select coalesce(due_on, 'infinity'::date), coalesce(due_at, '-infinity'::timestamptz), id
           from tasks where id = ${options.after} and owner_id = ${ownerId}
         )`
       : sql`(${tasks.updatedAt}, ${tasks.id}) < (
@@ -100,7 +97,7 @@ export async function listTasks(
     )
     .orderBy(
       ...(byDue
-        ? [dueOrder(timezone), asc(tasks.id)]
+        ? [...dueOrder, asc(tasks.id)]
         : [desc(tasks.updatedAt), desc(tasks.id)]),
     )
     .limit(limit + 1);

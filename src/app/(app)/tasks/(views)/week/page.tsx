@@ -11,7 +11,7 @@ export default async function TasksWeekPage() {
   const owner = await requireOwner();
   const timezone = (await getSettings(owner.id))?.timezone ?? "UTC";
   const today = dateIn(timezone);
-  const tasks = await listDueTasks(owner.id, timezone, {
+  const tasks = await listDueTasks(owner.id, {
     from: today,
     through: addDays(today, 6),
   });
@@ -21,9 +21,7 @@ export default async function TasksWeekPage() {
     return {
       date,
       label: offset === 0 ? "Today" : offset === 1 ? "Tomorrow" : formatDate(date),
-      tasks: tasks.filter(
-        (task) => (task.dueOn ?? dateIn(timezone, task.dueAt!)) === date,
-      ),
+      tasks: tasks.filter((task) => task.dueOn === date),
     };
   }).filter((day) => day.tasks.length > 0);
 

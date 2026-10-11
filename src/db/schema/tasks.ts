@@ -31,8 +31,10 @@ export const tasks = pgTable(
     notes: text("notes"),
     status: text("status").notNull().default("open"),
     priority: text("priority").notNull().default("normal"),
-    // An all-day task has a date and no instant, so "due today" never shifts with the time zone.
+    // The owner's calendar date the task is due on. Queries compare this date only, so no
+    // time zone name ever reaches Postgres (stock images lack legacy names such as Asia/Calcutta).
     dueOn: date("due_on", { mode: "string" }),
+    // Set as well when the task has a time of day.
     dueAt: timestamp("due_at", { withTimezone: true }),
     snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -52,10 +54,14 @@ export const tasks = pgTable(
     check("tasks_priority_check", oneOf(table.priority, TASK_PRIORITIES)),
     check("tasks_origin_check", oneOf(table.origin, TASK_ORIGINS)),
     check(
-      "tasks_single_due_check",
-      sql`${table.dueOn} is null or ${table.dueAt} is null`,
+      "tasks_due_time_has_date_check",
+      sql`${table.dueAt} is null or ${table.dueOn} is not null`,
     ),
-    index("tasks_owner_status_idx").on(table.ownerId, table.status),
+    index("tasks_owner_status_due_idx").on(
+      table.ownerId,
+      table.status,
+      table.dueOn,
+    ),
     index("tasks_contact_idx").on(table.contactId),
     index("tasks_organization_idx").on(table.organizationId),
   ],

@@ -22,7 +22,7 @@ export default async function AllTasksPage({
   const owner = await requireOwner();
   const { status, after } = params.parse(await searchParams);
   const timezone = (await getSettings(owner.id))?.timezone ?? "UTC";
-  const page = await listTasks(owner.id, timezone, { status, after });
+  const page = await listTasks(owner.id, { status, after });
 
   return (
     <div className="grid gap-4">

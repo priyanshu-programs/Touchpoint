@@ -48,6 +48,7 @@ Known gaps in Phase 2 work:
 - Jobs: own `jobs` table claimed with `FOR UPDATE SKIP LOCKED`; one `runDueJobs()` used by both the tick endpoint and the worker loop.
 - Dependency rule: `app → modules → db`. Business logic lives in `src/modules/*`, never in UI or provider code.
 - Every table has `owner_id`; every query filters on it.
+- Never pass a time zone name to Postgres. Zone arithmetic happens in `src/lib/time.ts`; queries compare stored dates and instants. (Neon accepts legacy names such as `Asia/Calcutta`; the stock Postgres image used in CI and Docker does not.)
 - Domain tables are added by migration in the phase that builds their module.
 - Navigation shows only screens that exist. No dead links or placeholder buttons.
 - Uses Graft for codebase navigation (mandatory — see CLAUDE.md)
