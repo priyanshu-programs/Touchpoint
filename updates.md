@@ -106,3 +106,11 @@
 - [2026-10-11] Today now shows contact and organization counts, a Coming up card (tasks due tomorrow through six days out) and a Recent activity card (five newest entries), because the owner found the page too empty to read as a dashboard; the "The week ahead" link gave way to the Coming up card
 - [2026-10-11] Added unit tests for the unfiltered timeline and the two counts, and e2e/05-today.spec.ts (2 tests): the new cards with data, and Today at phone width
 - [2026-10-11] plan.md notes the Today additions made between Steps 3 and 4
+- [2026-10-11] plan.md records the Companies workspace (three slices, between Steps 3 and 4) and that the website reader is no longer left out of Phase 3, because the owner asked for the Comp AI CRM layout and automatic company details
+- [2026-10-11] Added src/components/ui/dropdown-menu.tsx with the shadcn CLI (Base UI menu, no new package) for the account menu
+- [2026-10-11] src/components/app-shell.tsx now has a top bar (app mark, "<owner name> CRM", account menu holding Sign out) and a sidebar that collapses to an icon rail; the rail is the default, the choice is kept in a "sidebar" cookie read by src/app/(app)/layout.tsx so the server renders the right width, and Ctrl+B toggles it
+- [2026-10-11] The main column widened from max-w-5xl to max-w-7xl so the coming companies table has room
+- [2026-10-11] The sidebar item People is now Companies (building icon) and opens /people/organizations; the area's tabs are Companies then People, and /people redirects to the companies list
+- [2026-10-11] Organizations are called companies in every visible string (forms, pickers, messages, page titles, Today count); routes, tables and module names are unchanged
+- [2026-10-11] RecordPicker takes an optional plural, since "company" does not pluralise by adding an s
+- [2026-10-11] e2e specs updated for the new wording and the account menu, plus a new test that the sidebar expands, stays expanded after a reload and still navigates (29 tests)

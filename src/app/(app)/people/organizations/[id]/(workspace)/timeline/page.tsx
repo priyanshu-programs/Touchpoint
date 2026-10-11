@@ -3,7 +3,7 @@ import { z } from "zod";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { loadOrganization } from "../../load";
 
-export const metadata: Metadata = { title: "Organization timeline" };
+export const metadata: Metadata = { title: "Company timeline" };
 
 export default async function OrganizationTimelinePage({
   params,

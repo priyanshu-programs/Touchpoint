@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
 import { loadOrganization } from "../../load";
 
-export const metadata: Metadata = { title: "Organization tasks" };
+export const metadata: Metadata = { title: "Company tasks" };
 
 export default async function OrganizationTasksPage({
   params,

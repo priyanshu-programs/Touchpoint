@@ -49,7 +49,7 @@ function failure(
   return {
     ok: false,
     message:
-      "An organization with a similar name already exists. Check it before creating another.",
+      "A company with a similar name already exists. Check it before creating another.",
     values,
     links: result.candidates.map((candidate) => ({
       href: `/people/organizations/${candidate.id}`,

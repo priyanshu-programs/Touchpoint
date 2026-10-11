@@ -21,7 +21,8 @@ test.describe("signed in", () => {
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/settings\/profile$/);
 
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Account" }).click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/sign-in$/);
     await page.goto("/");
     await expect(page).toHaveURL(/\/sign-in$/);

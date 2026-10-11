@@ -19,6 +19,7 @@ function RecordSearchDialog({
   open,
   onOpenChange,
   noun,
+  plural = `${noun}s`,
   search,
   exclude = [],
   onSelect,
@@ -26,6 +27,7 @@ function RecordSearchDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   noun: string;
+  plural?: string;
   search: Search;
   exclude?: string[];
   onSelect: (option: PickerOption) => void;
@@ -59,7 +61,7 @@ function RecordSearchDialog({
         <CommandInput
           value={query}
           onValueChange={setQuery}
-          placeholder={`Search ${noun}s…`}
+          placeholder={`Search ${plural}…`}
         />
         <CommandList>
           {shown && <CommandEmpty>Nothing matches.</CommandEmpty>}
@@ -88,12 +90,14 @@ export function RecordPicker({
   name,
   labelName,
   noun,
+  plural,
   initial,
   search,
 }: {
   name: string;
   labelName: string;
   noun: string;
+  plural?: string;
   initial: PickerOption | null;
   search: Search;
 }) {
@@ -135,6 +139,7 @@ export function RecordPicker({
         open={open}
         onOpenChange={setOpen}
         noun={noun}
+        plural={plural}
         search={search}
         onSelect={setSelected}
       />

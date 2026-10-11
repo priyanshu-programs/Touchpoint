@@ -15,7 +15,7 @@ import { listTags } from "@/modules/tags/queries";
 import { labelFor } from "../../labels";
 import { ListFilters, listParams, NextPageLink } from "../list-controls";
 
-export const metadata: Metadata = { title: "Organizations" };
+export const metadata: Metadata = { title: "Companies" };
 
 const PATH = "/people/organizations";
 
@@ -39,14 +39,14 @@ export default async function OrganizationsPage({
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ListFilters path={PATH} params={params} tags={tags} />
-        <ButtonLink href={`${PATH}/new`}>Add organization</ButtonLink>
+        <ButtonLink href={`${PATH}/new`}>Add company</ButtonLink>
       </div>
 
       {page.rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {filtered
-            ? "No organizations match these filters."
-            : "No organizations yet. Add a company or agency you work with."}
+            ? "No companies match these filters."
+            : "No companies yet. Add a company or agency you work with."}
         </p>
       ) : (
         <Table>

@@ -135,6 +135,32 @@ test.describe("signed in", () => {
     ).toBeVisible();
   });
 
+  test("the sidebar expands, stays expanded and still navigates", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const collapse = page.getByRole("button", { name: "Collapse sidebar" });
+    // The button is wired up after hydration, so an early click can be missed.
+    await expect(async () => {
+      await page.getByRole("button", { name: "Expand sidebar" }).click();
+      await expect(collapse).toBeVisible({ timeout: 1_000 });
+    }).toPass();
+
+    await page.reload();
+    await expect(collapse).toHaveAttribute("aria-expanded", "true");
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .first()
+      .getByRole("link", { name: "Tasks" })
+      .click();
+    await expect(page).toHaveURL(/\/tasks$/);
+
+    await collapse.click();
+    await expect(
+      page.getByRole("button", { name: "Expand sidebar" }),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
   test.describe("on a phone", () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
@@ -142,7 +168,9 @@ test.describe("signed in", () => {
       await page.goto("/");
       const bottomBar = page.getByRole("navigation", { name: "Main" }).last();
       await expect(bottomBar).toBeVisible();
-      await expect(page.getByRole("button", { name: "Sign out" })).toBeHidden();
+      await expect(
+        page.getByRole("button", { name: "Expand sidebar" }),
+      ).toBeHidden();
 
       await bottomBar.getByRole("link", { name: "Settings" }).click();
       await expect(page).toHaveURL(/\/settings\/profile$/);

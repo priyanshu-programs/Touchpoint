@@ -51,7 +51,7 @@ function failure(
   if (result.reason === "unknown_organization") {
     return {
       ok: false,
-      message: "Choose an organization from the list.",
+      message: "Choose a company from the list.",
       values,
     };
   }

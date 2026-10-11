@@ -13,7 +13,7 @@ function collectConsoleErrors(page: Page) {
   return errors;
 }
 
-test("add an organization; a second one on the same domain is refused", async ({
+test("add a company; a second one on the same domain is refused", async ({
   page,
 }) => {
   const consoleErrors = collectConsoleErrors(page);
@@ -22,17 +22,22 @@ test("add an organization; a second one on the same domain is refused", async ({
   await page
     .getByRole("navigation", { name: "Main" })
     .first()
-    .getByRole("link", { name: "People" })
+    .getByRole("link", { name: "Companies" })
     .click();
+  await expect(page).toHaveURL(/\/people\/organizations$/);
+  await expect(page.getByText("No companies yet")).toBeVisible();
+
+  const tabs = page.getByRole("navigation", { name: "Companies and people" });
+  await tabs.getByRole("link", { name: "People" }).click();
   await expect(page).toHaveURL(/\/people\/contacts$/);
   await expect(page.getByText("No contacts yet")).toBeVisible();
 
-  await page.getByRole("link", { name: "Organizations" }).click();
-  await page.getByRole("link", { name: "Add organization" }).click();
+  await tabs.getByRole("link", { name: "Companies" }).click();
+  await page.getByRole("link", { name: "Add company" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Acme Design");
   await page.getByLabel("Domain").fill("https://www.acme.com/about");
   await page.getByLabel("Tags").fill("design, vip");
-  await page.getByRole("button", { name: "Add organization" }).click();
+  await page.getByRole("button", { name: "Add company" }).click();
 
   await expect(page.getByRole("heading", { name: "Acme Design" })).toBeVisible();
   await expect(page.getByText("acme.com", { exact: true })).toBeVisible();
@@ -41,7 +46,7 @@ test("add an organization; a second one on the same domain is refused", async ({
   await page.getByLabel("Name", { exact: true }).fill("Entirely Different");
   await page.getByLabel("Status").selectOption("client");
   await page.getByLabel("Domain").fill("acme.com");
-  await page.getByRole("button", { name: "Add organization" }).click();
+  await page.getByRole("button", { name: "Add company" }).click();
 
   await expect(
     page.getByText("That domain already belongs to Acme Design."),
@@ -54,7 +59,7 @@ test("add an organization; a second one on the same domain is refused", async ({
   expect(consoleErrors).toEqual([]);
 });
 
-test("add a contact from its organization; duplicates are caught", async ({
+test("add a contact from its company; duplicates are caught", async ({
   page,
 }) => {
   const consoleErrors = collectConsoleErrors(page);
@@ -63,7 +68,7 @@ test("add a contact from its organization; duplicates are caught", async ({
   await page.getByRole("link", { name: "Acme Design" }).click();
   await page.getByRole("link", { name: "Add contact" }).click();
   await expect(
-    page.getByRole("button", { name: /organization: Acme Design/ }),
+    page.getByRole("button", { name: /company: Acme Design/ }),
   ).toBeVisible();
 
   await page.getByLabel("First name").fill("Priya");
@@ -102,14 +107,14 @@ test("add a contact from its organization; duplicates are caught", async ({
   expect(consoleErrors).toEqual([]);
 });
 
-test("pick an organization, then filter and archive contacts", async ({
+test("pick a company, then filter and archive contacts", async ({
   page,
 }) => {
   await page.goto("/people/contacts/new");
   await page.getByLabel("First name").fill("Arjun");
   await page.getByLabel("Last name").fill("Rao");
-  await page.getByRole("button", { name: "Choose organization" }).click();
-  await page.getByPlaceholder("Search organizations…").fill("acm");
+  await page.getByRole("button", { name: "Choose company" }).click();
+  await page.getByPlaceholder("Search companies…").fill("acm");
   await page.getByRole("option", { name: /Acme Design/ }).click();
   await page.getByRole("button", { name: "Add contact" }).click();
   await expect(page.getByRole("heading", { name: "Arjun Rao" })).toBeVisible();

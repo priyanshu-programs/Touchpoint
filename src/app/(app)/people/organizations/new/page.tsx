@@ -6,7 +6,7 @@ import { toOptions } from "../../labels";
 import { createOrganizationAction } from "../actions";
 import { OrganizationForm } from "../organization-form";
 
-export const metadata: Metadata = { title: "Add organization" };
+export const metadata: Metadata = { title: "Add company" };
 
 export default async function NewOrganizationPage() {
   await requireOwner();
@@ -15,7 +15,7 @@ export default async function NewOrganizationPage() {
     <Card>
       <CardHeader>
         <CardTitle>
-          <h1>Add organization</h1>
+          <h1>Add company</h1>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -34,7 +34,7 @@ export default async function NewOrganizationPage() {
             tags: "",
           }}
           statuses={toOptions(ORGANIZATION_STATUSES)}
-          submitLabel="Add organization"
+          submitLabel="Add company"
           cancelHref="/people/organizations"
         />
       </CardContent>

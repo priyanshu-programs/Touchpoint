@@ -199,7 +199,7 @@ export default async function TaskPage({ params }: PageProps<"/tasks/[id]">) {
                   ),
                 },
                 {
-                  label: "Organization",
+                  label: "Company",
                   value: task.organizationId && (
                     <Link
                       href={`/people/organizations/${task.organizationId}`}

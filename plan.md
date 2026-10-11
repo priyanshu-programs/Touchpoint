@@ -22,6 +22,10 @@ Each step is a vertical slice: migration, module (zod schema, service, queries, 
 - [x] Step 2: Tasks and reminders — Today, Week and All views, recurrence, snooze, in-app reminders through the jobs runner; Today dashboard shows what is due; Tasks tab on contacts and organizations. The Calendar view in PRD section 6 is left for the calendar integration (phase 5)
 - [x] Step 3: Activities and timeline — log an interaction (one or more contacts, optional organization) with an optional follow-up task; `timeline` view; Timeline tab on contacts and organizations; "Log activity" in the command palette. There is no Activities item in the navigation because the PRD has no such area
 - [x] Between steps 3 and 4: Today also shows contact and organization counts, the week ahead (Coming up) and recent activity, using data from steps 1–3. Pipeline and revenue figures join it with opportunities (step 4) and Phase 4
+- [ ] Between steps 3 and 4: Companies workspace, asked for by the owner with reference screenshots. Organizations are called companies in the interface; routes, tables and modules keep the name `organizations`
+  - [x] Slice 1: top bar with the account menu, collapsible sidebar (icon rail by default, remembered in a cookie, Ctrl+B), sidebar item Companies with Companies and People tabs, wording
+  - [ ] Slice 2: companies table (logo, domain, industry, contacts, last activity, sort, filters), company side panel opened from the list, New company dialog (name and website), add a contact inside a company
+  - [ ] Slice 3: built-in enrichment from the company's own website (no third-party API): `enrichment_runs`, `field_provenance`, logos stored in Postgres, SSRF-guarded fetch, fills empty fields only and never overwrites what the owner typed
 - [ ] Step 4: Opportunities — value, probability, contacts, won and lost; `src/lib/money.ts`
 - [ ] Step 5: Workflow engine — templates, list editor, instances, `transition()`, stage tasks, roadmap, starter templates
 - [ ] Step 6: Pipeline board (dnd-kit) and canvas template editor (React Flow)
@@ -30,7 +34,7 @@ Each step is a vertical slice: migration, module (zod schema, service, queries, 
 - [ ] Step 9: Search, quick add, custom fields, merge duplicates
 - [ ] Step 10: Journey tests on desktop and phone; phase close-out
 
-Left out of Phase 3 on purpose: enrichment (`enrichment_runs`, `field_provenance`, website reader), file uploads and the `files` table (no storage on Vercel), email and push reminder channels (email needs Gmail in Phase 5; push needs a service worker), dashboard filters, money, reports and data export (Phase 4).
+Left out of Phase 3 on purpose: key-based enrichment providers and the enrichment review screen (the website reader arrives with the Companies workspace above), file uploads and the `files` table (no storage on Vercel), email and push reminder channels (email needs Gmail in Phase 5; push needs a service worker), dashboard filters, money, reports and data export (Phase 4).
 
 Phase 2 (foundation) is complete and live at https://touchpoint-sandy.vercel.app (Vercel `sin1`, Neon `main`, cron-job.org every 15 minutes).
 

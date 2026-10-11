@@ -46,7 +46,7 @@ export default async function TodayPage() {
     { href: "/people/contacts", label: "Contacts", count: contactCount },
     {
       href: "/people/organizations",
-      label: "Organizations",
+      label: "Companies",
       count: organizationCount,
     },
   ];

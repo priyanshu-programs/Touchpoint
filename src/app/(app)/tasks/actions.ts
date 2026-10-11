@@ -44,7 +44,7 @@ function failure(
     message:
       result.reason === "unknown_contact"
         ? "Choose a contact from the list."
-        : "Choose an organization from the list.",
+        : "Choose a company from the list.",
     values,
   };
 }

@@ -13,7 +13,7 @@ import {
 import { listContacts } from "@/modules/contacts/queries";
 import { loadOrganization } from "../load";
 
-export const metadata: Metadata = { title: "Organization" };
+export const metadata: Metadata = { title: "Company" };
 
 export default async function OrganizationPage({
   params,
@@ -90,7 +90,7 @@ export default async function OrganizationPage({
         <CardContent className="grid gap-3">
           {contacts.rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No contacts at this organization yet.
+              No contacts at this company yet.
             </p>
           ) : (
             <ul className="grid gap-2">

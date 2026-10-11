@@ -20,7 +20,7 @@ export function normalizeDomain(value: string) {
 }
 
 export const organizationInput = z.strictObject({
-  name: z.string().trim().min(1, "Enter the organization's name").max(200),
+  name: z.string().trim().min(1, "Enter the company's name").max(200),
   domain: blankToNull(
     z
       .string()

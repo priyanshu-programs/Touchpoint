@@ -53,7 +53,7 @@ export default async function ContactsPage({
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead className="hidden sm:table-cell">Organization</TableHead>
+              <TableHead className="hidden sm:table-cell">Company</TableHead>
               <TableHead className="hidden md:table-cell">Email</TableHead>
               <TableHead className="hidden sm:table-cell">Relationship</TableHead>
             </TableRow>

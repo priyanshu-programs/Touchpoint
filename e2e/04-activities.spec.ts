@@ -8,7 +8,7 @@ test.use({ storageState: OWNER_SESSION });
 const contactTabs = (page: Page) =>
   page.getByRole("navigation", { name: "Contact" });
 const organizationTabs = (page: Page) =>
-  page.getByRole("navigation", { name: "Organization" });
+  page.getByRole("navigation", { name: "Company", exact: true });
 
 // The owner's time zone was set to Asia/Calcutta in 01-foundation.
 const ZONE = "Asia/Kolkata";
@@ -41,7 +41,7 @@ test("log a call from a contact; the timeline and the task list update together"
     page.getByRole("button", { name: "Remove contact: Priya Sharma" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /organization: Acme Design/ }),
+    page.getByRole("button", { name: /company: Acme Design/ }),
   ).toBeVisible();
 
   await page.getByLabel("Type").selectOption("call");
@@ -104,7 +104,7 @@ test("a rejected activity form explains why and keeps what was typed", async ({
   await page.getByRole("button", { name: "Log activity" }).click();
 
   await expect(
-    page.getByText("Choose a contact or an organization"),
+    page.getByText("Choose a contact or a company"),
   ).toBeVisible();
   await expect(page.getByLabel("Summary")).toHaveValue("Unattached meeting");
   await expect(page.getByLabel("Type")).toHaveValue("meeting");

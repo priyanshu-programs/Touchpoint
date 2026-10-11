@@ -53,7 +53,7 @@ test("Today shows the week ahead, recent activity and people counts", async ({
 
   await page.goto("/");
   await expect(
-    main.getByRole("link", { name: /^Organizations\s*\d+$/ }),
+    main.getByRole("link", { name: /^Companies\s*\d+$/ }),
   ).toBeVisible();
   await main.getByRole("link", { name: /^Contacts\s*\d+$/ }).click();
   await expect(page).toHaveURL(/\/people\/contacts$/);

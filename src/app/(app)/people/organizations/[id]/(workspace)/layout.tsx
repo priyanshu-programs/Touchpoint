@@ -51,7 +51,7 @@ export default async function OrganizationWorkspaceLayout({
       </div>
 
       <TabNav
-        label="Organization"
+        label="Company"
         tabs={[
           { href: path, label: "Overview" },
           { href: `${path}/timeline`, label: "Timeline" },

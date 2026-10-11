@@ -96,7 +96,8 @@ export function ActivityForm({
         <RecordPicker
           name="organizationId"
           labelName="organizationName"
-          noun="organization"
+          noun="company"
+          plural="companies"
           initial={
             values.organizationId
               ? { id: values.organizationId, label: values.organizationName }

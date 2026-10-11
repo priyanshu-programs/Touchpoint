@@ -39,7 +39,7 @@ test("add a task from a contact and complete it on Today", async ({ page }) => {
   ).toBeVisible();
   // A task for a person is also linked to their organization.
   await expect(
-    page.getByRole("button", { name: /organization: Acme Design/ }),
+    page.getByRole("button", { name: /company: Acme Design/ }),
   ).toBeVisible();
   await page.getByLabel("Task", { exact: true }).fill("Send proposal");
   await page.getByLabel("Due date").fill(localDate());

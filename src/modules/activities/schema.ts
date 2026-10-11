@@ -27,7 +27,7 @@ type Links = { contactIds: string[]; organizationId: string | null };
 // Without a link the activity would appear on no timeline at all.
 const linked = (value: Links) =>
   value.contactIds.length > 0 || value.organizationId !== null;
-const LINK_MESSAGE = "Choose a contact or an organization";
+const LINK_MESSAGE = "Choose a contact or a company";
 
 export const activityInput = z
   .strictObject(fields)

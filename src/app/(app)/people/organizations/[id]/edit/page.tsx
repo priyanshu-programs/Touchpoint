@@ -9,7 +9,7 @@ import { toOptions } from "../../../labels";
 import { updateOrganizationAction } from "../../actions";
 import { OrganizationForm } from "../../organization-form";
 
-export const metadata: Metadata = { title: "Edit organization" };
+export const metadata: Metadata = { title: "Edit company" };
 
 export default async function EditOrganizationPage({
   params,
