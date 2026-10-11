@@ -13,7 +13,7 @@ export function TabNav({
 }) {
   const pathname = usePathname();
   return (
-    <nav aria-label={label} className="flex gap-1 overflow-x-auto border-b">
+    <nav aria-label={label} className="flex gap-1 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {tabs.map((tab) => {
         const active = pathname === tab.href;
         return (

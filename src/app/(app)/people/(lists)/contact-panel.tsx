@@ -159,7 +159,7 @@ export function ContactPanel({
 
       <nav
         aria-label="Contact"
-        className="flex gap-1 overflow-x-auto border-b px-2"
+        className="flex gap-1 overflow-x-auto border-b px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {TABS.map((item) => (
           <Link
