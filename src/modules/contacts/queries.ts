@@ -36,6 +36,7 @@ export async function listContacts(
       fullName: contacts.fullName,
       jobTitle: contacts.jobTitle,
       relationshipType: contacts.relationshipType,
+      isPrimary: contacts.isPrimary,
       organizationId: contacts.organizationId,
       organizationName: organizations.name,
       primaryEmail: contactEmails.email,

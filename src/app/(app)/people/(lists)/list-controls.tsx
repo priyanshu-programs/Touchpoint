@@ -22,12 +22,14 @@ export const listParams = z.object({
 type ListParams = z.infer<typeof listParams>;
 
 // `company` and `tab` say which company panel is open over the list; `after` pages its timeline.
+// With `contact`, the panel shows that person at the company and `tab` is theirs.
 export const companyListParams = listParams.extend({
   status: optional(z.enum(ORGANIZATION_STATUSES)),
   sort: optional(z.enum(ORGANIZATION_SORTS)),
   dir: optional(z.enum(["asc", "desc"])),
   page: optional(z.coerce.number().int().min(1).max(1000)),
   company: optional(z.uuid()),
+  contact: optional(z.uuid()),
   tab: optional(z.enum(["contacts", "activity", "tasks"])),
 });
 export type CompanyListParams = z.infer<typeof companyListParams>;

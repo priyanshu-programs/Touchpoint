@@ -50,6 +50,13 @@
       "when": 1791725027681,
       "tag": "0006_company_contact_details",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791727761967,
+      "tag": "0007_primary_contact",
+      "breakpoints": true
     }
   ]
 }

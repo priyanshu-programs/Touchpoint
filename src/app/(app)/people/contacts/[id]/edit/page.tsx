@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
 import { getContact } from "@/modules/contacts/queries";
+import { contactPanelHref } from "../../../labels";
 import { updateContactAction } from "../../actions";
 import { ContactForm } from "../../contact-form";
 import { contactFormOptions } from "../../form-options";
@@ -12,12 +13,14 @@ export const metadata: Metadata = { title: "Edit contact" };
 
 export default async function EditContactPage({
   params,
+  searchParams,
 }: PageProps<"/people/contacts/[id]/edit">) {
   const owner = await requireOwner();
   const id = z.uuid().safeParse((await params).id);
   if (!id.success) notFound();
   const contact = await getContact(owner.id, id.data);
   if (!contact) notFound();
+  const toPanel = (await searchParams).from === "company";
 
   return (
     <Card>
@@ -28,7 +31,7 @@ export default async function EditContactPage({
       </CardHeader>
       <CardContent>
         <ContactForm
-          action={updateContactAction.bind(null, contact.id)}
+          action={updateContactAction.bind(null, contact.id, toPanel)}
           initial={{
             firstName: contact.firstName,
             lastName: contact.lastName ?? "",
@@ -49,7 +52,11 @@ export default async function EditContactPage({
           options={contactFormOptions(contact.timezone)}
           withEmail={false}
           submitLabel="Save changes"
-          cancelHref={`/people/contacts/${contact.id}`}
+          cancelHref={
+            toPanel && contact.organizationId
+              ? contactPanelHref(contact.organizationId, contact.id)
+              : `/people/contacts/${contact.id}`
+          }
         />
       </CardContent>
     </Card>

@@ -1,10 +1,23 @@
+import { Star } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { ButtonLink } from "@/components/button-link";
-import { CompanyLogo } from "@/components/company-logo";
+import { CompanyLogo, Monogram } from "@/components/company-logo";
+import {
+  DetailRows,
+  SECTION_HEADING,
+  type DetailRow,
+} from "@/components/detail-rows";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { dateIn, formatDate } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { listTimeline } from "@/modules/activities/queries";
@@ -15,7 +28,10 @@ import { getSettings } from "@/modules/settings/service";
 import { listTasks } from "@/modules/tasks/queries";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
-import { addCompanyContactAction } from "../../contacts/actions";
+import {
+  addCompanyContactAction,
+  setPrimaryContactAction,
+} from "../../contacts/actions";
 import { labelFor } from "../../labels";
 import { setOrganizationArchivedAction } from "../../organizations/actions";
 import { companiesHref, type CompanyListParams } from "../list-controls";
@@ -67,9 +83,6 @@ function websiteStatus(
   };
 }
 
-const SECTION_HEADING =
-  "text-xs font-medium tracking-wide text-muted-foreground uppercase";
-
 const TABS = [
   { tab: undefined, label: "Overview" },
   { tab: "contacts", label: "Contacts" },
@@ -120,32 +133,32 @@ export async function CompanyPanel({
       {text}
     </a>
   );
-  const details: { label: string; value: ReactNode; field?: string }[] = [
+  const details: DetailRow[] = [
     { label: "Name", value: organization.name },
     { label: "Domain", value: organization.domain },
     {
       label: "Website",
-      field: "website",
+      note: fromWebsite("website"),
       value:
         organization.website && link(organization.website, organization.website, true),
     },
     {
       label: "Phone",
-      field: "phone",
+      note: fromWebsite("phone"),
       value:
         organization.phone &&
         link(`tel:${organization.phone.replace(/[^\d+]/g, "")}`, organization.phone),
     },
     {
       label: "Email",
-      field: "email",
+      note: fromWebsite("email"),
       value:
         organization.email && link(`mailto:${organization.email}`, organization.email),
     },
     { label: "Industry", value: organization.industry },
-    { label: "City", field: "city", value: organization.city },
-    { label: "Region", field: "region", value: organization.region },
-    { label: "Country", field: "country", value: organization.country },
+    { label: "City", note: fromWebsite("city"), value: organization.city },
+    { label: "Region", note: fromWebsite("region"), value: organization.region },
+    { label: "Country", note: fromWebsite("country"), value: organization.country },
   ];
   const tiles = [
     { label: "Contacts", value: upTo(contacts) },
@@ -222,7 +235,8 @@ export async function CompanyPanel({
 
       <nav
         aria-label="Company"
-        className="flex gap-1 overflow-x-auto border-b px-2"
+        // The sheet is a column that scrolls: without this the tab bar is squeezed away under long content.
+        className="flex shrink-0 gap-1 overflow-x-auto border-b px-2"
       >
         {TABS.map(({ tab, label }) => (
           <Link
@@ -237,6 +251,11 @@ export async function CompanyPanel({
             )}
           >
             {label}
+            {tab === "contacts" && contacts.rows.length > 0 && (
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                {upTo(contacts)}
+              </span>
+            )}
           </Link>
         ))}
       </nav>
@@ -267,24 +286,7 @@ export async function CompanyPanel({
             <h3 id="details-heading" className={cn(SECTION_HEADING, "p-4")}>
               Details
             </h3>
-            <dl className="grid gap-3 px-4 pb-4 text-sm">
-              {details.map((row) => (
-                <div
-                  key={row.label}
-                  className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3"
-                >
-                  <dt className="text-muted-foreground">{row.label}</dt>
-                  <dd className="font-medium break-words">
-                    {row.value ?? (
-                      <span className="font-normal text-muted-foreground">
-                        —
-                      </span>
-                    )}
-                    {row.value && row.field && fromWebsite(row.field)}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <DetailRows rows={details} className="px-4 pb-4" />
             {site && (
               <WebsiteDetails
                 organizationId={organization.id}
@@ -304,37 +306,95 @@ export async function CompanyPanel({
                   No contacts at this company yet.
                 </p>
               ) : (
-                <ul className="grid gap-3">
-                  {contacts.rows.map((contact) => (
-                    <li key={contact.id} className="grid min-w-0 gap-0.5">
-                      <Link
-                        href={`/people/contacts/${contact.id}`}
-                        className="font-medium underline-offset-4 hover:underline"
-                      >
-                        {contact.fullName}
-                      </Link>
-                      <p className="text-sm break-words text-muted-foreground">
-                        {[contact.jobTitle, contact.primaryEmail]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        Title
+                      </TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        Email
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {contacts.rows.map((contact) => (
+                      <TableRow key={contact.id}>
+                        <TableCell className="whitespace-normal">
+                          <div className="flex items-center gap-2">
+                            <form action={setPrimaryContactAction}>
+                              <input type="hidden" name="id" value={contact.id} />
+                              <input
+                                type="hidden"
+                                name="primary"
+                                value={contact.isPrimary ? "0" : "1"}
+                              />
+                              <button
+                                type="submit"
+                                aria-pressed={contact.isPrimary}
+                                aria-label={`Primary contact: ${contact.fullName}`}
+                                className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+                              >
+                                <Star
+                                  aria-hidden
+                                  className={cn(
+                                    "size-4",
+                                    contact.isPrimary &&
+                                      "fill-primary text-primary",
+                                  )}
+                                />
+                              </button>
+                            </form>
+                            <Monogram
+                              name={contact.fullName}
+                              className="rounded-full"
+                            />
+                            <div className="grid min-w-0 gap-0.5">
+                              <Link
+                                href={companiesHref(params, {
+                                  contact: contact.id,
+                                  tab: undefined,
+                                  after: undefined,
+                                })}
+                                scroll={false}
+                                className="font-medium underline-offset-4 hover:underline"
+                              >
+                                {contact.fullName}
+                              </Link>
+                              {(contact.jobTitle || contact.primaryEmail) && (
+                                <p className="text-xs break-words text-muted-foreground sm:hidden">
+                                  {[contact.jobTitle, contact.primaryEmail]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden text-muted-foreground sm:table-cell">
+                          {contact.jobTitle ?? "—"}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          {contact.primaryEmail ? (
+                            <a
+                              href={`mailto:${contact.primaryEmail}`}
+                              className="underline"
+                            >
+                              {contact.primaryEmail}
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
-              <section
-                aria-labelledby="add-contact-heading"
-                className="grid gap-4 border-t pt-4"
-              >
-                <h3 id="add-contact-heading" className="font-medium">
-                  Add a contact
-                </h3>
-                {/* Remounted after each new contact, so the fields start empty again. */}
-                <AddContactForm
-                  key={contacts.rows.length}
-                  action={addCompanyContactAction.bind(null, organization.id)}
-                />
-              </section>
+              <AddContactForm
+                action={addCompanyContactAction.bind(null, organization.id)}
+              />
             </>
           )}
 

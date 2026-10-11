@@ -1,6 +1,6 @@
 import { and, eq, ne } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
-import { fieldProvenance, organizations } from "@/db/schema";
+import { contacts, fieldProvenance, organizations } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { markManual, requestEnrichment } from "@/modules/enrichment/service";
 import { ENRICHABLE_FIELDS } from "@/modules/enrichment/website/read";
@@ -155,6 +155,17 @@ export async function deleteOrganization(ownerId: string, id: string) {
           eq(fieldProvenance.ownerId, ownerId),
           eq(fieldProvenance.entityType, "organization"),
           eq(fieldProvenance.entityId, id),
+        ),
+      );
+    // Its contacts stay, so nobody is left marked as the primary contact of nothing.
+    await tx
+      .update(contacts)
+      .set({ isPrimary: false })
+      .where(
+        and(
+          eq(contacts.ownerId, ownerId),
+          eq(contacts.organizationId, id),
+          eq(contacts.isPrimary, true),
         ),
       );
     await tx.delete(organizations).where(owned);

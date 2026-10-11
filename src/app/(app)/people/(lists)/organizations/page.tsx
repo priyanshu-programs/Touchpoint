@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { requireOwner } from "@/lib/session";
 import { dateIn, formatDate } from "@/lib/time";
+import { getContact } from "@/modules/contacts/queries";
 import {
   getOrganization,
   listOrganizations,
@@ -34,6 +35,7 @@ import {
 } from "../list-controls";
 import { CompanyPanel } from "./company-panel";
 import { CompanySheet } from "./company-sheet";
+import { ContactPanel } from "./contact-panel";
 import { NewCompanyDialog } from "./new-company-dialog";
 
 export const metadata: Metadata = { title: "Companies" };
@@ -42,7 +44,12 @@ const PAGE_SIZE = 50;
 type Sort = NonNullable<CompanyListParams["sort"]>;
 // The direction a column takes when it is first chosen: names A to Z, numbers and dates largest first.
 const FIRST_DIRECTION = { name: "asc", contacts: "desc", activity: "desc" } as const;
-const NO_PANEL = { company: undefined, tab: undefined, after: undefined };
+const NO_PANEL = {
+  company: undefined,
+  contact: undefined,
+  tab: undefined,
+  after: undefined,
+};
 
 function SortHead({
   params,
@@ -97,7 +104,7 @@ export default async function OrganizationsPage({
   const params = companyListParams.parse(await searchParams);
   const sort = params.sort ?? "name";
   const pageNumber = params.page ?? 1;
-  const [page, tags, settings, open] = await Promise.all([
+  const [page, tags, settings, open, person] = await Promise.all([
     listOrganizations(owner.id, {
       q: params.q,
       tagId: params.tag,
@@ -111,7 +118,12 @@ export default async function OrganizationsPage({
     listTags(owner.id),
     getSettings(owner.id),
     params.company ? getOrganization(owner.id, params.company) : null,
+    params.company && params.contact
+      ? getContact(owner.id, params.contact)
+      : null,
   ]);
+  // Someone who has since moved to another company is not shown under this one.
+  const contact = open && person?.organizationId === open.id ? person : null;
   const timezone = settings?.timezone ?? "UTC";
   const filtered = Boolean(
     params.q || params.tag || params.status || params.archived,
@@ -274,11 +286,20 @@ export default async function OrganizationsPage({
 
       {open && (
         <CompanySheet closeHref={companiesHref(params, NO_PANEL)}>
-          <CompanyPanel
-            ownerId={owner.id}
-            organization={open}
-            params={params}
-          />
+          {contact ? (
+            <ContactPanel
+              ownerId={owner.id}
+              organization={open}
+              contact={contact}
+              params={params}
+            />
+          ) : (
+            <CompanyPanel
+              ownerId={owner.id}
+              organization={open}
+              params={{ ...params, contact: undefined }}
+            />
+          )}
         </CompanySheet>
       )}
     </div>

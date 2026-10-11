@@ -20,12 +20,13 @@ import {
   removeContactEmail,
   removeContactLink,
   setContactArchived,
+  setPrimaryContact,
   setPrimaryEmail,
   updateContact,
   type ContactResult,
 } from "@/modules/contacts/service";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { companyHref } from "../labels";
+import { contactPanelHref } from "../labels";
 
 const FIELDS = [
   "firstName",
@@ -140,11 +141,13 @@ export async function addCompanyContactAction(
   if (!result.ok) return failure(result, values);
 
   revalidatePath("/people", "layout");
-  redirect(companyHref(organizationId, "contacts"));
+  return { ok: true, message: `${parsed.data.firstName} added.` };
 }
 
+// `toPanel` is set when the edit was opened from the company's panel, so saving returns there.
 export async function updateContactAction(
   id: string,
+  toPanel: boolean,
   _previous: RecordFormState,
   formData: FormData,
 ): Promise<RecordFormState> {
@@ -159,7 +162,20 @@ export async function updateContactAction(
   if (!result.ok) return failure(result, values);
 
   revalidatePath("/people", "layout");
-  redirect(`/people/contacts/${contactId}`);
+  redirect(
+    toPanel && parsed.data.organizationId
+      ? contactPanelHref(parsed.data.organizationId, contactId)
+      : `/people/contacts/${contactId}`,
+  );
+}
+
+export async function setPrimaryContactAction(formData: FormData) {
+  const owner = await requireOwner();
+  const { id, primary } = z
+    .strictObject({ id: z.uuid(), primary: z.enum(["0", "1"]) })
+    .parse(readFields(formData, ["id", "primary"]));
+  await setPrimaryContact(owner.id, id, primary === "1");
+  revalidatePath("/people", "layout");
 }
 
 export async function searchContactsAction(query: string) {
@@ -240,7 +256,7 @@ export async function addContactLinkAction(
     return { ok: false, message: parsed.error.issues[0].message };
   }
   if (!(await addContactLink(owner.id, contactId, parsed.data))) notFound();
-  revalidatePath(`/people/contacts/${contactId}`);
+  revalidatePath("/people", "layout");
   return { ok: true, message: "Link added." };
 }
 
@@ -250,5 +266,5 @@ export async function removeContactLinkAction(formData: FormData) {
     .strictObject({ contactId: z.uuid(), linkId: z.uuid() })
     .parse(readFields(formData, ["contactId", "linkId"]));
   await removeContactLink(owner.id, contactId, linkId);
-  revalidatePath(`/people/contacts/${contactId}`);
+  revalidatePath("/people", "layout");
 }

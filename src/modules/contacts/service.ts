@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
 import {
   contactEmails,
@@ -43,6 +43,7 @@ const snapshot = (row: typeof contacts.$inferSelect, tags: string[]) => ({
   preferredChannel: row.preferredChannel,
   status: row.status,
   relationshipType: row.relationshipType,
+  isPrimary: row.isPrimary,
   tags,
 });
 
@@ -104,9 +105,27 @@ export async function createContact(
       }
     }
 
+    // The first person added at a company is the one to reach until the owner says otherwise.
+    const [colleague] = fields.organizationId
+      ? await tx
+          .select({ id: contacts.id })
+          .from(contacts)
+          .where(
+            and(
+              eq(contacts.ownerId, ownerId),
+              eq(contacts.organizationId, fields.organizationId),
+              isNull(contacts.archivedAt),
+            ),
+          )
+          .limit(1)
+      : [];
     const [row] = await tx
       .insert(contacts)
-      .values({ ownerId, ...fields })
+      .values({
+        ownerId,
+        ...fields,
+        isPrimary: Boolean(fields.organizationId) && !colleague,
+      })
       .returning();
     if (email) {
       await tx
@@ -145,7 +164,13 @@ export async function updateContact(
     const { tags, ...fields } = input;
     const [row] = await tx
       .update(contacts)
-      .set(fields)
+      .set({
+        ...fields,
+        // Being the primary contact belongs to the company that was left.
+        ...(fields.organizationId !== before.organizationId && {
+          isPrimary: false,
+        }),
+      })
       .where(and(eq(contacts.ownerId, ownerId), eq(contacts.id, id)))
       .returning();
     await setContactTags(tx, ownerId, id, tags);
@@ -170,7 +195,10 @@ export async function setContactArchived(
   return db.transaction(async (tx) => {
     const [row] = await tx
       .update(contacts)
-      .set({ archivedAt: archived ? new Date() : null })
+      .set({
+        archivedAt: archived ? new Date() : null,
+        ...(archived && { isPrimary: false }),
+      })
       .where(and(eq(contacts.ownerId, ownerId), eq(contacts.id, id)))
       .returning({ id: contacts.id });
     if (!row) return false;
@@ -180,6 +208,46 @@ export async function setContactArchived(
       action: archived ? "contact.archive" : "contact.restore",
       entityType: "contact",
       entityId: id,
+    });
+    return true;
+  });
+}
+
+// Marks or unmarks a company's primary contact; a company has at most one.
+export async function setPrimaryContact(
+  ownerId: string,
+  id: string,
+  primary: boolean,
+) {
+  return db.transaction(async (tx) => {
+    const contact = await lockContact(tx, ownerId, id);
+    if (!contact?.organizationId || contact.archivedAt) return false;
+
+    // Clear first: the one-primary-per-company index rejects two even briefly.
+    await tx
+      .update(contacts)
+      .set({ isPrimary: false })
+      .where(
+        and(
+          eq(contacts.ownerId, ownerId),
+          eq(contacts.organizationId, contact.organizationId),
+          eq(contacts.isPrimary, true),
+        ),
+      );
+    if (primary) {
+      await tx
+        .update(contacts)
+        .set({ isPrimary: true })
+        .where(eq(contacts.id, id));
+    }
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "contact.set_primary",
+      entityType: "contact",
+      entityId: id,
+      before: { isPrimary: contact.isPrimary },
+      after: { isPrimary: primary, organizationId: contact.organizationId },
     });
     return true;
   });

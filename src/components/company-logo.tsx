@@ -33,6 +33,16 @@ export function CompanyLogo({
       />
     );
   }
+  return <Monogram name={name} className={className} />;
+}
+
+export function Monogram({
+  name,
+  className,
+}: {
+  name: string;
+  className?: string;
+}) {
   return (
     <span
       aria-hidden

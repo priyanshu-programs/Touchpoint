@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { listAudit } from "@/modules/audit/service";
 import { organizationInput } from "@/modules/organizations/schema";
-import { createOrganization } from "@/modules/organizations/service";
+import {
+  createOrganization,
+  deleteOrganization,
+} from "@/modules/organizations/service";
 import { listTags } from "@/modules/tags/queries";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import { countContacts, getContact, listContacts } from "./queries";
@@ -18,6 +21,7 @@ import {
   removeContactEmail,
   removeContactLink,
   setContactArchived,
+  setPrimaryContact,
   setPrimaryEmail,
   updateContact,
 } from "./service";
@@ -290,11 +294,83 @@ describe("contacts", () => {
       }),
     );
 
+    await addContactLink(
+      ownerId,
+      id,
+      contactLinkInput.parse({ kind: "github", url: "https://github.com/priya" }),
+    );
+
     const contact = await getContact(ownerId, id);
-    expect(contact!.links).toMatchObject([{ kind: "linkedin" }]);
+    expect(contact!.links).toMatchObject([
+      { kind: "linkedin" },
+      { kind: "github" },
+    ]);
 
     expect(await removeContactLink(ownerId, id, contact!.links[0].id)).toBe(true);
-    expect((await getContact(ownerId, id))!.links).toEqual([]);
+    expect((await getContact(ownerId, id))!.links).toMatchObject([
+      { kind: "github" },
+    ]);
+  });
+
+  it("makes the first person at a company its primary contact and lets the owner move the star", async () => {
+    const organizationId = await createOrg("Acme Design");
+    await create({ organizationId });
+    const second = await create({
+      firstName: "Arjun",
+      lastName: "Rao",
+      organizationId,
+    });
+    const alone = await create({ firstName: "Chitra", lastName: "Nair" });
+    const primaries = async () =>
+      (await listContacts(ownerId, { organizationId })).rows
+        .filter((row) => row.isPrimary)
+        .map((row) => row.fullName);
+
+    expect(await primaries()).toEqual(["Priya Sharma"]);
+
+    expect(await setPrimaryContact(ownerId, second, true)).toBe(true);
+    expect(await primaries()).toEqual(["Arjun Rao"]);
+    const { rows } = await listAudit(ownerId);
+    expect(rows[0]).toMatchObject({
+      action: "contact.set_primary",
+      entityId: second,
+      before: { isPrimary: false },
+      after: { isPrimary: true, organizationId },
+    });
+
+    expect(await setPrimaryContact(ownerId, second, false)).toBe(true);
+    expect(await primaries()).toEqual([]);
+    // Nobody is the primary contact of no company.
+    expect(await setPrimaryContact(ownerId, alone, true)).toBe(false);
+    expect((await getContact(ownerId, alone))!.isPrimary).toBe(false);
+  });
+
+  it("drops the star when the contact changes company, is archived or the company is deleted", async () => {
+    const acme = await createOrg("Acme Design");
+    const borealis = await createOrg("Borealis Labs");
+    const id = await create({ organizationId: acme });
+    const isPrimary = async () => (await getContact(ownerId, id))!.isPrimary;
+    const edit = (override: Partial<typeof form>) =>
+      updateContact(ownerId, id, contactInput.parse({ ...form, ...override }));
+    expect(await isPrimary()).toBe(true);
+
+    await edit({ organizationId: acme, jobTitle: "Founder" });
+    expect(await isPrimary()).toBe(true);
+    await edit({ organizationId: borealis });
+    expect(await isPrimary()).toBe(false);
+
+    await setPrimaryContact(ownerId, id, true);
+    await setContactArchived(ownerId, id, true);
+    expect(await isPrimary()).toBe(false);
+    expect(await setPrimaryContact(ownerId, id, true)).toBe(false);
+
+    await setContactArchived(ownerId, id, false);
+    await setPrimaryContact(ownerId, id, true);
+    expect(await deleteOrganization(ownerId, borealis)).toBe(true);
+    expect(await getContact(ownerId, id)).toMatchObject({
+      organizationId: null,
+      isPrimary: false,
+    });
   });
 
   it("archives and restores, and lists each state separately", async () => {
@@ -374,6 +450,7 @@ describe("contacts", () => {
       reason: "not_found",
     });
     expect(await setContactArchived(otherId, id, true)).toBe(false);
+    expect(await setPrimaryContact(otherId, id, true)).toBe(false);
     expect(await removeContactEmail(otherId, id, emailId)).toBe(false);
     expect(await setPrimaryEmail(otherId, id, emailId)).toBe(false);
     expect(

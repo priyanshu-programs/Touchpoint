@@ -3,6 +3,7 @@ const LABELS: Record<string, string> = {
   do_not_contact: "Do not contact",
   linkedin: "LinkedIn",
   x: "X",
+  github: "GitHub",
   whatsapp: "WhatsApp",
 };
 
@@ -15,6 +16,10 @@ export const companyHref = (
   id: string,
   tab?: "contacts" | "activity" | "tasks",
 ) => `/people/organizations?company=${id}${tab ? `&tab=${tab}` : ""}`;
+
+// A contact at a company can be shown inside that company's panel.
+export const contactPanelHref = (organizationId: string, contactId: string) =>
+  `${companyHref(organizationId)}&contact=${contactId}`;
 
 export const toOptions =(values: readonly string[]) =>
   values.map((value) => ({ value, label: labelFor(value) }));

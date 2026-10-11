@@ -89,6 +89,7 @@ test("add contacts inside a company; duplicates are caught", async ({
   await companyTabs(page).getByRole("link", { name: "Contacts" }).click();
   await expect(page.getByText("No contacts at this company yet.")).toBeVisible();
 
+  await panel(page).getByRole("button", { name: "Add contact" }).click();
   const form = page.getByRole("form", { name: "Add contact" });
   await form.getByLabel("First name").fill("Priya");
   await form.getByLabel("Last name").fill("Sharma");
@@ -97,11 +98,18 @@ test("add contacts inside a company; duplicates are caught", async ({
   await form.getByLabel("Phone").fill("+91 98765 43210");
   await form.getByRole("button", { name: "Add contact" }).click();
 
-  // The contact is listed in the panel and the form is ready for the next one.
+  // The contact is listed in place, starred as the first one here, and the form is ready for the next.
+  await expect(panel(page).getByText("Priya added.")).toBeVisible();
+  const row = panel(page).getByRole("row", { name: /Priya Sharma/ });
+  await expect(row.getByRole("link", { name: "Priya Sharma" })).toBeVisible();
+  await expect(row.getByRole("cell", { name: "Founder" })).toBeVisible();
+  await expect(row.getByRole("link", { name: "priya@acme.com" })).toBeVisible();
   await expect(
-    panel(page).getByRole("link", { name: "Priya Sharma" }),
-  ).toBeVisible();
-  await expect(panel(page).getByText("Founder · priya@acme.com")).toBeVisible();
+    row.getByRole("button", { name: "Primary contact: Priya Sharma" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    companyTabs(page).getByRole("link", { name: "Contacts" }),
+  ).toContainText("1");
   await expect(form.getByLabel("First name")).toHaveValue("");
 
   await form.getByLabel("First name").fill("Someone");
@@ -129,7 +137,8 @@ test("add contacts inside a company; duplicates are caught", async ({
   await page.getByRole("link", { name: "Priya Sharma", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Priya Sharma" })).toBeVisible();
   await expect(page.getByText("Founder at")).toBeVisible();
-  await expect(page.getByRole("link", { name: "priya@acme.com" })).toBeVisible();
+  // Once in Details and once in the list of addresses.
+  await expect(page.getByRole("link", { name: "priya@acme.com" })).toHaveCount(2);
   await expect(page.getByText("Primary", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "+919876543210" })).toBeVisible();
 
@@ -183,7 +192,9 @@ test("pick a company, then filter and archive contacts", async ({
   await page.getByRole("option", { name: /Acme Design/ }).click();
   await page.getByRole("button", { name: "Add contact" }).click();
   await expect(page.getByRole("heading", { name: "Arjun Rao" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Acme Design" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Acme Design" }).first(),
+  ).toBeVisible();
 
   await page.goto("/people/contacts");
   const sharma = page.getByRole("link", { name: "Priya Sharma", exact: true });
@@ -247,7 +258,7 @@ test("manage a contact's emails and links", async ({ page }) => {
   await page
     .getByRole("button", { name: "Remove priya.personal@example.com" })
     .click();
-  await expect(page.getByText("priya.personal@example.com")).toBeHidden();
+  await expect(page.getByText("priya.personal@example.com")).toHaveCount(0);
   await expect(emails.first()).toContainText("priya@acme.com");
   await expect(emails.first()).toContainText("Primary");
 });
@@ -271,6 +282,7 @@ test.describe("on a phone", () => {
     await page.goto("/people/organizations");
     await page.getByRole("link", { name: "Acme Design" }).click();
     await companyTabs(page).getByRole("link", { name: "Contacts" }).click();
+    await panel(page).getByRole("button", { name: "Add contact" }).click();
     await expect(page.getByRole("form", { name: "Add contact" })).toBeVisible();
     expect(
       await page.evaluate(

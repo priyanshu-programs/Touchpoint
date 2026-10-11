@@ -29,8 +29,8 @@ Each step is a vertical slice: migration, module (zod schema, service, queries, 
   - [x] Added afterwards at the owner's request: Delete in the company panel, behind a confirmation. The company, its tags, logo and website reads go; its contacts, tasks and activities stay without a company
 - [ ] Between steps 3 and 4: company details and configurable fields, asked for by the owner with reference screenshots
   - [x] Slice 1: the Overview tab shows the description beside a Details column (every standard field, a dash where empty); companies have a phone and an email; the website reader fills them, and looks at the site's contact page when the home page leaves contact details out
-  - [ ] Slice 2: a gear on Details opens a Fields panel: reorder and hide standard fields, add suggested fields in one click, create custom fields (`custom_field_defs`, pulled forward from Step 9)
-  - [ ] Slice 3: the same for contacts (the Deals tab of the reference waits for Step 4)
+  - [x] Slice 2: contacts inside the company panel: the Contacts tab is a table with a count and an in-place add; a star marks the company's one primary contact (the first person added gets it); a contact opens in the same panel (`?company=<id>&contact=<id>`) with a way back, its own Overview, Activity and Tasks tabs and a two-column Details list; GitHub is a link type. The full contact page stays for the People list and for contacts without a company. Not built: re-enrich for a person (no free source), Deals and Agent tabs, Owner
+  - [ ] Slice 3: a gear on the company's and the contact's Details opens a Fields panel with Companies and Contacts tabs: reorder and hide standard fields, add suggested fields in one click, create custom fields (`custom_field_defs`, pulled forward from Step 9). Values are edited on the Edit forms; the Deals tab of the reference waits for Step 4
 - [ ] Step 4: Opportunities — value, probability, contacts, won and lost; `src/lib/money.ts`
 - [ ] Step 5: Workflow engine — templates, list editor, instances, `transition()`, stage tasks, roadmap, starter templates
 - [ ] Step 6: Pipeline board (dnd-kit) and canvas template editor (React Flow)

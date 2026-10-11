@@ -43,7 +43,13 @@ export const PREFERRED_CHANNELS = [
   "whatsapp",
   "other",
 ] as const;
-export const LINK_KINDS = ["linkedin", "x", "website", "other"] as const;
+export const LINK_KINDS = [
+  "linkedin",
+  "x",
+  "github",
+  "website",
+  "other",
+] as const;
 
 export const organizations = pgTable(
   "organizations",
@@ -117,6 +123,8 @@ export const contacts = pgTable(
     preferredChannel: text("preferred_channel"),
     status: text("status").notNull().default("active"),
     relationshipType: text("relationship_type").notNull().default("prospect"),
+    // The one person to reach first at their company.
+    isPrimary: boolean("is_primary").notNull().default(false),
     search: tsvector("search").generatedAlwaysAs(
       (): SQL =>
         sql`to_tsvector('simple', ${contacts.firstName} || ' ' || coalesce(${contacts.lastName}, '') || ' ' || coalesce(${contacts.jobTitle}, '') || ' ' || coalesce(${contacts.department}, ''))`,
@@ -141,6 +149,9 @@ export const contacts = pgTable(
       table.id,
     ),
     index("contacts_organization_idx").on(table.organizationId),
+    uniqueIndex("contacts_primary_idx")
+      .on(table.organizationId)
+      .where(sql`${table.isPrimary}`),
     index("contacts_search_idx").using("gin", table.search),
     index("contacts_name_trgm_idx").using(
       "gin",

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { Plus } from "lucide-react";
+import { useActionState, useState } from "react";
 import { TextField } from "@/components/fields";
 import { FormOutcome } from "@/components/form-outcome";
 import { Button } from "@/components/ui/button";
@@ -22,15 +23,31 @@ export function AddContactForm({
     formData: FormData,
   ) => Promise<RecordFormState>;
 }) {
+  const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(action, null);
   const values = state?.values ?? BLANK;
+
+  if (!open) {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="justify-self-start"
+        onClick={() => setOpen(true)}
+      >
+        <Plus aria-hidden />
+        Add contact
+      </Button>
+    );
+  }
 
   return (
     <form
       key={JSON.stringify(values)}
       action={formAction}
       aria-label="Add contact"
-      className="grid gap-4"
+      className="grid gap-4 border-t pt-4"
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
@@ -38,6 +55,7 @@ export function AddContactForm({
           label="First name"
           defaultValue={values.firstName}
           required
+          autoFocus
         />
         <TextField
           name="lastName"
@@ -81,6 +99,9 @@ export function AddContactForm({
             Create anyway
           </Button>
         )}
+        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+          Done
+        </Button>
       </div>
     </form>
   );
