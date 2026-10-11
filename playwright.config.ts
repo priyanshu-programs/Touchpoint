@@ -20,6 +20,8 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   timeout: 60_000,
+  // On GitHub the failures become annotations on the commit, readable without downloading logs.
+  reporter: process.env.GITHUB_ACTIONS ? [["list"], ["github"]] : "list",
   use: { baseURL, trace: "retain-on-failure" },
   webServer: {
     command: `pnpm exec next build && pnpm exec next start -p ${PORT}`,

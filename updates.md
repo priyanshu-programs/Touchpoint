@@ -80,3 +80,5 @@
 - [2026-10-11] Moved the record form state and form outcome components out of the people folder, since task forms use them too
 - [2026-10-11] Added e2e/03-tasks.spec.ts (6 tests): task from a contact, snooze, recurrence, reminder through the tick endpoint, form validation, phone widths
 - [2026-10-11] docs/PRD.md 8.5 updated for the due_on/due_at split, the reminder columns actually built and how recurrence and in-app reminders behave
+- [2026-10-11] Step 2 deployed to production (migration 0002 confirmed on Neon main), but its CI run failed in the e2e step although the suite passes locally
+- [2026-10-11] Playwright now uses the github reporter on GitHub Actions, so a failing e2e test shows as an annotation on the commit instead of only in logs that need a sign-in
