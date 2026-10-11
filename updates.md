@@ -88,3 +88,5 @@
 - [2026-10-11] Task queries (listDueTasks, listTasks) no longer take a time zone and compare due_on directly; screens and tests updated to match
 - [2026-10-11] Saving settings with a different time zone now recomputes due_on for open timed tasks (src/modules/tasks/rebase.ts), so their calendar date stays right
 - [2026-10-11] plan.md and docs/PRD.md record the rule that time zone names are never passed to Postgres
+- [2026-10-11] src/app/globals.css now carries the owner's theme (lime primary, warm off-white neutrals, 0.75rem radius, soft shadows, tighter letter-spacing); dark values stay under prefers-color-scheme because the CSP rules out a class toggle, and the light-mode focus ring is dark neutral because lime on off-white cannot be seen
+- [2026-10-11] The interface font is now Inter (next/font, self-hosted) in place of Geist Sans, as the theme specifies; Geist Mono stays
