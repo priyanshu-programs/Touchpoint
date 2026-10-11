@@ -26,6 +26,8 @@ export default async function NewOrganizationPage() {
             status: "prospect",
             domain: "",
             website: "",
+            phone: "",
+            email: "",
             industry: "",
             city: "",
             region: "",

@@ -5,7 +5,7 @@ import {
   PREFERRED_CHANNELS,
   RELATIONSHIP_TYPES,
 } from "@/db/schema";
-import { blankToNull, text } from "@/lib/form";
+import { blankToNull, emailAddress, text } from "@/lib/form";
 import { isTimezone } from "@/lib/time";
 import { httpUrl } from "@/lib/url";
 import { tagList } from "@/modules/tags/schema";
@@ -16,13 +16,6 @@ export {
   PREFERRED_CHANNELS,
   RELATIONSHIP_TYPES,
 };
-
-const emailAddress = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .max(254)
-  .pipe(z.email("Enter a valid email address"));
 
 const phone = z
   .string()

@@ -32,6 +32,8 @@ const form = {
   name: "Acme Design",
   domain: "",
   website: "",
+  phone: "",
+  email: "",
   industry: "",
   description: "",
   city: "",
@@ -46,9 +48,16 @@ const input = (override: Partial<typeof form> = {}) =>
 describe("organizationInput", () => {
   it("stores blank fields as null and normalises the domain", () => {
     expect(
-      input({ domain: " https://www.Acme.com/about?x=1 ", tags: "VIP, vip, design" }),
+      input({
+        domain: " https://www.Acme.com/about?x=1 ",
+        phone: " +91 (20) 5550-1234 ",
+        email: " Hello@Acme.com ",
+        tags: "VIP, vip, design",
+      }),
     ).toMatchObject({
       domain: "acme.com",
+      phone: "+91 (20) 5550-1234",
+      email: "hello@acme.com",
       website: null,
       industry: null,
       tags: ["VIP", "design"],
@@ -59,6 +68,9 @@ describe("organizationInput", () => {
     ["a missing name", { name: "  " }],
     ["a domain without a dot", { domain: "localhost" }],
     ["a script link", { website: "javascript:alert(1)" }],
+    ["a phone number with letters in it", { phone: "call 555 0000" }],
+    ["a phone number too short to dial", { phone: "12345" }],
+    ["an email without a domain", { email: "hello@" }],
     ["an unknown status", { status: "enemy" }],
     ["an unexpected field", { ownerId: "x" }],
   ])("rejects %s", (_label, override) => {

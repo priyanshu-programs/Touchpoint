@@ -43,6 +43,13 @@
       "when": 1791721309149,
       "tag": "0005_enrichment",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791725027681,
+      "tag": "0006_company_contact_details",
+      "breakpoints": true
     }
   ]
 }

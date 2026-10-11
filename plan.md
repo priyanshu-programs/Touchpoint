@@ -27,6 +27,10 @@ Each step is a vertical slice: migration, module (zod schema, service, queries, 
   - [x] Slice 2: companies table (monogram until slice 3 adds logos, domain, industry, contacts, last activity, sort, filters), company side panel opened from the list by `?company=<id>`, New company dialog (name and website), add a contact inside a company. The company workspace pages are gone; `/people/organizations/<id>` redirects to the panel
   - [x] Slice 3: built-in enrichment from the company's own website (no third-party API): `enrichment_runs`, `field_provenance`, logos stored in Postgres, SSRF-guarded fetch, fills empty fields only and never overwrites what the owner typed. Reads description, location, website and logo; industry is not read; profile links are kept in the run but not shown. Sites behind bot protection refuse the read and are reported as such
   - [x] Added afterwards at the owner's request: Delete in the company panel, behind a confirmation. The company, its tags, logo and website reads go; its contacts, tasks and activities stay without a company
+- [ ] Between steps 3 and 4: company details and configurable fields, asked for by the owner with reference screenshots
+  - [x] Slice 1: the Overview tab shows the description beside a Details column (every standard field, a dash where empty); companies have a phone and an email; the website reader fills them, and looks at the site's contact page when the home page leaves contact details out
+  - [ ] Slice 2: a gear on Details opens a Fields panel: reorder and hide standard fields, add suggested fields in one click, create custom fields (`custom_field_defs`, pulled forward from Step 9)
+  - [ ] Slice 3: the same for contacts (the Deals tab of the reference waits for Step 4)
 - [ ] Step 4: Opportunities — value, probability, contacts, won and lost; `src/lib/money.ts`
 - [ ] Step 5: Workflow engine — templates, list editor, instances, `transition()`, stage tasks, roadmap, starter templates
 - [ ] Step 6: Pipeline board (dnd-kit) and canvas template editor (React Flow)

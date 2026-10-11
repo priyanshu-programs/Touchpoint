@@ -136,6 +136,63 @@ describe("extract", () => {
     });
   });
 
+  it("reads the phone and email the company states about itself", () => {
+    const found = extract(
+      `<a href="tel:+1-555-000-0000">Sales</a>
+       <a href="mailto:someone@agency.test">Site by</a>
+       <script type="application/ld+json">
+        {"@type":"Organization","telephone":"+91 (20) 5550-1234",
+         "contactPoint":[{"@type":"ContactPoint","email":"mailto:Hello@Acme.test"}]}
+       </script>`,
+      base,
+    );
+
+    expect(found).toMatchObject({
+      phone: "+91 (20) 5550-1234",
+      email: "hello@acme.test",
+    });
+  });
+
+  it("falls back to the page's phone and email links, preferring an address at its own domain", () => {
+    const found = extract(
+      `<a href="mailto:someone@agency.test">Site by</a>
+       <a href="MAILTO:Hello@acme.test?subject=Hi%20there">Write to us</a>
+       <a href="tel:call-us">Call</a>
+       <a href="tel:%2B91%2020%205550%201234">Call</a>
+       <a href="/blog/contact-lenses/review">Post</a>
+       <a href="https://elsewhere.test/contact">Partner</a>
+       <a href="/en/contact-us/#form">Contact</a>
+       <a href="/contact">Contact</a>`,
+      base,
+    );
+
+    expect(found).toMatchObject({
+      phone: "+91 20 5550 1234",
+      email: "hello@acme.test",
+      contactPage: "https://www.acme.test/en/contact-us/",
+    });
+    expect(
+      extract(`<a href="mailto:someone@agency.test">Site by</a>`, base).email,
+    ).toBe("someone@agency.test");
+  });
+
+  it("takes nothing that is not a phone number or an email address", () => {
+    const found = extract(
+      `<a href="tel:<script>alert(1)</script>">x</a>
+       <a href="tel:12345">x</a>
+       <a href="tel:${"1".repeat(30)}">x</a>
+       <a href="mailto:not an address">x</a>
+       <a href="mailto:a@acme.test,b@acme.test">x</a>
+       <a href="javascript:location='/contact'">x</a>
+       <script type="application/ld+json">
+        {"@type":"Organization","telephone":{"@value":"+15550000000"},"email":["x"]}
+       </script>`,
+      base,
+    );
+
+    expect(found).toMatchObject({ phone: null, email: null, contactPage: null });
+  });
+
   it("treats page text as text: no markup, control characters or overlong values", () => {
     const found = extract(
       `<meta name="description" content="<script>alert(1)</script>\u0000\u0007 ${"x".repeat(3000)}">
@@ -217,6 +274,98 @@ describe("readWebsite", () => {
     );
 
     expect(result).toMatchObject({ ok: true, reading: { logo: null } });
+  });
+
+  it("reads the contact page for the contact details the home page leaves out", async () => {
+    const seen: string[] = [];
+    const pages = site({
+      "https://acme.test/": page(
+        `<meta name="description" content="Anvils">
+         <a href="mailto:hello@acme.test">Write</a><a href="/contact">Contact</a>`,
+      ),
+      "https://acme.test/contact": page(
+        `<meta name="description" content="Get in touch">
+         <a href="mailto:support@acme.test">Support</a><a href="tel:+91 20 5550 1234">Call</a>
+         <script type="application/ld+json">
+          {"@type":"LocalBusiness","address":{"addressLocality":"Pune","addressCountry":"India"}}
+         </script>`,
+      ),
+    });
+    const result = await readWebsite("https://acme.test", (url, options) => {
+      seen.push(url);
+      return pages(url, options);
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      reading: {
+        fields: {
+          website: "https://acme.test",
+          description: "Anvils",
+          email: "hello@acme.test",
+          phone: "+91 20 5550 1234",
+          city: "Pune",
+          country: "India",
+        },
+      },
+    });
+    expect(seen.at(-1)).toBe("https://acme.test/contact");
+  });
+
+  it.each([
+    [
+      "the site asks readers to keep out of it",
+      {
+        "https://acme.test/robots.txt": {
+          status: 200,
+          contentType: "text/plain",
+          body: Buffer.from("User-agent: *\nDisallow: /contact"),
+        },
+      },
+    ],
+    [
+      "it forwards to another site",
+      {
+        "https://acme.test/contact": {
+          status: 200,
+          contentType: "text/html",
+          body: Buffer.from(`<a href="tel:+91 20 5550 1234">Call</a>`),
+          url: "https://forms.test/acme",
+        },
+      },
+    ],
+    ["it is missing", { "https://acme.test/contact": { status: 404 } }],
+  ])("goes without the contact page when %s", async (_label, pages) => {
+    const result = await readWebsite(
+      "https://acme.test",
+      site({
+        "https://acme.test/": page(`<a href="/contact">Contact</a>`),
+        "https://acme.test/contact": page(`<a href="tel:+91 20 5550 1234">Call</a>`),
+        ...pages,
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.ok && result.reading.fields).toEqual({
+      website: "https://acme.test",
+    });
+  });
+
+  it("keeps the home page's details when the contact page cannot be fetched", async () => {
+    const pages = site({
+      "https://acme.test/": page(
+        `<meta name="description" content="Anvils"><a href="/contact">Contact</a>`,
+      ),
+    });
+    const result = await readWebsite("https://acme.test", async (url, options) => {
+      if (url.endsWith("/contact")) throw new FetchError("timeout");
+      return pages(url, options);
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      reading: { fields: { description: "Anvils" } },
+    });
   });
 
   it.each([

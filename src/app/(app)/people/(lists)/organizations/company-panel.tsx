@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ButtonLink } from "@/components/button-link";
 import { CompanyLogo } from "@/components/company-logo";
-import { DetailList } from "@/components/detail-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -60,8 +59,16 @@ function websiteStatus(
       actionLabel: "Refresh from website",
     };
   }
-  return { summary: `Reading ${site}…`, reading: true, actionLabel: "" };
+  return {
+    summary: `Reading ${site}…`,
+    detail: "Description, phone, email, location and logo",
+    reading: true,
+    actionLabel: "",
+  };
 }
+
+const SECTION_HEADING =
+  "text-xs font-medium tracking-wide text-muted-foreground uppercase";
 
 const TABS = [
   { tab: undefined, label: "Overview" },
@@ -98,17 +105,48 @@ export async function CompanyPanel({
   const site =
     organization.domain ??
     (organization.website ? new URL(organization.website).hostname : null);
-  const fromWebsite = (fields: string[], value: ReactNode) =>
-    value && fields.some((field) => sourced.includes(field)) ? (
-      <>
-        {value}
-        <span className="block text-xs text-muted-foreground">
-          From website
-        </span>
-      </>
-    ) : (
-      value
+  const fromWebsite = (field: string) =>
+    sourced.includes(field) && (
+      <span className="block text-xs font-normal text-muted-foreground">
+        From website
+      </span>
     );
+  const link = (href: string, text: string, external = false) => (
+    <a
+      href={href}
+      className="underline"
+      {...(external && { target: "_blank", rel: "noopener noreferrer" })}
+    >
+      {text}
+    </a>
+  );
+  const details: { label: string; value: ReactNode; field?: string }[] = [
+    { label: "Name", value: organization.name },
+    { label: "Domain", value: organization.domain },
+    {
+      label: "Website",
+      field: "website",
+      value:
+        organization.website && link(organization.website, organization.website, true),
+    },
+    {
+      label: "Phone",
+      field: "phone",
+      value:
+        organization.phone &&
+        link(`tel:${organization.phone.replace(/[^\d+]/g, "")}`, organization.phone),
+    },
+    {
+      label: "Email",
+      field: "email",
+      value:
+        organization.email && link(`mailto:${organization.email}`, organization.email),
+    },
+    { label: "Industry", value: organization.industry },
+    { label: "City", field: "city", value: organization.city },
+    { label: "Region", field: "region", value: organization.region },
+    { label: "Country", field: "country", value: organization.country },
+  ];
   const tiles = [
     { label: "Contacts", value: upTo(contacts) },
     { label: "Open tasks", value: upTo(openTasks) },
@@ -203,126 +241,124 @@ export async function CompanyPanel({
         ))}
       </nav>
 
-      <div className="grid gap-6 p-4">
-        {params.tab === undefined && (
-          <>
-            <DetailList
-              items={[
-                { label: "Name", value: organization.name },
-                { label: "Domain", value: organization.domain },
-                {
-                  label: "Website",
-                  value: fromWebsite(
-                    ["website"],
-                    organization.website && (
-                      <a
-                        href={organization.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="break-all underline"
-                      >
-                        {organization.website}
-                      </a>
-                    ),
-                  ),
-                },
-                { label: "Industry", value: organization.industry },
-                {
-                  label: "Location",
-                  value: fromWebsite(
-                    ["city", "region", "country"],
-                    [
-                      organization.city,
-                      organization.region,
-                      organization.country,
-                    ]
-                      .filter(Boolean)
-                      .join(", "),
-                  ),
-                },
-                {
-                  label: "Description",
-                  value: fromWebsite(
-                    ["description"],
-                    organization.description && (
-                      <span className="whitespace-pre-wrap">
-                        {organization.description}
+      {params.tab === undefined && (
+        <div className="grid md:grid-cols-[minmax(0,1fr)_20rem]">
+          <section
+            aria-labelledby="about-heading"
+            className="grid content-start gap-2 p-4 text-sm"
+          >
+            <h3 id="about-heading" className={SECTION_HEADING}>
+              About
+            </h3>
+            {organization.description ? (
+              <p className="break-words whitespace-pre-wrap">
+                {organization.description}
+                {fromWebsite("description")}
+              </p>
+            ) : (
+              <p className="text-muted-foreground">No description yet.</p>
+            )}
+          </section>
+
+          <section
+            aria-labelledby="details-heading"
+            className="grid content-start border-t md:border-t-0 md:border-l"
+          >
+            <h3 id="details-heading" className={cn(SECTION_HEADING, "p-4")}>
+              Details
+            </h3>
+            <dl className="grid gap-3 px-4 pb-4 text-sm">
+              {details.map((row) => (
+                <div
+                  key={row.label}
+                  className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3"
+                >
+                  <dt className="text-muted-foreground">{row.label}</dt>
+                  <dd className="font-medium break-words">
+                    {row.value ?? (
+                      <span className="font-normal text-muted-foreground">
+                        —
                       </span>
-                    ),
-                  ),
-                },
-              ]}
-            />
+                    )}
+                    {row.value && row.field && fromWebsite(row.field)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
             {site && (
               <WebsiteDetails
                 organizationId={organization.id}
                 {...websiteStatus(site, run, timezone)}
               />
             )}
-          </>
-        )}
+          </section>
+        </div>
+      )}
 
-        {params.tab === "contacts" && (
-          <>
-            {contacts.rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No contacts at this company yet.
-              </p>
-            ) : (
-              <ul className="grid gap-3">
-                {contacts.rows.map((contact) => (
-                  <li key={contact.id} className="grid min-w-0 gap-0.5">
-                    <Link
-                      href={`/people/contacts/${contact.id}`}
-                      className="font-medium underline-offset-4 hover:underline"
-                    >
-                      {contact.fullName}
-                    </Link>
-                    <p className="text-sm break-words text-muted-foreground">
-                      {[contact.jobTitle, contact.primaryEmail]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <section
-              aria-labelledby="add-contact-heading"
-              className="grid gap-4 border-t pt-4"
-            >
-              <h3 id="add-contact-heading" className="font-medium">
-                Add a contact
-              </h3>
-              {/* Remounted after each new contact, so the fields start empty again. */}
-              <AddContactForm
-                key={contacts.rows.length}
-                action={addCompanyContactAction.bind(null, organization.id)}
-              />
-            </section>
-          </>
-        )}
+      {params.tab !== undefined && (
+        <div className="grid gap-6 p-4">
+          {params.tab === "contacts" && (
+            <>
+              {contacts.rows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No contacts at this company yet.
+                </p>
+              ) : (
+                <ul className="grid gap-3">
+                  {contacts.rows.map((contact) => (
+                    <li key={contact.id} className="grid min-w-0 gap-0.5">
+                      <Link
+                        href={`/people/contacts/${contact.id}`}
+                        className="font-medium underline-offset-4 hover:underline"
+                      >
+                        {contact.fullName}
+                      </Link>
+                      <p className="text-sm break-words text-muted-foreground">
+                        {[contact.jobTitle, contact.primaryEmail]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <section
+                aria-labelledby="add-contact-heading"
+                className="grid gap-4 border-t pt-4"
+              >
+                <h3 id="add-contact-heading" className="font-medium">
+                  Add a contact
+                </h3>
+                {/* Remounted after each new contact, so the fields start empty again. */}
+                <AddContactForm
+                  key={contacts.rows.length}
+                  action={addCompanyContactAction.bind(null, organization.id)}
+                />
+              </section>
+            </>
+          )}
 
-        {params.tab === "activity" && (
-          <RecordTimeline
-            ownerId={ownerId}
-            filter={filter}
-            moreHref={(earlier) =>
-              companiesHref(params, { tab: "activity", after: earlier })
-            }
-            newHref={`/activities/new?organization=${organization.id}`}
-            after={params.after}
-          />
-        )}
+          {params.tab === "activity" && (
+            <RecordTimeline
+              ownerId={ownerId}
+              filter={filter}
+              moreHref={(earlier) =>
+                companiesHref(params, { tab: "activity", after: earlier })
+              }
+              newHref={`/activities/new?organization=${organization.id}`}
+              after={params.after}
+            />
+          )}
 
-        {params.tab === "tasks" && (
-          <RecordTasks
-            ownerId={ownerId}
-            filter={filter}
-            newHref={`/tasks/new?organization=${organization.id}`}
-          />
-        )}
-      </div>
+          {params.tab === "tasks" && (
+            <RecordTasks
+              ownerId={ownerId}
+              filter={filter}
+              newHref={`/tasks/new?organization=${organization.id}`}
+            />
+          )}
+        </div>
+      )}
     </>
   );
 }

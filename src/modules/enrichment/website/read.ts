@@ -1,5 +1,5 @@
 import { FetchError, safeFetch, type Fetcher, type FetchResult } from "@/lib/safe-fetch";
-import { extract } from "./extract";
+import { extract, type Extracted } from "./extract";
 import { imageType, MAX_LOGO_BYTES } from "./image";
 import { robotsAllows } from "./robots";
 
@@ -9,8 +9,12 @@ export const ENRICHABLE_FIELDS = [
   "city",
   "region",
   "country",
+  "phone",
+  "email",
 ] as const;
 export type EnrichableField = (typeof ENRICHABLE_FIELDS)[number];
+// What a contact page is read for. Its description is about the page, not the company.
+const CONTACT_FIELDS = ["phone", "email", "city", "region", "country"] as const;
 
 export const READ_ERRORS = [
   "unreachable",
@@ -38,6 +42,8 @@ const MAX_ROBOTS_BYTES = 100_000;
 const MAX_LOGO_TRIES = 3;
 
 const ok = (status: number) => status >= 200 && status < 300;
+const html = (contentType: string) =>
+  /^\s*(text\/html|application\/xhtml\+xml)\b/i.test(contentType);
 const bare = (host: string) => host.toLowerCase().replace(/^www\./, "");
 
 // acme.com, www.acme.com and shop.acme.com are one site; a parked domain that
@@ -57,7 +63,8 @@ function text(page: FetchResult) {
   }
 }
 
-// Reads a company's home page once and returns what the page says about itself.
+// Reads a company's home page once, and its contact page when the home page
+// leaves contact details out, and returns what the site says about itself.
 export async function readWebsite(
   start: string,
   fetcher: Fetcher = safeFetch,
@@ -85,18 +92,22 @@ export async function readWebsite(
     });
     // Often a site's bot protection, sometimes a missing page: an answer either way.
     if (!ok(page.status)) return fail("refused");
-    if (!/^\s*(text\/html|application\/xhtml\+xml)\b/i.test(page.contentType)) {
-      return fail("not_html");
-    }
+    if (!html(page.contentType)) return fail("not_html");
     const landed = new URL(page.url);
     if (!sameSite(home.hostname, landed.hostname)) return fail("moved");
 
     const found = extract(text(page), landed.href);
     const fields: Reading["fields"] = { website: landed.origin };
-    for (const field of ["description", "city", "region", "country"] as const) {
-      const value = found[field];
-      if (value) fields[field] = value;
-    }
+    const take = (
+      from: Extracted,
+      names: readonly Exclude<EnrichableField, "website">[],
+    ) => {
+      for (const field of names) {
+        const value = from[field];
+        if (value && !fields[field]) fields[field] = value;
+      }
+    };
+    take(found, ["description", ...CONTACT_FIELDS]);
 
     let logo: Reading["logo"] = null;
     for (const icon of found.icons.slice(0, MAX_LOGO_TRIES)) {
@@ -111,6 +122,32 @@ export async function readWebsite(
         }
       } catch (error) {
         // A missing logo is not a failed read.
+        if (!(error instanceof FetchError)) throw error;
+      }
+    }
+
+    const contact = found.contactPage ? new URL(found.contactPage) : null;
+    if (
+      contact &&
+      contact.href !== landed.href &&
+      allowed(contact) &&
+      CONTACT_FIELDS.some((field) => !fields[field])
+    ) {
+      try {
+        const more = await fetcher(contact.href, {
+          maxBytes: MAX_PAGE_BYTES,
+          deadline,
+          accept: "text/html",
+        });
+        if (
+          ok(more.status) &&
+          html(more.contentType) &&
+          sameSite(landed.hostname, new URL(more.url).hostname)
+        ) {
+          take(extract(text(more), more.url), CONTACT_FIELDS);
+        }
+      } catch (error) {
+        // The home page was read; a contact page that cannot be is only less to show.
         if (!(error instanceof FetchError)) throw error;
       }
     }

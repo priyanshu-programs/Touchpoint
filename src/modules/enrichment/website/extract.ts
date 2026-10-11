@@ -1,7 +1,10 @@
 import { Parser } from "htmlparser2";
+import { emailAddress, phoneNumber } from "@/lib/form";
 
 export type Extracted = {
   description: string | null;
+  phone: string | null;
+  email: string | null;
   city: string | null;
   region: string | null;
   country: string | null;
@@ -9,11 +12,15 @@ export type Extracted = {
   links: string[];
   // Candidate logo addresses, best first.
   icons: string[];
+  // The site's own contact page, when this page links to one.
+  contactPage: string | null;
 };
 
 const MAX_JSON_LD = 200_000;
 const MAX_LINKS = 10;
+const MAX_CONTACT_LINKS = 20;
 const ORGANIZATION_TYPE = /(Organization|Business|Corporation|ProfessionalService)$/;
+const CONTACT_PATH = /\/contact[^/]*\/?$/i;
 
 // Page text is someone else's: one line, no control characters, no longer than the field allows.
 function clean(value: unknown, max: number) {
@@ -63,9 +70,41 @@ function place(value: unknown) {
   return isNode(value) ? value.name : value;
 }
 
+function decoded(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+// Held to the rules of the company form, so a value read here can always be saved again.
+function phone(value: unknown) {
+  const parsed = phoneNumber.safeParse(
+    clean(value, 60)?.replace(/^tel:/i, ""),
+  );
+  return parsed.success ? parsed.data : null;
+}
+
+function email(value: unknown) {
+  const parsed = emailAddress.safeParse(
+    clean(value, 400)
+      ?.replace(/^mailto:/i, "")
+      .split("?")[0],
+  );
+  return parsed.success ? parsed.data : null;
+}
+
+const firstFound = (values: (string | null)[]) =>
+  values.find((value) => value !== null) ?? null;
+
 export function extract(html: string, baseUrl: string): Extracted {
+  const site = new URL(baseUrl).hostname.toLowerCase();
   const meta = new Map<string, string>();
   const icons: { url: string; rank: number }[] = [];
+  const phoneLinks: string[] = [];
+  const emailLinks: string[] = [];
+  const contactPages: string[] = [];
   let organization: Node | null = null;
   let jsonLd: string | null = null;
 
@@ -96,6 +135,24 @@ export function extract(html: string, baseUrl: string): Extracted {
           );
           // Touch icons are drawn to stand alone as a tile, which is what a logo slot needs.
           icons.push({ url, rank: (touch ? 10_000 : 0) + Math.min(size, 9_999) });
+        } else if (name === "a" && attributes.href) {
+          const href = attributes.href.trim();
+          if (/^tel:/i.test(href)) {
+            if (phoneLinks.length < MAX_CONTACT_LINKS) phoneLinks.push(decoded(href));
+          } else if (/^mailto:/i.test(href)) {
+            if (emailLinks.length < MAX_CONTACT_LINKS) emailLinks.push(decoded(href));
+          } else if (contactPages.length === 0) {
+            const url = webUrl(href, baseUrl);
+            const target = url && new URL(url);
+            if (
+              target &&
+              target.hostname.toLowerCase() === site &&
+              CONTACT_PATH.test(target.pathname)
+            ) {
+              target.hash = "";
+              contactPages.push(target.href);
+            }
+          }
         } else if (
           name === "script" &&
           attributes.type?.trim().toLowerCase() === "application/ld+json"
@@ -125,12 +182,28 @@ export function extract(html: string, baseUrl: string): Extracted {
   const found = organization as Node | null;
   const address = list(found?.address).find(isNode);
   const fallbackIcon = new URL("/favicon.ico", baseUrl).href;
+  // What the page states about the company outranks a link that may be anyone's.
+  const stated = [found, ...list(found?.contactPoint)].filter(isNode);
+  const linked = emailLinks.map(email).filter((address) => address !== null);
+  const own = site.replace(/^www\./, "");
+  const atOwnDomain = (address: string) => {
+    const domain = address.slice(address.indexOf("@") + 1);
+    return domain === own || own.endsWith(`.${domain}`) || domain.endsWith(`.${own}`);
+  };
 
   return {
     description:
       clean(meta.get("description"), 2000) ??
       clean(meta.get("og:description"), 2000) ??
       clean(found?.description, 2000),
+    phone:
+      firstFound(stated.map((node) => phone(node.telephone))) ??
+      firstFound(phoneLinks.map(phone)),
+    email:
+      firstFound(stated.map((node) => email(node.email))) ??
+      linked.find(atOwnDomain) ??
+      linked[0] ??
+      null,
     city: clean(place(address?.addressLocality), 100),
     region: clean(place(address?.addressRegion), 100),
     country: clean(place(address?.addressCountry), 100),
@@ -147,5 +220,6 @@ export function extract(html: string, baseUrl: string): Extracted {
         fallbackIcon,
       ]),
     ],
+    contactPage: contactPages[0] ?? null,
   };
 }

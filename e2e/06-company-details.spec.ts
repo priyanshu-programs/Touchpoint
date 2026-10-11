@@ -58,6 +58,43 @@ test("a website that cannot be read is reported and the company still works", as
   expect(consoleErrors).toEqual([]);
 });
 
+test("the overview lists the company's details, with a phone and email once given", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  const details = panel(page).getByRole("region", { name: "Details" });
+
+  await page.goto(`/people/organizations?company=${companyId}`);
+  await expect(
+    panel(page).getByRole("region", { name: "About" }),
+  ).toContainText("No description yet.");
+  await expect(details.getByText("Phone", { exact: true })).toBeVisible();
+  await expect(details.getByText("Email", { exact: true })).toBeVisible();
+  // Only the website so far; the empty rows show a dash.
+  await expect(details.getByRole("link")).toHaveCount(1);
+
+  await panel(page).getByRole("link", { name: "Edit" }).click();
+  await page.getByLabel("Phone").fill("12345");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(
+    page.getByText("Enter a phone number, such as +91 20 5550 1234"),
+  ).toBeVisible();
+  await page.getByLabel("Phone").fill("+91 (20) 5550-1234");
+  await page.getByLabel("Email").fill("Hello@Nowhere.invalid");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(
+    details.getByRole("link", { name: "+91 (20) 5550-1234" }),
+  ).toHaveAttribute("href", "tel:+912055501234");
+  await expect(
+    details.getByRole("link", { name: "hello@nowhere.invalid" }),
+  ).toHaveAttribute("href", "mailto:hello@nowhere.invalid");
+  expect(consoleErrors).toEqual([]);
+});
+
 test("a logo is only served to the signed-in owner", async ({
   browser,
   baseURL,

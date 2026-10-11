@@ -20,6 +20,8 @@ const form = {
   name: "Acme Design",
   domain: "acme.test",
   website: "",
+  phone: "",
+  email: "",
   industry: "",
   description: "",
   city: "",
@@ -173,6 +175,25 @@ describe("enrichment", () => {
       country: "India",
     });
     expect(await websiteFields(ownerId, id)).toEqual(["country"]);
+  });
+
+  it("fills the company's phone and email, and keeps the ones the owner typed", async () => {
+    const id = await create();
+    const typed = await create({
+      name: "Borealis",
+      domain: "borealis.test",
+      phone: "+1 555 000 0000",
+    });
+    const fields = { phone: "+91 20 5550 1234", email: "hello@acme.test" };
+
+    await work(reading({ fields }));
+
+    expect(await getOrganization(ownerId, id)).toMatchObject(fields);
+    expect(await getOrganization(ownerId, typed)).toMatchObject({
+      phone: "+1 555 000 0000",
+      email: "hello@acme.test",
+    });
+    expect(await websiteFields(ownerId, typed)).toEqual(["email"]);
   });
 
   it("leaves a field alone once the owner has edited or cleared it", async () => {

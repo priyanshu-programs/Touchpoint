@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ORGANIZATION_STATUSES } from "@/db/schema";
-import { blankToNull, text } from "@/lib/form";
+import { blankToNull, emailAddress, phoneNumber, text } from "@/lib/form";
 import { httpUrl } from "@/lib/url";
 import { tagList } from "@/modules/tags/schema";
 
@@ -30,6 +30,8 @@ export const organizationInput = z.strictObject({
       }),
   ),
   website: blankToNull(httpUrl),
+  phone: blankToNull(phoneNumber),
+  email: blankToNull(emailAddress),
   industry: blankToNull(text(100)),
   description: blankToNull(text(2000)),
   city: blankToNull(text(100)),

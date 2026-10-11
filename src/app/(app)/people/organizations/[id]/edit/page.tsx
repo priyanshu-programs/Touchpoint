@@ -35,6 +35,8 @@ export default async function EditOrganizationPage({
             status: organization.status,
             domain: organization.domain ?? "",
             website: organization.website ?? "",
+            phone: organization.phone ?? "",
+            email: organization.email ?? "",
             industry: organization.industry ?? "",
             city: organization.city ?? "",
             region: organization.region ?? "",

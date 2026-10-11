@@ -117,6 +117,8 @@ describe("contacts", () => {
         name,
         domain: "",
         website: "",
+        phone: "",
+        email: "",
         industry: "",
         description: "",
         city: "",

@@ -64,6 +64,18 @@ export function OrganizationForm({
           defaultValue={values.website}
         />
         <TextField
+          name="phone"
+          label="Phone"
+          type="tel"
+          defaultValue={values.phone}
+        />
+        <TextField
+          name="email"
+          label="Email"
+          type="email"
+          defaultValue={values.email}
+        />
+        <TextField
           name="industry"
           label="Industry"
           defaultValue={values.industry}

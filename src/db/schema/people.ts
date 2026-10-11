@@ -53,6 +53,8 @@ export const organizations = pgTable(
     name: text("name").notNull(),
     domain: text("domain"),
     website: text("website"),
+    phone: text("phone"),
+    email: text("email"),
     industry: text("industry"),
     description: text("description"),
     city: text("city"),

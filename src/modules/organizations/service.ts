@@ -20,6 +20,8 @@ const snapshot = (row: typeof organizations.$inferSelect, tags: string[]) => ({
   name: row.name,
   domain: row.domain,
   website: row.website,
+  phone: row.phone,
+  email: row.email,
   industry: row.industry,
   description: row.description,
   city: row.city,

@@ -20,7 +20,7 @@ export function CompanySheet({
         if (!open) router.push(closeHref, { scroll: false });
       }}
     >
-      <SheetContent className="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-3xl">
+      <SheetContent className="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-4xl">
         {children}
       </SheetContent>
     </Sheet>

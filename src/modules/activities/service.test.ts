@@ -83,6 +83,8 @@ describe("activities", () => {
         name: "Acme Design",
         domain: "",
         website: "",
+        phone: "",
+        email: "",
         industry: "",
         description: "",
         city: "",
