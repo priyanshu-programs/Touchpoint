@@ -2,6 +2,8 @@ import { and, eq, ne } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
 import { organizations } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
+import { markManual, requestEnrichment } from "@/modules/enrichment/service";
+import { ENRICHABLE_FIELDS } from "@/modules/enrichment/website/read";
 import { organizationTagNames } from "@/modules/tags/queries";
 import { setOrganizationTags } from "@/modules/tags/service";
 import { findSimilarOrganizations } from "./queries";
@@ -77,6 +79,8 @@ export async function createOrganization(
       entityId: row.id,
       after: snapshot(row, tags),
     });
+    // A refusal (the hourly limit) only means the details are not read now; the company is still saved.
+    if (row.domain || row.website) await requestEnrichment(ownerId, row.id, tx);
     return { ok: true, id: row.id };
   });
 }
@@ -107,6 +111,12 @@ export async function updateOrganization(
       .where(and(eq(organizations.ownerId, ownerId), eq(organizations.id, id)))
       .returning();
     await setOrganizationTags(tx, ownerId, id, tags);
+    await markManual(
+      tx,
+      ownerId,
+      id,
+      ENRICHABLE_FIELDS.filter((field) => before[field] !== row[field]),
+    );
     await audit(tx, {
       ownerId,
       actor: "user",

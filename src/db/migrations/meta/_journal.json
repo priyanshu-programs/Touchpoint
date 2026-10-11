@@ -36,6 +36,13 @@
       "when": 1791704098518,
       "tag": "0004_activities",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791721309149,
+      "tag": "0005_enrichment",
+      "breakpoints": true
     }
   ]
 }

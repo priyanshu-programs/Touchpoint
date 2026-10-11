@@ -27,3 +27,6 @@ export const citext = customType<{ data: string }>({
 export const tsvector = customType<{ data: string }>({
   dataType: () => "tsvector",
 });
+export const bytea = customType<{ data: Buffer }>({
+  dataType: () => "bytea",
+});

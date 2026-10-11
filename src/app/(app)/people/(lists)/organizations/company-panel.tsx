@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { ButtonLink } from "@/components/button-link";
 import { CompanyLogo } from "@/components/company-logo";
 import { DetailList } from "@/components/detail-list";
@@ -9,6 +10,7 @@ import { dateIn, formatDate } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { listTimeline } from "@/modules/activities/queries";
 import { listContacts } from "@/modules/contacts/queries";
+import { latestRun, websiteFields } from "@/modules/enrichment/queries";
 import type { getOrganization } from "@/modules/organizations/queries";
 import { getSettings } from "@/modules/settings/service";
 import { listTasks } from "@/modules/tasks/queries";
@@ -19,6 +21,46 @@ import { labelFor } from "../../labels";
 import { setOrganizationArchivedAction } from "../../organizations/actions";
 import { companiesHref, type CompanyListParams } from "../list-controls";
 import { AddContactForm } from "./add-contact-form";
+import { WebsiteDetails } from "./website-details";
+
+const READ_FAILURES: Record<string, string> = {
+  unreachable: "the site did not respond",
+  blocked: "the address is not a public website",
+  timeout: "the site took too long to answer",
+  refused: "the site turned the request away",
+  robots: "the site asks automated readers to stay away",
+  not_html: "the address does not return a web page",
+  moved: "the address forwards to a different site",
+};
+
+function websiteStatus(
+  site: string,
+  run: Awaited<ReturnType<typeof latestRun>>,
+  timezone: string,
+) {
+  if (!run) {
+    return {
+      summary: `Details can be read from ${site}.`,
+      reading: false,
+      actionLabel: "Read from website",
+    };
+  }
+  if (run.status === "failed") {
+    return {
+      summary: `Could not read ${site}: ${READ_FAILURES[run.error ?? ""] ?? "something went wrong"}.`,
+      reading: false,
+      actionLabel: "Try again",
+    };
+  }
+  if (run.status === "done" && run.finishedAt) {
+    return {
+      summary: `Details read from ${site} on ${formatDate(dateIn(timezone, run.finishedAt))}.`,
+      reading: false,
+      actionLabel: "Refresh from website",
+    };
+  }
+  return { summary: `Reading ${site}…`, reading: true, actionLabel: "" };
+}
 
 const TABS = [
   { tab: undefined, label: "Overview" },
@@ -41,28 +83,49 @@ export async function CompanyPanel({
   params: CompanyListParams;
 }) {
   const filter = { organizationId: organization.id };
-  const [settings, contacts, openTasks, latest] = await Promise.all([
-    getSettings(ownerId),
-    listContacts(ownerId, { ...filter, limit: 100 }),
-    listTasks(ownerId, { ...filter, limit: 100 }),
-    listTimeline(ownerId, { ...filter, limit: 1 }),
-  ]);
+  const [settings, contacts, openTasks, latest, run, sourced] =
+    await Promise.all([
+      getSettings(ownerId),
+      listContacts(ownerId, { ...filter, limit: 100 }),
+      listTasks(ownerId, { ...filter, limit: 100 }),
+      listTimeline(ownerId, { ...filter, limit: 1 }),
+      latestRun(ownerId, organization.id),
+      websiteFields(ownerId, organization.id),
+    ]);
+  const timezone = settings?.timezone ?? "UTC";
   const lastActivity = latest.rows[0]?.occurredAt;
+  const site =
+    organization.domain ??
+    (organization.website ? new URL(organization.website).hostname : null);
+  const fromWebsite = (fields: string[], value: ReactNode) =>
+    value && fields.some((field) => sourced.includes(field)) ? (
+      <>
+        {value}
+        <span className="block text-xs text-muted-foreground">
+          From website
+        </span>
+      </>
+    ) : (
+      value
+    );
   const tiles = [
     { label: "Contacts", value: upTo(contacts) },
     { label: "Open tasks", value: upTo(openTasks) },
     {
       label: "Last activity",
-      value: lastActivity
-        ? formatDate(dateIn(settings?.timezone ?? "UTC", lastActivity))
-        : "—",
+      value: lastActivity ? formatDate(dateIn(timezone, lastActivity)) : "—",
     },
   ];
 
   return (
     <>
       <header className="flex flex-wrap items-start gap-3 border-b p-4 pr-12">
-        <CompanyLogo name={organization.name} className="size-10 text-sm" />
+        <CompanyLogo
+          id={organization.id}
+          name={organization.name}
+          logoVersion={organization.logoVersion}
+          className="size-10 text-sm"
+        />
         <div className="grid min-w-0 flex-1 gap-1">
           <SheetTitle className="text-lg break-words">
             {organization.name}
@@ -136,44 +199,61 @@ export async function CompanyPanel({
 
       <div className="grid gap-6 p-4">
         {params.tab === undefined && (
-          <DetailList
-            items={[
-              { label: "Name", value: organization.name },
-              { label: "Domain", value: organization.domain },
-              {
-                label: "Website",
-                value: organization.website && (
-                  <a
-                    href={organization.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="break-all underline"
-                  >
-                    {organization.website}
-                  </a>
-                ),
-              },
-              { label: "Industry", value: organization.industry },
-              {
-                label: "Location",
-                value: [
-                  organization.city,
-                  organization.region,
-                  organization.country,
-                ]
-                  .filter(Boolean)
-                  .join(", "),
-              },
-              {
-                label: "Description",
-                value: organization.description && (
-                  <span className="whitespace-pre-wrap">
-                    {organization.description}
-                  </span>
-                ),
-              },
-            ]}
-          />
+          <>
+            <DetailList
+              items={[
+                { label: "Name", value: organization.name },
+                { label: "Domain", value: organization.domain },
+                {
+                  label: "Website",
+                  value: fromWebsite(
+                    ["website"],
+                    organization.website && (
+                      <a
+                        href={organization.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="break-all underline"
+                      >
+                        {organization.website}
+                      </a>
+                    ),
+                  ),
+                },
+                { label: "Industry", value: organization.industry },
+                {
+                  label: "Location",
+                  value: fromWebsite(
+                    ["city", "region", "country"],
+                    [
+                      organization.city,
+                      organization.region,
+                      organization.country,
+                    ]
+                      .filter(Boolean)
+                      .join(", "),
+                  ),
+                },
+                {
+                  label: "Description",
+                  value: fromWebsite(
+                    ["description"],
+                    organization.description && (
+                      <span className="whitespace-pre-wrap">
+                        {organization.description}
+                      </span>
+                    ),
+                  ),
+                },
+              ]}
+            />
+            {site && (
+              <WebsiteDetails
+                organizationId={organization.id}
+                {...websiteStatus(site, run, timezone)}
+              />
+            )}
+          </>
         )}
 
         {params.tab === "contacts" && (

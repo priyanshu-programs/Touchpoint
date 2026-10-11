@@ -125,3 +125,17 @@
 - [2026-10-11] RecordTimeline takes moreHref(after) instead of path, so its "Earlier" link can keep the panel's query string
 - [2026-10-11] Tests: organization queries cover offset paging, status, each sort and domain search (138 unit tests); e2e covers the dialog, the panel, contacts added inside a company, list sorting and filtering, the old-link redirect and the panel at phone width (30 tests)
 - [2026-10-11] docs/PRD.md section 6 and plan.md record that a company is a panel over the list, and slice 2 is ticked
+- [2026-10-11] Added htmlparser2 12.0.0 (pinned; production audit clean) to parse company home pages, because regexes over an untrusted page risk catastrophic backtracking
+- [2026-10-11] Added src/db/schema/enrichment.ts, a bytea column type and migration 0005_enrichment (enrichment_runs, field_provenance, organization_logos; additive); applied to Neon dev
+- [2026-10-11] Added src/lib/safe-fetch.ts: outbound fetch that reaches public addresses on ports 80 and 443 only, with the check inside the socket's DNS lookup, hand-followed redirects, a timeout and a size cap after decompression, as security.md requires for enrichment
+- [2026-10-11] Added src/modules/enrichment/website (extract, robots, image, read): reads a company's home page once for description, location, website and a logo (PNG, JPEG, GIF, WebP or ICO by magic bytes, at most 100 KB; no SVG), respecting robots.txt
+- [2026-10-11] Added src/modules/enrichment service and queries: a read is queued as an enrichment.run job, limited to one per company per minute and 20 per owner per hour; it fills only empty fields the owner has not edited, writes provenance and an audit row, and a site that cannot be read leaves the company untouched
+- [2026-10-11] createOrganization queues a read when the company has a domain or website, and updateOrganization marks edited or cleared fields as manual so a later read never refills them
+- [2026-10-11] Registered the enrichment.run handler in src/modules/jobs/tick.ts; the create and refresh actions also run due jobs right after the response (next/server after), so details arrive in seconds instead of at the next 15-minute tick
+- [2026-10-11] listOrganizations and getOrganization return a logo version (hash prefix) so the logo's address can be cached for good
+- [2026-10-11] Added GET /api/organizations/[id]/logo, served only to the signed-in owner with the stored content type
+- [2026-10-11] CompanyLogo shows the stored logo when there is one and initials otherwise; the company panel's Overview shows the state of the last read with a Refresh or Try again button, checks back by itself while a read is under way, and marks values that came from the website
+- [2026-10-11] A home page that answers with an error status is reported as "the site turned the request away", after a live check showed sites behind bot protection (tcs.com, infosys.com) answering that way
+- [2026-10-11] Tests: guarded fetch, page extraction, robots rules, image sniffing and the enrichment service (227 unit tests); e2e/06-company-details.spec.ts covers an unreadable site, the limit message, the logo route and a stored logo in the panel and list (34 tests)
+- [2026-10-11] e2e/02-people.spec.ts uses the reserved domain acme.test for its company, so the suite never sends a request to a real third-party site
+- [2026-10-11] docs/PRD.md 8.2 and 11.2 describe the three tables and the website reader as built; plan.md ticks slice 3 and the Companies workspace

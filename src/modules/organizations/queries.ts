@@ -2,6 +2,7 @@ import {
   and,
   asc,
   eq,
+  getTableColumns,
   isNotNull,
   isNull,
   or,
@@ -34,7 +35,13 @@ const lastActivityAt = sql`(
   where activities.organization_id = organizations.id
 )`.mapWith(activities.occurredAt) as SQL<Date | null>;
 
-export const ORGANIZATION_SORTS = ["name", "contacts", "activity"] as const;
+// Changes whenever the logo does, so its address can be cached for good.
+const logoVersion = sql<string | null>`(
+  select left(organization_logos.sha256, 12) from organization_logos
+  where organization_logos.organization_id = organizations.id
+)`;
+
+export const ORGANIZATION_SORTS =["name", "contacts", "activity"] as const;
 const SORT_BY = {
   name: sql`lower(${organizations.name})`,
   contacts: contactCount,
@@ -71,6 +78,7 @@ export async function listOrganizations(
       country: organizations.country,
       contactCount,
       lastActivityAt,
+      logoVersion,
     })
     .from(organizations)
     .where(
@@ -112,7 +120,7 @@ export async function listOrganizations(
 
 export async function getOrganization(ownerId: string, id: string) {
   const [row] = await db
-    .select()
+    .select({ ...getTableColumns(organizations), logoVersion })
     .from(organizations)
     .where(and(eq(organizations.ownerId, ownerId), eq(organizations.id, id)));
   if (!row) return null;

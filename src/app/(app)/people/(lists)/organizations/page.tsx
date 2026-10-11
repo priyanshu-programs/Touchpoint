@@ -208,7 +208,11 @@ export default async function OrganizationsPage({
               <TableRow key={row.id}>
                 <TableCell className="whitespace-normal">
                   <div className="flex items-center gap-3">
-                    <CompanyLogo name={row.name} />
+                    <CompanyLogo
+                      id={row.id}
+                      name={row.name}
+                      logoVersion={row.logoVersion}
+                    />
                     <Link
                       href={companiesHref(params, {
                         ...NO_PANEL,

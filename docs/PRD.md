@@ -283,8 +283,9 @@ Encryption is AES-256-GCM with a key derived from `APP_ENCRYPTION_KEY`, a random
 | `contact_links` | contact_id, kind (linkedin/x/website/other), url | |
 | `tags`, `contact_tags`, `organization_tags`, `opportunity_tags` | | Explicit join tables keep foreign keys real |
 | `custom_field_defs` | entity_type, key, label, type, options | Values live in each entity's `custom` jsonb and are validated against these |
-| `enrichment_runs` | input, provider, status, raw_result, reviewed_at | Nothing is saved to a contact until reviewed |
-| `field_provenance` | entity_type, entity_id, field, source (manual/provider/inferred), confidence (verified/inferred/uncertain), retrieved_at, run_id | A verified manual value is never overwritten by a lower-confidence one |
+| `enrichment_runs` | organization_id, provider (`website`), status (queued/running/done/failed), input (`{ url }`), raw_result (the extracted values, never the page), error (a short code), started_at, finished_at; `reviewed_at` is added with the review screen | Deleted with its organization. At most one read per company per minute and 20 per owner per hour |
+| `field_provenance` | entity_type, entity_id, field, source (manual/website; key-based providers add theirs), confidence (verified/inferred; `uncertain` is added with the first provider that reports it), retrieved_at, run_id | Unique (owner, entity, field). A read fills a field only when it is empty and has no `manual` row; editing or clearing a field writes a `manual` row |
+| `organization_logos` | organization_id (primary key), content_type, bytes (bytea, at most 100 KB), sha256, source_url, fetched_at | Kept apart from `organizations` so lists never load image bytes. PNG, JPEG, GIF, WebP or ICO by magic bytes; SVG is refused. Served only to the owner at `/api/organizations/<id>/logo` |
 
 Organization details are stored once on the organization; contacts show them by reference.
 
@@ -473,6 +474,8 @@ Interface: `enrich(input) → candidates[{field, value, source, confidence}]`.
 - Built-in `website` provider: fetches the organization's public home and about pages, respects `robots.txt`, extracts name, description and social links from metadata. Outbound fetches block private and loopback addresses.
 - Optional key-based providers (Hunter first).
 - Results go to a review screen with per-field accept and reject. Accepted fields get a provenance row. Missing fields stay empty; nothing is invented.
+
+**As built in Phase 3 (website provider only).** A company created with a domain or website is read once in the background (job `enrichment.run`, run straight after the response and by the scheduler as a fallback); the company panel has a button to read again. The reader fetches `robots.txt`, the home page and up to three icon candidates within ten seconds, through `src/lib/safe-fetch.ts`: public addresses on ports 80 and 443 only, checked inside the connection's own DNS lookup, at most three redirects, size caps after decompression. It takes the description (meta description, Open Graph, JSON-LD), the location (JSON-LD address), the website address and a logo. Industry is not read, because a site does not state it in a form that can be read without guessing. Profile links (JSON-LD `sameAs`) are kept in `raw_result` only. There is no review screen yet: a value is written only into an empty field the owner has not edited, each with a provenance row, and the panel marks it "From website". A home page that forwards to an unrelated site is not read. Sites that turn automated requests away are reported as such and left alone.
 
 ### 11.3 Adapters
 

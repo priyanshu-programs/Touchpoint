@@ -40,17 +40,18 @@ test("add a company; a second one on the same domain is refused", async ({
   await tabs.getByRole("link", { name: "Companies" }).click();
   await page.getByRole("button", { name: "New company" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Acme Design");
-  await page.getByLabel("Website").fill("www.acme.com/about");
+  // A reserved name, so the read that follows never reaches a real site.
+  await page.getByLabel("Website").fill("www.acme.test/about");
   await page.getByRole("button", { name: "Create company" }).click();
 
   // The new company opens as a panel over the list, with its domain read from the website.
   await expect(page).toHaveURL(/\/people\/organizations\?company=[0-9a-f-]+$/);
   await expect(panel(page).getByRole("heading", { name: "Acme Design" })).toBeVisible();
   await expect(
-    panel(page).getByRole("link", { name: "https://www.acme.com/about" }),
+    panel(page).getByRole("link", { name: "https://www.acme.test/about" }),
   ).toBeVisible();
   await expect(
-    panel(page).getByText("acme.com", { exact: true }).first(),
+    panel(page).getByText("acme.test", { exact: true }).first(),
   ).toBeVisible();
 
   // An address from before the panel existed still lands on it.
@@ -64,7 +65,7 @@ test("add a company; a second one on the same domain is refused", async ({
   await page.goto("/people/organizations/new");
   await page.getByLabel("Name", { exact: true }).fill("Entirely Different");
   await page.getByLabel("Status").selectOption("client");
-  await page.getByLabel("Domain").fill("acme.com");
+  await page.getByLabel("Domain").fill("acme.test");
   await page.getByRole("button", { name: "Add company" }).click();
 
   await expect(
@@ -160,7 +161,7 @@ test("the companies list sorts, filters and searches by domain", async ({
   await expect(page).toHaveURL(/sort=contacts&dir=asc/);
   await expect(names.nth(3)).toHaveText("Borealis Labs");
 
-  await page.getByLabel("Search companies by name or domain").fill("acme.com");
+  await page.getByLabel("Search companies by name or domain").fill("acme.test");
   await page.getByRole("button", { name: "Filter" }).click();
   await expect(page.getByRole("link", { name: "Acme Design" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Borealis Labs" })).toBeHidden();

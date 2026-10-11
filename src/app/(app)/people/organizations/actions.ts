@@ -2,9 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
+import { db } from "@/db/client";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
+import { requestEnrichment } from "@/modules/enrichment/service";
+import { runDueJobs } from "@/modules/jobs/service";
+import { handlers } from "@/modules/jobs/tick";
 import { listOrganizations } from "@/modules/organizations/queries";
 import { organizationInput } from "@/modules/organizations/schema";
 import {
@@ -28,6 +33,11 @@ const FIELDS = [
   "status",
   "tags",
 ] as const;
+
+// The queued read would otherwise wait for the scheduler, up to fifteen minutes away.
+function readWebsiteSoon() {
+  after(() => runDueJobs(handlers, 10_000));
+}
 
 function failure(
   result: Exclude<OrganizationResult, { ok: true }>,
@@ -74,6 +84,7 @@ export async function createOrganizationAction(
   });
   if (!result.ok) return failure(result, values);
 
+  if (parsed.data.domain || parsed.data.website) readWebsiteSoon();
   revalidatePath("/people/organizations");
   redirect(companyHref(result.id));
 }
@@ -107,8 +118,36 @@ export async function createCompanyQuickAction(
   });
   if (!result.ok) return failure(result, values);
 
+  if (parsed.data.domain || parsed.data.website) readWebsiteSoon();
   revalidatePath("/people/organizations");
   redirect(companyHref(result.id));
+}
+
+export type EnrichCompanyState = { message: string } | null;
+
+export async function enrichCompanyAction(
+  id: string,
+): Promise<EnrichCompanyState> {
+  const owner = await requireOwner();
+  const organizationId = z.uuid().parse(id);
+  const result = await db.transaction((tx) =>
+    requestEnrichment(owner.id, organizationId, tx),
+  );
+  if (!result.ok) {
+    if (result.reason === "not_found") notFound();
+    return {
+      message:
+        result.reason === "no_website"
+          ? "Add a website to this company first."
+          : result.reason === "busy"
+            ? "The website is already being read."
+            : "That was tried a moment ago. Wait a minute and try again.",
+    };
+  }
+
+  readWebsiteSoon();
+  revalidatePath("/people/organizations");
+  return null;
 }
 
 export async function updateOrganizationAction(
