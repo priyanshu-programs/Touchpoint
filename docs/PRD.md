@@ -125,7 +125,7 @@ Left sidebar on desktop, bottom bar on mobile. Global: command palette (Ctrl/Cmd
 | Area | Screens |
 |---|---|
 | Today | Dashboard with filters (date range, client, organization, engagement, opportunity) |
-| Companies (was People) | Companies list with a side panel per company (Overview, Contacts, Activity, Tasks; opened by `?company=<id>` on the list); People list, contact workspace. Organizations are called companies in the interface |
+| Companies (was People) | Companies list with a side panel per company (Overview, Contacts, Activity, Tasks; opened by `?company=<id>` on the list). The panel can archive a company or, after a confirmation, delete it: its contacts, tasks and activities stay, unlinked; People list, contact workspace. Organizations are called companies in the interface |
 | Pipeline | Board per workflow template, list view, opportunity workspace |
 | Work | Engagements list, engagement workspace (overview, roadmap, milestones, owed/waiting, files) |
 | Tasks | Today, Week, All, Calendar |

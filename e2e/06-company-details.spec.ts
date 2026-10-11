@@ -130,3 +130,37 @@ test.describe("on a phone", () => {
     expect(overflows).toBe(false);
   });
 });
+
+// Last, because it removes the company the tests above use.
+test("a company can be deleted after confirming", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  const confirmation = page.getByRole("alertdialog", {
+    name: "Delete Nowhere Works?",
+  });
+
+  await page.goto(`/people/organizations?company=${companyId}`);
+  await panel(page).getByRole("button", { name: "Delete" }).click();
+  await expect(
+    confirmation.getByText("Its tasks and logged activity are kept"),
+  ).toBeVisible();
+  await confirmation.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirmation).toBeHidden();
+  await expect(
+    panel(page).getByRole("heading", { name: "Nowhere Works" }),
+  ).toBeVisible();
+
+  await panel(page).getByRole("button", { name: "Delete" }).click();
+  await confirmation.getByRole("button", { name: "Delete company" }).click();
+
+  await expect(page).toHaveURL(/\/people\/organizations$/);
+  await expect(page.getByRole("link", { name: "Acme Design" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Nowhere Works" })).toHaveCount(0);
+  // Its old address shows the list, with nothing to open.
+  await page.goto(`/people/organizations?company=${companyId}`);
+  await expect(page.getByRole("link", { name: "Acme Design" })).toBeVisible();
+  await expect(panel(page)).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
+});

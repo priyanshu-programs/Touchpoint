@@ -1,6 +1,6 @@
 import { and, eq, ne } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
-import { organizations } from "@/db/schema";
+import { fieldProvenance, organizations } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { markManual, requestEnrichment } from "@/modules/enrichment/service";
 import { ENRICHABLE_FIELDS } from "@/modules/enrichment/website/read";
@@ -127,6 +127,44 @@ export async function updateOrganization(
       after: snapshot(row, tags),
     });
     return { ok: true, id };
+  });
+}
+
+// Contacts, tasks and activities outlive the company: their foreign keys set the link to null.
+export async function deleteOrganization(ownerId: string, id: string) {
+  return db.transaction(async (tx) => {
+    const owned = and(
+      eq(organizations.ownerId, ownerId),
+      eq(organizations.id, id),
+    );
+    const [before] = await tx
+      .select()
+      .from(organizations)
+      .where(owned)
+      .for("update");
+    if (!before) return false;
+
+    const tags = await organizationTagNames(tx, ownerId, id);
+    // Provenance points at any kind of record, so no foreign key clears it.
+    await tx
+      .delete(fieldProvenance)
+      .where(
+        and(
+          eq(fieldProvenance.ownerId, ownerId),
+          eq(fieldProvenance.entityType, "organization"),
+          eq(fieldProvenance.entityId, id),
+        ),
+      );
+    await tx.delete(organizations).where(owned);
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "organization.delete",
+      entityType: "organization",
+      entityId: id,
+      before: snapshot(before, tags),
+    });
+    return true;
   });
 }
 

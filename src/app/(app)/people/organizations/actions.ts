@@ -14,6 +14,7 @@ import { listOrganizations } from "@/modules/organizations/queries";
 import { organizationInput } from "@/modules/organizations/schema";
 import {
   createOrganization,
+  deleteOrganization,
   setOrganizationArchived,
   updateOrganization,
   type OrganizationResult,
@@ -177,6 +178,14 @@ export async function setOrganizationArchivedAction(formData: FormData) {
     formData.get("archived") === "1",
   );
   revalidatePath("/people", "layout");
+}
+
+export async function deleteOrganizationAction(formData: FormData) {
+  const owner = await requireOwner();
+  const id = z.uuid().parse(formData.get("id"));
+  if (!(await deleteOrganization(owner.id, id))) notFound();
+  revalidatePath("/people", "layout");
+  redirect("/people/organizations");
 }
 
 export async function searchOrganizationsAction(query: string) {

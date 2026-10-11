@@ -1,6 +1,15 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
-import { activities } from "@/db/schema";
+import {
+  activities,
+  contacts,
+  enrichmentRuns,
+  fieldProvenance,
+  organizationLogos,
+  organizationTags,
+  tasks,
+} from "@/db/schema";
 import { listAudit } from "@/modules/audit/service";
 import { newContactInput } from "@/modules/contacts/schema";
 import { createContact } from "@/modules/contacts/service";
@@ -14,6 +23,7 @@ import {
 import { normalizeDomain, organizationInput } from "./schema";
 import {
   createOrganization,
+  deleteOrganization,
   setOrganizationArchived,
   updateOrganization,
 } from "./service";
@@ -309,6 +319,75 @@ describe("organizations", () => {
     expect(rows[2].lastActivityAt).toBeNull();
   });
 
+  it("deletes a company and what belongs to it, and keeps its people and history", async () => {
+    const id = await create({ domain: "acme.test", tags: "design" });
+    await updateOrganization(
+      ownerId,
+      id,
+      input({ domain: "acme.test", tags: "design", city: "Pune" }),
+    );
+    await db.insert(organizationLogos).values({
+      organizationId: id,
+      ownerId,
+      contentType: "image/png",
+      bytes: Buffer.from([1, 2, 3]),
+      sha256: "abc",
+      sourceUrl: "https://acme.test/icon.png",
+    });
+    const [contact] = await db
+      .insert(contacts)
+      .values({ ownerId, firstName: "Asha", organizationId: id })
+      .returning({ id: contacts.id });
+    const [task] = await db
+      .insert(tasks)
+      .values({ ownerId, title: "Send proposal", organizationId: id })
+      .returning({ id: tasks.id });
+    const [activity] = await db
+      .insert(activities)
+      .values({
+        ownerId,
+        kind: "call",
+        title: "Intro call",
+        occurredAt: new Date("2026-10-01T09:00:00Z"),
+        organizationId: id,
+      })
+      .returning({ id: activities.id });
+
+    expect(await deleteOrganization(ownerId, id)).toBe(true);
+
+    expect(await getOrganization(ownerId, id)).toBeNull();
+    for (const table of [
+      organizationTags,
+      organizationLogos,
+      enrichmentRuns,
+      fieldProvenance,
+    ]) {
+      expect(await db.$count(table)).toBe(0);
+    }
+    const kept = async (
+      table: typeof contacts | typeof tasks | typeof activities,
+      rowId: string,
+    ) =>
+      db
+        .select({ organizationId: table.organizationId })
+        .from(table)
+        .where(eq(table.id, rowId));
+    expect(await kept(contacts, contact.id)).toEqual([{ organizationId: null }]);
+    expect(await kept(tasks, task.id)).toEqual([{ organizationId: null }]);
+    expect(await kept(activities, activity.id)).toEqual([
+      { organizationId: null },
+    ]);
+    const { rows } = await listAudit(ownerId);
+    expect(rows[0]).toMatchObject({
+      action: "organization.delete",
+      entityId: id,
+      before: { name: "Acme Design", domain: "acme.test", tags: ["design"] },
+    });
+    // The domain is free again.
+    await create({ domain: "acme.test" });
+    expect(await deleteOrganization(ownerId, id)).toBe(false);
+  });
+
   it("keeps another owner's organizations out of reach", async () => {
     const otherId = await createTestOwner("other@example.com");
     const id = await create({ domain: "acme.com" });
@@ -321,6 +400,8 @@ describe("organizations", () => {
       reason: "not_found",
     });
     expect(await setOrganizationArchived(otherId, id, true)).toBe(false);
+    expect(await deleteOrganization(otherId, id)).toBe(false);
+    expect(await getOrganization(ownerId, id)).not.toBeNull();
     // The same domain is free for a different owner.
     const theirs = await createOrganization(otherId, input({ domain: "acme.com" }));
     expect(theirs.ok).toBe(true);

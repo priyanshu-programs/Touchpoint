@@ -26,6 +26,7 @@ Each step is a vertical slice: migration, module (zod schema, service, queries, 
   - [x] Slice 1: top bar with the account menu, collapsible sidebar (icon rail by default, remembered in a cookie, Ctrl+B), sidebar item Companies with Companies and People tabs, wording
   - [x] Slice 2: companies table (monogram until slice 3 adds logos, domain, industry, contacts, last activity, sort, filters), company side panel opened from the list by `?company=<id>`, New company dialog (name and website), add a contact inside a company. The company workspace pages are gone; `/people/organizations/<id>` redirects to the panel
   - [x] Slice 3: built-in enrichment from the company's own website (no third-party API): `enrichment_runs`, `field_provenance`, logos stored in Postgres, SSRF-guarded fetch, fills empty fields only and never overwrites what the owner typed. Reads description, location, website and logo; industry is not read; profile links are kept in the run but not shown. Sites behind bot protection refuse the read and are reported as such
+  - [x] Added afterwards at the owner's request: Delete in the company panel, behind a confirmation. The company, its tags, logo and website reads go; its contacts, tasks and activities stay without a company
 - [ ] Step 4: Opportunities — value, probability, contacts, won and lost; `src/lib/money.ts`
 - [ ] Step 5: Workflow engine — templates, list editor, instances, `transition()`, stage tasks, roadmap, starter templates
 - [ ] Step 6: Pipeline board (dnd-kit) and canvas template editor (React Flow)

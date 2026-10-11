@@ -139,3 +139,9 @@
 - [2026-10-11] Tests: guarded fetch, page extraction, robots rules, image sniffing and the enrichment service (227 unit tests); e2e/06-company-details.spec.ts covers an unreadable site, the limit message, the logo route and a stored logo in the panel and list (34 tests)
 - [2026-10-11] e2e/02-people.spec.ts uses the reserved domain acme.test for its company, so the suite never sends a request to a real third-party site
 - [2026-10-11] docs/PRD.md 8.2 and 11.2 describe the three tables and the website reader as built; plan.md ticks slice 3 and the Companies workspace
+- [2026-10-11] Added deleteOrganization to src/modules/organizations/service.ts with an audit row, because the owner had no way to remove a company added by mistake; contacts, tasks and activities stay and lose the link (their foreign keys set it to null), and the company's provenance rows are removed by hand since no foreign key covers them
+- [2026-10-11] Added src/components/ui/alert-dialog.tsx with the shadcn CLI (Base UI, no new package) for the delete confirmation
+- [2026-10-11] The company panel has a Delete button that opens a confirmation stating what is removed and what is kept (deleteOrganizationAction, delete-company-dialog.tsx)
+- [2026-10-11] Tests: deleting a company in the organizations service test (228 unit tests) and in e2e/06-company-details.spec.ts, cancel and confirm (35 tests)
+- [2026-10-11] docs/PRD.md section 6 and plan.md record that a company can be deleted from its panel
+- [2026-10-11] The sidebar is now resized by dragging its edge (56 to 320 px, collapsing below 100 px) in place of the collapse button; double-click, Ctrl+B and the arrow keys still collapse and expand it, and the width is kept in a "sidebar-width" cookie read by src/app/(app)/layout.tsx; the e2e sidebar test follows the new control

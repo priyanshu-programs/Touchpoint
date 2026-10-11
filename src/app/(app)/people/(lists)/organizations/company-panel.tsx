@@ -21,6 +21,7 @@ import { labelFor } from "../../labels";
 import { setOrganizationArchivedAction } from "../../organizations/actions";
 import { companiesHref, type CompanyListParams } from "../list-controls";
 import { AddContactForm } from "./add-contact-form";
+import { DeleteCompanyDialog } from "./delete-company-dialog";
 import { WebsiteDetails } from "./website-details";
 
 const READ_FAILURES: Record<string, string> = {
@@ -164,6 +165,11 @@ export async function CompanyPanel({
               {organization.archivedAt ? "Restore" : "Archive"}
             </Button>
           </form>
+          <DeleteCompanyDialog
+            id={organization.id}
+            name={organization.name}
+            contacts={upTo(contacts)}
+          />
         </div>
       </header>
 
