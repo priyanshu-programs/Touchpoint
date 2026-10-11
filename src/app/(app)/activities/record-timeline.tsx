@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ButtonLink } from "@/components/button-link";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardAction,
@@ -11,7 +10,7 @@ import {
 import { dateIn, formatDate, formatTime } from "@/lib/time";
 import { listTimeline, type TimelineRow } from "@/modules/activities/queries";
 import { getSettings } from "@/modules/settings/service";
-import { labelFor } from "../people/labels";
+import { TimelineEvent } from "./timeline-event";
 
 // The Timeline tab of a record: what happened, newest first, a page at a time.
 export async function RecordTimeline({
@@ -63,28 +62,10 @@ export async function RecordTimeline({
             <ul className="grid gap-4">
               {day.events.map((event) => (
                 <li key={event.eventId} className="grid min-w-0 gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">{labelFor(event.kind)}</Badge>
-                    <Link
-                      href={`/activities/${event.eventId}`}
-                      className="min-w-0 font-medium break-words underline-offset-4 hover:underline"
-                    >
-                      {event.title}
-                    </Link>
-                  </div>
-                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                    <span>{formatTime(event.occurredAt, timezone)}</span>
-                    {event.direction && <span>{labelFor(event.direction)}</span>}
-                    {event.contacts.map((contact) => (
-                      <Link
-                        key={contact.id}
-                        href={`/people/contacts/${contact.id}`}
-                        className="underline"
-                      >
-                        {contact.name}
-                      </Link>
-                    ))}
-                  </p>
+                  <TimelineEvent
+                    event={event}
+                    when={formatTime(event.occurredAt, timezone)}
+                  />
                   {event.outcome && (
                     <p className="text-sm break-words">
                       <span className="text-muted-foreground">Outcome: </span>

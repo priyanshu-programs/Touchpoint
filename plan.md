@@ -21,6 +21,7 @@ Each step is a vertical slice: migration, module (zod schema, service, queries, 
 - [x] Step 1: People — organizations, contacts, emails, links, tags; duplicate detection (exact email or domain refused, similar name warned); `/people/contacts` and `/people/organizations`
 - [x] Step 2: Tasks and reminders — Today, Week and All views, recurrence, snooze, in-app reminders through the jobs runner; Today dashboard shows what is due; Tasks tab on contacts and organizations. The Calendar view in PRD section 6 is left for the calendar integration (phase 5)
 - [x] Step 3: Activities and timeline — log an interaction (one or more contacts, optional organization) with an optional follow-up task; `timeline` view; Timeline tab on contacts and organizations; "Log activity" in the command palette. There is no Activities item in the navigation because the PRD has no such area
+- [x] Between steps 3 and 4: Today also shows contact and organization counts, the week ahead (Coming up) and recent activity, using data from steps 1–3. Pipeline and revenue figures join it with opportunities (step 4) and Phase 4
 - [ ] Step 4: Opportunities — value, probability, contacts, won and lost; `src/lib/money.ts`
 - [ ] Step 5: Workflow engine — templates, list editor, instances, `transition()`, stage tasks, roadmap, starter templates
 - [ ] Step 6: Pipeline board (dnd-kit) and canvas template editor (React Flow)

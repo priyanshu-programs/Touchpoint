@@ -99,3 +99,10 @@
 - [2026-10-11] Added "Log activity" to the Ctrl+K palette; no sidebar entry, since the timeline lives on each record
 - [2026-10-11] Added e2e/04-activities.spec.ts (4 tests): log a call with a follow-up from a contact, second contact with edit and delete, form validation, phone widths
 - [2026-10-11] docs/PRD.md 8.6 updated for the activity columns built so far, the timeline view's shape and the follow-up task; plan.md Step 3 ticked
+- [2026-10-11] listTimeline in src/modules/activities/queries.ts now runs without a contact or organization, returning the owner's whole timeline, so Today can show recent activity across records
+- [2026-10-11] Added countContacts and countOrganizations (archived records excluded) to the contacts and organizations queries for the people counts on Today
+- [2026-10-11] Moved the seven-day grouping out of the Week page into src/app/(app)/tasks/week-ahead.tsx so Today can show the same view
+- [2026-10-11] Moved the heading lines of a timeline entry out of record-timeline.tsx into src/app/(app)/activities/timeline-event.tsx so Today can list entries the same way
+- [2026-10-11] Today now shows contact and organization counts, a Coming up card (tasks due tomorrow through six days out) and a Recent activity card (five newest entries), because the owner found the page too empty to read as a dashboard; the "The week ahead" link gave way to the Coming up card
+- [2026-10-11] Added unit tests for the unfiltered timeline and the two counts, and e2e/05-today.spec.ts (2 tests): the new cards with data, and Today at phone width
+- [2026-10-11] plan.md notes the Today additions made between Steps 3 and 4

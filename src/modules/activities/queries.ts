@@ -17,13 +17,14 @@ const contactNames = async (ownerId: string, ids: string[]) =>
         .where(and(eq(contacts.ownerId, ownerId), inArray(contacts.id, ids)))
         .orderBy(asc(contacts.fullName));
 
-// What happened to one record, newest first.
+// What happened to one record, or to all of them when none is named, newest first.
 export async function listTimeline(
   ownerId: string,
   options: (
     | { contactId: string; organizationId?: undefined }
     | { organizationId: string; contactId?: undefined }
-  ) & { after?: string; limit?: number },
+    | { contactId?: undefined; organizationId?: undefined }
+  ) & { after?: string; limit?: number } = {},
 ) {
   const limit = Math.min(options.limit ?? 30, 100);
   const events = await db
@@ -34,7 +35,9 @@ export async function listTimeline(
         eq(timeline.ownerId, ownerId),
         options.contactId
           ? sql`${options.contactId} = any(${timeline.contactIds})`
-          : eq(timeline.organizationId, options.organizationId!),
+          : options.organizationId
+            ? eq(timeline.organizationId, options.organizationId)
+            : undefined,
         // Comparing against the stored row keeps microsecond precision that a JS Date would lose.
         options.after
           ? sql`(${timeline.occurredAt}, ${timeline.eventId}) < (

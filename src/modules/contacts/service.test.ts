@@ -4,7 +4,7 @@ import { organizationInput } from "@/modules/organizations/schema";
 import { createOrganization } from "@/modules/organizations/service";
 import { listTags } from "@/modules/tags/queries";
 import { createTestOwner, resetDatabase } from "@/test/owner";
-import { getContact, listContacts } from "./queries";
+import { countContacts, getContact, listContacts } from "./queries";
 import {
   contactEmailInput,
   contactInput,
@@ -301,9 +301,11 @@ describe("contacts", () => {
     expect(await setContactArchived(ownerId, id, true)).toBe(true);
     expect((await listContacts(ownerId)).rows).toHaveLength(0);
     expect((await listContacts(ownerId, { archived: true })).rows).toHaveLength(1);
+    expect(await countContacts(ownerId)).toBe(0);
 
     await setContactArchived(ownerId, id, false);
     expect((await listContacts(ownerId)).rows).toHaveLength(1);
+    expect(await countContacts(ownerId)).toBe(1);
   });
 
   it("filters by name prefix, email, tag and organization", async () => {
@@ -364,6 +366,7 @@ describe("contacts", () => {
 
     expect(await getContact(otherId, id)).toBeNull();
     expect((await listContacts(otherId)).rows).toHaveLength(0);
+    expect(await countContacts(otherId)).toBe(0);
     expect(await updateContact(otherId, id, contactInput.parse(form))).toEqual({
       ok: false,
       reason: "not_found",

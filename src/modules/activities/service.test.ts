@@ -232,6 +232,24 @@ describe("activities", () => {
     );
   });
 
+  it("lists every record's events together when no record is named", async () => {
+    const priya = await createPerson("Priya");
+    const organizationId = await createOrg();
+    await log({ contactIds: [priya], title: "Earlier call" });
+    await log({
+      organizationId,
+      title: "Later meeting",
+      occurredAt: "2026-10-11T09:00",
+    });
+
+    const { rows } = await listTimeline(ownerId, { limit: 5 });
+    expect(rows.map((row) => row.title)).toEqual([
+      "Later meeting",
+      "Earlier call",
+    ]);
+    expect(rows[1].contacts).toEqual([{ id: priya, name: "Priya" }]);
+  });
+
   it("keeps one owner's timeline from another", async () => {
     const other = await createTestOwner("other@example.com");
     const theirContact = await createPerson("Theirs", other);
@@ -240,6 +258,7 @@ describe("activities", () => {
     expect(
       (await listTimeline(ownerId, { contactId: theirContact })).rows,
     ).toEqual([]);
+    expect((await listTimeline(ownerId)).rows).toEqual([]);
     expect(await getActivity(ownerId, id)).toBeNull();
     expect(
       await updateActivity(

@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { listAudit } from "@/modules/audit/service";
 import { listTags } from "@/modules/tags/queries";
 import { createTestOwner, resetDatabase } from "@/test/owner";
-import { getOrganization, listOrganizations } from "./queries";
+import {
+  countOrganizations,
+  getOrganization,
+  listOrganizations,
+} from "./queries";
 import { normalizeDomain, organizationInput } from "./schema";
 import {
   createOrganization,
@@ -172,9 +176,11 @@ describe("organizations", () => {
     expect(await setOrganizationArchived(ownerId, id, true)).toBe(true);
     expect((await listOrganizations(ownerId)).rows).toHaveLength(0);
     expect((await listOrganizations(ownerId, { archived: true })).rows).toHaveLength(1);
+    expect(await countOrganizations(ownerId)).toBe(0);
 
     await setOrganizationArchived(ownerId, id, false);
     expect((await listOrganizations(ownerId)).rows).toHaveLength(1);
+    expect(await countOrganizations(ownerId)).toBe(1);
   });
 
   it("filters by name prefix and by tag", async () => {
@@ -216,6 +222,7 @@ describe("organizations", () => {
 
     expect(await getOrganization(otherId, id)).toBeNull();
     expect((await listOrganizations(otherId)).rows).toHaveLength(0);
+    expect(await countOrganizations(otherId)).toBe(0);
     expect(await updateOrganization(otherId, id, input())).toEqual({
       ok: false,
       reason: "not_found",

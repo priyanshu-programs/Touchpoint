@@ -9,6 +9,12 @@ import {
 import { likePrefix, prefixTsQuery } from "@/lib/text-search";
 import { contactTagNames } from "@/modules/tags/queries";
 
+export const countContacts = (ownerId: string) =>
+  db.$count(
+    contacts,
+    and(eq(contacts.ownerId, ownerId), isNull(contacts.archivedAt)),
+  );
+
 export async function listContacts(
   ownerId: string,
   options: {

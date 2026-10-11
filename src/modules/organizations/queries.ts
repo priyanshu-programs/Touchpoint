@@ -4,6 +4,12 @@ import { organizations } from "@/db/schema";
 import { prefixTsQuery } from "@/lib/text-search";
 import { organizationTagNames } from "@/modules/tags/queries";
 
+export const countOrganizations = (ownerId: string) =>
+  db.$count(
+    organizations,
+    and(eq(organizations.ownerId, ownerId), isNull(organizations.archivedAt)),
+  );
+
 export async function listOrganizations(
   ownerId: string,
   options: {
