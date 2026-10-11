@@ -13,7 +13,7 @@ import {
   updateOrganization,
   type OrganizationResult,
 } from "@/modules/organizations/service";
-import { invalid, type PeopleFormState } from "../form-state";
+import { invalid, type RecordFormState } from "@/app/(app)/form-state";
 
 const FIELDS = [
   "name",
@@ -31,7 +31,7 @@ const FIELDS = [
 function failure(
   result: Exclude<OrganizationResult, { ok: true }>,
   values: Record<string, string>,
-): PeopleFormState {
+): RecordFormState {
   if (result.reason === "not_found") notFound();
   if (result.reason === "duplicate") {
     return {
@@ -60,9 +60,9 @@ function failure(
 }
 
 export async function createOrganizationAction(
-  _previous: PeopleFormState,
+  _previous: RecordFormState,
   formData: FormData,
-): Promise<PeopleFormState> {
+): Promise<RecordFormState> {
   const owner = await requireOwner();
   const values = readFields(formData, FIELDS);
   const parsed = organizationInput.safeParse(values);
@@ -79,9 +79,9 @@ export async function createOrganizationAction(
 
 export async function updateOrganizationAction(
   id: string,
-  _previous: PeopleFormState,
+  _previous: RecordFormState,
   formData: FormData,
-): Promise<PeopleFormState> {
+): Promise<RecordFormState> {
   const owner = await requireOwner();
   const organizationId = z.uuid().parse(id);
   const values = readFields(formData, FIELDS);

@@ -2,9 +2,9 @@ import Link from "next/link";
 import { ButtonLink } from "@/components/button-link";
 import { FormMessage } from "@/components/form-message";
 import { Button } from "@/components/ui/button";
-import type { PeopleFormState } from "./form-state";
+import type { RecordFormState } from "@/app/(app)/form-state";
 
-export function FormOutcome({ state }: { state: PeopleFormState }) {
+export function FormOutcome({ state }: { state: RecordFormState }) {
   if (!state) return null;
   return (
     <div className="grid gap-2">
@@ -31,7 +31,7 @@ export function FormButtons({
   submitLabel,
   cancelHref,
 }: {
-  state: PeopleFormState;
+  state: RecordFormState;
   pending: boolean;
   submitLabel: string;
   cancelHref: string;

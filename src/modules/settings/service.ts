@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
+import { db, type Executor } from "@/db/client";
 import { settings } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import type { SettingsInput } from "./schema";
@@ -10,6 +10,14 @@ export async function getSettings(ownerId: string) {
     .from(settings)
     .where(eq(settings.ownerId, ownerId));
   return row ?? null;
+}
+
+export async function ownerTimezone(executor: Executor, ownerId: string) {
+  const [row] = await executor
+    .select({ timezone: settings.timezone })
+    .from(settings)
+    .where(eq(settings.ownerId, ownerId));
+  return row?.timezone ?? "UTC";
 }
 
 const pick = (row: SettingsInput): SettingsInput => ({

@@ -322,12 +322,12 @@ See section 9 for behaviour.
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `tasks` | title, notes, status, priority, due_at, all_day, snoozed_until, completed_at, recurrence_rule (RRULE), origin (manual/workflow/ai/meeting), optional contact_id, organization_id, opportunity_id, engagement_id, instance_stage_id, milestone_id | One row, many optional links: appears everywhere, counted once |
-| `reminders` | task_id or calendar_event_id, remind_at, channel (in_app/push/email), status (scheduled/sent/failed/cancelled), job_id, error | Status reflects what actually happened |
+| `tasks` | title, notes, status (open/done/cancelled), priority (low/normal/high), due_on (date, all-day) or due_at (instant, timed), snoozed_until, completed_at, recurrence_rule (RRULE: FREQ, INTERVAL, BYMONTHDAY), origin (manual/follow_up/workflow/ai/meeting), optional contact_id, organization_id, opportunity_id, engagement_id, instance_stage_id, milestone_id | One row, many optional links: appears everywhere, counted once. A CHECK allows only one of due_on and due_at. Link columns are added in the phase step that builds their target |
+| `reminders` | task_id (calendar_event_id comes with the calendar), remind_at, channel (in_app; push and email are added when they can deliver), status (scheduled/sent/cancelled), sent_at, dismissed_at | Status reflects what actually happened. The job is found by its dedupe key `reminder:<id>` |
 | `calendar_events` | connection_id, external_id, title, starts_at, ends_at, timezone, location, meeting_url, attendees, optional organization/opportunity/engagement links | Unique (connection, external_id) |
 | `calendar_event_contacts` | | |
 
-All instants are stored in UTC and displayed in the owner's time zone; all-day items keep a date without a time. Recurrence creates the next task when the current one is completed.
+All instants are stored in UTC and displayed in the owner's time zone; all-day items keep a date without a time. Recurrence creates the next task when the current one is completed, in the same transaction, skipping occurrences that are already in the past and carrying the reminder forward at the same lead time. An in-app reminder is delivered by the `reminder.send` job and shown on Today until it is dismissed or its task is closed.
 
 ### 8.6 Activities and email
 

@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { FormState } from "@/app/(app)/settings/actions";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
+import { listContacts } from "@/modules/contacts/queries";
 import {
   contactEmailInput,
   contactInput,
@@ -23,7 +24,7 @@ import {
   updateContact,
   type ContactResult,
 } from "@/modules/contacts/service";
-import { invalid, type PeopleFormState } from "../form-state";
+import { invalid, type RecordFormState } from "@/app/(app)/form-state";
 
 const FIELDS = [
   "firstName",
@@ -45,7 +46,7 @@ const FIELDS = [
 function failure(
   result: Exclude<ContactResult, { ok: true }>,
   values: Record<string, string>,
-): PeopleFormState {
+): RecordFormState {
   if (result.reason === "not_found") notFound();
   if (result.reason === "unknown_organization") {
     return {
@@ -85,9 +86,9 @@ const organizationLabel = (formData: FormData) =>
   readFields(formData, ["organizationName"]);
 
 export async function createContactAction(
-  _previous: PeopleFormState,
+  _previous: RecordFormState,
   formData: FormData,
-): Promise<PeopleFormState> {
+): Promise<RecordFormState> {
   const owner = await requireOwner();
   const fields = readFields(formData, [...FIELDS, "email"]);
   const values = { ...fields, ...organizationLabel(formData) };
@@ -105,9 +106,9 @@ export async function createContactAction(
 
 export async function updateContactAction(
   id: string,
-  _previous: PeopleFormState,
+  _previous: RecordFormState,
   formData: FormData,
-): Promise<PeopleFormState> {
+): Promise<RecordFormState> {
   const owner = await requireOwner();
   const contactId = z.uuid().parse(id);
   const fields = readFields(formData, FIELDS);
@@ -120,6 +121,17 @@ export async function updateContactAction(
 
   revalidatePath("/people", "layout");
   redirect(`/people/contacts/${contactId}`);
+}
+
+export async function searchContactsAction(query: string) {
+  const owner = await requireOwner();
+  const q = z.string().max(100).parse(query);
+  const { rows } = await listContacts(owner.id, { q, limit: 20 });
+  return rows.map((row) => ({
+    id: row.id,
+    label: row.fullName,
+    hint: row.organizationName,
+  }));
 }
 
 export async function setContactArchivedAction(formData: FormData) {

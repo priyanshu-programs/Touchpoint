@@ -19,7 +19,7 @@ Accepted when PRD journeys 2–6 and 8 pass end to end on desktop and phone widt
 Each step is a vertical slice: migration, module (zod schema, service, queries, tests), screens and server actions, nav entry, Playwright coverage. A step is done when lint, typecheck, Vitest and Playwright pass and it is deployed.
 
 - [x] Step 1: People — organizations, contacts, emails, links, tags; duplicate detection (exact email or domain refused, similar name warned); `/people/contacts` and `/people/organizations`
-- [ ] Step 2: Tasks and reminders — Today, Week and All views, recurrence, in-app reminders through the jobs runner; Today dashboard shows what is due
+- [x] Step 2: Tasks and reminders — Today, Week and All views, recurrence, snooze, in-app reminders through the jobs runner; Today dashboard shows what is due; Tasks tab on contacts and organizations. The Calendar view in PRD section 6 is left for the calendar integration (phase 5)
 - [ ] Step 3: Activities and timeline — log an interaction with an optional follow-up task; `timeline` view
 - [ ] Step 4: Opportunities — value, probability, contacts, won and lost; `src/lib/money.ts`
 - [ ] Step 5: Workflow engine — templates, list editor, instances, `transition()`, stage tasks, roadmap, starter templates

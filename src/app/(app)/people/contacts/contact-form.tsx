@@ -3,8 +3,8 @@
 import { useActionState } from "react";
 import { SelectField, TextField, type Option } from "@/components/fields";
 import { RecordPicker } from "@/components/record-picker";
-import { FormButtons, FormOutcome } from "../form-outcome";
-import type { PeopleFormState } from "../form-state";
+import { FormButtons, FormOutcome } from "@/components/form-outcome";
+import type { RecordFormState } from "@/app/(app)/form-state";
 import { searchOrganizationsAction } from "../organizations/actions";
 
 export function ContactForm({
@@ -16,9 +16,9 @@ export function ContactForm({
   cancelHref,
 }: {
   action: (
-    state: PeopleFormState,
+    state: RecordFormState,
     formData: FormData,
-  ) => Promise<PeopleFormState>;
+  ) => Promise<RecordFormState>;
   initial: Record<string, string>;
   options: {
     statuses: Option[];

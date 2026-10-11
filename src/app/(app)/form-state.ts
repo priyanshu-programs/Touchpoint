@@ -1,6 +1,6 @@
 import type { z } from "zod";
 
-export type PeopleFormState = {
+export type RecordFormState = {
   ok: boolean;
   message: string;
   // Echoed back so a rejected form keeps what was typed.
@@ -12,6 +12,6 @@ export type PeopleFormState = {
 export function invalid(
   error: z.ZodError,
   values: Record<string, string>,
-): PeopleFormState {
+): RecordFormState {
   return { ok: false, message: error.issues[0].message, values };
 }

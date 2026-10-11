@@ -7,8 +7,8 @@ import {
   TextField,
   type Option,
 } from "@/components/fields";
-import { FormButtons, FormOutcome } from "../form-outcome";
-import type { PeopleFormState } from "../form-state";
+import { FormButtons, FormOutcome } from "@/components/form-outcome";
+import type { RecordFormState } from "@/app/(app)/form-state";
 
 export function OrganizationForm({
   action,
@@ -18,9 +18,9 @@ export function OrganizationForm({
   cancelHref,
 }: {
   action: (
-    state: PeopleFormState,
+    state: RecordFormState,
     formData: FormData,
-  ) => Promise<PeopleFormState>;
+  ) => Promise<RecordFormState>;
   initial: Record<string, string>;
   statuses: Option[];
   submitLabel: string;

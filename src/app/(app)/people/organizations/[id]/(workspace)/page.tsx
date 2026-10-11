@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ButtonLink } from "@/components/button-link";
 import { DetailList } from "@/components/detail-list";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -13,11 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireOwner } from "@/lib/session";
 import { listContacts } from "@/modules/contacts/queries";
-import { getOrganization } from "@/modules/organizations/queries";
-import { labelFor } from "../../labels";
-import { setOrganizationArchivedAction } from "../actions";
+import { loadOrganization } from "../load";
 
 export const metadata: Metadata = { title: "Organization" };
 
@@ -25,57 +19,16 @@ export default async function OrganizationPage({
   params,
   searchParams,
 }: PageProps<"/people/organizations/[id]">) {
-  const owner = await requireOwner();
-  const id = z.uuid().safeParse((await params).id);
-  if (!id.success) notFound();
+  const { owner, organization } = await loadOrganization((await params).id);
   const after = z.uuid().safeParse((await searchParams).after);
-  const [organization, contacts] = await Promise.all([
-    getOrganization(owner.id, id.data),
-    listContacts(owner.id, {
-      organizationId: id.data,
-      after: after.success ? after.data : undefined,
-    }),
-  ]);
-  if (!organization) notFound();
+  const contacts = await listContacts(owner.id, {
+    organizationId: organization.id,
+    after: after.success ? after.data : undefined,
+  });
   const path = `/people/organizations/${organization.id}`;
 
   return (
     <div className="grid gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {organization.name}
-          </h1>
-          <div className="flex flex-wrap gap-1">
-            <Badge variant="secondary">{labelFor(organization.status)}</Badge>
-            {organization.archivedAt && (
-              <Badge variant="destructive">Archived</Badge>
-            )}
-            {organization.tags.map((tag) => (
-              <Badge key={tag} variant="outline">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <ButtonLink href={`${path}/edit`} variant="outline">
-            Edit
-          </ButtonLink>
-          <form action={setOrganizationArchivedAction}>
-            <input type="hidden" name="id" value={organization.id} />
-            <input
-              type="hidden"
-              name="archived"
-              value={organization.archivedAt ? "0" : "1"}
-            />
-            <Button type="submit" variant="outline">
-              {organization.archivedAt ? "Restore" : "Archive"}
-            </Button>
-          </form>
-        </div>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Details</CardTitle>

@@ -15,6 +15,13 @@
       "when": 1791668337905,
       "tag": "0001_people",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791689721327,
+      "tag": "0002_tasks",
+      "breakpoints": true
     }
   ]
 }

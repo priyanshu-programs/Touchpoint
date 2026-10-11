@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import { db } from "@/db/client";
+import { db, type Executor } from "@/db/client";
 import { jobs } from "@/db/schema";
 import { logger } from "@/lib/logger";
 
@@ -17,15 +17,19 @@ export function backoffMs(attempts: number) {
   return Math.min(30_000 * 2 ** (attempts - 1), 3_600_000);
 }
 
-export async function enqueue(input: {
-  kind: string;
-  payload?: Record<string, unknown>;
-  runAt?: Date;
-  dedupeKey?: string;
-  ownerId?: string;
-  maxAttempts?: number;
-}) {
-  const [row] = await db
+// Pass the caller's transaction when the job must exist only if the change that needs it commits.
+export async function enqueue(
+  input: {
+    kind: string;
+    payload?: Record<string, unknown>;
+    runAt?: Date;
+    dedupeKey?: string;
+    ownerId?: string;
+    maxAttempts?: number;
+  },
+  executor: Executor = db,
+) {
+  const [row] = await executor
     .insert(jobs)
     .values(input)
     .onConflictDoNothing({

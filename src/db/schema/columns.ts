@@ -1,5 +1,10 @@
+import { sql } from "drizzle-orm";
 import { customType, timestamp, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth";
+
+// For CHECK constraints over a fixed list of code-defined values.
+export const oneOf = (column: unknown, values: readonly string[]) =>
+  sql`${column} in (${sql.raw(values.map((value) => `'${value}'`).join(", "))})`;
 
 export const createdAt = timestamp("created_at", { withTimezone: true })
   .defaultNow()

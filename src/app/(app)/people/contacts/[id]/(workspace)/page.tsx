@@ -1,8 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { z } from "zod";
-import { ButtonLink } from "@/components/button-link";
 import { DetailList } from "@/components/detail-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,86 +9,25 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireOwner } from "@/lib/session";
-import { getContact } from "@/modules/contacts/queries";
 import { LINK_KINDS } from "@/modules/contacts/schema";
-import { labelFor, toOptions } from "../../labels";
+import { labelFor, toOptions } from "../../../labels";
 import {
   removeContactEmailAction,
   removeContactLinkAction,
-  setContactArchivedAction,
   setPrimaryEmailAction,
-} from "../actions";
-import { AddEmailForm, AddLinkForm } from "./add-forms";
+} from "../../actions";
+import { AddEmailForm, AddLinkForm } from "../add-forms";
+import { loadContact } from "../load";
 
 export const metadata: Metadata = { title: "Contact" };
 
 export default async function ContactPage({
   params,
 }: PageProps<"/people/contacts/[id]">) {
-  const owner = await requireOwner();
-  const id = z.uuid().safeParse((await params).id);
-  if (!id.success) notFound();
-  const contact = await getContact(owner.id, id.data);
-  if (!contact) notFound();
+  const { contact } = await loadContact((await params).id);
 
   return (
     <div className="grid gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {contact.fullName}
-          </h1>
-          {(contact.jobTitle || contact.organizationId) && (
-            <p className="text-muted-foreground">
-              {contact.jobTitle}
-              {contact.jobTitle && contact.organizationId && " at "}
-              {contact.organizationId && (
-                <Link
-                  href={`/people/organizations/${contact.organizationId}`}
-                  className="underline"
-                >
-                  {contact.organizationName}
-                </Link>
-              )}
-            </p>
-          )}
-          <div className="flex flex-wrap gap-1">
-            <Badge variant="secondary">
-              {labelFor(contact.relationshipType)}
-            </Badge>
-            {contact.status !== "active" && (
-              <Badge variant="outline">{labelFor(contact.status)}</Badge>
-            )}
-            {contact.archivedAt && <Badge variant="destructive">Archived</Badge>}
-            {contact.tags.map((tag) => (
-              <Badge key={tag} variant="outline">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <ButtonLink
-            href={`/people/contacts/${contact.id}/edit`}
-            variant="outline"
-          >
-            Edit
-          </ButtonLink>
-          <form action={setContactArchivedAction}>
-            <input type="hidden" name="id" value={contact.id} />
-            <input
-              type="hidden"
-              name="archived"
-              value={contact.archivedAt ? "0" : "1"}
-            />
-            <Button type="submit" variant="outline">
-              {contact.archivedAt ? "Restore" : "Archive"}
-            </Button>
-          </form>
-        </div>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Details</CardTitle>

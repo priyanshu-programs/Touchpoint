@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ListChecks,
   LogOut,
   Search,
   Settings,
@@ -33,6 +34,7 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
       icon: Users,
       prefix: "/people",
     },
+    { href: "/tasks", label: "Tasks", icon: ListChecks, prefix: "/tasks" },
     {
       href: "/settings/profile",
       label: "Settings",

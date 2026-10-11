@@ -14,6 +14,7 @@ import {
   citext,
   createdAt,
   id,
+  oneOf,
   ownerId,
   tsvector,
   updatedAt,
@@ -43,9 +44,6 @@ export const PREFERRED_CHANNELS = [
   "other",
 ] as const;
 export const LINK_KINDS = ["linkedin", "x", "website", "other"] as const;
-
-const oneOf = (column: unknown, values: readonly string[]) =>
-  sql`${column} in (${sql.raw(values.map((value) => `'${value}'`).join(", "))})`;
 
 export const organizations = pgTable(
   "organizations",

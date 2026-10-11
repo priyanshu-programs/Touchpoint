@@ -68,3 +68,15 @@
 - [2026-10-11] The phone bottom bar now shows the first four destinations and leaves the rest to "Go to", so it stays usable as modules are added
 - [2026-10-11] Split the e2e suite into ordered files (01-foundation, 02-people, 99-sign-out) because signing out ends the session the other files share; added the People journey (16 tests in all)
 - [2026-10-11] docs/PRD.md 8.2 now names the status values used for organizations and contacts and notes that contact_emails.verification and contacts.custom arrive with the features that use them
+- [2026-10-11] Step 1 deployed: production build succeeded, migration 0001 confirmed on Neon main (7 tables, citext and pg_trgm), CI green
+- [2026-10-11] Added src/db/schema/tasks.ts and migration 0002_tasks (tasks, reminders); an all-day task stores a date and a timed task an instant, so "due today" follows the owner's calendar; applied to Neon dev
+- [2026-10-11] Added time-zone helpers to src/lib/time.ts (wall-clock to instant and back, calendar date in a zone, date arithmetic) with tests, because form dates and times are in the owner's zone
+- [2026-10-11] enqueue() in the jobs module now accepts the caller's transaction, so a reminder and its job commit together
+- [2026-10-11] Added ownerTimezone() to the settings module for services that turn form dates into instants
+- [2026-10-11] Added src/modules/tasks (schema, service, queries, recurrence): create, update, complete, reopen, cancel, snooze; completing a repeating task creates the next one and carries its reminder
+- [2026-10-11] Registered the reminder.send job handler in src/modules/jobs/tick.ts; a delivered reminder shows on Today until dismissed
+- [2026-10-11] Added the Tasks screens (Today, Week, All, add and edit) and replaced the Today placeholder with reminders and what is due; Tasks is in the navigation
+- [2026-10-11] Contact and organization pages now have a shared header with Overview and Tasks tabs
+- [2026-10-11] Moved the record form state and form outcome components out of the people folder, since task forms use them too
+- [2026-10-11] Added e2e/03-tasks.spec.ts (6 tests): task from a contact, snooze, recurrence, reminder through the tick endpoint, form validation, phone widths
+- [2026-10-11] docs/PRD.md 8.5 updated for the due_on/due_at split, the reminder columns actually built and how recurrence and in-app reminders behave

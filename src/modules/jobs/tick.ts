@@ -1,6 +1,7 @@
 import { and, eq, max } from "drizzle-orm";
 import { db } from "@/db/client";
 import { jobs } from "@/db/schema";
+import { REMINDER_JOB, sendReminder } from "@/modules/tasks/service";
 import { enqueue, runDueJobs, type JobHandlers } from "./service";
 
 const HEARTBEAT = "system.heartbeat";
@@ -8,6 +9,7 @@ const HEARTBEAT = "system.heartbeat";
 export const handlers: JobHandlers = {
   // Finishing is the signal: System status shows when the last heartbeat completed.
   [HEARTBEAT]: async () => {},
+  [REMINDER_JOB]: sendReminder,
 };
 
 export async function tick(budgetMs: number) {
