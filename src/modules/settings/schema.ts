@@ -1,18 +1,8 @@
 import { z } from "zod";
+import { isTimezone } from "@/lib/time";
 
 export const CURRENCIES = Intl.supportedValuesOf("currency");
 export const TIMEZONES = ["UTC", ...Intl.supportedValuesOf("timeZone")];
-
-// The runtime's list holds one canonical name per zone (Asia/Calcutta, not Asia/Kolkata),
-// so membership would reject valid aliases that browsers report.
-function isTimezone(value: string) {
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: value });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export const settingsInput = z.strictObject({
   baseCurrency: z.string().refine((value) => CURRENCIES.includes(value), {

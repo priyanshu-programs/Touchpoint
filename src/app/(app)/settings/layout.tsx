@@ -1,4 +1,11 @@
-import { SettingsNav } from "./settings-nav";
+import { TabNav } from "@/components/tab-nav";
+
+const TABS = [
+  { href: "/settings/profile", label: "Profile" },
+  { href: "/settings/security", label: "Security" },
+  { href: "/settings/system", label: "System status" },
+  { href: "/settings/audit", label: "Audit log" },
+];
 
 export default function SettingsLayout({
   children,
@@ -6,7 +13,7 @@ export default function SettingsLayout({
   return (
     <div className="grid gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-      <SettingsNav />
+      <TabNav label="Settings" tabs={TABS} />
       {children}
     </div>
   );

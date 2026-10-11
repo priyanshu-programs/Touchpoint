@@ -24,13 +24,16 @@ export default async function TodayPage() {
         <CardHeader>
           <CardTitle>Nothing to review yet</CardTitle>
           <CardDescription>
-            Your workspace is set up. Contacts, pipeline, tasks and revenue are
-            the next things to be built, and this page will show what needs
-            your attention once they exist.
+            Tasks, pipeline and revenue are the next things to be built, and
+            this page will show what needs your attention once they exist.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm">
-          For now you can review your{" "}
+          For now you can add{" "}
+          <Link href="/people/contacts" className="underline">
+            contacts and organizations
+          </Link>
+          , or review your{" "}
           <Link href="/settings/profile" className="underline">
             profile
           </Link>

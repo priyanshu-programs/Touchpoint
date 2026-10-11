@@ -4,18 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-  { href: "/settings/profile", label: "Profile" },
-  { href: "/settings/security", label: "Security" },
-  { href: "/settings/system", label: "System status" },
-  { href: "/settings/audit", label: "Audit log" },
-] as const;
-
-export function SettingsNav() {
+export function TabNav({
+  label,
+  tabs,
+}: {
+  label: string;
+  tabs: readonly { href: string; label: string }[];
+}) {
   const pathname = usePathname();
   return (
-    <nav aria-label="Settings" className="flex gap-1 overflow-x-auto border-b">
-      {TABS.map((tab) => {
+    <nav aria-label={label} className="flex gap-1 overflow-x-auto border-b">
+      {tabs.map((tab) => {
         const active = pathname === tab.href;
         return (
           <Link

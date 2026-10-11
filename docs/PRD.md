@@ -277,9 +277,9 @@ Encryption is AES-256-GCM with a key derived from `APP_ENCRYPTION_KEY`, a random
 
 | Table | Key columns | Constraints and deletion |
 |---|---|---|
-| `organizations` | name, domain, website, industry, description, city, region, country, status | Unique (owner, domain) when domain is set |
-| `contacts` | organization_id (nullable), first_name, last_name, job_title, department, phone_e164, city, region, country, timezone, preferred_channel, status, relationship_type, custom (jsonb) | Organization delete sets `organization_id` to null; archive, never cascade |
-| `contact_emails` | contact_id, email, label, is_primary, verification | Unique (owner, email); one primary per contact |
+| `organizations` | name, domain, website, industry, description, city, region, country, status (prospect/client/past_client/partner/other) | Unique (owner, domain) when domain is set; the domain is stored normalised (`example.com`) |
+| `contacts` | organization_id (nullable), first_name, last_name, full_name (generated), job_title, department, phone_e164, city, region, country, timezone, preferred_channel (email/phone/linkedin/whatsapp/other), status (active/dormant/do_not_contact), relationship_type (prospect/client/partner/referrer/vendor/other), custom (jsonb, added with custom fields) | Organization delete sets `organization_id` to null; archive, never cascade |
+| `contact_emails` | contact_id, email, label, is_primary; `verification` is added with the first feature that sets it (enrichment or Gmail) | Unique (owner, email); one primary per contact |
 | `contact_links` | contact_id, kind (linkedin/x/website/other), url | |
 | `tags`, `contact_tags`, `organization_tags`, `opportunity_tags` | | Explicit join tables keep foreign keys real |
 | `custom_field_defs` | entity_type, key, label, type, options | Values live in each entity's `custom` jsonb and are validated against these |

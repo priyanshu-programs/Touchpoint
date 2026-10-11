@@ -57,3 +57,14 @@
 - [2026-10-11] First production deployment is live at https://touchpoint-sandy.vercel.app; checked headers, CSP, auth redirects and the tick endpoint against it
 - [2026-10-11] plan.md Step 8 now records the live URL and the two owner steps left (create the owner account, add the cron-job.org job)
 - [2026-10-11] Owner created the production account and the cron-job.org job; confirmed one owner, closed sign-up and a scheduler heartbeat in Neon main, and marked plan.md Step 8 and Phase 2 complete
+- [2026-10-11] plan.md now lists the ten steps of Phase 3 (core business modules) and what the phase leaves out, so the build order is on record
+- [2026-10-11] Added src/db/schema/columns.ts (shared id, owner_id, timestamp, citext and tsvector helpers) so every Phase 3 table declares them the same way; core.ts now imports its timestamps from there
+- [2026-10-11] Added src/db/schema/people.ts and migration 0001_people (organizations, contacts, contact_emails, contact_links, tags and tag joins, citext and pg_trgm extensions); applied to Neon dev
+- [2026-10-11] Added src/lib/form.ts (blank-to-null and form reading helpers), src/lib/url.ts (http/https-only links, so a javascript: URL can never be stored) and src/lib/text-search.ts (safe prefix tsquery)
+- [2026-10-11] Moved isTimezone from the settings schema to src/lib/time.ts so contacts validate time zones the same way
+- [2026-10-11] Added src/modules/tags, organizations and contacts (zod schemas, audited services, owner-scoped keyset queries) with duplicate detection: an existing email or domain is refused, a similar name is warned about until confirmed
+- [2026-10-11] Added the People screens: contact and organization lists with search, tag and archived filters, workspaces, add and edit forms, email and link management, archive and restore; People is in the navigation
+- [2026-10-11] Added shared UI pieces used by those screens: TabNav (replacing settings-nav), form fields, RecordPicker (server-side search in a dialog), DetailList, ButtonLink and an in-app not-found page
+- [2026-10-11] The phone bottom bar now shows the first four destinations and leaves the rest to "Go to", so it stays usable as modules are added
+- [2026-10-11] Split the e2e suite into ordered files (01-foundation, 02-people, 99-sign-out) because signing out ends the session the other files share; added the People journey (16 tests in all)
+- [2026-10-11] docs/PRD.md 8.2 now names the status values used for organizations and contacts and notes that contact_emails.verification and contacts.custom arrive with the features that use them

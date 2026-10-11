@@ -1,6 +1,13 @@
 "use client";
 
-import { LogOut, Search, Settings, Sun, type LucideIcon } from "lucide-react";
+import {
+  LogOut,
+  Search,
+  Settings,
+  Sun,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -21,12 +28,20 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
   [
     { href: "/", label: "Today", icon: Sun },
     {
+      href: "/people/contacts",
+      label: "People",
+      icon: Users,
+      prefix: "/people",
+    },
+    {
       href: "/settings/profile",
       label: "Settings",
       icon: Settings,
       prefix: "/settings",
     },
   ];
+// The phone bar has room for four destinations; the rest are reached through "Go to".
+const MOBILE_NAV = NAV.slice(0, 4);
 
 export function AppShell({
   ownerName,
@@ -118,7 +133,7 @@ export function AppShell({
         aria-label="Main"
         className="fixed inset-x-0 bottom-0 flex border-t bg-background md:hidden"
       >
-        {NAV.map((item) => (
+        {MOBILE_NAV.map((item) => (
           <Link
             key={item.href}
             href={item.href}

@@ -13,14 +13,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
-
-const createdAt = timestamp("created_at", { withTimezone: true })
-  .defaultNow()
-  .notNull();
-const updatedAt = timestamp("updated_at", { withTimezone: true })
-  .defaultNow()
-  .$onUpdate(() => new Date())
-  .notNull();
+import { createdAt, updatedAt } from "./columns";
 
 export const settings = pgTable(
   "settings",

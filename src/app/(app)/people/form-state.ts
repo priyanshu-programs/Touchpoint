@@ -1,0 +1,17 @@
+import type { z } from "zod";
+
+export type PeopleFormState = {
+  ok: boolean;
+  message: string;
+  // Echoed back so a rejected form keeps what was typed.
+  values?: Record<string, string>;
+  links?: { href: string; label: string }[];
+  canConfirm?: boolean;
+} | null;
+
+export function invalid(
+  error: z.ZodError,
+  values: Record<string, string>,
+): PeopleFormState {
+  return { ok: false, message: error.issues[0].message, values };
+}
