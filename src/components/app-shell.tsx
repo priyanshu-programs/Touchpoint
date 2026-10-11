@@ -5,8 +5,6 @@ import {
   ListChecks,
   LogOut,
   NotebookPen,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
   Settings,
   Sun,
@@ -14,7 +12,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { signOutAction } from "@/app/(app)/settings/actions";
 import {
   Command,
@@ -56,19 +61,62 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
 // The phone bar has room for four destinations; the rest are reached through "Go to".
 const MOBILE_NAV = NAV.slice(0, 4);
 
+const COLLAPSED_WIDTH = 56;
+const DEFAULT_WIDTH = 224;
+const MIN_WIDTH = 56;
+const MAX_WIDTH = 320;
+const COLLAPSE_THRESHOLD = 100;
+
+function clampWidth(value: number) {
+  if (!Number.isFinite(value)) return DEFAULT_WIDTH;
+  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(value)));
+}
+
+function persistSidebar(width: number) {
+  const clamped = clampWidth(width);
+  const collapsed = clamped < COLLAPSE_THRESHOLD;
+  document.cookie = `sidebar=${collapsed ? "collapsed" : "expanded"}; path=/; max-age=31536000; samesite=lax`;
+  document.cookie = `sidebar-width=${clamped}; path=/; max-age=31536000; samesite=lax`;
+}
+
 export function AppShell({
   ownerName,
   defaultCollapsed,
+  defaultWidth,
   children,
 }: {
   ownerName: string;
   defaultCollapsed: boolean;
+  defaultWidth?: number;
   children: ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [width, setWidth] = useState(() =>
+    defaultWidth !== undefined
+      ? clampWidth(defaultWidth)
+      : defaultCollapsed
+        ? COLLAPSED_WIDTH
+        : DEFAULT_WIDTH,
+  );
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const lastExpandedRef = useRef(
+    defaultWidth !== undefined && defaultWidth >= COLLAPSE_THRESHOLD
+      ? clampWidth(defaultWidth)
+      : DEFAULT_WIDTH,
+  );
+
+  const collapsed = width < COLLAPSE_THRESHOLD;
+
+  const toggleSidebar = useCallback(() => {
+    setWidth((prev) => {
+      if (prev < COLLAPSE_THRESHOLD) return lastExpandedRef.current;
+      lastExpandedRef.current = clampWidth(prev);
+      return COLLAPSED_WIDTH;
+    });
+  }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -80,20 +128,53 @@ export function AppShell({
       }
       if (key === "b") {
         event.preventDefault();
-        setCollapsed((value) => !value);
+        toggleSidebar();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [toggleSidebar]);
 
   // A cookie, not browser storage, so the server renders the chosen width on the next load.
+  // Skip writes while dragging so we only persist the snapped result.
   useEffect(() => {
-    document.cookie = `sidebar=${collapsed ? "collapsed" : "expanded"}; path=/; max-age=31536000; samesite=lax`;
-  }, [collapsed]);
+    if (isDragging) return;
+    persistSidebar(width);
+  }, [width, isDragging]);
 
   const isActive = (item: (typeof NAV)[number]) =>
     item.prefix ? pathname.startsWith(item.prefix) : pathname === item.href;
+
+  function endDrag(commit: boolean) {
+    const start = dragRef.current;
+    dragRef.current = null;
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+    setIsDragging(false);
+    if (commit && start) {
+      setWidth((current) => {
+        if (current < COLLAPSE_THRESHOLD) return COLLAPSED_WIDTH;
+        const snapped = clampWidth(current);
+        lastExpandedRef.current = snapped;
+        return snapped;
+      });
+    }
+  }
+
+  function onResizePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    dragRef.current = { startX: event.clientX, startWidth: width };
+    setIsDragging(true);
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "ew-resize";
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function onResizePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const start = dragRef.current;
+    if (!start) return;
+    setWidth(clampWidth(start.startWidth + (event.clientX - start.startX)));
+  }
 
   const railItem = cn(
     "flex items-center gap-2 rounded-md py-2 text-sm hover:bg-sidebar-accent",
@@ -143,9 +224,12 @@ export function AppShell({
 
       <div className="flex flex-1">
         <aside
+          style={{ width }}
           className={cn(
-            "sticky top-14 hidden h-[calc(100dvh-3.5rem)] shrink-0 flex-col gap-1 border-r bg-sidebar p-3 text-sidebar-foreground md:flex",
-            collapsed ? "w-14 px-2" : "w-56",
+            "group sticky top-14 hidden h-[calc(100dvh-3.5rem)] shrink-0 flex-col gap-1 overflow-hidden border-r bg-sidebar text-sidebar-foreground md:flex",
+            collapsed ? "px-2 py-3" : "p-3",
+            !isDragging &&
+              "transition-[width] duration-150 ease-out motion-reduce:transition-none",
           )}
         >
           <nav aria-label="Main" className="grid gap-1">
@@ -177,22 +261,67 @@ export function AppShell({
               <kbd className="ml-auto font-mono text-xs">Ctrl K</kbd>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => setCollapsed(!collapsed)}
-            aria-expanded={!collapsed}
-            title={collapsed ? "Expand sidebar (Ctrl B)" : undefined}
-            className={cn(railItem, "mt-auto text-muted-foreground")}
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="size-4 shrink-0" aria-hidden />
-            ) : (
-              <PanelLeftClose className="size-4 shrink-0" aria-hidden />
+          <p
+            className={cn(
+              "mt-auto truncate px-2 text-xs text-muted-foreground",
+              collapsed && "sr-only",
             )}
-            <span className={railLabel}>
-              {collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            </span>
-          </button>
+            aria-hidden
+          >
+            Drag edge to resize
+          </p>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            aria-valuemin={MIN_WIDTH}
+            aria-valuemax={MAX_WIDTH}
+            aria-valuenow={Math.round(width)}
+            title="Drag to resize (Ctrl B to collapse or expand)"
+            tabIndex={0}
+            onPointerDown={onResizePointerDown}
+            onPointerMove={onResizePointerMove}
+            onPointerUp={() => endDrag(true)}
+            onPointerCancel={() => endDrag(true)}
+            onDoubleClick={toggleSidebar}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                setWidth((prev) =>
+                  clampWidth(prev - (event.shiftKey ? 24 : 8)),
+                );
+              } else if (event.key === "ArrowRight") {
+                event.preventDefault();
+                const next = clampWidth(
+                  (collapsed ? COLLAPSED_WIDTH : width) +
+                    (event.shiftKey ? 24 : 8),
+                );
+                if (next >= COLLAPSE_THRESHOLD)
+                  lastExpandedRef.current = next;
+                setWidth(next);
+              } else if (event.key === "Home") {
+                event.preventDefault();
+                setWidth(COLLAPSED_WIDTH);
+              } else if (event.key === "End") {
+                event.preventDefault();
+                setWidth(lastExpandedRef.current);
+              } else if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                toggleSidebar();
+              }
+            }}
+            className="absolute top-0 right-0 z-10 flex h-full w-4 touch-none cursor-ew-resize items-center justify-center outline-none"
+          >
+            <span
+              aria-hidden
+              className={cn(
+                "h-10 w-1 rounded-full transition-colors",
+                isDragging
+                  ? "bg-primary"
+                  : "bg-border group-hover:bg-muted-foreground/50 focus-visible:bg-primary",
+              )}
+            />
+          </div>
         </aside>
 
         <main
