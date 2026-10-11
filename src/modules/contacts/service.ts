@@ -213,6 +213,54 @@ export async function setContactArchived(
   });
 }
 
+// Emails, links, tags and the person's place on logged activities go with them:
+// their foreign keys cascade. Tasks outlive the person, with the link set to null.
+export async function deleteContact(ownerId: string, id: string) {
+  return db.transaction(async (tx) => {
+    const before = await lockContact(tx, ownerId, id);
+    if (!before) return null;
+
+    const tags = await contactTagNames(tx, ownerId, id);
+    await tx
+      .delete(contacts)
+      .where(and(eq(contacts.ownerId, ownerId), eq(contacts.id, id)));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "contact.delete",
+      entityType: "contact",
+      entityId: id,
+      before: snapshot(before, tags),
+    });
+    return { organizationId: before.organizationId };
+  });
+}
+
+export async function setContactRelationship(
+  ownerId: string,
+  id: string,
+  relationshipType: ContactInput["relationshipType"],
+) {
+  return db.transaction(async (tx) => {
+    const before = await lockContact(tx, ownerId, id);
+    if (!before) return false;
+    await tx
+      .update(contacts)
+      .set({ relationshipType })
+      .where(and(eq(contacts.ownerId, ownerId), eq(contacts.id, id)));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "contact.set_relationship",
+      entityType: "contact",
+      entityId: id,
+      before: { relationshipType: before.relationshipType },
+      after: { relationshipType },
+    });
+    return true;
+  });
+}
+
 // Marks or unmarks a company's primary contact; a company has at most one.
 export async function setPrimaryContact(
   ownerId: string,

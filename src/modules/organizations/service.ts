@@ -181,6 +181,36 @@ export async function deleteOrganization(ownerId: string, id: string) {
   });
 }
 
+export async function setOrganizationStatus(
+  ownerId: string,
+  id: string,
+  status: OrganizationInput["status"],
+) {
+  return db.transaction(async (tx) => {
+    const owned = and(
+      eq(organizations.ownerId, ownerId),
+      eq(organizations.id, id),
+    );
+    const [before] = await tx
+      .select({ status: organizations.status })
+      .from(organizations)
+      .where(owned)
+      .for("update");
+    if (!before) return false;
+    await tx.update(organizations).set({ status }).where(owned);
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "organization.set_status",
+      entityType: "organization",
+      entityId: id,
+      before,
+      after: { status },
+    });
+    return true;
+  });
+}
+
 export async function setOrganizationArchived(
   ownerId: string,
   id: string,

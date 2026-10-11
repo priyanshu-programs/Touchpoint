@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { OWNER_SESSION } from "./support";
+import { OWNER_SESSION, recordAction } from "./support";
 
 test.describe.configure({ mode: "serial" });
 test.use({ storageState: OWNER_SESSION });
@@ -142,7 +142,7 @@ test("add contacts inside a company; duplicates are caught", async ({
   await expect(page.getByText("Primary", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "+919876543210" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Edit" }).click();
+  await recordAction(page, "Edit");
   await page.getByLabel("Tags").fill("vip");
   await page.getByRole("button", { name: "Save changes" }).click();
   // Saving returns to the person's panel over the list.
@@ -219,8 +219,10 @@ test("pick a company, then filter and archive contacts", async ({
 
   await page.goto("/people/contacts");
   await sharmaa.click();
-  await page.getByRole("button", { name: "Archive" }).click();
-  await expect(page.getByRole("button", { name: "Restore" })).toBeVisible();
+  await recordAction(page, "Archive");
+  await expect(panel(page).getByText("Archived", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "More actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Restore" })).toBeVisible();
 
   await page.goto("/people/contacts");
   await expect(sharma).toBeVisible();

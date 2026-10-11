@@ -11,11 +11,15 @@ import { requestEnrichment } from "@/modules/enrichment/service";
 import { runDueJobs } from "@/modules/jobs/service";
 import { handlers } from "@/modules/jobs/tick";
 import { listOrganizations } from "@/modules/organizations/queries";
-import { organizationInput } from "@/modules/organizations/schema";
+import {
+  ORGANIZATION_STATUSES,
+  organizationInput,
+} from "@/modules/organizations/schema";
 import {
   createOrganization,
   deleteOrganization,
   setOrganizationArchived,
+  setOrganizationStatus,
   updateOrganization,
   type OrganizationResult,
 } from "@/modules/organizations/service";
@@ -181,6 +185,17 @@ export async function setOrganizationArchivedAction(formData: FormData) {
     id,
     formData.get("archived") === "1",
   );
+  revalidatePath("/people", "layout");
+}
+
+export async function setOrganizationStatusAction(id: string, status: string) {
+  const owner = await requireOwner();
+  const changed = await setOrganizationStatus(
+    owner.id,
+    z.uuid().parse(id),
+    z.enum(ORGANIZATION_STATUSES).parse(status),
+  );
+  if (!changed) notFound();
   revalidatePath("/people", "layout");
 }
 

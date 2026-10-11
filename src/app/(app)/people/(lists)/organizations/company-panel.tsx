@@ -1,6 +1,5 @@
 import { Star } from "lucide-react";
 import Link from "next/link";
-import { ButtonLink } from "@/components/button-link";
 import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo, Monogram } from "@/components/company-logo";
 import {
@@ -9,7 +8,6 @@ import {
   type DetailRow,
 } from "@/components/detail-rows";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import {
   Table,
@@ -38,11 +36,17 @@ import {
   addSuggestedContactsAction,
   setPrimaryContactAction,
 } from "../../contacts/actions";
-import { labelFor } from "../../labels";
-import { setOrganizationArchivedAction } from "../../organizations/actions";
+import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
+import { toOptions } from "../../labels";
+import {
+  deleteOrganizationAction,
+  setOrganizationArchivedAction,
+  setOrganizationStatusAction,
+} from "../../organizations/actions";
 import { companiesHref, type CompanyListParams } from "../list-controls";
+import { StatusMenu } from "../status-menu";
 import { AddContactForm } from "./add-contact-form";
-import { DeleteCompanyDialog } from "./delete-company-dialog";
+import { CompanyActions } from "./company-actions";
 import { SuggestedContacts } from "./suggested-contacts";
 import { WebsiteDetails } from "./website-details";
 
@@ -62,31 +66,24 @@ function websiteStatus(
   timezone: string,
 ) {
   if (!run) {
-    return {
-      summary: `Details can be read from ${site}.`,
-      reading: false,
-      actionLabel: "Read from website",
-    };
+    return { summary: `Details can be read from ${site}.`, reading: false };
   }
   if (run.status === "failed") {
     return {
       summary: `Could not read ${site}: ${READ_FAILURES[run.error ?? ""] ?? "something went wrong"}.`,
       reading: false,
-      actionLabel: "Try again",
     };
   }
   if (run.status === "done" && run.finishedAt) {
     return {
       summary: `Details read from ${site} on ${formatDate(dateIn(timezone, run.finishedAt))}.`,
       reading: false,
-      actionLabel: "Refresh from website",
     };
   }
   return {
     summary: `Reading ${site}…`,
     detail: "Description, phone, email, location, logo and people",
     reading: true,
-    actionLabel: "",
   };
 }
 
@@ -128,6 +125,7 @@ export async function CompanyPanel({
   const site =
     organization.domain ??
     (organization.website ? new URL(organization.website).hostname : null);
+  const website = site ? websiteStatus(site, run, timezone) : null;
   const fromWebsite = (field: string) =>
     sourced.includes(field) && (
       <span className="block text-xs font-normal text-muted-foreground">
@@ -198,7 +196,12 @@ export async function CompanyPanel({
             <SheetDescription>{organization.domain}</SheetDescription>
           )}
           <div className="flex flex-wrap gap-1">
-            <Badge variant="secondary">{labelFor(organization.status)}</Badge>
+            <StatusMenu
+              label="Status"
+              value={organization.status}
+              options={toOptions(ORGANIZATION_STATUSES)}
+              action={setOrganizationStatusAction.bind(null, organization.id)}
+            />
             {organization.archivedAt && (
               <Badge variant="destructive">Archived</Badge>
             )}
@@ -209,31 +212,24 @@ export async function CompanyPanel({
             ))}
           </div>
         </div>
-        <div className="flex gap-2">
-          <ButtonLink
-            href={`/people/organizations/${organization.id}/edit`}
-            variant="outline"
-            size="sm"
-          >
-            Edit
-          </ButtonLink>
-          <form action={setOrganizationArchivedAction}>
-            <input type="hidden" name="id" value={organization.id} />
-            <input
-              type="hidden"
-              name="archived"
-              value={organization.archivedAt ? "0" : "1"}
-            />
-            <Button type="submit" variant="outline" size="sm">
-              {organization.archivedAt ? "Restore" : "Archive"}
-            </Button>
-          </form>
-          <DeleteCompanyDialog
-            id={organization.id}
-            name={organization.name}
-            contacts={upTo(contacts)}
-          />
-        </div>
+        <CompanyActions
+          id={organization.id}
+          hasWebsite={Boolean(site)}
+          reading={Boolean(website?.reading)}
+          editHref={`/people/organizations/${organization.id}/edit`}
+          archived={Boolean(organization.archivedAt)}
+          archiveAction={setOrganizationArchivedAction}
+          remove={{
+            title: `Delete ${organization.name}?`,
+            description: `The company, its tags, logo and website details are removed for good. ${
+              contacts.rows.length === 0
+                ? "Its tasks and logged activity"
+                : `Its contacts (${upTo(contacts)}), tasks and logged activity`
+            } are kept, no longer linked to a company. To hide it instead, use Archive.`,
+            confirmLabel: "Delete company",
+            action: deleteOrganizationAction,
+          }}
+        />
       </header>
 
       <dl className="grid grid-cols-3 divide-x border-b">
@@ -298,12 +294,7 @@ export async function CompanyPanel({
               Details
             </h3>
             <DetailRows rows={details} className="px-4 pb-4" />
-            {site && (
-              <WebsiteDetails
-                organizationId={organization.id}
-                {...websiteStatus(site, run, timezone)}
-              />
-            )}
+            {website && <WebsiteDetails {...website} />}
           </section>
         </div>
       )}

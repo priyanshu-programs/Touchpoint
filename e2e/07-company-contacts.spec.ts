@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { OWNER_SESSION } from "./support";
+import { OWNER_SESSION, recordAction } from "./support";
 
 test.describe.configure({ mode: "serial" });
 test.use({ storageState: OWNER_SESSION });
@@ -66,7 +66,7 @@ test("the star moves to another contact, and a contact opens inside the company 
   ).toHaveAttribute("href", "https://github.com/arjunrao");
 
   // Editing from the panel comes back to it.
-  await panel(page).getByRole("link", { name: "Edit" }).click();
+  await recordAction(page, "Edit");
   await page.getByLabel("Job title").fill("Head of Security");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page).toHaveURL(IN_PANEL);
@@ -101,6 +101,77 @@ test("an address naming someone who is not at the company shows the company", as
   );
   await expect(panel(page).getByRole("heading", { name: "Acme Design" })).toBeVisible();
   await expect(companyTabs(page)).toBeVisible();
+});
+
+test("the status of a company and of a person is switched from its badge", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  const badge = (label: string, value: string) =>
+    panel(page).getByRole("button", { name: `${label}: ${value}`, exact: true });
+  const choose = (value: string) =>
+    page.getByRole("menuitemradio", { name: value, exact: true }).click();
+
+  await openContacts(page);
+  await badge("Status", "Prospect").click();
+  await choose("Past client");
+  await expect(badge("Status", "Past client")).toBeVisible();
+  // It holds after a reload, and goes back so the other files find the company as it was.
+  await page.reload();
+  await badge("Status", "Past client").click();
+  await choose("Prospect");
+  await expect(badge("Status", "Prospect")).toBeVisible();
+
+  await panel(page).getByRole("link", { name: "Arjun Rao" }).click();
+  await badge("Relationship", "Prospect").click();
+  await choose("Referrer");
+  await expect(badge("Relationship", "Referrer")).toBeVisible();
+  await badge("Relationship", "Referrer").click();
+  await choose("Prospect");
+  await expect(badge("Relationship", "Prospect")).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("a person is deleted from the three-dots menu after confirming", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  const confirmation = page.getByRole("alertdialog", {
+    name: "Delete Zara Quill?",
+  });
+
+  await openContacts(page);
+  await panel(page).getByRole("button", { name: "Add contact" }).click();
+  const form = page.getByRole("form", { name: "Add contact" });
+  await form.getByLabel("First name").fill("Zara");
+  await form.getByLabel("Last name").fill("Quill");
+  await form.getByRole("button", { name: "Add contact" }).click();
+  await expect(panel(page).getByText("Zara added.")).toBeVisible();
+  await panel(page).getByRole("link", { name: "Zara Quill" }).click();
+  await expect(panel(page).getByRole("heading", { name: "Zara Quill" })).toBeVisible();
+
+  await recordAction(page, "Delete");
+  await expect(confirmation.getByText("Their tasks are kept")).toBeVisible();
+  await confirmation.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirmation).toBeHidden();
+  await expect(panel(page).getByRole("heading", { name: "Zara Quill" })).toBeVisible();
+
+  await recordAction(page, "Delete");
+  await confirmation.getByRole("button", { name: "Delete contact" }).click();
+
+  // Back in the company she was opened from, without her.
+  await expect(page).toHaveURL(/\?company=[0-9a-f-]+&tab=contacts$/);
+  await expect(panel(page).getByRole("link", { name: "Arjun Rao" })).toBeVisible();
+  await expect(panel(page).getByRole("link", { name: "Zara Quill" })).toHaveCount(0);
+  await page.goto("/people/contacts?q=zara");
+  await expect(page.getByText("No contacts match these filters.")).toBeVisible();
+  expect(consoleErrors).toEqual([]);
 });
 
 test.describe("on a phone", () => {

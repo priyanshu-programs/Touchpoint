@@ -186,3 +186,12 @@
 - [2026-10-11] The company panel's Contacts tab shows "Found on the website" (new suggested-contacts.tsx) with Add per person and Add all; the reading line now says people are read too
 - [2026-10-11] Tests: team link, JSON-LD people, the heading reader, the team page read and its refusals, stored suggestions and who is left out (256 unit tests); e2e/06-company-details.spec.ts adds one person then all, and its delete test now expects the three contacts it leaves (43 tests)
 - [2026-10-11] docs/PRD.md 6 and 11.2 and plan.md describe people read from a team page and offered on Contacts
+- [2026-10-12] plan.md records three steps the owner asked for with reference screenshots: header actions with delete and status switch, a smarter website read, then the Fields panel
+- [2026-10-12] Added deleteContact to src/modules/contacts/service.ts with an audit row, because a person added by mistake could only be archived; emails, links, tags and their place on activities go by foreign key, tasks stay unlinked
+- [2026-10-12] Added setContactRelationship (contacts service) and setOrganizationStatus (organizations service), each audited, so one value can change without sending the whole edit form
+- [2026-10-12] Added deleteContactAction, setContactRelationshipAction and setOrganizationStatusAction; deleting a person opened inside a company returns to that company's Contacts tab, told by a flag and never by an address
+- [2026-10-12] Added people/(lists)/record-actions.tsx: the three-dots menu (Edit, Archive or Restore, Delete behind a confirmation) shared by the company and contact panels; it replaces delete-company-dialog.tsx and the three header buttons
+- [2026-10-12] Added organizations/company-actions.tsx: Re-enrich in the company header beside the menu, shown when the company has a website and disabled while a read is under way; website-details.tsx keeps the status line and loses its own button, so a read starts from one place
+- [2026-10-12] Added people/(lists)/status-menu.tsx: the status badge of a company and the relationship badge of a person open a menu of the allowed values
+- [2026-10-12] Tests: deleting a person, both status switches and the other-owner refusals (259 unit tests); e2e specs follow the menu through a recordAction helper in e2e/support.ts, and 07-company-contacts.spec.ts adds switching both badges and deleting a person, cancel and confirm (45 tests)
+- [2026-10-12] docs/PRD.md 6 and 8.2 describe the header menu, Re-enrich, the status menus and deleting a person, replacing "archive, never cascade"

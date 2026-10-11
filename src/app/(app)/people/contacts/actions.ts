@@ -12,14 +12,17 @@ import {
   contactInput,
   contactLinkInput,
   newContactInput,
+  RELATIONSHIP_TYPES,
 } from "@/modules/contacts/schema";
 import {
   addContactEmail,
   addContactLink,
   createContact,
+  deleteContact,
   removeContactEmail,
   removeContactLink,
   setContactArchived,
+  setContactRelationship,
   setPrimaryContact,
   setPrimaryEmail,
   updateContact,
@@ -27,7 +30,7 @@ import {
 } from "@/modules/contacts/service";
 import { suggestedPeople } from "@/modules/enrichment/queries";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { contactHref, contactPanelHref } from "../labels";
+import { companyHref, contactHref, contactPanelHref } from "../labels";
 
 const FIELDS = [
   "firstName",
@@ -253,6 +256,36 @@ export async function setContactArchivedAction(formData: FormData) {
   const id = z.uuid().parse(formData.get("id"));
   await setContactArchived(owner.id, id, formData.get("archived") === "1");
   revalidatePath("/people", "layout");
+}
+
+export async function setContactRelationshipAction(
+  id: string,
+  relationshipType: string,
+) {
+  const owner = await requireOwner();
+  const changed = await setContactRelationship(
+    owner.id,
+    z.uuid().parse(id),
+    z.enum(RELATIONSHIP_TYPES).parse(relationshipType),
+  );
+  if (!changed) notFound();
+  revalidatePath("/people", "layout");
+}
+
+// `from` is a flag, never an address: it says the person was open inside their company's panel.
+export async function deleteContactAction(formData: FormData) {
+  const owner = await requireOwner();
+  const { id, from } = z
+    .strictObject({ id: z.uuid(), from: z.enum(["", "company"]) })
+    .parse(readFields(formData, ["id", "from"]));
+  const deleted = await deleteContact(owner.id, id);
+  if (!deleted) notFound();
+  revalidatePath("/people", "layout");
+  redirect(
+    from === "company" && deleted.organizationId
+      ? companyHref(deleted.organizationId, "contacts")
+      : "/people/contacts",
+  );
 }
 
 export async function addContactEmailAction(

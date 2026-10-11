@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { Pool } from "pg";
-import { OWNER_SESSION } from "./support";
+import { OWNER_SESSION, recordAction } from "./support";
 
 test.describe.configure({ mode: "serial" });
 test.use({ storageState: OWNER_SESSION });
@@ -45,7 +45,7 @@ test("a website that cannot be read is reported and the company still works", as
   await expect(panel(page).locator("img")).toHaveCount(0);
   await expect(panel(page).getByText("From website")).toHaveCount(0);
 
-  await panel(page).getByRole("button", { name: "Try again" }).click();
+  await panel(page).getByRole("button", { name: "Re-enrich" }).click();
   await expect(
     panel(page).getByText("That was tried a moment ago. Wait a minute and try again."),
   ).toBeVisible();
@@ -76,7 +76,7 @@ test("the overview lists the company's details, with a phone and email once give
   // Only the website so far; the empty rows show a dash.
   await expect(details.getByRole("link")).toHaveCount(1);
 
-  await panel(page).getByRole("link", { name: "Edit" }).click();
+  await recordAction(page, "Edit");
   await page.getByLabel("Phone").fill("12345");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(
@@ -212,7 +212,7 @@ test.describe("on a phone", () => {
       panel(page).getByText(/^Could not read nowhere\.invalid/),
     ).toBeVisible();
     await expect(
-      panel(page).getByRole("button", { name: "Try again" }),
+      panel(page).getByRole("button", { name: "Re-enrich" }),
     ).toBeVisible();
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,
@@ -232,7 +232,7 @@ test("a company can be deleted after confirming", async ({ page }) => {
   });
 
   await page.goto(`/people/organizations?company=${companyId}`);
-  await panel(page).getByRole("button", { name: "Delete" }).click();
+  await recordAction(page, "Delete");
   await expect(
     // The three people added from the website above.
     confirmation.getByText("Its contacts (3), tasks and logged activity are kept"),
@@ -243,7 +243,7 @@ test("a company can be deleted after confirming", async ({ page }) => {
     panel(page).getByRole("heading", { name: "Nowhere Works" }),
   ).toBeVisible();
 
-  await panel(page).getByRole("button", { name: "Delete" }).click();
+  await recordAction(page, "Delete");
   await confirmation.getByRole("button", { name: "Delete company" }).click();
 
   await expect(page).toHaveURL(/\/people\/organizations$/);

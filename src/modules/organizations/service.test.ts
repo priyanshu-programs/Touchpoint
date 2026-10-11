@@ -25,6 +25,7 @@ import {
   createOrganization,
   deleteOrganization,
   setOrganizationArchived,
+  setOrganizationStatus,
   updateOrganization,
 } from "./service";
 
@@ -207,6 +208,24 @@ describe("organizations", () => {
     await setOrganizationArchived(ownerId, id, false);
     expect((await listOrganizations(ownerId)).rows).toHaveLength(1);
     expect(await countOrganizations(ownerId)).toBe(1);
+  });
+
+  it("switches the status from the panel and records it", async () => {
+    const id = await create({ city: "Pune" });
+
+    expect(await setOrganizationStatus(ownerId, id, "client")).toBe(true);
+
+    expect(await getOrganization(ownerId, id)).toMatchObject({
+      status: "client",
+      city: "Pune",
+    });
+    const { rows } = await listAudit(ownerId);
+    expect(rows[0]).toMatchObject({
+      action: "organization.set_status",
+      entityId: id,
+      before: { status: "prospect" },
+      after: { status: "client" },
+    });
   });
 
   it("filters by name prefix and by tag", async () => {
@@ -412,6 +431,7 @@ describe("organizations", () => {
       reason: "not_found",
     });
     expect(await setOrganizationArchived(otherId, id, true)).toBe(false);
+    expect(await setOrganizationStatus(otherId, id, "client")).toBe(false);
     expect(await deleteOrganization(otherId, id)).toBe(false);
     expect(await getOrganization(ownerId, id)).not.toBeNull();
     // The same domain is free for a different owner.

@@ -1,4 +1,14 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
+import { db } from "@/db/client";
+import {
+  activities,
+  activityContacts,
+  contactEmails,
+  contactLinks,
+  contactTags,
+  tasks,
+} from "@/db/schema";
 import { listAudit } from "@/modules/audit/service";
 import { organizationInput } from "@/modules/organizations/schema";
 import {
@@ -18,9 +28,11 @@ import {
   addContactEmail,
   addContactLink,
   createContact,
+  deleteContact,
   removeContactEmail,
   removeContactLink,
   setContactArchived,
+  setContactRelationship,
   setPrimaryContact,
   setPrimaryEmail,
   updateContact,
@@ -386,6 +398,80 @@ describe("contacts", () => {
     expect(await countContacts(ownerId)).toBe(1);
   });
 
+  it("switches the relationship from the panel and records it", async () => {
+    const id = await create();
+
+    expect(await setContactRelationship(ownerId, id, "client")).toBe(true);
+
+    expect(await getContact(ownerId, id)).toMatchObject({
+      relationshipType: "client",
+      firstName: "Priya",
+    });
+    const { rows } = await listAudit(ownerId);
+    expect(rows[0]).toMatchObject({
+      action: "contact.set_relationship",
+      entityId: id,
+      before: { relationshipType: "prospect" },
+      after: { relationshipType: "client" },
+    });
+  });
+
+  it("deletes a person and what belongs to them, and keeps their tasks and activities", async () => {
+    const organizationId = await createOrg("Acme Design");
+    const id = await create({
+      email: "priya@acme.com",
+      tags: "vip",
+      organizationId,
+    });
+    const colleague = await create({ firstName: "Arjun", lastName: "Rao", organizationId });
+    await addContactLink(
+      ownerId,
+      id,
+      contactLinkInput.parse({ kind: "linkedin", url: "https://linkedin.com/in/priya" }),
+    );
+    const [task] = await db
+      .insert(tasks)
+      .values({ ownerId, title: "Send proposal", contactId: id })
+      .returning({ id: tasks.id });
+    const [activity] = await db
+      .insert(activities)
+      .values({
+        ownerId,
+        kind: "call",
+        title: "Intro call",
+        occurredAt: new Date("2026-10-01T09:00:00Z"),
+      })
+      .returning({ id: activities.id });
+    await db.insert(activityContacts).values([
+      { ownerId, activityId: activity.id, contactId: id },
+      { ownerId, activityId: activity.id, contactId: colleague },
+    ]);
+
+    expect(await deleteContact(ownerId, id)).toEqual({ organizationId });
+
+    expect(await getContact(ownerId, id)).toBeNull();
+    expect(await db.$count(contactEmails)).toBe(0);
+    expect(await db.$count(contactLinks)).toBe(0);
+    expect(await db.$count(contactTags)).toBe(0);
+    expect(
+      await db.select({ contactId: tasks.contactId }).from(tasks).where(eq(tasks.id, task.id)),
+    ).toEqual([{ contactId: null }]);
+    expect(await db.$count(activities)).toBe(1);
+    expect(
+      await db.select({ contactId: activityContacts.contactId }).from(activityContacts),
+    ).toEqual([{ contactId: colleague }]);
+    expect((await listContacts(ownerId)).rows.map((row) => row.id)).toEqual([colleague]);
+    const { rows } = await listAudit(ownerId);
+    expect(rows[0]).toMatchObject({
+      action: "contact.delete",
+      entityId: id,
+      before: { firstName: "Priya", lastName: "Sharma", tags: ["vip"], isPrimary: true },
+    });
+    // The address is free again, and there is nobody left to delete twice.
+    await create({ email: "priya@acme.com" });
+    expect(await deleteContact(ownerId, id)).toBeNull();
+  });
+
   it("filters by name prefix, email, tag and organization", async () => {
     const organizationId = await createOrg("Acme Design");
     await create({ email: "priya@acme.com", tags: "vip", organizationId });
@@ -450,6 +536,9 @@ describe("contacts", () => {
       reason: "not_found",
     });
     expect(await setContactArchived(otherId, id, true)).toBe(false);
+    expect(await setContactRelationship(otherId, id, "client")).toBe(false);
+    expect(await deleteContact(otherId, id)).toBeNull();
+    expect(await getContact(ownerId, id)).toMatchObject({ relationshipType: "prospect" });
     expect(await setPrimaryContact(otherId, id, true)).toBe(false);
     expect(await removeContactEmail(otherId, id, emailId)).toBe(false);
     expect(await setPrimaryEmail(otherId, id, emailId)).toBe(false);

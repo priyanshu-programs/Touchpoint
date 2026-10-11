@@ -1,20 +1,25 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { ButtonLink } from "@/components/button-link";
 import { CompanyLogo, Monogram } from "@/components/company-logo";
 import { SECTION_HEADING } from "@/components/detail-rows";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { getContact } from "@/modules/contacts/queries";
+import { RELATIONSHIP_TYPES } from "@/modules/contacts/schema";
 import type { getOrganization } from "@/modules/organizations/queries";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
-import { setContactArchivedAction } from "../contacts/actions";
+import {
+  deleteContactAction,
+  setContactArchivedAction,
+  setContactRelationshipAction,
+} from "../contacts/actions";
 import { ContactDetails } from "../contacts/contact-details";
 import { ContactEmailsAndLinks } from "../contacts/contact-emails-links";
-import { labelFor } from "../labels";
+import { labelFor, toOptions } from "../labels";
+import { RecordActions } from "./record-actions";
+import { StatusMenu } from "./status-menu";
 
 type Tab = "activity" | "tasks" | undefined;
 
@@ -85,9 +90,12 @@ export function ContactPanel({
             {contact.isPrimary && company && (
               <Badge>Primary contact at {company.organization.name}</Badge>
             )}
-            <Badge variant="secondary">
-              {labelFor(contact.relationshipType)}
-            </Badge>
+            <StatusMenu
+              label="Relationship"
+              value={contact.relationshipType}
+              options={toOptions(RELATIONSHIP_TYPES)}
+              action={setContactRelationshipAction.bind(null, contact.id)}
+            />
             {contact.status !== "active" && (
               <Badge variant="outline">{labelFor(contact.status)}</Badge>
             )}
@@ -99,26 +107,20 @@ export function ContactPanel({
             ))}
           </div>
         </div>
-        <div className="flex gap-2">
-          <ButtonLink
-            href={`/people/contacts/${contact.id}/edit${editFrom ? `?from=${editFrom}` : ""}`}
-            variant="outline"
-            size="sm"
-          >
-            Edit
-          </ButtonLink>
-          <form action={setContactArchivedAction}>
-            <input type="hidden" name="id" value={contact.id} />
-            <input
-              type="hidden"
-              name="archived"
-              value={contact.archivedAt ? "0" : "1"}
-            />
-            <Button type="submit" variant="outline" size="sm">
-              {contact.archivedAt ? "Restore" : "Archive"}
-            </Button>
-          </form>
-        </div>
+        <RecordActions
+          id={contact.id}
+          editHref={`/people/contacts/${contact.id}/edit${editFrom ? `?from=${editFrom}` : ""}`}
+          archived={Boolean(contact.archivedAt)}
+          archiveAction={setContactArchivedAction}
+          remove={{
+            title: `Delete ${contact.fullName}?`,
+            description:
+              "The person, their emails, links and tags are removed for good, and they are taken off the activities logged with them. Their tasks are kept, no longer linked to a person. To hide them instead, use Archive.",
+            confirmLabel: "Delete contact",
+            action: deleteContactAction,
+            fields: { from: editFrom ?? "" },
+          }}
+        />
       </header>
 
       {/* Details right below says the same, so a phone screen goes without the tiles. */}
