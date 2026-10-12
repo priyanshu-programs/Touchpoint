@@ -77,6 +77,7 @@ Approved deviations (owner sign-off 2026-10-10, see `docs/PRD.md` section 13):
 - The Google OAuth callback uses a separate short-lived `SameSite=Lax` state cookie, because a `SameSite=Strict` cookie is not sent on the redirect back from Google. The session cookie itself is unaffected.
 
 - The website read sends the address of a company's page to Jina Reader (`r.jina.ai`, no key) when that page arrives empty because a browser builds it from scripts (owner sign-off 2026-10-12). Only the address goes, after this app has fetched the page itself and checked the site's robots rules; what comes back is untrusted page text like any other. `WEBSITE_RENDERER=off` stops it.
+- Pictures fetched from company websites are decoded and re-encoded by `sharp` (native code) before they are stored. Only bytes that pass the magic-byte check for PNG, JPEG, GIF or WebP are handed to it, under a download cap, a 40-million-pixel limit and a five-second timeout, and only inside a background job.
 
 Project rules:
 

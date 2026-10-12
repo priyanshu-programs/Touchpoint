@@ -1,15 +1,30 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { crc32 } from "node:zlib";
+import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createFetcher, FetchError, type Fetcher } from "@/lib/safe-fetch";
+import { grainy, shape, solid } from "@/test/pictures";
 import { extract } from "./extract";
-import { imageType } from "./image";
+import { compressImage, imageType } from "./image";
 import { extractPeople, listPeople } from "./people";
 import { readWebsite } from "./read";
 import { readMarkdown, renderedPage } from "./render";
 import { robotsAllows } from "./robots";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+// A touch icon as sites serve it: larger than it is ever shown, and see-through at the edges.
+const LOGO = await sharp({
+  create: {
+    width: 512,
+    height: 512,
+    channels: 4,
+    background: { r: 0, g: 0, b: 0, alpha: 0 },
+    noise: { type: "gaussian", mean: 128, sigma: 40 },
+  },
+})
+  .png()
+  .toBuffer();
 
 describe("imageType", () => {
   it.each([
@@ -28,6 +43,77 @@ describe("imageType", () => {
     ["nothing", Buffer.alloc(0)],
   ])("refuses %s", (_label, bytes) => {
     expect(imageType(bytes)).toBeNull();
+  });
+});
+
+describe("compressImage", () => {
+  const fit = { side: 256, quality: 80 };
+
+  it("shrinks a photograph to fit and repacks it far smaller", async () => {
+    const photo = await grainy("jpeg", 2000, 1500);
+    const kept = await compressImage(photo, fit);
+
+    expect(kept?.contentType).toBe("image/webp");
+    expect(await shape(kept!.bytes)).toMatchObject({
+      format: "webp",
+      width: 256,
+      height: 192,
+    });
+    expect(photo.length).toBeGreaterThan(1_000_000);
+    expect(kept!.bytes.length).toBeLessThan(40_000);
+  });
+
+  it.each(["png", "gif", "webp"] as const)("repacks a %s, never larger than it is shown", async (format) => {
+    const kept = await compressImage(await solid(format, 100, 60), fit);
+    // Smaller than the box already: not stretched to fill it.
+    expect(await shape(kept!.bytes)).toMatchObject({
+      format: "webp",
+      width: 100,
+      height: 60,
+    });
+  });
+
+  it("keeps what is see-through, see-through", async () => {
+    const kept = await compressImage(
+      await solid("png", 400, 400, { r: 255, g: 0, b: 0, alpha: 0.5 }),
+      fit,
+    );
+    expect(await shape(kept!.bytes)).toMatchObject({ width: 256, hasAlpha: true });
+  });
+
+  it("turns a picture the way it was taken and leaves its notes behind", async () => {
+    const sideways = await sharp(await grainy("jpeg", 400, 200))
+      .withExif({ IFD0: { Copyright: "Asha Rao", Make: "Phone" } })
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    expect(await shape(sideways)).toMatchObject({ width: 400, exif: true });
+
+    expect(await shape((await compressImage(sideways, fit))!.bytes)).toMatchObject({
+      width: 128,
+      height: 256,
+      exif: false,
+    });
+  });
+
+  it("refuses what it cannot or should not unpack", async () => {
+    const real = await solid("png", 8, 8);
+    // The same file claiming to be a hundred million pixels, with its checksum put right.
+    const vast = Buffer.from(real);
+    vast.writeUInt32BE(10_000, 16);
+    vast.writeUInt32BE(10_000, 20);
+    vast.writeUInt32BE(crc32(vast.subarray(12, 29)), 29);
+
+    for (const bytes of [
+      vast,
+      PNG,
+      real.subarray(0, real.length - 20),
+      Buffer.from([0, 0, 1, 0, 1, 0]),
+      Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"),
+      Buffer.alloc(0),
+    ]) {
+      expect(await compressImage(bytes, fit)).toBeNull();
+    }
+    expect(await compressImage(real, fit)).not.toBeNull();
   });
 });
 
@@ -616,7 +702,7 @@ describe("readWebsite", () => {
           url: "https://www.acme.test/en",
         },
         "https://www.acme.test/touch.png": page("<html>not an image</html>"),
-        "https://www.acme.test/logo.svg.png": { status: 200, body: PNG },
+        "https://www.acme.test/logo.svg.png": { status: 200, body: LOGO },
       }),
     );
 
@@ -626,13 +712,49 @@ describe("readWebsite", () => {
         fields: { website: "https://www.acme.test", description: "Anvils" },
         links: [],
         logo: {
-          contentType: "image/png",
-          bytes: PNG,
+          contentType: "image/webp",
+          bytes: expect.any(Buffer),
           sourceUrl: "https://www.acme.test/logo.svg.png",
         },
         people: [],
         rendered: false,
       },
+    });
+    const kept = result.ok && result.reading.logo;
+    expect(kept && (await shape(kept.bytes))).toMatchObject({
+      format: "webp",
+      width: 192,
+      height: 192,
+      hasAlpha: true,
+    });
+    expect(kept && kept.bytes.length).toBeLessThan(LOGO.length);
+  });
+
+  it("keeps an icon file as it came, and passes over one too large to keep", async () => {
+    const icon = Buffer.concat([Buffer.from([0, 0, 1, 0, 1, 0]), Buffer.alloc(500, 7)]);
+    const read = (first: Buffer) =>
+      readWebsite(
+        "https://acme.test",
+        site({
+          "https://acme.test/": page(`<link rel="icon" href="/first.ico">`),
+          "https://acme.test/first.ico": { status: 200, body: first },
+          "https://acme.test/favicon.ico": { status: 200, body: icon },
+        }),
+      );
+
+    expect(await read(icon)).toMatchObject({
+      reading: {
+        logo: {
+          contentType: "image/x-icon",
+          bytes: icon,
+          sourceUrl: "https://acme.test/first.ico",
+        },
+      },
+    });
+    expect(
+      await read(Buffer.concat([icon, Buffer.alloc(100_000)])),
+    ).toMatchObject({
+      reading: { logo: { sourceUrl: "https://acme.test/favicon.ico" } },
     });
   });
 
@@ -1047,7 +1169,7 @@ describe("readWebsite", () => {
             `<meta name="description" content="Served for real"><link rel="icon" href="/icon.png">`,
           );
         } else if (request.url === "/icon.png") {
-          response.end(PNG);
+          response.end(LOGO);
         } else {
           response.statusCode = 404;
           response.end();
@@ -1069,7 +1191,7 @@ describe("readWebsite", () => {
         ok: true,
         reading: {
           fields: { website: base, description: "Served for real" },
-          logo: { contentType: "image/png", sourceUrl: `${base}/icon.png` },
+          logo: { contentType: "image/webp", sourceUrl: `${base}/icon.png` },
         },
       });
     });

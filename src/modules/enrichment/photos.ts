@@ -7,13 +7,15 @@ import { FetchError, safeFetch, type Fetcher } from "@/lib/safe-fetch";
 import { httpUrl } from "@/lib/url";
 import { audit } from "@/modules/audit/service";
 import { enqueue, type ClaimedJob } from "@/modules/jobs/service";
-import { imageType } from "./website/image";
+import { compressImage } from "./website/image";
 import type { Person } from "./website/people";
 
 export const PHOTO_JOB = "contact.photo";
-// A few hundred contacts with pictures stay well inside the free database tier.
-export const MAX_PHOTO_BYTES = 300_000;
-const PHOTO_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+// What may be downloaded. What is kept is a few kilobytes, so thousands of
+// contacts with pictures stay well inside the free database tier.
+export const MAX_PHOTO_DOWNLOAD = 5_000_000;
+// Shown at 40 pixels; this leaves room for sharp screens and a larger view.
+const PHOTO_FIT = { side: 256, quality: 80 };
 const BUDGET_MS = 8_000;
 
 // Queues the download of a picture found beside a person's name.
@@ -93,25 +95,20 @@ export async function fetchPhoto(job: ClaimedJob, fetcher: Fetcher = safeFetch) 
   let image;
   try {
     image = await fetcher(url, {
-      maxBytes: MAX_PHOTO_BYTES,
+      maxBytes: MAX_PHOTO_DOWNLOAD,
       deadline: Date.now() + BUDGET_MS,
       accept: "image/*",
+      // A photograph is a larger download than a page.
+      timeoutMs: BUDGET_MS,
     });
   } catch (error) {
     // A missing picture leaves the contact as it was, with initials.
     if (error instanceof FetchError) return;
     throw error;
   }
-  const contentType = imageType(image.body);
-  if (
-    image.status < 200 ||
-    image.status >= 300 ||
-    image.truncated ||
-    !contentType ||
-    !PHOTO_TYPES.includes(contentType)
-  ) {
-    return;
-  }
+  if (image.status < 200 || image.status >= 300 || image.truncated) return;
+  const stored = await compressImage(image.body, PHOTO_FIT);
+  if (!stored) return;
 
   await db.transaction(async (tx) => {
     const [contact] = await tx
@@ -130,9 +127,8 @@ export async function fetchPhoto(job: ClaimedJob, fetcher: Fetcher = safeFetch) 
 
     const photo = {
       ownerId,
-      contentType,
-      bytes: image.body,
-      sha256: createHash("sha256").update(image.body).digest("hex"),
+      ...stored,
+      sha256: createHash("sha256").update(stored.bytes).digest("hex"),
       sourceUrl: image.url,
       fetchedAt: new Date(),
     };

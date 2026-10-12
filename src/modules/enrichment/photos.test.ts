@@ -20,9 +20,10 @@ import { runDueJobs } from "@/modules/jobs/service";
 import { organizationInput } from "@/modules/organizations/schema";
 import { createOrganization } from "@/modules/organizations/service";
 import { createTestOwner, resetDatabase } from "@/test/owner";
+import { grainy, shape, solid } from "@/test/pictures";
 import {
   fetchPhoto,
-  MAX_PHOTO_BYTES,
+  MAX_PHOTO_DOWNLOAD,
   PHOTO_JOB,
   removeContactPhoto,
   requestKnownPhotos,
@@ -31,8 +32,9 @@ import {
 import { getPhoto } from "./queries";
 import { ENRICHMENT_JOB, runEnrichment } from "./service";
 
-const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
-const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9]);
+// A photograph as a team page serves it, far larger than the 40 pixels it is shown at.
+const JPEG = await grainy("jpeg", 1600, 1200);
+const PNG = await solid("png", 300, 200);
 const ASHA = "https://acme.test/people/asha.jpg";
 
 describe("contact photos", () => {
@@ -113,18 +115,23 @@ describe("contact photos", () => {
       10_000,
     );
 
-  it("stores a picture and gives the contact a version to address it by", async () => {
+  it("stores a picture shrunk and repacked, and gives the contact a version to address it by", async () => {
     const id = await add("Asha", "Rao");
     const seen: string[] = [];
 
     await requestPhoto(ownerId, id, ASHA);
     expect(await work(image(JPEG), seen)).toMatchObject({ done: 1, failed: 0 });
 
-    expect(seen).toEqual([`${ASHA} ${MAX_PHOTO_BYTES}`]);
-    expect(await getPhoto(ownerId, id)).toEqual({
-      contentType: "image/jpeg",
-      bytes: JPEG,
+    expect(seen).toEqual([`${ASHA} ${MAX_PHOTO_DOWNLOAD}`]);
+    const stored = await getPhoto(ownerId, id);
+    expect(stored?.contentType).toBe("image/webp");
+    expect(await shape(stored!.bytes)).toMatchObject({
+      format: "webp",
+      width: 256,
+      height: 192,
     });
+    expect(JPEG.length).toBeGreaterThan(500_000);
+    expect(stored!.bytes.length).toBeLessThan(40_000);
     const version = (await getContact(ownerId, id))?.photoVersion;
     expect(version).toMatch(/^[0-9a-f]{12}$/);
     expect(
@@ -134,12 +141,17 @@ describe("contact photos", () => {
     // A later picture replaces it, under a new version.
     await requestPhoto(ownerId, id, ASHA);
     await work(image(PNG));
-    expect(await getPhoto(ownerId, id)).toMatchObject({ contentType: "image/png" });
+    expect(await shape((await getPhoto(ownerId, id))!.bytes)).toMatchObject({
+      format: "webp",
+      width: 256,
+      height: 171,
+    });
     expect((await getContact(ownerId, id))?.photoVersion).not.toBe(version);
   });
 
   it.each([
     ["is cut off at the size limit", image(JPEG, { truncated: true })],
+    ["only starts like one", image(JPEG.subarray(0, 2_000))],
     ["is not an image", image(Buffer.from("<html>sign in</html>"))],
     ["is an SVG", image(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"))],
     ["is an icon file", image(Buffer.from([0, 0, 1, 0, 1, 0]))],
@@ -161,10 +173,11 @@ describe("contact photos", () => {
     expect(await requestPhoto(ownerId, id, ASHA)).not.toBeNull();
     expect(await requestPhoto(ownerId, id, ASHA)).toBeNull();
     await work(image(JPEG));
+    const first = await getPhoto(ownerId, id);
 
     await requestPhoto(ownerId, id, "file:///etc/passwd");
     expect(await work(image(PNG))).toMatchObject({ done: 0, failed: 1 });
-    expect(await getPhoto(ownerId, id)).toMatchObject({ contentType: "image/jpeg" });
+    expect(await getPhoto(ownerId, id)).toEqual(first);
   });
 
   it("gives a picture to people a read found who are already contacts there and have none", async () => {
@@ -223,7 +236,7 @@ describe("contact photos", () => {
       10_000,
     );
 
-    expect(await getPhoto(ownerId, asha)).toMatchObject({ bytes: JPEG });
+    expect(await getPhoto(ownerId, asha)).toMatchObject({ contentType: "image/webp" });
   });
 
   it("keeps a removed picture away for good", async () => {
@@ -262,13 +275,15 @@ describe("contact photos", () => {
     await removeContactPhoto(ownerId, id);
     await requestPhoto(otherId, theirs, ASHA);
     await work(image(JPEG));
+    const kept = await getPhoto(otherId, theirs);
 
+    expect(kept).not.toBeNull();
     expect(await getPhoto(ownerId, theirs)).toBeNull();
     expect(await removeContactPhoto(ownerId, theirs)).toBe(false);
     // A download queued under the wrong owner stores nothing.
     await requestPhoto(ownerId, theirs, ASHA);
     await work(image(PNG));
-    expect(await getPhoto(otherId, theirs)).toMatchObject({ contentType: "image/jpeg" });
+    expect(await getPhoto(otherId, theirs)).toEqual(kept);
 
     await deleteContact(otherId, theirs);
     await deleteContact(ownerId, id);

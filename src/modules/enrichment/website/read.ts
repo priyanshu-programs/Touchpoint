@@ -1,6 +1,11 @@
 import { FetchError, safeFetch, type Fetcher, type FetchResult } from "@/lib/safe-fetch";
 import { extract, type Extracted } from "./extract";
-import { imageType, MAX_LOGO_BYTES } from "./image";
+import {
+  compressImage,
+  imageType,
+  MAX_LOGO_BYTES,
+  MAX_LOGO_DOWNLOAD,
+} from "./image";
 import { extractPeople, listPeople, type Person, type Scope } from "./people";
 import { readMarkdown, renderedPage } from "./render";
 import { robotsAllows } from "./robots";
@@ -52,6 +57,8 @@ const RENDER_BUDGET_MS = 20_000;
 const MAX_PAGE_BYTES = 1_000_000;
 const MAX_ROBOTS_BYTES = 100_000;
 const MAX_LOGO_TRIES = 3;
+// Shown at 40 pixels; this leaves room for sharp screens. Kept crisp: a logo is lines and letters.
+const LOGO_FIT = { side: 192, quality: 90 };
 
 const ok = (status: number) => status >= 200 && status < 300;
 const html = (contentType: string) =>
@@ -141,10 +148,16 @@ export async function readWebsite(
       const url = new URL(icon);
       if (url.origin === landed.origin && !allowed(url)) continue;
       try {
-        const image = await fetcher(icon, { maxBytes: MAX_LOGO_BYTES, deadline });
-        const contentType = imageType(image.body);
-        if (ok(image.status) && !image.truncated && contentType) {
-          logo = { contentType, bytes: image.body, sourceUrl: image.url };
+        const image = await fetcher(icon, { maxBytes: MAX_LOGO_DOWNLOAD, deadline });
+        if (!ok(image.status) || image.truncated) continue;
+        const kept =
+          (await compressImage(image.body, LOGO_FIT)) ??
+          // An icon file cannot be re-encoded, so it is kept as it came.
+          (imageType(image.body) === "image/x-icon"
+            ? { contentType: "image/x-icon", bytes: image.body }
+            : null);
+        if (kept && kept.bytes.length <= MAX_LOGO_BYTES) {
+          logo = { ...kept, sourceUrl: image.url };
           break;
         }
       } catch (error) {

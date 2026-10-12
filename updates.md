@@ -221,3 +221,13 @@
 - [2026-10-12] Tests: blank pages, the home-page team rule, the CA prefix, renderedPage and its refusals, readMarkdown and a hostile page, reads with a drawn home and team page, a refusing reader, rendering off, and the new environment variable (295 unit tests)
 - [2026-10-12] docs/PRD.md 11.2 and plan.md describe the drawn read, the home-page rule and what is still not read
 - [2026-10-12] Deployed (199d92d, CI green); Re-enrich on KBRS & Associates in production finished in seven seconds with rendered true, filled the phone and email, and the Contacts tab offers Komal Bhotika and Richa Sureka
+- [2026-10-12] plan.md records two requests from the owner: compress stored pictures, and let one person be at several companies (title per company, approved with a migration that drops two contact columns)
+- [2026-10-12] Added sharp 0.35.5 as a pinned dependency (already in the lockfile through Next; production audit clean) to shrink and re-encode pictures
+- [2026-10-12] Added compressImage to src/modules/enrichment/website/image.ts: fits a picture in a square, re-encodes it as WebP without metadata after applying its orientation, and refuses what is not PNG, JPEG, GIF or WebP by magic bytes, claims over 40 million pixels, is cut short or takes over five seconds
+- [2026-10-12] fetchPhoto (src/modules/enrichment/photos.ts) stores a contact's picture compressed to fit 256 px at quality 80, and may download up to 5 MB (MAX_PHOTO_DOWNLOAD replaces MAX_PHOTO_BYTES), since team photos over 300 KB were refused before
+- [2026-10-12] readWebsite stores a logo compressed to fit 192 px at quality 90 and may download up to 1 MB; an icon file cannot be re-encoded and is kept as it came, and nothing over 100 KB is stored
+- [2026-10-12] The re-encoded picture is always the one stored, even in the rare case it is not smaller, so no file's metadata is ever kept
+- [2026-10-12] Added src/test/pictures.ts (real solid and grainy pictures, and a picture's shape) because compression needs files that decode; photo and website tests use it in place of signature-only bytes
+- [2026-10-12] Tests: compressImage on a photograph, each format, transparency, orientation and metadata, and what it refuses; a stored photo and logo are WebP within their box; an icon file kept, an oversized one passed over (304 unit tests)
+- [2026-10-12] Checked on cakbrs.com before shipping: logo 12,743 to 4,734 bytes, partner photos 40,786 to 3,332 and 48,246 to 5,304 bytes
+- [2026-10-12] docs/PRD.md 8.2 and 11.2 and security.md describe how pictures are compressed and the limits on decoding them
