@@ -7,7 +7,6 @@ import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { getContact } from "@/modules/contacts/queries";
 import { RELATIONSHIP_TYPES } from "@/modules/contacts/schema";
-import type { getOrganization } from "@/modules/organizations/queries";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
 import {
@@ -16,9 +15,10 @@ import {
   setContactArchivedAction,
   setContactRelationshipAction,
 } from "../contacts/actions";
+import { ContactCompanies } from "../contacts/contact-companies";
 import { ContactDetails } from "../contacts/contact-details";
 import { ContactEmailsAndLinks } from "../contacts/contact-emails-links";
-import { labelFor, toOptions } from "../labels";
+import { companyHref, labelFor, toOptions } from "../labels";
 import { RecordActions } from "./record-actions";
 import { StatusMenu } from "./status-menu";
 
@@ -30,43 +30,46 @@ const TABS = [
   { tab: "tasks", label: "Tasks" },
 ] as const;
 
-// One person, shown in the panel over the people list or inside their company's panel.
+// One person, shown in the panel over the people list or inside the panel of a company they are at.
 export function ContactPanel({
   ownerId,
   contact,
-  company,
+  inside,
   tab,
   after,
   hrefFor,
-  back,
-  editFrom,
 }: {
   ownerId: string;
   contact: NonNullable<Awaited<ReturnType<typeof getContact>>>;
-  // The person's company and where its name leads from here.
-  company: {
-    organization: NonNullable<Awaited<ReturnType<typeof getOrganization>>>;
-    href: string;
-  } | null;
+  // Set inside a company's panel, which this view replaces until the owner goes back:
+  // the company, where its name leads from here, and the way back.
+  inside?: { id: string; href: string; back: { href: string; label: string } };
   tab: Tab;
   // Where the Activity tab's page of history starts.
   after?: string;
   hrefFor: (change: { tab: Tab; after?: string }) => string;
-  // Set inside a company's panel, which this view replaces until the owner goes back.
-  back?: { href: string; label: string };
-  editFrom?: "company";
 }) {
   const filter = { contactId: contact.id };
   const email = contact.emails.find((row) => row.isPrimary)?.email;
+  // The company this view is about: the one it was opened in, else the person's first.
+  const company =
+    contact.companies.find(({ id }) => id === inside?.id) ?? contact.companies[0];
+  const others = contact.companies.length - 1;
+  // Said in the heading only when it cannot mislead: here, or when there is no other.
+  const named = inside || others === 0 ? company : undefined;
+  const starred = inside
+    ? contact.companies.filter(({ id, isPrimary }) => isPrimary && id === inside.id)
+    : contact.companies.filter(({ isPrimary }) => isPrimary);
+  const from = inside ? `&organization=${inside.id}` : "";
 
   return (
     <>
       <header className="flex flex-wrap items-start gap-3 border-b p-4 pr-12">
-        {back && (
+        {inside && (
           <Link
-            href={back.href}
+            href={inside.back.href}
             scroll={false}
-            aria-label={back.label}
+            aria-label={inside.back.label}
             className="mt-1.5 rounded-md p-1 text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft aria-hidden className="size-4" />
@@ -82,17 +85,17 @@ export function ContactPanel({
           <SheetTitle className="text-lg break-words">
             {contact.fullName}
           </SheetTitle>
-          {(contact.jobTitle || company) && (
+          {(contact.jobTitle || named) && (
             <SheetDescription>
-              {[contact.jobTitle, company?.organization.name]
+              {[named?.jobTitle ?? contact.jobTitle, named?.name]
                 .filter(Boolean)
                 .join(" at ")}
             </SheetDescription>
           )}
           <div className="flex flex-wrap gap-1">
-            {contact.isPrimary && company && (
-              <Badge>Primary contact at {company.organization.name}</Badge>
-            )}
+            {starred.map(({ id, name }) => (
+              <Badge key={id}>Primary contact at {name}</Badge>
+            ))}
             <StatusMenu
               label="Relationship"
               value={contact.relationshipType}
@@ -112,7 +115,7 @@ export function ContactPanel({
         </div>
         <RecordActions
           id={contact.id}
-          editHref={`/people/contacts/${contact.id}/edit${editFrom ? `?from=${editFrom}` : ""}`}
+          editHref={`/people/contacts/${contact.id}/edit${inside ? `?company=${inside.id}` : ""}`}
           archived={Boolean(contact.archivedAt)}
           archiveAction={setContactArchivedAction}
           removePhotoAction={
@@ -121,10 +124,10 @@ export function ContactPanel({
           remove={{
             title: `Delete ${contact.fullName}?`,
             description:
-              "The person, their emails, links and tags are removed for good, and they are taken off the activities logged with them. Their tasks are kept, no longer linked to a person. To hide them instead, use Archive.",
+              "The person, their emails, links and tags are removed for good, at every company they are at, and they are taken off the activities logged with them. Their tasks are kept, no longer linked to a person. To hide them instead, use Archive.",
             confirmLabel: "Delete contact",
             action: deleteContactAction,
-            fields: { from: editFrom ?? "" },
+            fields: { company: inside?.id ?? "" },
           }}
         />
       </header>
@@ -137,18 +140,23 @@ export function ContactPanel({
             {company ? (
               <>
                 <CompanyLogo
-                  id={company.organization.id}
-                  name={company.organization.name}
-                  logoVersion={company.organization.logoVersion}
+                  id={company.id}
+                  name={company.name}
+                  logoVersion={company.logoVersion}
                   className="size-5 text-[0.625rem]"
                 />
                 <Link
-                  href={company.href}
+                  href={inside?.href ?? companyHref(company.id)}
                   scroll={false}
                   className="truncate underline-offset-4 hover:underline"
                 >
-                  {company.organization.name}
+                  {company.name}
                 </Link>
+                {others > 0 && (
+                  <span className="shrink-0 text-xs font-normal text-muted-foreground">
+                    +{others}
+                  </span>
+                )}
               </>
             ) : (
               "—"
@@ -194,6 +202,7 @@ export function ContactPanel({
               </h3>
               <ContactDetails contact={contact} />
             </section>
+            <ContactCompanies contact={contact} />
             <ContactEmailsAndLinks contact={contact} />
           </>
         )}
@@ -203,7 +212,7 @@ export function ContactPanel({
             ownerId={ownerId}
             filter={filter}
             moreHref={(earlier) => hrefFor({ tab: "activity", after: earlier })}
-            newHref={`/activities/new?contact=${contact.id}`}
+            newHref={`/activities/new?contact=${contact.id}${from}`}
             after={after}
           />
         )}
@@ -212,7 +221,7 @@ export function ContactPanel({
           <RecordTasks
             ownerId={ownerId}
             filter={filter}
-            newHref={`/tasks/new?contact=${contact.id}`}
+            newHref={`/tasks/new?contact=${contact.id}${from}`}
           />
         )}
       </div>

@@ -20,7 +20,9 @@ export default async function EditContactPage({
   if (!id.success) notFound();
   const contact = await getContact(owner.id, id.data);
   if (!contact) notFound();
-  const toPanel = (await searchParams).from === "company";
+  // The company whose panel the edit was opened from, to go back there afterwards.
+  const company = z.uuid().safeParse((await searchParams).company);
+  const companyId = company.success ? company.data : null;
 
   return (
     <Card>
@@ -31,13 +33,11 @@ export default async function EditContactPage({
       </CardHeader>
       <CardContent>
         <ContactForm
-          action={updateContactAction.bind(null, contact.id, toPanel)}
+          action={updateContactAction.bind(null, contact.id, companyId)}
           initial={{
             firstName: contact.firstName,
             lastName: contact.lastName ?? "",
             phoneE164: contact.phoneE164 ?? "",
-            organizationId: contact.organizationId ?? "",
-            organizationName: contact.organizationName ?? "",
             jobTitle: contact.jobTitle ?? "",
             department: contact.department ?? "",
             relationshipType: contact.relationshipType,
@@ -50,11 +50,11 @@ export default async function EditContactPage({
             tags: contact.tags.join(", "),
           }}
           options={contactFormOptions(contact.timezone)}
-          withEmail={false}
+          isNew={false}
           submitLabel="Save changes"
           cancelHref={
-            toPanel && contact.organizationId
-              ? contactPanelHref(contact.organizationId, contact.id)
+            companyId
+              ? contactPanelHref(companyId, contact.id)
               : contactHref(contact.id)
           }
         />

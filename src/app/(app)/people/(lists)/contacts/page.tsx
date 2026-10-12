@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/table";
 import { requireOwner } from "@/lib/session";
 import { getContact, listContacts } from "@/modules/contacts/queries";
-import { getOrganization } from "@/modules/organizations/queries";
 import { listTags } from "@/modules/tags/queries";
 import { companyHref, labelFor } from "../../labels";
 import { ContactPanel } from "../contact-panel";
@@ -44,9 +43,6 @@ export default async function ContactsPage({
     listTags(owner.id),
     params.contact ? getContact(owner.id, params.contact) : null,
   ]);
-  const company = open?.organizationId
-    ? await getOrganization(owner.id, open.organizationId)
-    : null;
   const filtered = Boolean(params.q || params.tag || params.archived);
 
   return (
@@ -92,15 +88,19 @@ export default async function ContactsPage({
                       <p className="text-muted-foreground">{row.jobTitle}</p>
                     )}
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {row.organizationId && (
-                      <Link
-                        href={companyHref(row.organizationId)}
-                        className="underline-offset-4 hover:underline"
-                      >
-                        {row.organizationName}
-                      </Link>
-                    )}
+                  <TableCell className="hidden whitespace-normal sm:table-cell">
+                    <ul className="grid gap-0.5">
+                      {row.companies.map((company) => (
+                        <li key={company.id}>
+                          <Link
+                            href={companyHref(company.id)}
+                            className="underline-offset-4 hover:underline"
+                          >
+                            {company.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     {row.primaryEmail}
@@ -124,9 +124,6 @@ export default async function ContactsPage({
           <ContactPanel
             ownerId={owner.id}
             contact={open}
-            company={
-              company && { organization: company, href: companyHref(company.id) }
-            }
             tab={params.tab}
             after={params.earlier}
             hrefFor={({ tab, after }) =>

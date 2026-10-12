@@ -1,14 +1,16 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { httpUrl } from "@/lib/url";
 import {
+  contactOrganizations,
   contactPhotos,
   contacts,
   enrichmentRuns,
   fieldProvenance,
   organizationLogos,
 } from "@/db/schema";
+import { findSimilarContacts } from "@/modules/contacts/queries";
 
 const foundPeople = z.object({
   people: z
@@ -61,7 +63,8 @@ export async function websiteFields(ownerId: string, organizationId: string) {
 }
 
 // People the last finished read found on the website who are not among the
-// company's contacts, archived ones included, so nobody is offered twice.
+// company's contacts, archived ones included, so nobody is offered twice. Each comes
+// with the contacts they may already be: the owner says whether it is the same person.
 export async function suggestedPeople(ownerId: string, organizationId: string) {
   const [run] = await db
     .select({ rawResult: enrichmentRuns.rawResult })
@@ -79,21 +82,34 @@ export async function suggestedPeople(ownerId: string, organizationId: string) {
   if (!found.success || found.data.people.length === 0) return [];
 
   const known = await db
-    .select({ name: sql<string>`lower(${contacts.fullName})` })
-    .from(contacts)
+    .select({
+      name: sql<string>`lower(${contacts.fullName})`,
+      // The name the website gives someone kept here under another.
+      listedAs: sql<string | null>`lower(${contactOrganizations.listedAs})`,
+    })
+    .from(contactOrganizations)
+    .innerJoin(contacts, eq(contacts.id, contactOrganizations.contactId))
     .where(
       and(
-        eq(contacts.ownerId, ownerId),
-        eq(contacts.organizationId, organizationId),
-        inArray(
-          sql`lower(${contacts.fullName})`,
-          found.data.people.map((person) => person.name.toLowerCase()),
-        ),
+        eq(contactOrganizations.ownerId, ownerId),
+        eq(contactOrganizations.organizationId, organizationId),
       ),
     );
-  const names = new Set(known.map((row) => row.name));
-  return found.data.people.filter(
-    (person) => !names.has(person.name.toLowerCase()),
+  const names = new Set(known.flatMap((row) => [row.name, row.listedAs]));
+  return Promise.all(
+    found.data.people
+      .filter((person) => !names.has(person.name.toLowerCase()))
+      .map(async (person) => ({
+        ...person,
+        matches: (
+          await findSimilarContacts(db, ownerId, person.name, organizationId)
+        ).map((match) => ({
+          id: match.id,
+          name: match.name,
+          companies: match.companies.map((company) => company.name),
+          here: match.companies.some((company) => company.id === organizationId),
+        })),
+      })),
   );
 }
 

@@ -101,10 +101,6 @@ export const contacts = pgTable(
   {
     id: id(),
     ownerId: ownerId(),
-    organizationId: uuid("organization_id").references(
-      () => organizations.id,
-      { onDelete: "set null" },
-    ),
     firstName: text("first_name").notNull(),
     lastName: text("last_name"),
     fullName: text("full_name")
@@ -113,6 +109,7 @@ export const contacts = pgTable(
         (): SQL =>
           sql`btrim(${contacts.firstName} || ' ' || coalesce(${contacts.lastName}, ''))`,
       ),
+    // The person's own title; a company they are at may show another (contactOrganizations).
     jobTitle: text("job_title"),
     department: text("department"),
     phoneE164: text("phone_e164"),
@@ -123,8 +120,6 @@ export const contacts = pgTable(
     preferredChannel: text("preferred_channel"),
     status: text("status").notNull().default("active"),
     relationshipType: text("relationship_type").notNull().default("prospect"),
-    // The one person to reach first at their company.
-    isPrimary: boolean("is_primary").notNull().default(false),
     search: tsvector("search").generatedAlwaysAs(
       (): SQL =>
         sql`to_tsvector('simple', ${contacts.firstName} || ' ' || coalesce(${contacts.lastName}, '') || ' ' || coalesce(${contacts.jobTitle}, '') || ' ' || coalesce(${contacts.department}, ''))`,
@@ -148,15 +143,39 @@ export const contacts = pgTable(
       sql`lower(${table.fullName})`,
       table.id,
     ),
-    index("contacts_organization_idx").on(table.organizationId),
-    uniqueIndex("contacts_primary_idx")
-      .on(table.organizationId)
-      .where(sql`${table.isPrimary}`),
     index("contacts_search_idx").using("gin", table.search),
     index("contacts_name_trgm_idx").using(
       "gin",
       table.fullName.op("gin_trgm_ops"),
     ),
+  ],
+);
+
+// One row for each company a person is at. A person can be at several.
+export const contactOrganizations = pgTable(
+  "contact_organizations",
+  {
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    ownerId: ownerId(),
+    // What the person does at this company, when it is not their own title.
+    jobTitle: text("job_title"),
+    // The name this company's website gives them, when it is not the one they are kept under.
+    listedAs: text("listed_as"),
+    // The one person to reach first at this company.
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt,
+  },
+  (table) => [
+    primaryKey({ columns: [table.contactId, table.organizationId] }),
+    index("contact_organizations_organization_idx").on(table.organizationId),
+    uniqueIndex("contact_organizations_primary_idx")
+      .on(table.organizationId)
+      .where(sql`${table.isPrimary}`),
   ],
 );
 

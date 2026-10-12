@@ -7,20 +7,42 @@ import { FormOutcome } from "@/components/form-outcome";
 import { Button } from "@/components/ui/button";
 import type { RecordFormState } from "@/app/(app)/form-state";
 
+type Action = (
+  state: RecordFormState,
+  formData: FormData,
+) => Promise<RecordFormState>;
+
+type Person = {
+  name: string;
+  title: string | null;
+  // Contacts this person may already be, here or at another company.
+  matches: { id: string; name: string; companies: string[]; here: boolean }[];
+};
+
 export function SuggestedContacts({
   people,
   action,
+  linkAction,
 }: {
-  people: { name: string; title: string | null }[];
-  action: (
-    state: RecordFormState,
-    formData: FormData,
-  ) => Promise<RecordFormState>;
+  people: Person[];
+  action: Action;
+  // Says a suggested person is one of their matches, and puts that contact here.
+  linkAction: Action;
 }) {
-  const [state, formAction, pending] = useActionState(action, null);
+  const [state, formAction, adding] = useActionState(action, null);
+  const [linked, linkFormAction, linking] = useActionState(linkAction, null);
+  const pending = adding || linking;
+  const outcome = (
+    <>
+      <FormOutcome state={state} />
+      <FormOutcome state={linked} />
+    </>
+  );
 
   // Stays mounted after the last person is added, so the outcome can be read.
-  if (people.length === 0) return <FormOutcome state={state} />;
+  if (people.length === 0) return outcome;
+  // Someone who may already be a contact waits for the owner to say which.
+  const unmatched = people.filter((person) => person.matches.length === 0);
 
   return (
     <section
@@ -36,9 +58,9 @@ export function SuggestedContacts({
             Nobody here is a contact until you add them.
           </p>
         </div>
-        {people.length > 1 && (
+        {unmatched.length > 1 && (
           <form action={formAction}>
-            {people.map((person) => (
+            {unmatched.map((person) => (
               <input
                 key={person.name}
                 type="hidden"
@@ -53,10 +75,10 @@ export function SuggestedContacts({
         )}
       </div>
 
-      <form action={formAction}>
-        <ul className="grid gap-2">
-          {people.map((person) => (
-            <li key={person.name} className="flex items-center gap-3">
+      <ul className="grid gap-3">
+        {people.map((person) => (
+          <li key={person.name} className="grid gap-2">
+            <div className="flex items-center gap-3">
               <Monogram name={person.name} className="rounded-full" />
               <div className="grid min-w-0 flex-1 gap-0.5 text-sm">
                 <span className="font-medium break-words">{person.name}</span>
@@ -66,23 +88,57 @@ export function SuggestedContacts({
                   </span>
                 )}
               </div>
-              <Button
-                type="submit"
-                name="name"
-                value={person.name}
-                variant="ghost"
-                size="sm"
-                disabled={pending}
-                aria-label={`Add ${person.name}`}
+              <form action={formAction}>
+                <input
+                  type="hidden"
+                  // Adding someone despite a look-alike is the owner saying they are new.
+                  name={person.matches.length > 0 ? "confirmed" : "name"}
+                  value={person.name}
+                />
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending}
+                  aria-label={
+                    person.matches.length > 0
+                      ? `Add ${person.name} as a new person`
+                      : `Add ${person.name}`
+                  }
+                >
+                  {person.matches.length > 0 ? "Add as new person" : "Add"}
+                </Button>
+              </form>
+            </div>
+            {person.matches.map((match) => (
+              <form
+                key={match.id}
+                action={linkFormAction}
+                className="ml-11 flex flex-wrap items-center gap-2 text-sm"
               >
-                Add
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </form>
+                <input type="hidden" name="name" value={person.name} />
+                <input type="hidden" name="contactId" value={match.id} />
+                <span className="min-w-0 flex-1 break-words text-muted-foreground">
+                  Looks like {match.name}
+                  {match.companies.length > 0 &&
+                    ` (${match.companies.join(", ")})`}
+                </span>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  disabled={pending}
+                  aria-label={`${person.name} is ${match.name}`}
+                >
+                  {match.here ? "Same person" : "Same person, add here"}
+                </Button>
+              </form>
+            ))}
+          </li>
+        ))}
+      </ul>
 
-      <FormOutcome state={state} />
+      {outcome}
     </section>
   );
 }

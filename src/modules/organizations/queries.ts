@@ -27,8 +27,10 @@ export const countOrganizations = (ownerId: string) =>
 // Written with literal table names: selected columns are emitted unqualified here,
 // and a bare "id" inside a subquery would mean the inner table's id.
 const contactCount = sql<number>`(
-  select count(*)::int from contacts
-  where contacts.organization_id = organizations.id and contacts.archived_at is null
+  select count(*)::int from contact_organizations
+  join contacts on contacts.id = contact_organizations.contact_id
+  where contact_organizations.organization_id = organizations.id
+    and contacts.archived_at is null
 )`;
 const lastActivityAt = sql`(
   select max(activities.occurred_at) from activities

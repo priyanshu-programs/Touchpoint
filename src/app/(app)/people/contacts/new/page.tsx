@@ -48,7 +48,7 @@ export default async function NewContactPage({
             tags: "",
           }}
           options={contactFormOptions()}
-          withEmail
+          isNew
           submitLabel="Add contact"
           cancelHref={
             organization

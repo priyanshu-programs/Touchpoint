@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { enrichmentRuns, fieldProvenance, jobs } from "@/db/schema";
 import { listAudit } from "@/modules/audit/service";
-import { countContacts } from "@/modules/contacts/queries";
+import { countContacts, listContacts } from "@/modules/contacts/queries";
 import { newContactInput } from "@/modules/contacts/schema";
-import { createContact, setContactArchived } from "@/modules/contacts/service";
+import {
+  addContactCompany,
+  createContact,
+  setContactArchived,
+} from "@/modules/contacts/service";
 import { runDueJobs } from "@/modules/jobs/service";
 import { getOrganization, listOrganizations } from "@/modules/organizations/queries";
 import { organizationInput } from "@/modules/organizations/schema";
@@ -73,6 +77,32 @@ describe("enrichment", () => {
     const result = await createOrganization(ownerId, input(override), {
       confirmSimilar: true,
     });
+    if (!result.ok) throw new Error(`create failed: ${result.reason}`);
+    return result.id;
+  }
+
+  async function add(firstName: string, lastName: string, organizationId: string) {
+    const result = await createContact(
+      ownerId,
+      newContactInput.parse({
+        firstName,
+        lastName,
+        organizationId,
+        jobTitle: "",
+        department: "",
+        phoneE164: "",
+        city: "",
+        region: "",
+        country: "",
+        timezone: "",
+        preferredChannel: "",
+        status: "active",
+        relationshipType: "prospect",
+        tags: "",
+        email: "",
+      }),
+      { confirmSimilar: true },
+    );
     if (!result.ok) throw new Error(`create failed: ${result.reason}`);
     return result.id;
   }
@@ -273,7 +303,9 @@ describe("enrichment", () => {
 
     const [run] = await db.select().from(enrichmentRuns);
     expect(run.rawResult).toMatchObject({ people, rendered: true });
-    expect(await suggestedPeople(ownerId, id)).toEqual(people);
+    expect(await suggestedPeople(ownerId, id)).toEqual(
+      people.map((person) => ({ ...person, matches: [] })),
+    );
     expect(await countContacts(ownerId)).toBe(0);
   });
 
@@ -289,38 +321,59 @@ describe("enrichment", () => {
         ],
       }),
     );
-    const add = async (firstName: string, lastName: string, organizationId: string) => {
-      const result = await createContact(
-        ownerId,
-        newContactInput.parse({
-          firstName,
-          lastName,
-          organizationId,
-          jobTitle: "",
-          department: "",
-          phoneE164: "",
-          city: "",
-          region: "",
-          country: "",
-          timezone: "",
-          preferredChannel: "",
-          status: "active",
-          relationshipType: "prospect",
-          tags: "",
-          email: "",
-        }),
-        { confirmSimilar: true },
-      );
-      if (!result.ok) throw new Error(`create failed: ${result.reason}`);
-      return result.id;
-    };
 
     await add("asha", "RAO", id);
     await setContactArchived(ownerId, await add("Vikram", "Shah", id), true);
-    await add("Meera", "Iyer", elsewhere);
+    const meera = await add("Meera", "Iyer", elsewhere);
 
+    // Someone of that name at another company may or may not be her: offered, not assumed.
     expect(await suggestedPeople(ownerId, id)).toEqual([
-      { name: "Meera Iyer", title: "Director", photo: null },
+      {
+        name: "Meera Iyer",
+        title: "Director",
+        photo: null,
+        matches: [
+          { id: meera, name: "Meera Iyer", companies: ["Borealis"], here: false },
+        ],
+      },
+    ]);
+  });
+
+  it("offers the contact a suggested person may already be, until the owner says they are", async () => {
+    const id = await create();
+    const elsewhere = await create({ name: "Borealis", domain: "" });
+    // Kept under a fuller name than this company's website uses.
+    const komal = await add("Komal", "Bajaj Bhotika", elsewhere);
+    const colleague = await add("Komal", "Bhotikar", id);
+    await add("Richa", "Sureka", elsewhere);
+    await work(
+      reading({ people: [{ name: "Komal Bhotika", title: "Partner", photo: null }] }),
+    );
+
+    expect(await suggestedPeople(ownerId, id)).toMatchObject([
+      {
+        name: "Komal Bhotika",
+        matches: [
+          { id: colleague, name: "Komal Bhotikar", companies: ["Acme Design"], here: true },
+          { id: komal, name: "Komal Bajaj Bhotika", companies: ["Borealis"], here: false },
+        ],
+      },
+    ]);
+
+    await addContactCompany(ownerId, komal, id, {
+      jobTitle: "Partner",
+      listedAs: "Komal Bhotika",
+    });
+
+    expect(await suggestedPeople(ownerId, id)).toEqual([]);
+    expect(
+      (await listContacts(ownerId, { organizationId: id })).rows.map((row) => [
+        row.fullName,
+        row.jobTitle,
+      ]),
+    ).toEqual([
+      ["Komal Bajaj Bhotika", "Partner"],
+      ["Komal Bhotikar", null],
     ]);
   });
 
@@ -332,7 +385,7 @@ describe("enrichment", () => {
     await requestEnrichment(ownerId, id);
     await work({ ok: false, error: "unreachable" });
     expect(await suggestedPeople(ownerId, id)).toEqual([
-      { name: "Asha Rao", title: "Founder", photo: null },
+      { name: "Asha Rao", title: "Founder", photo: null, matches: [] },
     ]);
 
     // A read stored before pictures were looked for.
@@ -340,7 +393,7 @@ describe("enrichment", () => {
       .update(enrichmentRuns)
       .set({ rawResult: { people: [{ name: "Asha Rao", title: "Founder" }] } });
     expect(await suggestedPeople(ownerId, id)).toEqual([
-      { name: "Asha Rao", title: "Founder", photo: null },
+      { name: "Asha Rao", title: "Founder", photo: null, matches: [] },
     ]);
 
     await db

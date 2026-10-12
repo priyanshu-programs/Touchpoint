@@ -6,6 +6,7 @@ import {
   activityContacts,
   contactEmails,
   contactLinks,
+  contactOrganizations,
   contactTags,
   tasks,
 } from "@/db/schema";
@@ -19,19 +20,23 @@ import { listTags } from "@/modules/tags/queries";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import { countContacts, getContact, listContacts } from "./queries";
 import {
+  companyLinkInput,
   contactEmailInput,
   contactInput,
   contactLinkInput,
   newContactInput,
 } from "./schema";
 import {
+  addContactCompany,
   addContactEmail,
   addContactLink,
   createContact,
   deleteContact,
+  removeContactCompany,
   removeContactEmail,
   removeContactLink,
   setContactArchived,
+  setContactCompanyTitle,
   setContactRelationship,
   setPrimaryContact,
   setPrimaryEmail,
@@ -41,7 +46,6 @@ import {
 const form = {
   firstName: "Priya",
   lastName: "Sharma",
-  organizationId: "",
   jobTitle: "",
   department: "",
   phoneE164: "",
@@ -54,9 +58,11 @@ const form = {
   relationshipType: "prospect",
   tags: "",
 };
-type Form = typeof form & { email: string };
+// What only the form for a new person asks for.
+const first = { email: "", organizationId: "" };
+type Form = typeof form & typeof first;
 const input = (override: Partial<Form> = {}) =>
-  newContactInput.parse({ ...form, email: "", ...override });
+  newContactInput.parse({ ...form, ...first, ...override });
 
 describe("contact schemas", () => {
   it("stores blank fields as null and cleans the phone and email", () => {
@@ -86,14 +92,28 @@ describe("contact schemas", () => {
     ["an unexpected field", { ownerId: "x" }],
   ])("rejects %s", (_label, override) => {
     expect(
-      newContactInput.safeParse({ ...form, email: "", ...override }).success,
+      newContactInput.safeParse({ ...form, ...first, ...override }).success,
     ).toBe(false);
   });
 
-  it("does not accept an email on the edit form", () => {
+  it("does not accept an email or a company on the edit form", () => {
+    expect(contactInput.safeParse(form).success).toBe(true);
     expect(contactInput.safeParse({ ...form, email: "a@b.co" }).success).toBe(
       false,
     );
+    expect(contactInput.safeParse({ ...form, organizationId: "" }).success).toBe(
+      false,
+    );
+  });
+
+  it("takes a title at a company, blank for none, and nothing else", () => {
+    expect(companyLinkInput.parse({ jobTitle: " Partner " })).toEqual({
+      jobTitle: "Partner",
+    });
+    expect(companyLinkInput.parse({ jobTitle: "" })).toEqual({ jobTitle: null });
+    expect(
+      companyLinkInput.safeParse({ jobTitle: "", isPrimary: true }).success,
+    ).toBe(false);
   });
 
   it("only accepts web links", () => {
@@ -159,7 +179,9 @@ describe("contacts", () => {
 
     expect(await getContact(ownerId, id)).toMatchObject({
       fullName: "Priya Sharma",
-      organizationName: "Acme Design",
+      companies: [
+        { id: organizationId, name: "Acme Design", jobTitle: null, isPrimary: true },
+      ],
       emails: [{ email: "priya@acme.com", isPrimary: true }],
       tags: ["vip"],
     });
@@ -167,7 +189,12 @@ describe("contacts", () => {
     expect(rows[0]).toMatchObject({
       action: "contact.create",
       entityId: id,
-      after: { firstName: "Priya", email: "priya@acme.com", tags: ["vip"] },
+      after: {
+        firstName: "Priya",
+        email: "priya@acme.com",
+        tags: ["vip"],
+        organizationId,
+      },
     });
   });
 
@@ -182,7 +209,7 @@ describe("contacts", () => {
     expect(result).toEqual({
       ok: false,
       reason: "duplicate",
-      existing: { id, name: "Priya Sharma" },
+      existing: { id, name: "Priya Sharma", companies: [] },
     });
   });
 
@@ -193,7 +220,7 @@ describe("contacts", () => {
     expect(warned).toEqual({
       ok: false,
       reason: "similar",
-      candidates: [{ id, name: "Priya Sharma" }],
+      candidates: [{ id, name: "Priya Sharma", companies: [] }],
     });
 
     const confirmed = await createContact(ownerId, input({ lastName: "Sharmaa" }), {
@@ -215,7 +242,12 @@ describe("contacts", () => {
     );
     expect(sameOrganization).toMatchObject({
       reason: "similar",
-      candidates: [{ name: "Priya Sharma" }],
+      candidates: [
+        {
+          name: "Priya Sharma",
+          companies: [{ id: organizationId, name: "Acme Design" }],
+        },
+      ],
     });
   });
 
@@ -291,7 +323,7 @@ describe("contacts", () => {
     ).toEqual({
       ok: false,
       reason: "duplicate",
-      existing: { id: first, name: "Priya Sharma" },
+      existing: { id: first, name: "Priya Sharma", companies: [] },
     });
   });
 
@@ -340,7 +372,7 @@ describe("contacts", () => {
 
     expect(await primaries()).toEqual(["Priya Sharma"]);
 
-    expect(await setPrimaryContact(ownerId, second, true)).toBe(true);
+    expect(await setPrimaryContact(ownerId, second, organizationId, true)).toBe(true);
     expect(await primaries()).toEqual(["Arjun Rao"]);
     const { rows } = await listAudit(ownerId);
     expect(rows[0]).toMatchObject({
@@ -350,39 +382,159 @@ describe("contacts", () => {
       after: { isPrimary: true, organizationId },
     });
 
-    expect(await setPrimaryContact(ownerId, second, false)).toBe(true);
+    expect(await setPrimaryContact(ownerId, second, organizationId, false)).toBe(true);
     expect(await primaries()).toEqual([]);
-    // Nobody is the primary contact of no company.
-    expect(await setPrimaryContact(ownerId, alone, true)).toBe(false);
-    expect((await getContact(ownerId, alone))!.isPrimary).toBe(false);
+    // Nobody is the primary contact of a company they are not at.
+    expect(await setPrimaryContact(ownerId, alone, organizationId, true)).toBe(false);
+    expect(await primaries()).toEqual([]);
   });
 
-  it("drops the star when the contact changes company, is archived or the company is deleted", async () => {
+  it("puts one person at several companies, with a title and a star at each", async () => {
+    const acme = await createOrg("Acme Design");
+    const borealis = await createOrg("Borealis Labs");
+    const id = await create({ organizationId: acme, jobTitle: "Designer" });
+    await create({ firstName: "Arjun", lastName: "Rao", organizationId: borealis });
+    const at = async (organizationId: string) =>
+      (await listContacts(ownerId, { organizationId })).rows.map((row) => ({
+        name: row.fullName,
+        title: row.jobTitle,
+        star: row.isPrimary,
+      }));
+
+    expect(
+      await addContactCompany(ownerId, id, borealis, { jobTitle: "Partner" }),
+    ).toEqual({ ok: true });
+
+    // Her own title where none was given, the other where one was; Arjun was there first.
+    expect(await at(acme)).toEqual([
+      { name: "Priya Sharma", title: "Designer", star: true },
+    ]);
+    expect(await at(borealis)).toEqual([
+      { name: "Arjun Rao", title: null, star: true },
+      { name: "Priya Sharma", title: "Partner", star: false },
+    ]);
+    expect((await getContact(ownerId, id))!.companies).toMatchObject([
+      { id: acme, name: "Acme Design", jobTitle: null, isPrimary: true },
+      { id: borealis, name: "Borealis Labs", jobTitle: "Partner", isPrimary: false },
+    ]);
+    // One person still: listed once, counted once, with both companies beside her.
+    const everyone = (await listContacts(ownerId)).rows;
+    expect(everyone.map((row) => row.fullName)).toEqual(["Arjun Rao", "Priya Sharma"]);
+    expect(everyone[1]).toMatchObject({
+      jobTitle: "Designer",
+      isPrimary: false,
+      companies: [
+        { id: acme, name: "Acme Design" },
+        { id: borealis, name: "Borealis Labs" },
+      ],
+    });
+    expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+      action: "contact.add_company",
+      entityId: id,
+      after: { organizationId: borealis, jobTitle: "Partner" },
+    });
+
+    // The star is the company's: she can hold it at both, each company still has one.
+    expect(await setPrimaryContact(ownerId, id, borealis, true)).toBe(true);
+    expect((await at(borealis)).map((row) => row.star)).toEqual([false, true]);
+    expect((await at(acme)).map((row) => row.star)).toEqual([true]);
+
+    expect(await setContactCompanyTitle(ownerId, id, borealis, null)).toBe(true);
+    expect((await at(borealis))[1].title).toBe("Designer");
+    expect(await setContactCompanyTitle(ownerId, id, acme, "Founder")).toBe(true);
+    expect((await at(acme))[0].title).toBe("Founder");
+
+    expect(
+      await addContactCompany(ownerId, id, borealis, { jobTitle: "Advisor" }),
+    ).toEqual({ ok: false, reason: "already" });
+  });
+
+  it("keeps the name a company's website gives someone, also for a person already there", async () => {
     const acme = await createOrg("Acme Design");
     const borealis = await createOrg("Borealis Labs");
     const id = await create({ organizationId: acme });
-    const isPrimary = async () => (await getContact(ownerId, id))!.isPrimary;
+    const links = () =>
+      db
+        .select({
+          organizationId: contactOrganizations.organizationId,
+          jobTitle: contactOrganizations.jobTitle,
+          listedAs: contactOrganizations.listedAs,
+        })
+        .from(contactOrganizations)
+        .where(eq(contactOrganizations.contactId, id))
+        .orderBy(contactOrganizations.createdAt);
+
+    await addContactCompany(ownerId, id, borealis, {
+      jobTitle: "Partner",
+      listedAs: "P. Sharma",
+    });
+    await setContactCompanyTitle(ownerId, id, acme, "Founder");
+    // Already at Acme: only the listed name is new, and the title she has there stays.
+    expect(
+      await addContactCompany(ownerId, id, acme, {
+        jobTitle: "Owner",
+        listedAs: "Priya S",
+      }),
+    ).toEqual({ ok: true });
+
+    expect(await links()).toEqual([
+      { organizationId: acme, jobTitle: "Founder", listedAs: "Priya S" },
+      { organizationId: borealis, jobTitle: "Partner", listedAs: "P. Sharma" },
+    ]);
+    expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+      action: "contact.match_company",
+    });
+  });
+
+  it("takes a person off one company and leaves them at the others", async () => {
+    const acme = await createOrg("Acme Design");
+    const borealis = await createOrg("Borealis Labs");
+    const id = await create({ organizationId: acme });
+    await addContactCompany(ownerId, id, borealis, { jobTitle: "Partner" });
+
+    expect(await removeContactCompany(ownerId, id, acme)).toBe(true);
+
+    expect((await getContact(ownerId, id))!.companies).toMatchObject([
+      { id: borealis, jobTitle: "Partner" },
+    ]);
+    expect((await listContacts(ownerId, { organizationId: acme })).rows).toEqual([]);
+    expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+      action: "contact.remove_company",
+      entityId: id,
+      before: { organizationId: acme, isPrimary: true },
+    });
+    expect(await removeContactCompany(ownerId, id, acme)).toBe(false);
+    expect(await setContactCompanyTitle(ownerId, id, acme, "Founder")).toBe(false);
+  });
+
+  it("drops the star when the contact is archived, and the link when the company is deleted", async () => {
+    const acme = await createOrg("Acme Design");
+    const borealis = await createOrg("Borealis Labs");
+    const id = await create({ organizationId: acme });
+    await addContactCompany(ownerId, id, borealis, { jobTitle: null });
+    const stars = async () =>
+      (await getContact(ownerId, id))!.companies.map((company) => company.isPrimary);
     const edit = (override: Partial<typeof form>) =>
       updateContact(ownerId, id, contactInput.parse({ ...form, ...override }));
-    expect(await isPrimary()).toBe(true);
+    // First at each of the two, so starred at both.
+    expect(await stars()).toEqual([true, true]);
 
-    await edit({ organizationId: acme, jobTitle: "Founder" });
-    expect(await isPrimary()).toBe(true);
-    await edit({ organizationId: borealis });
-    expect(await isPrimary()).toBe(false);
+    await edit({ jobTitle: "Founder" });
+    expect(await stars()).toEqual([true, true]);
 
-    await setPrimaryContact(ownerId, id, true);
     await setContactArchived(ownerId, id, true);
-    expect(await isPrimary()).toBe(false);
-    expect(await setPrimaryContact(ownerId, id, true)).toBe(false);
+    expect(await stars()).toEqual([false, false]);
+    expect(await setPrimaryContact(ownerId, id, acme, true)).toBe(false);
+    // Someone added while she is hidden away takes the star she cannot hold.
+    const arjun = await create({ firstName: "Arjun", lastName: "Rao", organizationId: acme });
+    expect((await getContact(ownerId, arjun))!.companies[0].isPrimary).toBe(true);
 
     await setContactArchived(ownerId, id, false);
-    await setPrimaryContact(ownerId, id, true);
+    await setPrimaryContact(ownerId, id, borealis, true);
     expect(await deleteOrganization(ownerId, borealis)).toBe(true);
-    expect(await getContact(ownerId, id)).toMatchObject({
-      organizationId: null,
-      isPrimary: false,
-    });
+    expect((await getContact(ownerId, id))!.companies).toMatchObject([
+      { id: acme, isPrimary: false },
+    ]);
   });
 
   it("archives and restores, and lists each state separately", async () => {
@@ -447,9 +599,10 @@ describe("contacts", () => {
       { ownerId, activityId: activity.id, contactId: colleague },
     ]);
 
-    expect(await deleteContact(ownerId, id)).toEqual({ organizationId });
+    expect(await deleteContact(ownerId, id)).toBe(true);
 
     expect(await getContact(ownerId, id)).toBeNull();
+    expect(await db.$count(contactOrganizations)).toBe(1);
     expect(await db.$count(contactEmails)).toBe(0);
     expect(await db.$count(contactLinks)).toBe(0);
     expect(await db.$count(contactTags)).toBe(0);
@@ -465,11 +618,16 @@ describe("contacts", () => {
     expect(rows[0]).toMatchObject({
       action: "contact.delete",
       entityId: id,
-      before: { firstName: "Priya", lastName: "Sharma", tags: ["vip"], isPrimary: true },
+      before: {
+        firstName: "Priya",
+        lastName: "Sharma",
+        tags: ["vip"],
+        organizationIds: [organizationId],
+      },
     });
     // The address is free again, and there is nobody left to delete twice.
     await create({ email: "priya@acme.com" });
-    expect(await deleteContact(ownerId, id)).toBeNull();
+    expect(await deleteContact(ownerId, id)).toBe(false);
   });
 
   it("filters by name prefix, email, tag and organization", async () => {
@@ -498,7 +656,10 @@ describe("contacts", () => {
 
     const { rows } = await listContacts(ownerId);
     expect(rows).toMatchObject([
-      { organizationName: "Acme Design", primaryEmail: "priya@acme.com" },
+      {
+        companies: [{ id: organizationId, name: "Acme Design" }],
+        primaryEmail: "priya@acme.com",
+      },
     ]);
   });
 
@@ -537,9 +698,24 @@ describe("contacts", () => {
     });
     expect(await setContactArchived(otherId, id, true)).toBe(false);
     expect(await setContactRelationship(otherId, id, "client")).toBe(false);
-    expect(await deleteContact(otherId, id)).toBeNull();
+    expect(await deleteContact(otherId, id)).toBe(false);
     expect(await getContact(ownerId, id)).toMatchObject({ relationshipType: "prospect" });
-    expect(await setPrimaryContact(otherId, id, true)).toBe(false);
+    // Neither end of a link may be someone else's: not the person, not the company.
+    const mine = await createOrg("Acme Design");
+    const theirs = await createOrg("Their Co", otherId);
+    expect(
+      await addContactCompany(otherId, id, theirs, { jobTitle: null }),
+    ).toEqual({ ok: false, reason: "not_found" });
+    expect(
+      await addContactCompany(ownerId, id, theirs, { jobTitle: null }),
+    ).toEqual({ ok: false, reason: "unknown_organization" });
+    await addContactCompany(ownerId, id, mine, { jobTitle: null });
+    expect(await setPrimaryContact(otherId, id, mine, true)).toBe(false);
+    expect(await setContactCompanyTitle(otherId, id, mine, "Spy")).toBe(false);
+    expect(await removeContactCompany(otherId, id, mine)).toBe(false);
+    expect((await getContact(ownerId, id))!.companies).toMatchObject([
+      { id: mine, jobTitle: null, isPrimary: true },
+    ]);
     expect(await removeContactEmail(otherId, id, emailId)).toBe(false);
     expect(await setPrimaryEmail(otherId, id, emailId)).toBe(false);
     expect(

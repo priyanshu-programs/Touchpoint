@@ -203,6 +203,55 @@ test("people a read found on the website are offered on Contacts and added on re
   expect(consoleErrors).toEqual([]);
 });
 
+// Arjun Rao is a contact at Acme Design from the People tests.
+test("someone the website names who looks like an existing contact is put here, not made twice", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  // A later read than the one above, still before the failed one.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  await pool.query(
+    `insert into enrichment_runs (owner_id, organization_id, status, input, raw_result, created_at, finished_at)
+     select owner_id, id, 'done', $2::jsonb, $3::jsonb, now() - interval '12 hours', now() - interval '12 hours'
+     from organizations where id = $1`,
+    [
+      companyId,
+      JSON.stringify({ url: "https://nowhere.invalid/" }),
+      JSON.stringify({ people: [{ name: "Arjun R Rao", title: "Advisor" }] }),
+    ],
+  );
+  await pool.end();
+  const found = panel(page).getByRole("region", { name: "Found on the website" });
+
+  await page.goto(`/people/organizations?company=${companyId}&tab=contacts`);
+  await expect(found.getByText("Looks like Arjun Rao (Acme Design)")).toBeVisible();
+  // Nothing is assumed: he can be said to be the same person, or a new one.
+  await expect(
+    found.getByRole("button", { name: "Add Arjun R Rao as a new person" }),
+  ).toBeVisible();
+  await found.getByRole("button", { name: "Arjun R Rao is Arjun Rao" }).click();
+
+  await expect(panel(page).getByText("Arjun Rao added.")).toBeVisible();
+  await expect(found).toHaveCount(0);
+  // Under his own name, with the title this website gives him.
+  await expect(panel(page).getByRole("row", { name: /Arjun Rao/ })).toContainText(
+    "Advisor",
+  );
+  await expect(
+    companyTabs(page).getByRole("link", { name: "Contacts" }),
+  ).toContainText("4");
+
+  await page.goto("/people/contacts?q=arjun");
+  const listed = page.getByRole("row", { name: /Arjun/ });
+  await expect(listed).toHaveCount(1);
+  await expect(listed.getByRole("link", { name: "Acme Design" })).toBeVisible();
+  await expect(listed.getByRole("link", { name: "Nowhere Works" })).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -234,8 +283,8 @@ test("a company can be deleted after confirming", async ({ page }) => {
   await page.goto(`/people/organizations?company=${companyId}`);
   await recordAction(page, "Delete");
   await expect(
-    // The three people added from the website above.
-    confirmation.getByText("Its contacts (3), tasks and logged activity are kept"),
+    // The three people added from the website above, and the one who is also elsewhere.
+    confirmation.getByText("Its contacts (4), tasks and logged activity are kept"),
   ).toBeVisible();
   await confirmation.getByRole("button", { name: "Cancel" }).click();
   await expect(confirmation).toBeHidden();

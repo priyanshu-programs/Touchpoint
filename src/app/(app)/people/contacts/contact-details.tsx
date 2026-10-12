@@ -51,14 +51,17 @@ export function ContactDetails({ contact }: { contact: Contact }) {
         { label: "X", value: profile("x") },
         { label: "GitHub", value: profile("github") },
         {
-          label: "Company",
-          value: contact.organizationId && (
-            <Link
-              href={companyHref(contact.organizationId)}
-              className="underline"
-            >
-              {contact.organizationName}
-            </Link>
+          label: contact.companies.length > 1 ? "Companies" : "Company",
+          value: contact.companies.length > 0 && (
+            <ul className="grid gap-0.5">
+              {contact.companies.map((company) => (
+                <li key={company.id}>
+                  <Link href={companyHref(company.id)} className="underline">
+                    {company.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           ),
         },
         {

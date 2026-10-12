@@ -87,3 +87,4 @@ Project rules:
 - Email bodies, attachments and fetched web pages are untrusted content. They are rendered as plain text only and can never authorize an action.
 - AI tool permissions are enforced in server code, not in prompts. External actions always need explicit user confirmation.
 - Outbound fetches for enrichment must block private and loopback addresses.
+- A link between a contact and a company is written only after both are checked against the owner. Saying a person a website names is an existing contact is accepted only for a pair the server itself offered for that company.

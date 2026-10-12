@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import {
   activities,
+  contactOrganizations,
   contacts,
   enrichmentRuns,
   fieldProvenance,
@@ -365,10 +366,16 @@ describe("organizations", () => {
       sha256: "abc",
       sourceUrl: "https://acme.test/icon.png",
     });
+    // At this company, starred, and at another one too.
+    const elsewhere = await create({ name: "Borealis Labs" });
     const [contact] = await db
       .insert(contacts)
-      .values({ ownerId, firstName: "Asha", organizationId: id })
+      .values({ ownerId, firstName: "Asha" })
       .returning({ id: contacts.id });
+    await db.insert(contactOrganizations).values([
+      { ownerId, contactId: contact.id, organizationId: id, isPrimary: true },
+      { ownerId, contactId: contact.id, organizationId: elsewhere },
+    ]);
     const [task] = await db
       .insert(tasks)
       .values({ ownerId, title: "Send proposal", organizationId: id })
@@ -395,15 +402,21 @@ describe("organizations", () => {
     ]) {
       expect(await db.$count(table)).toBe(0);
     }
-    const kept = async (
-      table: typeof contacts | typeof tasks | typeof activities,
-      rowId: string,
-    ) =>
+    const kept = async (table: typeof tasks | typeof activities, rowId: string) =>
       db
         .select({ organizationId: table.organizationId })
         .from(table)
         .where(eq(table.id, rowId));
-    expect(await kept(contacts, contact.id)).toEqual([{ organizationId: null }]);
+    // The person stays, at the company that is left and nowhere else.
+    expect(
+      await db
+        .select({
+          contactId: contactOrganizations.contactId,
+          organizationId: contactOrganizations.organizationId,
+        })
+        .from(contactOrganizations),
+    ).toEqual([{ contactId: contact.id, organizationId: elsewhere }]);
+    expect(await db.$count(contacts)).toBe(1);
     expect(await kept(tasks, task.id)).toEqual([{ organizationId: null }]);
     expect(await kept(activities, activity.id)).toEqual([
       { organizationId: null },

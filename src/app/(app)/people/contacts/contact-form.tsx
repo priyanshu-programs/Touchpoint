@@ -11,7 +11,7 @@ export function ContactForm({
   action,
   initial,
   options,
-  withEmail,
+  isNew,
   submitLabel,
   cancelHref,
 }: {
@@ -26,7 +26,9 @@ export function ContactForm({
     channels: Option[];
     timezones: Option[];
   };
-  withEmail: boolean;
+  // A new person is given a first email and a first company here; afterwards both
+  // are kept in the person's panel, where there can be several.
+  isNew: boolean;
   submitLabel: string;
   cancelHref: string;
 }) {
@@ -52,7 +54,7 @@ export function ContactForm({
           label="Last name"
           defaultValue={values.lastName}
         />
-        {withEmail && (
+        {isNew && (
           <TextField
             name="email"
             label="Email"
@@ -67,18 +69,20 @@ export function ContactForm({
           placeholder="+919876543210"
           defaultValue={values.phoneE164}
         />
-        <RecordPicker
-          name="organizationId"
-          labelName="organizationName"
-          noun="company"
-          plural="companies"
-          initial={
-            values.organizationId
-              ? { id: values.organizationId, label: values.organizationName }
-              : null
-          }
-          search={searchOrganizationsAction}
-        />
+        {isNew && (
+          <RecordPicker
+            name="organizationId"
+            labelName="organizationName"
+            noun="company"
+            plural="companies"
+            initial={
+              values.organizationId
+                ? { id: values.organizationId, label: values.organizationName }
+                : null
+            }
+            search={searchOrganizationsAction}
+          />
+        )}
         <TextField
           name="jobTitle"
           label="Job title"

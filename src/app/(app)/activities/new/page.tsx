@@ -26,6 +26,7 @@ export default async function NewActivityPage({
     organizationId.success ? getOrganization(owner.id, organizationId.data) : null,
   ]);
   const timezone = settings?.timezone ?? "UTC";
+  const only = contact?.companies.length === 1 ? contact.companies[0] : null;
 
   return (
     <Card>
@@ -47,10 +48,10 @@ export default async function NewActivityPage({
             contacts: JSON.stringify(
               contact ? [{ id: contact.id, label: contact.fullName }] : [],
             ),
-            // What happened with a person is also part of their organization's history.
-            organizationId: organization?.id ?? contact?.organizationId ?? "",
-            organizationName:
-              organization?.name ?? contact?.organizationName ?? "",
+            // What happened with a person is also part of their organization's history,
+            // when they have just the one.
+            organizationId: (organization ?? only)?.id ?? "",
+            organizationName: (organization ?? only)?.name ?? "",
             followUpDate: "",
             followUpTitle: "",
           }}

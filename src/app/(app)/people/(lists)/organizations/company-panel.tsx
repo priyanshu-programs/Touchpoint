@@ -33,7 +33,9 @@ import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
 import {
   addCompanyContactAction,
+  addExistingContactAction,
   addSuggestedContactsAction,
+  linkSuggestedContactAction,
   setPrimaryContactAction,
 } from "../../contacts/actions";
 import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
@@ -332,6 +334,11 @@ export async function CompanyPanel({
                               <input type="hidden" name="id" value={contact.id} />
                               <input
                                 type="hidden"
+                                name="organizationId"
+                                value={organization.id}
+                              />
+                              <input
+                                type="hidden"
                                 name="primary"
                                 value={contact.isPrimary ? "0" : "1"}
                               />
@@ -395,11 +402,17 @@ export async function CompanyPanel({
                 </Table>
               )}
               <SuggestedContacts
-                people={suggested}
+                people={suggested.map(({ name, title, matches }) => ({
+                  name,
+                  title,
+                  matches,
+                }))}
                 action={addSuggestedContactsAction.bind(null, organization.id)}
+                linkAction={linkSuggestedContactAction.bind(null, organization.id)}
               />
               <AddContactForm
                 action={addCompanyContactAction.bind(null, organization.id)}
+                linkAction={addExistingContactAction.bind(null, organization.id)}
               />
             </>
           )}

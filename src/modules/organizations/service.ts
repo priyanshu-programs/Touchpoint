@@ -1,6 +1,6 @@
 import { and, eq, ne } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
-import { contacts, fieldProvenance, organizations } from "@/db/schema";
+import { fieldProvenance, organizations } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { markManual, requestEnrichment } from "@/modules/enrichment/service";
 import { ENRICHABLE_FIELDS } from "@/modules/enrichment/website/read";
@@ -132,7 +132,8 @@ export async function updateOrganization(
   });
 }
 
-// Contacts, tasks and activities outlive the company: their foreign keys set the link to null.
+// Contacts, tasks and activities outlive the company. A contact's place at it goes by
+// foreign key, star included; tasks and activities have their link set to null.
 export async function deleteOrganization(ownerId: string, id: string) {
   return db.transaction(async (tx) => {
     const owned = and(
@@ -155,17 +156,6 @@ export async function deleteOrganization(ownerId: string, id: string) {
           eq(fieldProvenance.ownerId, ownerId),
           eq(fieldProvenance.entityType, "organization"),
           eq(fieldProvenance.entityId, id),
-        ),
-      );
-    // Its contacts stay, so nobody is left marked as the primary contact of nothing.
-    await tx
-      .update(contacts)
-      .set({ isPrimary: false })
-      .where(
-        and(
-          eq(contacts.ownerId, ownerId),
-          eq(contacts.organizationId, id),
-          eq(contacts.isPrimary, true),
         ),
       );
     await tx.delete(organizations).where(owned);

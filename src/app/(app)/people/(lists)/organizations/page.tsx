@@ -119,8 +119,11 @@ export default async function OrganizationsPage({
       ? getContact(owner.id, params.contact)
       : null,
   ]);
-  // Someone who has since moved to another company is not shown under this one.
-  const contact = open && person?.organizationId === open.id ? person : null;
+  // Someone who is not, or no longer, at this company is not shown under it.
+  const contact =
+    open && person?.companies.some((company) => company.id === open.id)
+      ? person
+      : null;
   const timezone = settings?.timezone ?? "UTC";
   const filtered = Boolean(
     params.q || params.tag || params.status || params.archived,
@@ -293,19 +296,18 @@ export default async function OrganizationsPage({
             <ContactPanel
               ownerId={owner.id}
               contact={contact}
-              company={{
-                organization: open,
+              inside={{
+                id: open.id,
                 href: companiesHref(params, NO_CONTACT),
+                back: {
+                  href: companiesHref(params, { ...NO_CONTACT, tab: "contacts" }),
+                  label: `Back to ${open.name}`,
+                },
               }}
               // A company's own "contacts" tab means nothing for one person.
               tab={params.tab === "contacts" ? undefined : params.tab}
               after={params.after}
               hrefFor={({ tab, after }) => companiesHref(params, { tab, after })}
-              back={{
-                href: companiesHref(params, { ...NO_CONTACT, tab: "contacts" }),
-                label: `Back to ${open.name}`,
-              }}
-              editFrom="company"
             />
           ) : (
             <CompanyPanel

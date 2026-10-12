@@ -1,8 +1,13 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, type Executor, type Tx } from "@/db/client";
-import { contactPhotos, contacts, fieldProvenance } from "@/db/schema";
+import {
+  contactOrganizations,
+  contactPhotos,
+  contacts,
+  fieldProvenance,
+} from "@/db/schema";
 import { FetchError, safeFetch, type Fetcher } from "@/lib/safe-fetch";
 import { httpUrl } from "@/lib/url";
 import { audit } from "@/modules/audit/service";
@@ -61,25 +66,32 @@ export async function requestKnownPhotos(
   );
   if (pictured.size === 0) return;
 
+  const names = [...pictured.keys()];
   const known = await tx
     .select({
       id: contacts.id,
       name: sql<string>`lower(${contacts.fullName})`,
+      // The name the website gives someone kept here under another.
+      listedAs: sql<string | null>`lower(${contactOrganizations.listedAs})`,
     })
-    .from(contacts)
+    .from(contactOrganizations)
+    .innerJoin(contacts, eq(contacts.id, contactOrganizations.contactId))
     .leftJoin(contactPhotos, eq(contactPhotos.contactId, contacts.id))
     .where(
       and(
-        eq(contacts.ownerId, ownerId),
-        eq(contacts.organizationId, organizationId),
+        eq(contactOrganizations.ownerId, ownerId),
+        eq(contactOrganizations.organizationId, organizationId),
         isNull(contacts.archivedAt),
         isNull(contactPhotos.contactId),
-        inArray(sql`lower(${contacts.fullName})`, [...pictured.keys()]),
+        or(
+          inArray(sql`lower(${contacts.fullName})`, names),
+          inArray(sql`lower(${contactOrganizations.listedAs})`, names),
+        ),
         sql`not ${removedByOwner(ownerId, contacts.id)}`,
       ),
     );
   for (const contact of known) {
-    const url = pictured.get(contact.name);
+    const url = pictured.get(contact.listedAs ?? "") ?? pictured.get(contact.name);
     if (url) await requestPhoto(ownerId, contact.id, url, tx);
   }
 }

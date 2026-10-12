@@ -24,6 +24,7 @@ export default async function NewTaskPage({
     contactId.success ? getContact(owner.id, contactId.data) : null,
     organizationId.success ? getOrganization(owner.id, organizationId.data) : null,
   ]);
+  const only = contact?.companies.length === 1 ? contact.companies[0] : null;
 
   return (
     <Card>
@@ -46,10 +47,9 @@ export default async function NewTaskPage({
             remindAt: "",
             contactId: contact?.id ?? "",
             contactName: contact?.fullName ?? "",
-            // A task for a person is also about their organization.
-            organizationId: organization?.id ?? contact?.organizationId ?? "",
-            organizationName:
-              organization?.name ?? contact?.organizationName ?? "",
+            // A task for a person is also about their organization, when they have just the one.
+            organizationId: (organization ?? only)?.id ?? "",
+            organizationName: (organization ?? only)?.name ?? "",
           }}
           options={taskFormOptions}
           timezone={settings?.timezone ?? "UTC"}

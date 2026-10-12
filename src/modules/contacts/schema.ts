@@ -28,7 +28,6 @@ const phone = z
 export const contactInput = z.strictObject({
   firstName: z.string().trim().min(1, "Enter a first name").max(100),
   lastName: blankToNull(text(100)),
-  organizationId: blankToNull(z.uuid()),
   jobTitle: blankToNull(text(150)),
   department: blankToNull(text(150)),
   phoneE164: blankToNull(phone),
@@ -44,8 +43,15 @@ export const contactInput = z.strictObject({
   tags: tagList,
 });
 
+// A new person may start at one company; more are added as links afterwards.
 export const newContactInput = contactInput.extend({
+  organizationId: blankToNull(z.uuid()),
   email: blankToNull(emailAddress),
+});
+
+// What is said about a person at one of their companies.
+export const companyLinkInput = z.strictObject({
+  jobTitle: blankToNull(text(150)),
 });
 
 export const contactEmailInput = z.strictObject({
@@ -60,5 +66,6 @@ export const contactLinkInput = z.strictObject({
 
 export type ContactInput = z.infer<typeof contactInput>;
 export type NewContactInput = z.infer<typeof newContactInput>;
+export type CompanyLinkInput = z.infer<typeof companyLinkInput>;
 export type ContactEmailInput = z.infer<typeof contactEmailInput>;
 export type ContactLinkInput = z.infer<typeof contactLinkInput>;

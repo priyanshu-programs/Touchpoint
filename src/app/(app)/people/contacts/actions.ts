@@ -7,8 +7,9 @@ import { z } from "zod";
 import type { FormState } from "@/app/(app)/settings/actions";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
-import { listContacts } from "@/modules/contacts/queries";
+import { getContact, listContacts } from "@/modules/contacts/queries";
 import {
+  companyLinkInput,
   contactEmailInput,
   contactInput,
   contactLinkInput,
@@ -16,13 +17,16 @@ import {
   RELATIONSHIP_TYPES,
 } from "@/modules/contacts/schema";
 import {
+  addContactCompany,
   addContactEmail,
   addContactLink,
   createContact,
   deleteContact,
+  removeContactCompany,
   removeContactEmail,
   removeContactLink,
   setContactArchived,
+  setContactCompanyTitle,
   setContactRelationship,
   setPrimaryContact,
   setPrimaryEmail,
@@ -39,7 +43,6 @@ import { companyHref, contactHref, contactPanelHref } from "../labels";
 const FIELDS = [
   "firstName",
   "lastName",
-  "organizationId",
   "jobTitle",
   "department",
   "phoneE164",
@@ -53,10 +56,17 @@ const FIELDS = [
   "tags",
 ] as const;
 
+// `organizationId` is the company the contact was being added to: people already
+// there are named, but not offered as someone to add to it.
 function failure(
   result: Exclude<ContactResult, { ok: true }>,
   values: Record<string, string>,
+  organizationId?: string,
 ): RecordFormState {
+  const elsewhere = (people: Extract<ContactResult, { existing: unknown }>["existing"][]) =>
+    people
+      .filter(({ companies }) => !companies.some(({ id }) => id === organizationId))
+      .map(({ id, name }) => ({ id, name }));
   if (result.reason === "not_found") notFound();
   if (result.reason === "unknown_organization") {
     return {
@@ -76,6 +86,7 @@ function failure(
           label: result.existing.name,
         },
       ],
+      people: elsewhere([result.existing]),
     };
   }
   return {
@@ -87,6 +98,7 @@ function failure(
       href: contactHref(candidate.id),
       label: candidate.name,
     })),
+    people: elsewhere(result.candidates),
     canConfirm: true,
   };
 }
@@ -100,7 +112,7 @@ export async function createContactAction(
   formData: FormData,
 ): Promise<RecordFormState> {
   const owner = await requireOwner();
-  const fields = readFields(formData, [...FIELDS, "email"]);
+  const fields = readFields(formData, [...FIELDS, "organizationId", "email"]);
   const values = { ...fields, ...organizationLabel(formData) };
   const parsed = newContactInput.safeParse(fields);
   if (!parsed.success) return invalid(parsed.error, values);
@@ -146,16 +158,151 @@ export async function addCompanyContactAction(
   const result = await createContact(owner.id, parsed.data, {
     confirmSimilar: formData.get("confirmSimilar") === "yes",
   });
-  if (!result.ok) return failure(result, values);
+  if (!result.ok) return failure(result, values, organizationId);
 
   revalidatePath("/people", "layout");
   return { ok: true, message: `${parsed.data.firstName} added.` };
 }
 
-const suggestedChoice = z.strictObject({
+const linkTarget = z.strictObject({
+  contactId: z.uuid(),
   organizationId: z.uuid(),
-  names: z.array(z.string().max(60)).min(1).max(12),
 });
+
+async function linkCompany(
+  ownerId: string,
+  ids: { contactId: string; organizationId: string },
+  jobTitle: string,
+  values: Record<string, string>,
+): Promise<RecordFormState> {
+  const target = linkTarget.safeParse(ids);
+  if (!target.success) {
+    return { ok: false, message: "Choose from the list.", values };
+  }
+  const link = companyLinkInput.safeParse({ jobTitle });
+  if (!link.success) return invalid(link.error, values);
+
+  const result = await addContactCompany(
+    ownerId,
+    target.data.contactId,
+    target.data.organizationId,
+    link.data,
+  );
+  if (!result.ok) {
+    if (result.reason !== "already") notFound();
+    return { ok: false, message: "They are already at this company.", values };
+  }
+  revalidatePath("/people", "layout");
+  return { ok: true, message: "Added to this company." };
+}
+
+// From a company: puts someone already among the contacts there too.
+export async function addExistingContactAction(
+  organizationId: string,
+  _previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const values = readFields(formData, ["contactId", "contactName", "jobTitle"]);
+  return linkCompany(
+    owner.id,
+    { contactId: values.contactId, organizationId },
+    values.jobTitle,
+    values,
+  );
+}
+
+// From a person: the same link, made from the other side.
+export async function addContactCompanyAction(
+  contactId: string,
+  _previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const values = readFields(formData, [
+    "organizationId",
+    "organizationName",
+    "jobTitle",
+  ]);
+  return linkCompany(
+    owner.id,
+    { contactId, organizationId: values.organizationId },
+    values.jobTitle,
+    values,
+  );
+}
+
+export async function removeContactCompanyAction(formData: FormData) {
+  const owner = await requireOwner();
+  const { contactId, organizationId } = linkTarget.parse(
+    readFields(formData, ["contactId", "organizationId"]),
+  );
+  await removeContactCompany(owner.id, contactId, organizationId);
+  revalidatePath("/people", "layout");
+}
+
+export async function setContactCompanyTitleAction(formData: FormData) {
+  const owner = await requireOwner();
+  const fields = readFields(formData, ["contactId", "organizationId", "jobTitle"]);
+  const { contactId, organizationId } = linkTarget.parse({
+    contactId: fields.contactId,
+    organizationId: fields.organizationId,
+  });
+  const { jobTitle } = companyLinkInput.parse({ jobTitle: fields.jobTitle });
+  await setContactCompanyTitle(owner.id, contactId, organizationId, jobTitle);
+  revalidatePath("/people", "layout");
+}
+
+const suggestedMatch = z.strictObject({
+  organizationId: z.uuid(),
+  name: z.string().min(1).max(60),
+  contactId: z.uuid(),
+});
+
+// Says a person the website names is someone already among the contacts. The pair
+// is accepted only if the server itself offered it, so the form can link nobody else.
+export async function linkSuggestedContactAction(
+  organizationId: string,
+  _previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const parsed = suggestedMatch.safeParse({
+    organizationId,
+    ...readFields(formData, ["name", "contactId"]),
+  });
+  if (!parsed.success) return { ok: false, message: "Choose someone to add." };
+
+  const person = (await suggestedPeople(owner.id, organizationId)).find(
+    (suggested) => suggested.name === parsed.data.name,
+  );
+  const match = person?.matches.find(({ id }) => id === parsed.data.contactId);
+  if (!person || !match) return { ok: false, message: "Choose someone to add." };
+
+  const result = await addContactCompany(owner.id, match.id, organizationId, {
+    jobTitle: person.title,
+    listedAs:
+      person.name.toLowerCase() === match.name.toLowerCase() ? null : person.name,
+  });
+  if (!result.ok) {
+    return { ok: false, message: `${match.name} is already at this company.` };
+  }
+  if (person.photo && !(await getContact(owner.id, match.id))?.photoVersion) {
+    await requestPhoto(owner.id, match.id, person.photo);
+    after(() => runDueJobs(handlers, 10_000));
+  }
+  revalidatePath("/people", "layout");
+  return { ok: true, message: `${match.name} added.` };
+}
+
+const suggestedChoice = z
+  .strictObject({
+    organizationId: z.uuid(),
+    names: z.array(z.string().max(60)).max(12),
+    // Named by the owner as a new person although someone similar exists.
+    confirmed: z.array(z.string().max(60)).max(12),
+  })
+  .refine((choice) => choice.names.length + choice.confirmed.length > 0);
 
 // Adds people the website read found. The form carries names only, and each is
 // looked up in what the read stored, so nothing else can be created through it.
@@ -168,10 +315,12 @@ export async function addSuggestedContactsAction(
   const parsed = suggestedChoice.safeParse({
     organizationId,
     names: formData.getAll("name"),
+    confirmed: formData.getAll("confirmed"),
   });
   if (!parsed.success) return { ok: false, message: "Choose someone to add." };
 
-  const chosen = new Set(parsed.data.names);
+  const confirmed = new Set(parsed.data.confirmed);
+  const chosen = new Set([...parsed.data.names, ...confirmed]);
   const people = (await suggestedPeople(owner.id, organizationId)).filter(
     (person) => chosen.has(person.name),
   );
@@ -197,7 +346,9 @@ export async function addSuggestedContactsAction(
       tags: "",
     });
     if (!input.success) continue;
-    const result = await createContact(owner.id, input.data);
+    const result = await createContact(owner.id, input.data, {
+      confirmSimilar: confirmed.has(person.name),
+    });
     if (!result.ok) continue;
     added += 1;
     if (person.photo) {
@@ -217,19 +368,19 @@ export async function addSuggestedContactsAction(
     : { ok: false, message: `Not added: ${why}.` };
 }
 
-// `toPanel` is set when the edit was opened from the company's panel, so saving returns there
+// `companyId` is the company whose panel the edit was opened from, so saving returns there
 // and not to the person's own panel over the people list.
 export async function updateContactAction(
   id: string,
-  toPanel: boolean,
+  companyId: string | null,
   _previous: RecordFormState,
   formData: FormData,
 ): Promise<RecordFormState> {
   const owner = await requireOwner();
   const contactId = z.uuid().parse(id);
-  const fields = readFields(formData, FIELDS);
-  const values = { ...fields, ...organizationLabel(formData) };
-  const parsed = contactInput.safeParse(fields);
+  const company = z.uuid().nullable().parse(companyId);
+  const values = readFields(formData, FIELDS);
+  const parsed = contactInput.safeParse(values);
   if (!parsed.success) return invalid(parsed.error, values);
 
   const result = await updateContact(owner.id, contactId, parsed.data);
@@ -237,18 +388,20 @@ export async function updateContactAction(
 
   revalidatePath("/people", "layout");
   redirect(
-    toPanel && parsed.data.organizationId
-      ? contactPanelHref(parsed.data.organizationId, contactId)
-      : contactHref(contactId),
+    company ? contactPanelHref(company, contactId) : contactHref(contactId),
   );
 }
 
 export async function setPrimaryContactAction(formData: FormData) {
   const owner = await requireOwner();
-  const { id, primary } = z
-    .strictObject({ id: z.uuid(), primary: z.enum(["0", "1"]) })
-    .parse(readFields(formData, ["id", "primary"]));
-  await setPrimaryContact(owner.id, id, primary === "1");
+  const { id, organizationId, primary } = z
+    .strictObject({
+      id: z.uuid(),
+      organizationId: z.uuid(),
+      primary: z.enum(["0", "1"]),
+    })
+    .parse(readFields(formData, ["id", "organizationId", "primary"]));
+  await setPrimaryContact(owner.id, id, organizationId, primary === "1");
   revalidatePath("/people", "layout");
 }
 
@@ -259,7 +412,7 @@ export async function searchContactsAction(query: string) {
   return rows.map((row) => ({
     id: row.id,
     label: row.fullName,
-    hint: row.organizationName,
+    hint: row.companies.map((company) => company.name).join(", ") || null,
   }));
 }
 
@@ -290,20 +443,15 @@ export async function removeContactPhotoAction(formData: FormData) {
   revalidatePath("/people", "layout");
 }
 
-// `from` is a flag, never an address: it says the person was open inside their company's panel.
+// `company` is an id, never an address: the company whose panel the person was open in.
 export async function deleteContactAction(formData: FormData) {
   const owner = await requireOwner();
-  const { id, from } = z
-    .strictObject({ id: z.uuid(), from: z.enum(["", "company"]) })
-    .parse(readFields(formData, ["id", "from"]));
-  const deleted = await deleteContact(owner.id, id);
-  if (!deleted) notFound();
+  const { id, company } = z
+    .strictObject({ id: z.uuid(), company: z.union([z.literal(""), z.uuid()]) })
+    .parse(readFields(formData, ["id", "company"]));
+  if (!(await deleteContact(owner.id, id))) notFound();
   revalidatePath("/people", "layout");
-  redirect(
-    from === "company" && deleted.organizationId
-      ? companyHref(deleted.organizationId, "contacts")
-      : "/people/contacts",
-  );
+  redirect(company ? companyHref(company, "contacts") : "/people/contacts");
 }
 
 export async function addContactEmailAction(

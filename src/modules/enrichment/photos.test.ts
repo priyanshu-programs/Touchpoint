@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import {
+  contactOrganizations,
   contactPhotos,
   enrichmentRuns,
   fieldProvenance,
@@ -204,6 +205,24 @@ describe("contact photos", () => {
       .from(jobs)
       .where(eq(jobs.status, "pending"));
     expect(queued).toEqual([{ payload: { contactId: asha, url: ASHA } }]);
+  });
+
+  it("finds someone by the name the company's website lists them under", async () => {
+    const komal = await add("Komal", "Bajaj Bhotika");
+    await db
+      .update(contactOrganizations)
+      .set({ listedAs: "Komal Bhotika" })
+      .where(eq(contactOrganizations.contactId, komal));
+
+    await db.transaction((tx) =>
+      requestKnownPhotos(tx, ownerId, organizationId, [
+        { name: "Komal Bhotika", title: "Partner", photo: ASHA },
+      ]),
+    );
+
+    expect(
+      await db.select({ payload: jobs.payload }).from(jobs).where(eq(jobs.status, "pending")),
+    ).toEqual([{ payload: { contactId: komal, url: ASHA } }]);
   });
 
   it("queues those pictures when a website read finishes", async () => {

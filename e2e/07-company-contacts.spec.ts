@@ -196,6 +196,93 @@ test("a picture read from the company's site shows for the person and can be rem
   expect(consoleErrors).toEqual([]);
 });
 
+// Arjun Rao is at Acme Design, with "Head of Security" as his own title from the test above.
+test("one person is put at a second company, with a title of their own there", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  const openCompany = async (name: string) => {
+    await page.goto("/people/organizations");
+    await page.getByRole("link", { name }).click();
+    await companyTabs(page).getByRole("link", { name: "Contacts" }).click();
+  };
+  const arjun = () => panel(page).getByRole("row", { name: /Arjun Rao/ });
+
+  await openCompany("Borealis Labs");
+  await expect(page.getByText("No contacts at this company yet.")).toBeVisible();
+  await panel(page).getByRole("button", { name: "Add existing person" }).click();
+  const form = page.getByRole("form", { name: "Add existing person" });
+  // Nobody chosen yet: nothing is added.
+  await form.getByRole("button", { name: "Add to this company" }).click();
+  await expect(form.getByText("Choose from the list.")).toBeVisible();
+
+  await form.getByRole("button", { name: "Choose person" }).click();
+  await page.getByPlaceholder("Search people…").fill("arj");
+  // The list says where he already is.
+  await page.getByRole("option", { name: /Arjun Rao.*Acme Design/ }).click();
+  await form.getByLabel("Title at this company").fill("Advisor");
+  await form.getByRole("button", { name: "Add to this company" }).click();
+  await expect(form.getByText("Added to this company.")).toBeVisible();
+  await expect(form.getByRole("button", { name: "Choose person" })).toBeVisible();
+
+  // The first person here, so starred here; with the title given for this company.
+  await expect(arjun().getByRole("cell", { name: "Advisor" })).toBeVisible();
+  await expect(star(page, "Arjun Rao")).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    companyTabs(page).getByRole("link", { name: "Contacts" }),
+  ).toContainText("1");
+
+  // Twice is refused.
+  await form.getByRole("button", { name: "Choose person" }).click();
+  await page.getByPlaceholder("Search people…").fill("arj");
+  await page.getByRole("option", { name: /Arjun Rao/ }).click();
+  await form.getByRole("button", { name: "Add to this company" }).click();
+  await expect(form.getByText("They are already at this company.")).toBeVisible();
+
+  // Opened here, he is described as he is here, and both companies are listed.
+  await arjun().getByRole("link", { name: "Arjun Rao" }).click();
+  await expect(panel(page).getByText("Advisor at Borealis Labs")).toBeVisible();
+  await expect(
+    panel(page).getByText("Primary contact at Borealis Labs"),
+  ).toBeVisible();
+  await expect(panel(page).getByText("Primary contact at Acme Design")).toHaveCount(0);
+  await expect(panel(page).getByLabel("Title at Borealis Labs", { exact: true })).toHaveValue("Advisor");
+  await expect(panel(page).getByLabel("Title at Acme Design", { exact: true })).toHaveValue("");
+
+  await panel(page).getByLabel("Title at Borealis Labs", { exact: true }).fill("Board Advisor");
+  await panel(page).getByRole("button", { name: "Save title at Borealis Labs" }).click();
+  await expect(panel(page).getByText("Board Advisor at Borealis Labs")).toBeVisible();
+
+  // At Acme Design he is who he was: his own title, and the star he was given there.
+  await openCompany("Acme Design");
+  await expect(arjun().getByRole("cell", { name: "Head of Security" })).toBeVisible();
+  await expect(star(page, "Arjun Rao")).toHaveAttribute("aria-pressed", "true");
+
+  // One person under People, with both companies beside him.
+  await page.goto("/people/contacts?q=arjun");
+  const listed = page.getByRole("row", { name: /Arjun Rao/ });
+  await expect(listed).toHaveCount(1);
+  await expect(listed.getByRole("link", { name: "Acme Design" })).toBeVisible();
+  await expect(listed.getByRole("link", { name: "Borealis Labs" })).toBeVisible();
+  await listed.getByRole("link", { name: "Arjun Rao" }).click();
+  await expect(
+    panel(page).getByText("Primary contact at Borealis Labs"),
+  ).toBeVisible();
+  await expect(panel(page).getByText("Primary contact at Acme Design")).toBeVisible();
+
+  // Taken off one company, he stays at the other, and the first is left as it was.
+  await panel(page).getByRole("button", { name: "Remove from Borealis Labs" }).click();
+  await expect(panel(page).getByLabel("Title at Borealis Labs", { exact: true })).toHaveCount(0);
+  await expect(panel(page).getByLabel("Title at Acme Design", { exact: true })).toBeVisible();
+  await expect(panel(page).getByText("Head of Security at Acme Design")).toBeVisible();
+  await openCompany("Borealis Labs");
+  await expect(page.getByText("No contacts at this company yet.")).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
 test("a person is deleted from the three-dots menu after confirming", async ({
   page,
 }) => {

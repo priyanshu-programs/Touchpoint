@@ -6,6 +6,8 @@ export type RecordFormState = {
   // Echoed back so a rejected form keeps what was typed.
   values?: Record<string, string>;
   links?: { href: string; label: string }[];
+  // The people a refused contact may already be, for forms that can use one of them.
+  people?: { id: string; name: string }[];
   canConfirm?: boolean;
 } | null;
 

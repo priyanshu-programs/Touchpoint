@@ -3,6 +3,7 @@ import { db, type Tx } from "@/db/client";
 import {
   contactEmails,
   contactLinks,
+  contactOrganizations,
   contacts,
   fieldProvenance,
   organizations,
@@ -10,7 +11,7 @@ import {
 import { audit } from "@/modules/audit/service";
 import { contactTagNames } from "@/modules/tags/queries";
 import { setContactTags } from "@/modules/tags/service";
-import { findSimilarContacts } from "./queries";
+import { companies, findSimilarContacts } from "./queries";
 import type {
   ContactEmailInput,
   ContactInput,
@@ -18,7 +19,12 @@ import type {
   NewContactInput,
 } from "./schema";
 
-type Named = { id: string; name: string };
+// Someone a new contact may already be, and where they are, so a form can offer them.
+type Named = {
+  id: string;
+  name: string;
+  companies: { id: string; name: string }[];
+};
 export type ContactResult =
   | { ok: true; id: string }
   | { ok: false; reason: "duplicate"; existing: Named }
@@ -29,11 +35,13 @@ export type ContactEmailResult =
   | { ok: true }
   | { ok: false; reason: "duplicate"; existing: Named }
   | { ok: false; reason: "not_found" };
+export type CompanyLinkResult =
+  | { ok: true }
+  | { ok: false; reason: "not_found" | "unknown_organization" | "already" };
 
 const snapshot = (row: typeof contacts.$inferSelect, tags: string[]) => ({
   firstName: row.firstName,
   lastName: row.lastName,
-  organizationId: row.organizationId,
   jobTitle: row.jobTitle,
   department: row.department,
   phoneE164: row.phoneE164,
@@ -44,9 +52,46 @@ const snapshot = (row: typeof contacts.$inferSelect, tags: string[]) => ({
   preferredChannel: row.preferredChannel,
   status: row.status,
   relationshipType: row.relationshipType,
-  isPrimary: row.isPrimary,
   tags,
 });
+
+const linkOf = (ownerId: string, contactId: string, organizationId: string) =>
+  and(
+    eq(contactOrganizations.ownerId, ownerId),
+    eq(contactOrganizations.contactId, contactId),
+    eq(contactOrganizations.organizationId, organizationId),
+  );
+
+// Puts a person at a company. The first active person there is the one to reach
+// until the owner says otherwise.
+async function insertLink(
+  tx: Tx,
+  ownerId: string,
+  contact: { id: string; archivedAt: Date | null },
+  organizationId: string,
+  link: { jobTitle?: string | null; listedAs?: string | null } = {},
+) {
+  const [colleague] = await tx
+    .select({ id: contacts.id })
+    .from(contactOrganizations)
+    .innerJoin(contacts, eq(contacts.id, contactOrganizations.contactId))
+    .where(
+      and(
+        eq(contactOrganizations.ownerId, ownerId),
+        eq(contactOrganizations.organizationId, organizationId),
+        isNull(contacts.archivedAt),
+      ),
+    )
+    .limit(1);
+  await tx.insert(contactOrganizations).values({
+    ownerId,
+    contactId: contact.id,
+    organizationId,
+    jobTitle: link.jobTitle ?? null,
+    listedAs: link.listedAs ?? null,
+    isPrimary: !colleague && !contact.archivedAt,
+  });
+}
 
 async function ownsOrganization(tx: Tx, ownerId: string, id: string) {
   const [row] = await tx
@@ -58,7 +103,7 @@ async function ownsOrganization(tx: Tx, ownerId: string, id: string) {
 
 async function emailHolder(tx: Tx, ownerId: string, email: string) {
   const [row] = await tx
-    .select({ id: contacts.id, name: contacts.fullName })
+    .select({ id: contacts.id, name: contacts.fullName, companies })
     .from(contactEmails)
     .innerJoin(contacts, eq(contacts.id, contactEmails.contactId))
     .where(
@@ -82,10 +127,10 @@ export async function createContact(
   options: { confirmSimilar?: boolean } = {},
 ): Promise<ContactResult> {
   return db.transaction(async (tx) => {
-    const { email, tags, ...fields } = input;
+    const { email, tags, organizationId, ...fields } = input;
     if (
-      fields.organizationId &&
-      !(await ownsOrganization(tx, ownerId, fields.organizationId))
+      organizationId &&
+      !(await ownsOrganization(tx, ownerId, organizationId))
     ) {
       return { ok: false, reason: "unknown_organization" };
     }
@@ -99,35 +144,18 @@ export async function createContact(
         tx,
         ownerId,
         name,
-        fields.organizationId,
+        organizationId,
       );
       if (candidates.length > 0) {
         return { ok: false, reason: "similar", candidates };
       }
     }
 
-    // The first person added at a company is the one to reach until the owner says otherwise.
-    const [colleague] = fields.organizationId
-      ? await tx
-          .select({ id: contacts.id })
-          .from(contacts)
-          .where(
-            and(
-              eq(contacts.ownerId, ownerId),
-              eq(contacts.organizationId, fields.organizationId),
-              isNull(contacts.archivedAt),
-            ),
-          )
-          .limit(1)
-      : [];
     const [row] = await tx
       .insert(contacts)
-      .values({
-        ownerId,
-        ...fields,
-        isPrimary: Boolean(fields.organizationId) && !colleague,
-      })
+      .values({ ownerId, ...fields })
       .returning();
+    if (organizationId) await insertLink(tx, ownerId, row, organizationId);
     if (email) {
       await tx
         .insert(contactEmails)
@@ -140,9 +168,112 @@ export async function createContact(
       action: "contact.create",
       entityType: "contact",
       entityId: row.id,
-      after: { ...snapshot(row, tags), email },
+      after: { ...snapshot(row, tags), email, organizationId },
     });
     return { ok: true, id: row.id };
+  });
+}
+
+// Puts someone already known at another company too. `listedAs` is the name that
+// company's website gives them, kept so the website stops offering them as new.
+export async function addContactCompany(
+  ownerId: string,
+  contactId: string,
+  organizationId: string,
+  link: { jobTitle: string | null; listedAs?: string | null },
+): Promise<CompanyLinkResult> {
+  return db.transaction(async (tx) => {
+    const contact = await lockContact(tx, ownerId, contactId);
+    if (!contact) return { ok: false, reason: "not_found" };
+    if (!(await ownsOrganization(tx, ownerId, organizationId))) {
+      return { ok: false, reason: "unknown_organization" };
+    }
+    const [existing] = await tx
+      .select({ jobTitle: contactOrganizations.jobTitle })
+      .from(contactOrganizations)
+      .where(linkOf(ownerId, contactId, organizationId));
+    // Already there under their own name: only what the website calls them is new.
+    if (existing && !link.listedAs) return { ok: false, reason: "already" };
+
+    if (existing) {
+      await tx
+        .update(contactOrganizations)
+        .set({
+          listedAs: link.listedAs,
+          jobTitle: existing.jobTitle ?? link.jobTitle,
+        })
+        .where(linkOf(ownerId, contactId, organizationId));
+    } else {
+      await insertLink(tx, ownerId, contact, organizationId, link);
+    }
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: existing ? "contact.match_company" : "contact.add_company",
+      entityType: "contact",
+      entityId: contactId,
+      after: { organizationId, ...link },
+    });
+    return { ok: true };
+  });
+}
+
+// The person stays, with their other companies; only their place at this one goes.
+export async function removeContactCompany(
+  ownerId: string,
+  contactId: string,
+  organizationId: string,
+) {
+  return db.transaction(async (tx) => {
+    if (!(await lockContact(tx, ownerId, contactId))) return false;
+    const [removed] = await tx
+      .delete(contactOrganizations)
+      .where(linkOf(ownerId, contactId, organizationId))
+      .returning();
+    if (!removed) return false;
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "contact.remove_company",
+      entityType: "contact",
+      entityId: contactId,
+      before: {
+        organizationId,
+        jobTitle: removed.jobTitle,
+        isPrimary: removed.isPrimary,
+      },
+    });
+    return true;
+  });
+}
+
+export async function setContactCompanyTitle(
+  ownerId: string,
+  contactId: string,
+  organizationId: string,
+  jobTitle: string | null,
+) {
+  return db.transaction(async (tx) => {
+    if (!(await lockContact(tx, ownerId, contactId))) return false;
+    const [before] = await tx
+      .select({ jobTitle: contactOrganizations.jobTitle })
+      .from(contactOrganizations)
+      .where(linkOf(ownerId, contactId, organizationId));
+    if (!before) return false;
+    await tx
+      .update(contactOrganizations)
+      .set({ jobTitle })
+      .where(linkOf(ownerId, contactId, organizationId));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "contact.set_company_title",
+      entityType: "contact",
+      entityId: contactId,
+      before: { organizationId, jobTitle: before.jobTitle },
+      after: { organizationId, jobTitle },
+    });
+    return true;
   });
 }
 
@@ -154,24 +285,12 @@ export async function updateContact(
   return db.transaction(async (tx) => {
     const before = await lockContact(tx, ownerId, id);
     if (!before) return { ok: false, reason: "not_found" };
-    if (
-      input.organizationId &&
-      !(await ownsOrganization(tx, ownerId, input.organizationId))
-    ) {
-      return { ok: false, reason: "unknown_organization" };
-    }
 
     const beforeTags = await contactTagNames(tx, ownerId, id);
     const { tags, ...fields } = input;
     const [row] = await tx
       .update(contacts)
-      .set({
-        ...fields,
-        // Being the primary contact belongs to the company that was left.
-        ...(fields.organizationId !== before.organizationId && {
-          isPrimary: false,
-        }),
-      })
+      .set(fields)
       .where(and(eq(contacts.ownerId, ownerId), eq(contacts.id, id)))
       .returning();
     await setContactTags(tx, ownerId, id, tags);
@@ -196,13 +315,22 @@ export async function setContactArchived(
   return db.transaction(async (tx) => {
     const [row] = await tx
       .update(contacts)
-      .set({
-        archivedAt: archived ? new Date() : null,
-        ...(archived && { isPrimary: false }),
-      })
+      .set({ archivedAt: archived ? new Date() : null })
       .where(and(eq(contacts.ownerId, ownerId), eq(contacts.id, id)))
       .returning({ id: contacts.id });
     if (!row) return false;
+    if (archived) {
+      // Nobody hidden away stays the person to reach first, at any company.
+      await tx
+        .update(contactOrganizations)
+        .set({ isPrimary: false })
+        .where(
+          and(
+            eq(contactOrganizations.ownerId, ownerId),
+            eq(contactOrganizations.contactId, id),
+          ),
+        );
+    }
     await audit(tx, {
       ownerId,
       actor: "user",
@@ -214,14 +342,18 @@ export async function setContactArchived(
   });
 }
 
-// Emails, links, tags and the person's place on logged activities go with them:
-// their foreign keys cascade. Tasks outlive the person, with the link set to null.
+// Emails, links, tags, their place at each company and on logged activities go with
+// them: their foreign keys cascade. Tasks outlive the person, with the link set to null.
 export async function deleteContact(ownerId: string, id: string) {
   return db.transaction(async (tx) => {
     const before = await lockContact(tx, ownerId, id);
-    if (!before) return null;
+    if (!before) return false;
 
     const tags = await contactTagNames(tx, ownerId, id);
+    const companies = await tx
+      .select({ id: contactOrganizations.organizationId })
+      .from(contactOrganizations)
+      .where(eq(contactOrganizations.contactId, id));
     // Provenance points at any kind of record, so no foreign key clears it.
     await tx
       .delete(fieldProvenance)
@@ -241,9 +373,12 @@ export async function deleteContact(ownerId: string, id: string) {
       action: "contact.delete",
       entityType: "contact",
       entityId: id,
-      before: snapshot(before, tags),
+      before: {
+        ...snapshot(before, tags),
+        organizationIds: companies.map((company) => company.id),
+      },
     });
-    return { organizationId: before.organizationId };
+    return true;
   });
 }
 
@@ -272,32 +407,39 @@ export async function setContactRelationship(
   });
 }
 
-// Marks or unmarks a company's primary contact; a company has at most one.
+// Marks or unmarks a company's primary contact; a company has at most one, and a
+// person may be it at more than one company.
 export async function setPrimaryContact(
   ownerId: string,
   id: string,
+  organizationId: string,
   primary: boolean,
 ) {
   return db.transaction(async (tx) => {
     const contact = await lockContact(tx, ownerId, id);
-    if (!contact?.organizationId || contact.archivedAt) return false;
+    if (!contact || contact.archivedAt) return false;
+    const [link] = await tx
+      .select({ isPrimary: contactOrganizations.isPrimary })
+      .from(contactOrganizations)
+      .where(linkOf(ownerId, id, organizationId));
+    if (!link) return false;
 
     // Clear first: the one-primary-per-company index rejects two even briefly.
     await tx
-      .update(contacts)
+      .update(contactOrganizations)
       .set({ isPrimary: false })
       .where(
         and(
-          eq(contacts.ownerId, ownerId),
-          eq(contacts.organizationId, contact.organizationId),
-          eq(contacts.isPrimary, true),
+          eq(contactOrganizations.ownerId, ownerId),
+          eq(contactOrganizations.organizationId, organizationId),
+          eq(contactOrganizations.isPrimary, true),
         ),
       );
     if (primary) {
       await tx
-        .update(contacts)
+        .update(contactOrganizations)
         .set({ isPrimary: true })
-        .where(eq(contacts.id, id));
+        .where(linkOf(ownerId, id, organizationId));
     }
     await audit(tx, {
       ownerId,
@@ -305,8 +447,8 @@ export async function setPrimaryContact(
       action: "contact.set_primary",
       entityType: "contact",
       entityId: id,
-      before: { isPrimary: contact.isPrimary },
-      after: { isPrimary: primary, organizationId: contact.organizationId },
+      before: { isPrimary: link.isPrimary },
+      after: { isPrimary: primary, organizationId },
     });
     return true;
   });
