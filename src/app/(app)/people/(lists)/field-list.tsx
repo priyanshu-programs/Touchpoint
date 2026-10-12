@@ -20,6 +20,11 @@ import { flushSync } from "react-dom";
 import { cn } from "@/lib/utils";
 import type { LayoutField } from "@/modules/fields/queries";
 
+// A row reads as a plain name until it is pointed at or focused; a touch screen
+// has no pointing, so the controls stay in view there.
+const CONTROL =
+  "rounded-md p-1 text-muted-foreground opacity-0 hover:text-foreground group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-100";
+
 function FieldRow({
   field,
   onMove,
@@ -48,25 +53,10 @@ function FieldRow({
         transition,
       }}
       className={cn(
-        "flex items-center gap-2 rounded-lg border bg-background px-2 py-1.5 text-sm",
-        isDragging && "relative z-10 shadow-md",
+        "group/row flex items-center gap-1 rounded-md px-1 py-0.5 text-sm hover:bg-muted",
+        isDragging && "relative z-10 bg-background shadow-md",
       )}
     >
-      <button
-        type="button"
-        ref={setActivatorNodeRef}
-        {...attributes}
-        {...listeners}
-        aria-label={`Move ${field.label}`}
-        onKeyDown={(event) => {
-          if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-          event.preventDefault();
-          onMove(event.key === "ArrowUp" ? -1 : 1, event.currentTarget);
-        }}
-        className="cursor-grab touch-none rounded-md p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
-      >
-        <GripVertical aria-hidden className="size-4" />
-      </button>
       <span
         className={cn(
           "min-w-0 flex-1 break-words",
@@ -80,13 +70,28 @@ function FieldRow({
         aria-pressed={!field.hidden}
         aria-label={`Show ${field.label}`}
         onClick={onToggle}
-        className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+        className={cn(CONTROL, field.hidden && "opacity-100")}
       >
         {field.hidden ? (
           <EyeOff aria-hidden className="size-4" />
         ) : (
           <Eye aria-hidden className="size-4" />
         )}
+      </button>
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        aria-label={`Move ${field.label}`}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+          event.preventDefault();
+          onMove(event.key === "ArrowUp" ? -1 : 1, event.currentTarget);
+        }}
+        className={cn(CONTROL, "cursor-grab touch-none active:cursor-grabbing")}
+      >
+        <GripVertical aria-hidden className="size-4" />
       </button>
     </li>
   );
@@ -142,7 +147,7 @@ export function FieldList({
         items={items.map(({ key }) => key)}
         strategy={verticalListSortingStrategy}
       >
-        <ul className="grid gap-1.5">
+        <ul className="grid">
           {items.map((field, index) => (
             <FieldRow
               key={field.key}

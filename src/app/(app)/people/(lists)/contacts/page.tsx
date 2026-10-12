@@ -126,6 +126,7 @@ export default async function ContactsPage({
         <RecordSheet
           closeHref={contactsHref(params, NO_PANEL)}
           recordKey={params.fields ? "fields" : open.id}
+          narrow={Boolean(params.fields)}
         >
           {params.fields ? (
             <FieldsPanel

@@ -79,6 +79,46 @@ function persistSidebar(width: number) {
   document.cookie = `sidebar-width=${clamped}; path=/; max-age=31536000; samesite=lax`;
 }
 
+// At the foot of the sidebar; in the top bar on a phone, which has no sidebar.
+function AccountMenu({
+  ownerName,
+  placement,
+  className,
+  children,
+}: {
+  ownerName: string;
+  placement: "sidebar" | "top-bar";
+  className: string;
+  children?: ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger aria-label="Account" className={className}>
+        <span
+          aria-hidden
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
+        >
+          {ownerName.trim().charAt(0).toUpperCase()}
+        </span>
+        {children}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        side={placement === "sidebar" ? "top" : "bottom"}
+        align={placement === "sidebar" ? "start" : "end"}
+        className="min-w-44"
+      >
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="truncate">{ownerName}</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => void signOutAction()}>
+            <LogOut aria-hidden />
+            Sign out
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AppShell({
   ownerName,
   defaultCollapsed,
@@ -201,25 +241,11 @@ export function AppShell({
         <p className="min-w-0 flex-1 truncate font-semibold tracking-tight">
           {ownerName} CRM
         </p>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label="Account"
-            className="flex size-8 items-center justify-center rounded-full bg-muted text-sm font-medium hover:bg-accent"
-          >
-            {ownerName.trim().charAt(0).toUpperCase()}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="truncate">
-                {ownerName}
-              </DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => void signOutAction()}>
-                <LogOut aria-hidden />
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <AccountMenu
+          ownerName={ownerName}
+          placement="top-bar"
+          className="rounded-full hover:opacity-80 md:hidden"
+        />
       </header>
 
       <div className="flex flex-1">
@@ -261,15 +287,18 @@ export function AppShell({
               <kbd className="ml-auto font-mono text-xs">Ctrl K</kbd>
             )}
           </button>
-          <p
+          <AccountMenu
+            ownerName={ownerName}
+            placement="sidebar"
             className={cn(
-              "mt-auto truncate px-2 text-xs text-muted-foreground",
-              collapsed && "sr-only",
+              "mt-auto flex items-center gap-2 rounded-md py-1 text-left text-sm hover:bg-sidebar-accent",
+              collapsed ? "justify-center px-0" : "px-1",
             )}
-            aria-hidden
           >
-            Drag edge to resize
-          </p>
+            <span className={cn("min-w-0 truncate font-medium", railLabel)}>
+              {ownerName}
+            </span>
+          </AccountMenu>
           <div
             role="separator"
             aria-orientation="vertical"

@@ -51,6 +51,16 @@ test("a company's fields are put in order and hidden from the gear on Details", 
   ).toHaveAttribute("aria-current", "page");
   await expect(fields(page)).toHaveText(COMPANY_FIELDS);
 
+  // The section says how many fields it holds, and folds away and back.
+  const section = panel(page).getByText("Standard fields");
+  await expect(
+    panel(page).getByText("9 · reorder and hide only"),
+  ).toBeVisible();
+  await section.click();
+  await expect(fields(page)).toHaveCount(0);
+  await section.click();
+  await expect(fields(page)).toHaveText(COMPANY_FIELDS);
+
   // With the keyboard: from its handle, Name goes down two places and back up one.
   const name = panel(page).getByRole("button", { name: "Move Name" });
   await name.focus();

@@ -297,6 +297,7 @@ export default async function OrganizationsPage({
         <RecordSheet
           closeHref={companiesHref(params, NO_PANEL)}
           recordKey={params.fields ? "fields" : (contact?.id ?? open.id)}
+          narrow={Boolean(params.fields)}
         >
           {params.fields ? (
             <FieldsPanel

@@ -142,6 +142,15 @@ test.describe("signed in", () => {
     const handle = page.getByRole("separator", { name: "Resize sidebar" });
     await expect(handle).toBeVisible();
 
+    // The account menu is at the foot of the sidebar and out of the top bar.
+    const account = { name: "Account" };
+    await expect(
+      page.getByRole("complementary").getByRole("button", account),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("banner").getByRole("button", account),
+    ).toBeHidden();
+
     // Collapse with a double-click; the control is wired up after hydration,
     // so an early interaction can be missed.
     await expect(async () => {
@@ -179,6 +188,10 @@ test.describe("signed in", () => {
       await expect(
         page.getByRole("separator", { name: "Resize sidebar" }),
       ).toBeHidden();
+      // With no sidebar, the account menu stays in the top bar.
+      await expect(
+        page.getByRole("banner").getByRole("button", { name: "Account" }),
+      ).toBeVisible();
 
       await bottomBar.getByRole("link", { name: "Settings" }).click();
       await expect(page).toHaveURL(/\/settings\/profile$/);
