@@ -231,3 +231,4 @@
 - [2026-10-12] Tests: compressImage on a photograph, each format, transparency, orientation and metadata, and what it refuses; a stored photo and logo are WebP within their box; an icon file kept, an oversized one passed over (304 unit tests)
 - [2026-10-12] Checked on cakbrs.com before shipping: logo 12,743 to 4,734 bytes, partner photos 40,786 to 3,332 and 48,246 to 5,304 bytes
 - [2026-10-12] docs/PRD.md 8.2 and 11.2 and security.md describe how pictures are compressed and the limits on decoding them
+- [2026-10-12] Deployed (7b2c2fc); Re-enrich on KBRS & Associates in production replaced its 12,743-byte PNG logo with a 4,734-byte WebP; the Inoya Rouge logo and Richa Sureka's photo, stored earlier, are unchanged
