@@ -78,6 +78,7 @@ Approved deviations (owner sign-off 2026-10-10, see `docs/PRD.md` section 13):
 
 - The website read sends the address of a company's page to Jina Reader (`r.jina.ai`, no key) when that page arrives empty because a browser builds it from scripts (owner sign-off 2026-10-12). Only the address goes, after this app has fetched the page itself and checked the site's robots rules; what comes back is untrusted page text like any other. `WEBSITE_RENDERER=off` stops it.
 - Pictures fetched from company websites are decoded and re-encoded by `sharp` (native code) before they are stored. Only bytes that pass the magic-byte check for PNG, JPEG, GIF or WebP are handed to it, under a download cap, a 40-million-pixel limit and a five-second timeout, and only inside a background job.
+- "Find profile links" sends a person's full name and the name of their first company to Tavily (`api.tavily.com`) to look for their LinkedIn, X and GitHub profiles (owner sign-off 2026-10-12). It happens only when the owner presses the button, never by itself, and only when `TAVILY_API_KEY` is set; without the key the button is not shown. The key travels in a header that is never carried across a redirect. What comes back is untrusted: only addresses that are a profile on one of the three sites are kept, each title is shown as plain text, and nothing is saved on the person until the owner adds it. Searches are limited to 20 an hour, 900 in 30 days and one a minute for the same person.
 
 Project rules:
 
@@ -88,3 +89,4 @@ Project rules:
 - AI tool permissions are enforced in server code, not in prompts. External actions always need explicit user confirmation.
 - Outbound fetches for enrichment must block private and loopback addresses.
 - A link between a contact and a company is written only after both are checked against the owner. Saying a person a website names is an existing contact is accepted only for a pair the server itself offered for that company.
+- A profile link found by name is added only if the stored search offered that address for that person.

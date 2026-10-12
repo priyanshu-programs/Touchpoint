@@ -60,6 +60,19 @@ describe("fetching", () => {
       if (path === "/page") {
         response.setHeader("content-type", "text/html; charset=utf-8");
         response.end("<title>Hello</title>");
+      } else if (path === "/echo") {
+        let body = "";
+        request.on("data", (chunk) => (body += chunk));
+        request.on("end", () =>
+          response.end(
+            JSON.stringify({
+              method: request.method,
+              authorization: request.headers.authorization,
+              length: request.headers["content-length"],
+              body,
+            }),
+          ),
+        );
       } else if (path === "/gzip") {
         response.setHeader("content-encoding", "gzip");
         response.end(zlib.gzipSync("x".repeat(5000)));
@@ -109,6 +122,34 @@ describe("fetching", () => {
   it("follows redirects and reports where it ended", async () => {
     const result = await openFetch(`${base}/hop/2`, options());
     expect(result.url).toBe(`${base}/page`);
+  });
+
+  it("posts a body with the caller's headers", async () => {
+    const result = await openFetch(`${base}/echo`, {
+      ...options(),
+      method: "POST",
+      headers: { authorization: "Bearer key" },
+      body: '{"query":"Zoë"}',
+    });
+
+    expect(JSON.parse(result.body.toString())).toEqual({
+      method: "POST",
+      authorization: "Bearer key",
+      length: "16",
+      body: '{"query":"Zoë"}',
+    });
+  });
+
+  it("will not carry headers or a body across a redirect", async () => {
+    await expect(
+      openFetch(`${base}/hop/0`, {
+        ...options(),
+        headers: { authorization: "Bearer key" },
+      }),
+    ).rejects.toMatchObject({ code: "unreachable" });
+    await expect(
+      openFetch(`${base}/hop/0`, { ...options(), method: "POST", body: "{}" }),
+    ).rejects.toMatchObject({ code: "unreachable" });
   });
 
   it("gives up after three redirects", async () => {

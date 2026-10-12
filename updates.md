@@ -248,3 +248,11 @@
 - [2026-10-12] docs/PRD.md 6 and 8.2, plan.md and security.md describe contact_organizations, the screens and the two checks on a link
 - [2026-10-12] Deployed (20effea, CI green); migration 0009 ran on Neon main and all five people kept their company (four at Inoya Rouge, one at KBRS, none starred), with the two old columns gone
 - [2026-10-12] In production, "Same person, add here" on the KBRS suggestion put Komal Bajaj Bhotika at KBRS & Associates as Partner, listed there as Komal Bhotika; she is still one person, at Inoya Rouge with her own title, and her picture from the KBRS site was stored as a 3,332-byte WebP
+- [2026-10-12] Added optional TAVILY_API_KEY to src/lib/env.ts and .env.example (blank counts as not set), the switch for looking up a person's profile links by name
+- [2026-10-12] safeFetch can send a POST with headers and a body, and refuses to follow a redirect when it carries either, so a key never reaches a second host
+- [2026-10-12] Migration 0010 adds profile_searches (contact, status, candidates on offer), so found profiles can be shown again without another search and searches can be counted against Tavily's free allowance
+- [2026-10-12] Added src/modules/enrichment/profile-search.ts: one Tavily search by name and first company on linkedin.com, x.com and github.com, keeping only addresses that are a person's profile, three of a kind at most, with the result's title
+- [2026-10-12] Added src/modules/enrichment/profiles.ts: request a search (20 an hour, 900 in 30 days, one a minute per person), list what is on offer, add only an address the search offered, dismiss
+- [2026-10-12] A person's Overview has a Profile links section when the key is set: Find profile links, the candidates with Add, and Dismiss; an added link shows in Details and Links through the existing code
+- [2026-10-12] Tests: profile address rules, the search request and its failures, limits, other owners and other people refused, safeFetch POST and redirect refusal (355 unit tests); e2e stages a stored search and adds and dismisses from the panel, with a stand-in key and no search sent (49 tests)
+- [2026-10-12] security.md, plan.md and docs/PRD.md 8.2 describe what is sent to Tavily, the limits and profile_searches

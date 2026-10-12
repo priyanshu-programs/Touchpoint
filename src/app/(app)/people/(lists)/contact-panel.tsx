@@ -18,6 +18,7 @@ import {
 import { ContactCompanies } from "../contacts/contact-companies";
 import { ContactDetails } from "../contacts/contact-details";
 import { ContactEmailsAndLinks } from "../contacts/contact-emails-links";
+import { ProfileSuggestions } from "../contacts/profile-suggestions";
 import { companyHref, labelFor, toOptions } from "../labels";
 import { RecordActions } from "./record-actions";
 import { StatusMenu } from "./status-menu";
@@ -202,6 +203,7 @@ export function ContactPanel({
               </h3>
               <ContactDetails contact={contact} />
             </section>
+            <ProfileSuggestions ownerId={ownerId} contact={contact} />
             <ContactCompanies contact={contact} />
             <ContactEmailsAndLinks contact={contact} />
           </>

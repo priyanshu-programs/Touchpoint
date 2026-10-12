@@ -72,6 +72,10 @@ export type FetchOptions = {
   accept?: string;
   // For a server known to answer slowly; the deadline still applies.
   timeoutMs?: number;
+  method?: "GET" | "POST";
+  // Sent to the first host only: a request carrying these is never redirected.
+  headers?: Record<string, string>;
+  body?: string;
 };
 export type FetchResult = {
   url: string;
@@ -147,16 +151,21 @@ async function requestOnce(
           signal: AbortSignal.timeout(
             Math.min(options.timeoutMs ?? REQUEST_TIMEOUT_MS, remaining),
           ),
+          method: options.method ?? "GET",
           headers: {
             "user-agent": USER_AGENT,
             accept: options.accept ?? "*/*",
             "accept-encoding": "gzip, br, deflate",
+            ...options.headers,
+            ...(options.body === undefined
+              ? {}
+              : { "content-length": Buffer.byteLength(options.body) }),
           },
         },
         resolve,
       );
       request.on("error", reject);
-      request.end();
+      request.end(options.body);
     },
   );
 
@@ -164,6 +173,10 @@ async function requestOnce(
   const location = response.headers.location;
   if (REDIRECTS.has(status) && location) {
     response.destroy();
+    // What was meant for this host, a key among it, goes to no other.
+    if (options.headers || options.body !== undefined) {
+      throw new FetchError("unreachable");
+    }
     return new URL(location, url);
   }
 

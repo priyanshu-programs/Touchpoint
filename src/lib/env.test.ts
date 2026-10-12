@@ -24,6 +24,14 @@ describe("parseEnv", () => {
     );
   });
 
+  it("treats the search key as optional, and a blank one as not set", () => {
+    expect(parseEnv(valid).TAVILY_API_KEY).toBeUndefined();
+    expect(parseEnv({ ...valid, TAVILY_API_KEY: "" }).TAVILY_API_KEY).toBeUndefined();
+    expect(parseEnv({ ...valid, TAVILY_API_KEY: "tvly-abc" }).TAVILY_API_KEY).toBe(
+      "tvly-abc",
+    );
+  });
+
   it("names every missing variable", () => {
     expect(() => parseEnv({ APP_URL: valid.APP_URL })).toThrow(
       /DATABASE_URL, AUTH_SECRET, CRON_SECRET/,

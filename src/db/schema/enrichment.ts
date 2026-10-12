@@ -86,6 +86,43 @@ export const fieldProvenance = pgTable(
   ],
 );
 
+export const PROFILE_KINDS = ["linkedin", "x", "github"] as const;
+export const PROFILE_SEARCH_STATUSES = ["done", "failed"] as const;
+export type ProfileCandidate = {
+  kind: (typeof PROFILE_KINDS)[number];
+  url: string;
+  // How the search result is headed, which tells namesakes apart.
+  title: string | null;
+};
+
+// One search by name for a person's profiles. Kept so the answer can be shown again
+// without another search, and so searches can be counted against the free allowance.
+export const profileSearches = pgTable(
+  "profile_searches",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    status: text("status").notNull(),
+    // What is still on offer, never the search service's answer itself.
+    results: jsonb("results").$type<ProfileCandidate[]>().notNull(),
+    createdAt,
+  },
+  (table) => [
+    check(
+      "profile_searches_status_check",
+      oneOf(table.status, PROFILE_SEARCH_STATUSES),
+    ),
+    index("profile_searches_contact_idx").on(
+      table.ownerId,
+      table.contactId,
+      table.createdAt.desc(),
+    ),
+  ],
+);
+
 // Apart from organizations, so listing companies never loads image bytes.
 export const organizationLogos = pgTable("organization_logos", {
   organizationId: uuid("organization_id")

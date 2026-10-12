@@ -16,7 +16,25 @@ import {
   addContactCompanyAction,
   addContactEmailAction,
   addContactLinkAction,
+  findProfilesAction,
 } from "../actions";
+
+export function FindProfilesForm({ contactId }: { contactId: string }) {
+  const [state, action, pending] = useActionState(
+    findProfilesAction.bind(null, contactId),
+    null,
+  );
+  return (
+    <form action={action} className="grid gap-2">
+      <div>
+        <Button type="submit" variant="outline" size="sm" disabled={pending}>
+          {pending ? "Searching…" : "Find profile links"}
+        </Button>
+      </div>
+      <FormMessage state={state} />
+    </form>
+  );
+}
 
 export function AddCompanyForm({ contactId }: { contactId: string }) {
   // Counts the companies added, so the picker starts empty again after each.

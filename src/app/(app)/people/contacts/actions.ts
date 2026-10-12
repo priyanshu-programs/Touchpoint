@@ -34,6 +34,11 @@ import {
   type ContactResult,
 } from "@/modules/contacts/service";
 import { removeContactPhoto, requestPhoto } from "@/modules/enrichment/photos";
+import {
+  acceptProfile,
+  dismissProfiles,
+  requestProfileSearch,
+} from "@/modules/enrichment/profiles";
 import { suggestedPeople } from "@/modules/enrichment/queries";
 import { runDueJobs } from "@/modules/jobs/service";
 import { handlers } from "@/modules/jobs/tick";
@@ -516,6 +521,44 @@ export async function addContactLinkAction(
   if (!(await addContactLink(owner.id, contactId, parsed.data))) notFound();
   revalidatePath("/people", "layout");
   return { ok: true, message: "Link added." };
+}
+
+const SEARCH_REFUSALS = {
+  disabled: "Searching by name is not set up.",
+  rate_limited: "Too many searches for now. Try again later.",
+  refused_key: "The search service refused the key. Check TAVILY_API_KEY.",
+  used_up: "This month's free searches are used up.",
+  unavailable: "The search service did not answer.",
+};
+
+// Sends the person's name and one company name out to look for their profiles.
+export async function findProfilesAction(id: string): Promise<FormState> {
+  const owner = await requireOwner();
+  const result = await requestProfileSearch(owner.id, z.uuid().parse(id));
+  if (!result.ok) {
+    if (result.reason === "not_found") notFound();
+    return { ok: false, message: SEARCH_REFUSALS[result.reason] };
+  }
+  revalidatePath("/people", "layout");
+  return result.found > 0
+    ? { ok: true, message: `${result.found} found.` }
+    : { ok: true, message: "Nothing found." };
+}
+
+// The form carries an address only, and it is added only if the search offered it.
+export async function addProfileAction(formData: FormData) {
+  const owner = await requireOwner();
+  const { contactId, url } = z
+    .strictObject({ contactId: z.uuid(), url: z.string().max(200) })
+    .parse(readFields(formData, ["contactId", "url"]));
+  await acceptProfile(owner.id, contactId, url);
+  revalidatePath("/people", "layout");
+}
+
+export async function dismissProfilesAction(formData: FormData) {
+  const owner = await requireOwner();
+  await dismissProfiles(owner.id, z.uuid().parse(formData.get("id")));
+  revalidatePath("/people", "layout");
 }
 
 export async function removeContactLinkAction(formData: FormData) {

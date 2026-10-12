@@ -35,6 +35,9 @@ export default defineConfig({
       CRON_SECRET,
       // The suite never sends an address to an outside service.
       WEBSITE_RENDERER: "off",
+      // Not a real key, whatever the developer's own file holds: it only puts the
+      // profile links section on screen. No test presses "Find profile links".
+      TAVILY_API_KEY: "e2e-not-a-key",
     },
   },
 });

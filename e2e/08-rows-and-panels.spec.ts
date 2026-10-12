@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { Pool } from "pg";
 import { OWNER_SESSION } from "./support";
 
 test.describe.configure({ mode: "serial" });
@@ -98,6 +99,74 @@ test("a person row opens the same panel over the people list", async ({
   await page.goto(`/people/contacts/${id}`);
   await expect(page).toHaveURL(new RegExp(`contacts\\?contact=${id}$`));
   await expect(panel(page).getByRole("heading", { name: "Arjun Rao" })).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
+// The search itself goes to an outside service, so its answer is staged here as the
+// app would have stored it; the search and what it keeps are covered in the unit tests.
+// Arjun Rao has a GitHub link from the company contacts tests.
+test("profiles found by name are offered on a person, added on request and dismissed", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const {
+    rows: [arjun],
+  } = await pool.query(
+    "select id, owner_id from contacts where full_name = 'Arjun Rao'",
+  );
+  await pool.query(
+    `insert into profile_searches (owner_id, contact_id, status, results)
+     values ($1, $2, 'done', $3)`,
+    [
+      arjun.owner_id,
+      arjun.id,
+      JSON.stringify([
+        {
+          kind: "linkedin",
+          url: "https://www.linkedin.com/in/arjun-rao",
+          title: "Arjun Rao - Head of Security - Acme Design",
+        },
+        {
+          kind: "linkedin",
+          url: "https://www.linkedin.com/in/arjun-rao-2",
+          title: "Arjun Rao - Chef",
+        },
+        { kind: "github", url: "https://github.com/arjun-rao", title: null },
+        { kind: "x", url: "https://x.com/arjun_rao", title: "Arjun Rao (@arjun_rao)" },
+      ]),
+    ],
+  );
+  await pool.end();
+
+  await page.goto(`/people/contacts?contact=${arjun.id}`);
+  const found = panel(page).getByRole("region", { name: "Profile links" });
+  await expect(found.getByRole("button", { name: "Find profile links" })).toBeVisible();
+  await expect(found).toContainText("Arjun Rao - Head of Security - Acme Design");
+  await expect(found).toContainText("Arjun Rao - Chef");
+  // He has a GitHub link already, so none is offered.
+  await expect(found.getByRole("link")).toHaveCount(3);
+  await expect(found.getByText("github.com")).toHaveCount(0);
+
+  await found
+    .getByRole("button", { name: "Add https://www.linkedin.com/in/arjun-rao", exact: true })
+    .click();
+  await expect(
+    panel(page)
+      .getByRole("region", { name: "Details" })
+      .getByRole("link", { name: "linkedin.com/in/arjun-rao" }),
+  ).toHaveAttribute("href", "https://www.linkedin.com/in/arjun-rao");
+  // The namesake went with it; X is still on offer.
+  await expect(found.getByRole("link")).toHaveCount(1);
+  await expect(found.getByRole("link", { name: "x.com/arjun_rao" })).toBeVisible();
+
+  await found.getByRole("button", { name: "Dismiss" }).click();
+  await expect(found.getByRole("link")).toHaveCount(0);
+  await expect(found.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
+  await expect(found.getByRole("button", { name: "Find profile links" })).toBeVisible();
   expect(consoleErrors).toEqual([]);
 });
 
