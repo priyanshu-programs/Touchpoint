@@ -53,6 +53,7 @@ const reading = (override: Partial<Reading> = {}): ReadResult => ({
       city: "Pune",
       country: "India",
     },
+    guessed: [],
     links: ["https://www.linkedin.com/company/acme"],
     logo: {
       contentType: "image/png",
@@ -121,6 +122,9 @@ describe("enrichment", () => {
       10_000,
     );
 
+  const fromWebsite = async (id: string) =>
+    (await websiteFields(ownerId, id)).map((row) => row.field).sort();
+
   // Puts earlier reads outside the one-a-minute limit.
   const aMinuteLater = () =>
     db
@@ -173,7 +177,10 @@ describe("enrichment", () => {
       contentType: "image/png",
       bytes: PNG,
     });
-    expect((await websiteFields(ownerId, id)).sort()).toEqual([
+    expect(await websiteFields(ownerId, id)).toEqual(
+      expect.arrayContaining([{ field: "city", guessed: false }]),
+    );
+    expect(await fromWebsite(id)).toEqual([
       "city",
       "country",
       "description",
@@ -214,7 +221,7 @@ describe("enrichment", () => {
       city: "Mumbai",
       country: "India",
     });
-    expect(await websiteFields(ownerId, id)).toEqual(["country"]);
+    expect(await fromWebsite(id)).toEqual(["country"]);
   });
 
   it("fills the company's phone and email, and keeps the ones the owner typed", async () => {
@@ -233,7 +240,7 @@ describe("enrichment", () => {
       phone: "+1 555 000 0000",
       email: "hello@acme.test",
     });
-    expect(await websiteFields(ownerId, typed)).toEqual(["email"]);
+    expect(await fromWebsite(typed)).toEqual(["email"]);
   });
 
   it("leaves a field alone once the owner has edited or cleared it", async () => {
@@ -250,10 +257,7 @@ describe("enrichment", () => {
         country: "India",
       }),
     );
-    expect((await websiteFields(ownerId, id)).sort()).toEqual([
-      "country",
-      "website",
-    ]);
+    expect(await fromWebsite(id)).toEqual(["country", "website"]);
 
     await aMinuteLater();
     expect((await requestEnrichment(ownerId, id)).ok).toBe(true);
@@ -264,6 +268,97 @@ describe("enrichment", () => {
       city: null,
       region: "MH",
       country: "India",
+    });
+  });
+
+  it("stores what a read worked out as a guess, and lets what the site states take its place", async () => {
+    const id = await create();
+    const again = async (override: Partial<Reading>) => {
+      await aMinuteLater();
+      await requestEnrichment(ownerId, id);
+      await work(reading(override));
+    };
+
+    await work(
+      reading({
+        fields: { city: "Pune", country: "India", industry: "Accounting" },
+        guessed: ["country", "industry"],
+      }),
+    );
+    expect(await getOrganization(ownerId, id)).toMatchObject({
+      country: "India",
+      industry: "Accounting",
+    });
+    expect(await websiteFields(ownerId, id)).toEqual(
+      expect.arrayContaining([
+        { field: "city", guessed: false },
+        { field: "country", guessed: true },
+        { field: "industry", guessed: true },
+      ]),
+    );
+    const [run] = await db.select().from(enrichmentRuns);
+    expect(run.rawResult).toMatchObject({ guessed: ["country", "industry"] });
+
+    // Another guess is no better than the one already there.
+    await again({
+      fields: { country: "Nepal", industry: "Legal" },
+      guessed: ["country", "industry"],
+    });
+    expect(await getOrganization(ownerId, id)).toMatchObject({
+      country: "India",
+      industry: "Accounting",
+    });
+
+    await again({ fields: { country: "United Arab Emirates" } });
+    expect(await getOrganization(ownerId, id)).toMatchObject({
+      country: "United Arab Emirates",
+      industry: "Accounting",
+    });
+    expect(await websiteFields(ownerId, id)).toEqual(
+      expect.arrayContaining([
+        { field: "country", guessed: false },
+        { field: "industry", guessed: true },
+      ]),
+    );
+    expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+      action: "organization.enrich",
+      before: { country: "India" },
+      after: { country: "United Arab Emirates" },
+    });
+
+    // Nor does a guess, or a different statement, unseat what the site stated.
+    await again({ fields: { country: "Nepal" }, guessed: ["country"] });
+    await again({ fields: { country: "Bhutan" } });
+    expect((await getOrganization(ownerId, id))?.country).toBe(
+      "United Arab Emirates",
+    );
+  });
+
+  it("never guesses over what the owner typed or cleared", async () => {
+    const id = await create({ industry: "Design" });
+    const guess = reading({
+      fields: { country: "India", industry: "Accounting" },
+      guessed: ["country", "industry"],
+    });
+
+    await work(guess);
+    expect(await getOrganization(ownerId, id)).toMatchObject({
+      country: "India",
+      industry: "Design",
+    });
+
+    await updateOrganization(ownerId, id, input({ industry: "", country: "" }));
+    expect(await websiteFields(ownerId, id)).toEqual([]);
+    await aMinuteLater();
+    await requestEnrichment(ownerId, id);
+    await work(guess);
+    await aMinuteLater();
+    await requestEnrichment(ownerId, id);
+    await work(reading({ fields: { country: "India" } }));
+
+    expect(await getOrganization(ownerId, id)).toMatchObject({
+      country: null,
+      industry: null,
     });
   });
 

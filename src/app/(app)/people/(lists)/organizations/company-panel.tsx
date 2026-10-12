@@ -128,12 +128,16 @@ export async function CompanyPanel({
     organization.domain ??
     (organization.website ? new URL(organization.website).hostname : null);
   const website = site ? websiteStatus(site, run, timezone) : null;
-  const fromWebsite = (field: string) =>
-    sourced.includes(field) && (
-      <span className="block text-xs font-normal text-muted-foreground">
-        From website
-      </span>
+  const fromWebsite = (field: string) => {
+    const found = sourced.find((row) => row.field === field);
+    return (
+      found && (
+        <span className="block text-xs font-normal text-muted-foreground">
+          {found.guessed ? "Guessed from website" : "From website"}
+        </span>
+      )
     );
+  };
   const link = (href: string, text: string, external = false) => (
     <a
       href={href}
@@ -165,7 +169,11 @@ export async function CompanyPanel({
       value:
         organization.email && link(`mailto:${organization.email}`, organization.email),
     },
-    { label: "Industry", value: organization.industry },
+    {
+      label: "Industry",
+      note: fromWebsite("industry"),
+      value: organization.industry,
+    },
     { label: "City", note: fromWebsite("city"), value: organization.city },
     { label: "Region", note: fromWebsite("region"), value: organization.region },
     { label: "Country", note: fromWebsite("country"), value: organization.country },

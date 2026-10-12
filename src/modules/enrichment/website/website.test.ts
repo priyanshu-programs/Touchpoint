@@ -224,6 +224,62 @@ describe("extract", () => {
     });
   });
 
+  it("reads an address marked up in the page's tags, after anything JSON-LD states", () => {
+    const marked = `<div itemscope itemtype="https://schema.org/Person">
+        <span itemprop="addressLocality">Nowhere</span></div>
+      <footer itemscope itemtype="https://schema.org/Organization">
+        <div itemprop="address" itemscope itemtype="http://schema.org/PostalAddress">
+          <span itemprop="streetAddress">1 Anvil Road</span>
+          <span itemprop="addressLocality"> <b>Pune</b>\n</span>,
+          <span itemprop="addressRegion">Maharashtra</span>
+          <meta itemprop="addressCountry" content="in">
+          <span itemprop="addressLocality">Twice</span>
+        </div>
+        <span itemprop="addressRegion">Outside the address</span>
+      </footer>
+      <p itemscope itemtype="https://schema.org/PostalAddress">
+        <span itemprop="addressLocality">A second address</span></p>`;
+
+    expect(extract(marked, base)).toMatchObject({
+      city: "Pune",
+      region: "Maharashtra",
+      country: "India",
+    });
+    expect(
+      extract(
+        `${marked}<script type="application/ld+json">
+          {"@type":"Organization","address":{"addressLocality":"Mumbai","addressCountry":"GB"}}
+         </script>`,
+        base,
+      ),
+    ).toMatchObject({ city: "Mumbai", region: "Maharashtra", country: "United Kingdom" });
+    // Not a country code, so it is kept as the site wrote it.
+    expect(
+      extract(
+        `<p itemscope itemtype="https://schema.org/PostalAddress">
+          <span itemprop="addressCountry">Bharat</span><span itemprop="addressRegion">xx</span></p>`,
+        base,
+      ),
+    ).toMatchObject({ city: null, region: "xx", country: "Bharat" });
+  });
+
+  it("gathers how the page describes the company", () => {
+    expect(
+      extract(
+        `<title> Rao &amp; Co |\n Chartered Accountants </title>
+         <meta name="keywords" content="audit, tax"><meta name="description" content="Since 1990">
+         <svg><title>Icon</title></svg>
+         <script type="application/ld+json">
+          {"@type":["Organization","AccountingService"],"description":"Books kept"}
+         </script>`,
+        base,
+      ).about,
+    ).toBe(
+      "Rao & Co | Chartered Accountants Since 1990 audit, tax Books kept Organization Accounting Service",
+    );
+    expect(extract("<p>Hello</p>", base).about).toBeNull();
+  });
+
   it("reads the phone and email the company states about itself", () => {
     const found = extract(
       `<a href="tel:+1-555-000-0000">Sales</a>
@@ -618,6 +674,8 @@ describe("readMarkdown", () => {
         // A biography is not a role, and a picture nobody is named on is nobody's.
         { name: "Vikram Shah", title: null, photo: null },
       ],
+      about:
+        "Services Offered Registration Services Our Team CA Asha Rao Vikram Shah Contact Us",
     });
   });
 
@@ -641,7 +699,9 @@ describe("readMarkdown", () => {
       contactPage: null,
       teamPage: null,
       people: [],
+      about: "Our Story",
     });
+    expect(readMarkdown("Just words.", at, "section").about).toBeNull();
     expect(
       readMarkdown(
         `## Our Team\n### Asha Rao\n![Asha Rao](javascript:void)![Asha Rao](/asha.svg)\nFounder`,
@@ -710,6 +770,7 @@ describe("readWebsite", () => {
       ok: true,
       reading: {
         fields: { website: "https://www.acme.test", description: "Anvils" },
+        guessed: [],
         links: [],
         logo: {
           contentType: "image/webp",
@@ -797,7 +858,10 @@ describe("readWebsite", () => {
             description: "Anvils",
             phone: "+91 20 5550 1234",
             email: "hello@acme.test",
+            // Nowhere on the page: worked out from the number's +91.
+            country: "India",
           },
+          guessed: ["country"],
           rendered: true,
           people: [
             { name: "Asha Rao", title: "Partner", photo },
@@ -883,6 +947,35 @@ describe("readWebsite", () => {
       });
       expect(seen.some((url) => url.startsWith(READER))).toBe(false);
     });
+  });
+
+  it("works out the country and the industry the site does not state, and says which it guessed", async () => {
+    const read = (home: string, host = "acme.test") =>
+      readWebsite(`https://${host}`, site({ [`https://${host}/`]: page(home) }));
+    const firm = `<title>Rao &amp; Co | Chartered Accountants</title>`;
+
+    expect(await read(`${firm}<a href="tel:+912055501234">Call</a>`)).toMatchObject({
+      reading: {
+        fields: { country: "India", industry: "Accounting" },
+        guessed: ["country", "industry"],
+      },
+    });
+    // A number without its code says nothing; the country domain is what is left.
+    expect(await read(`<a href="tel:02055501234">Call</a>`, "acme.co.uk")).toMatchObject({
+      reading: { fields: { country: "United Kingdom" }, guessed: ["country"] },
+    });
+    const stated = await read(
+      `<a href="tel:+912055501234">Call</a><script type="application/ld+json">
+        {"@type":"Organization","address":{"addressCountry":"AE"}}</script>`,
+      "acme.co.uk",
+    );
+    expect(stated).toMatchObject({
+      reading: { fields: { country: "United Arab Emirates" }, guessed: [] },
+    });
+    const unknown = await read(`<a href="tel:+15550000000">Call</a>`, "acme.io");
+    expect(unknown.ok && unknown.reading).toMatchObject({ guessed: [] });
+    expect(unknown.ok && unknown.reading.fields).not.toHaveProperty("country");
+    expect(unknown.ok && unknown.reading.fields).not.toHaveProperty("industry");
   });
 
   it("reads a home page with words on it by itself, team section included", async () => {

@@ -46,10 +46,14 @@ export async function latestRun(ownerId: string, organizationId: string) {
   return row ?? null;
 }
 
-// The company fields whose current value was read from its website.
+// The company fields whose current value was read from its website, and which of
+// them the site did not state but the read worked out.
 export async function websiteFields(ownerId: string, organizationId: string) {
   const rows = await db
-    .select({ field: fieldProvenance.field })
+    .select({
+      field: fieldProvenance.field,
+      confidence: fieldProvenance.confidence,
+    })
     .from(fieldProvenance)
     .where(
       and(
@@ -59,7 +63,10 @@ export async function websiteFields(ownerId: string, organizationId: string) {
         eq(fieldProvenance.source, "website"),
       ),
     );
-  return rows.map((row) => row.field);
+  return rows.map((row) => ({
+    field: row.field,
+    guessed: row.confidence === "guessed",
+  }));
 }
 
 // People the last finished read found on the website who are not among the

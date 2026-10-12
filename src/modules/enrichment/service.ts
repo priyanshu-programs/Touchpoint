@@ -144,24 +144,32 @@ async function applyReading(run: Run, reading: Reading) {
       .for("update");
     if (!organization) return;
 
-    const manual = await tx
-      .select({ field: fieldProvenance.field })
+    const sourced = await tx
+      .select({
+        field: fieldProvenance.field,
+        source: fieldProvenance.source,
+        confidence: fieldProvenance.confidence,
+      })
       .from(fieldProvenance)
       .where(
         and(
           eq(fieldProvenance.ownerId, run.ownerId),
           eq(fieldProvenance.entityType, "organization"),
           eq(fieldProvenance.entityId, run.organizationId),
-          eq(fieldProvenance.source, "manual"),
         ),
       );
-    const kept = new Set(manual.map((row) => row.field));
+    const fieldsWhere = (test: (row: (typeof sourced)[number]) => boolean) =>
+      new Set(sourced.filter(test).map((row) => row.field));
+    const kept = fieldsWhere((row) => row.source === "manual");
+    const guesses = fieldsWhere((row) => row.confidence === "guessed");
+    const guessedNow = new Set(reading.guessed);
     const filled: Partial<Record<EnrichableField, string>> = {};
     for (const field of ENRICHABLE_FIELDS) {
       const value = reading.fields[field];
-      if (value && !organization[field] && !kept.has(field)) {
-        filled[field] = value;
-      }
+      if (!value || kept.has(field)) continue;
+      // What the site states takes the place of an earlier guess; a guess replaces nothing.
+      const settles = guesses.has(field) && !guessedNow.has(field);
+      if (!organization[field] || settles) filled[field] = value;
     }
     const filledFields = Object.keys(filled) as EnrichableField[];
 
@@ -184,7 +192,7 @@ async function applyReading(run: Run, reading: Reading) {
             entityId: organization.id,
             field,
             source: "website",
-            confidence: "inferred",
+            confidence: guessedNow.has(field) ? "guessed" : "inferred",
             runId: run.id,
           })),
         )
@@ -197,7 +205,7 @@ async function applyReading(run: Run, reading: Reading) {
           ],
           set: {
             source: "website",
-            confidence: "inferred",
+            confidence: sql`excluded.confidence`,
             retrievedAt: new Date(),
             runId: run.id,
           },
@@ -231,7 +239,9 @@ async function applyReading(run: Run, reading: Reading) {
         action: "organization.enrich",
         entityType: "organization",
         entityId: organization.id,
-        before: Object.fromEntries(filledFields.map((field) => [field, null])),
+        before: Object.fromEntries(
+          filledFields.map((field) => [field, organization[field]]),
+        ),
         after: { ...filled, logo: reading.logo?.sourceUrl ?? null },
       });
     }
@@ -243,6 +253,7 @@ async function applyReading(run: Run, reading: Reading) {
         finishedAt: new Date(),
         rawResult: {
           fields: reading.fields,
+          guessed: reading.guessed,
           links: reading.links,
           people: reading.people,
           rendered: reading.rendered,

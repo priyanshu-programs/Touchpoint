@@ -1,0 +1,2 @@
+ALTER TABLE "field_provenance" DROP CONSTRAINT "field_provenance_confidence_check";--> statement-breakpoint
+ALTER TABLE "field_provenance" ADD CONSTRAINT "field_provenance_confidence_check" CHECK ("field_provenance"."confidence" in ('verified', 'inferred', 'guessed'));

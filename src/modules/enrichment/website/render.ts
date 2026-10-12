@@ -34,6 +34,7 @@ const MAX_PAIRS = 200;
 const MAX_IMAGES = 500;
 const MAX_CONTACT_LINKS = 20;
 const MAX_LABEL = 300;
+const MAX_ABOUT_HEADINGS = 20;
 const HEADING = /^(#{1,6})\s+(.+)$/;
 // How the reader labels a picture ahead of its own description.
 const IMAGE_LABEL = /^Image \d+:?\s*/;
@@ -110,6 +111,8 @@ export type Drawn = {
   contactPage: string | null;
   teamPage: string | null;
   people: Person[];
+  // The page's first headings: how it introduces the company, for the industry guess.
+  about: string | null;
 };
 
 // Link and emphasis marks off, so a heading or a role reads as its words.
@@ -137,6 +140,7 @@ export function readMarkdown(markdown: string, baseUrl: string, scope: Scope): D
     section: string | null;
   }[] = [];
   const sections = new Map<number, string>();
+  const headings: string[] = [];
   let contactPage: string | null = null;
   let teamPage: string | null = null;
   // The name whose role has not been read yet.
@@ -183,6 +187,7 @@ export function readMarkdown(markdown: string, baseUrl: string, scope: Scope): D
         if (level >= depth) sections.delete(level);
       }
       if (said) sections.set(depth, said);
+      if (said && headings.length < MAX_ABOUT_HEADINGS) headings.push(said);
       if (
         depth > 1 &&
         stated.length <= MAX_NAME &&
@@ -217,5 +222,6 @@ export function readMarkdown(markdown: string, baseUrl: string, scope: Scope): D
       photo:
         images.find(({ label }) => label.endsWith(name.toLowerCase()))?.url ?? null,
     })),
+    about: headings.join(" ") || null,
   };
 }

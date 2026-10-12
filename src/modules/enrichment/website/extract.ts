@@ -1,8 +1,12 @@
 import { Parser } from "htmlparser2";
 import { emailAddress, phoneNumber } from "@/lib/form";
+import { countryName } from "./guess";
 
 export type Extracted = {
   description: string | null;
+  // How the page describes the company (title, descriptions, keywords, JSON-LD type):
+  // what an industry is guessed from.
+  about: string | null;
   phone: string | null;
   email: string | null;
   city: string | null;
@@ -34,6 +38,12 @@ const MAX_STAFF = 50;
 const MIN_PAGE_TEXT = 200;
 // Text in these is not what a visitor reads.
 const UNREAD = new Set(["script", "style", "template", "noscript", "title"]);
+const MAX_SNIPPET = 300;
+// The parts of an address a page can mark up in its tags (schema.org microdata).
+const ADDRESS_PARTS = ["addressLocality", "addressRegion", "addressCountry"] as const;
+type AddressPart = (typeof ADDRESS_PARTS)[number];
+const isAddressPart = (value: string): value is AddressPart =>
+  (ADDRESS_PARTS as readonly string[]).includes(value);
 
 // Page text is someone else's: one line, no control characters, no longer than the field allows.
 export function clean(value: unknown, max: number) {
@@ -142,11 +152,34 @@ export function extract(html: string, baseUrl: string): Extracted {
   let jsonLd: string | null = null;
   let unread = 0;
   let pageText = 0;
+  let title: string | null = null;
+  let inTitle = false;
+  let depth = 0;
+  // Where the page's first marked-up postal address opened, while inside it.
+  let addressAt: number | null = null;
+  let addressRead = false;
+  // The part of it whose words are being read.
+  let part: { name: AddressPart; at: number; text: string } | null = null;
+  const marked: Partial<Record<AddressPart, string>> = {};
 
   const parser = new Parser(
     {
       onopentag(name, attributes) {
+        depth += 1;
         if (UNREAD.has(name)) unread += 1;
+        if (name === "title" && title === null) {
+          title = "";
+          inTitle = true;
+        }
+        const itemprop = attributes.itemprop?.trim() ?? "";
+        if (addressAt === null) {
+          if (!addressRead && /PostalAddress\/?$/.test(attributes.itemtype?.trim() ?? "")) {
+            addressAt = depth;
+          }
+        } else if (!part && isAddressPart(itemprop) && !(itemprop in marked)) {
+          if (attributes.content !== undefined) marked[itemprop] = attributes.content;
+          else part = { name: itemprop, at: depth, text: "" };
+        }
         if (name === "meta") {
           const key = (attributes.name ?? attributes.property ?? "")
             .trim()
@@ -197,11 +230,23 @@ export function extract(html: string, baseUrl: string): Extracted {
       },
       ontext(text) {
         if (jsonLd !== null && jsonLd.length < MAX_JSON_LD) jsonLd += text;
+        if (inTitle && title !== null && title.length < MAX_SNIPPET) title += text;
+        if (part && part.text.length < MAX_SNIPPET) part.text += text;
         if (unread === 0 && pageText < MIN_PAGE_TEXT) {
           pageText += text.replace(/\s+/g, "").length;
         }
       },
       onclosetag(name) {
+        if (part && depth === part.at) {
+          marked[part.name] = part.text;
+          part = null;
+        }
+        if (depth === addressAt) {
+          addressAt = null;
+          addressRead = true;
+        }
+        depth -= 1;
+        if (name === "title") inTitle = false;
         if (UNREAD.has(name)) unread = Math.max(0, unread - 1);
         if (name !== "script" || jsonLd === null) return;
         const source = jsonLd;
@@ -224,21 +269,47 @@ export function extract(html: string, baseUrl: string): Extracted {
   // What the page states about the company outranks a link that may be anyone's.
   const stated = [found, ...list(found?.contactPoint)].filter(isNode);
   const linked = emailLinks.map(email).filter((address) => address !== null);
+  const types = list(found?.["@type"])
+    .filter((type) => typeof type === "string")
+    // AccountingService reads as two words.
+    .map((type) => type.replace(/([a-z])([A-Z])/g, "$1 $2"));
 
   return {
     description:
       clean(meta.get("description"), 2000) ??
       clean(meta.get("og:description"), 2000) ??
       clean(found?.description, 2000),
+    about: clean(
+      [
+        title,
+        meta.get("description"),
+        meta.get("og:description"),
+        meta.get("keywords"),
+        found?.description,
+        ...types,
+      ]
+        .filter((value) => typeof value === "string")
+        .map((value) => value.slice(0, 2000))
+        .join(" "),
+      5000,
+    ),
     phone:
       firstFound(stated.map((node) => phone(node.telephone))) ??
       firstFound(phoneLinks.map(phone)),
     email:
       firstFound(stated.map((node) => email(node.email))) ??
       ownEmail(linked, site),
-    city: clean(place(address?.addressLocality), 100),
-    region: clean(place(address?.addressRegion), 100),
-    country: clean(place(address?.addressCountry), 100),
+    // What the company states in JSON-LD outranks an address marked up in the page.
+    city:
+      clean(place(address?.addressLocality), 100) ??
+      clean(marked.addressLocality, 100),
+    region:
+      clean(place(address?.addressRegion), 100) ??
+      clean(marked.addressRegion, 100),
+    country: countryName(
+      clean(place(address?.addressCountry), 100) ??
+        clean(marked.addressCountry, 100),
+    ),
     links: [
       ...new Set(
         list(found?.sameAs)

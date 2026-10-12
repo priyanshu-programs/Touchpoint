@@ -18,7 +18,8 @@ export const ENRICHMENT_STATUSES = [
   "failed",
 ] as const;
 export const PROVENANCE_SOURCES = ["manual", "website"] as const;
-export const PROVENANCE_CONFIDENCES = ["verified", "inferred"] as const;
+// "guessed" is worked out from a hint (a phone code, a keyword), not stated by the site.
+export const PROVENANCE_CONFIDENCES = ["verified", "inferred", "guessed"] as const;
 
 export const enrichmentRuns = pgTable(
   "enrichment_runs",

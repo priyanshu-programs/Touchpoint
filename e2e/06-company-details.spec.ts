@@ -150,6 +150,46 @@ test("a stored logo replaces the initials in the panel and the list", async ({
   expect(consoleErrors).toEqual([]);
 });
 
+test("what a read worked out is marked as a guess, until the owner edits it", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  // Placed directly, standing in for a read that found the city stated and worked out the rest.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  await pool.query(
+    `update organizations set city = 'Pune', country = 'India', industry = 'Accounting' where id = $1`,
+    [companyId],
+  );
+  await pool.query(
+    `insert into field_provenance (owner_id, entity_type, entity_id, field, source, confidence)
+     select owner_id, 'organization', id, staged.field, 'website', staged.confidence
+     from organizations,
+       (values ('city', 'inferred'), ('country', 'guessed'), ('industry', 'guessed'))
+         as staged (field, confidence)
+     where id = $1`,
+    [companyId],
+  );
+  await pool.end();
+  const details = panel(page).getByRole("region", { name: "Details" });
+  const guessed = details.getByText("Guessed from website", { exact: true });
+
+  await page.goto(`/people/organizations?company=${companyId}`);
+  await expect(details).toContainText("Accounting");
+  await expect(guessed).toHaveCount(2);
+  await expect(details.getByText("From website", { exact: true })).toHaveCount(1);
+
+  await recordAction(page, "Edit");
+  await page.getByLabel("Industry").fill("Audit");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  await expect(details).toContainText("Audit");
+  await expect(guessed).toHaveCount(1);
+  expect(consoleErrors).toEqual([]);
+});
+
 test("people a read found on the website are offered on Contacts and added on request", async ({
   page,
 }) => {

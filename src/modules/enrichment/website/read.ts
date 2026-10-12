@@ -1,5 +1,6 @@
 import { FetchError, safeFetch, type Fetcher, type FetchResult } from "@/lib/safe-fetch";
 import { extract, type Extracted } from "./extract";
+import { countryFromDomain, countryFromPhone, guessIndustry } from "./guess";
 import {
   compressImage,
   imageType,
@@ -18,8 +19,11 @@ export const ENRICHABLE_FIELDS = [
   "country",
   "phone",
   "email",
+  "industry",
 ] as const;
 export type EnrichableField = (typeof ENRICHABLE_FIELDS)[number];
+// What a page can state outright. The industry is only ever guessed.
+type StatedField = Exclude<EnrichableField, "website" | "industry">;
 // What a contact page is read for. Its description is about the page, not the company.
 const CONTACT_FIELDS = ["phone", "email", "city", "region", "country"] as const;
 
@@ -36,6 +40,8 @@ export type ReadError = (typeof READ_ERRORS)[number];
 
 export type Reading = {
   fields: Partial<Record<EnrichableField, string>>;
+  // The fields above that the site does not state and were worked out from a hint.
+  guessed: EnrichableField[];
   links: string[];
   logo: { contentType: string; bytes: Buffer; sourceUrl: string } | null;
   // People the site names as the company's own; offered to the owner, never added unasked.
@@ -132,10 +138,7 @@ export async function readWebsite(
     const homeHtml = text(page);
     const found = extract(homeHtml, landed.href);
     const fields: Reading["fields"] = { website: landed.origin };
-    const take = (
-      from: Extracted,
-      names: readonly Exclude<EnrichableField, "website">[],
-    ) => {
+    const take = (from: Extracted, names: readonly StatedField[]) => {
       for (const field of names) {
         const value = from[field];
         if (value && !fields[field]) fields[field] = value;
@@ -198,6 +201,20 @@ export async function readWebsite(
       }
     }
 
+    // A number's international code says more than a domain, which anyone can register.
+    const guesses = {
+      country: countryFromPhone(fields.phone) ?? countryFromDomain(landed.hostname),
+      industry: guessIndustry(`${found.about ?? ""} ${homeDrawn?.about ?? ""}`),
+    };
+    const guessed: EnrichableField[] = [];
+    for (const field of ["country", "industry"] as const) {
+      const value = guesses[field];
+      if (value && !fields[field]) {
+        fields[field] = value;
+        guessed.push(field);
+      }
+    }
+
     const named: Person[] = [];
     const team = teamPage ? new URL(teamPage) : null;
     if (team && team.href !== landed.href && allowed(team)) {
@@ -234,6 +251,7 @@ export async function readWebsite(
       ok: true,
       reading: {
         fields,
+        guessed,
         links: found.links,
         logo,
         people: listPeople([...named, ...found.staff]).map((person) => {

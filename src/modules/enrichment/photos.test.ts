@@ -244,6 +244,7 @@ describe("contact photos", () => {
             ok: true,
             reading: {
               fields: {},
+              guessed: [],
               links: [],
               logo: null,
               people: [{ name: "Asha Rao", title: "Founder", photo: ASHA }],
