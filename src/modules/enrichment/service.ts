@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { enqueue, type ClaimedJob } from "@/modules/jobs/service";
+import { requestKnownPhotos } from "./photos";
 import {
   ENRICHABLE_FIELDS,
   readWebsite,
@@ -217,6 +218,8 @@ async function applyReading(run: Run, reading: Reading) {
           set: logo,
         });
     }
+
+    await requestKnownPhotos(tx, run.ownerId, organization.id, reading.people);
 
     if (filledFields.length > 0 || reading.logo) {
       await audit(tx, {

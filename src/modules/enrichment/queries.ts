@@ -1,7 +1,9 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
+import { httpUrl } from "@/lib/url";
 import {
+  contactPhotos,
   contacts,
   enrichmentRuns,
   fieldProvenance,
@@ -14,6 +16,8 @@ const foundPeople = z.object({
       z.strictObject({
         name: z.string().min(1).max(60),
         title: z.string().max(150).nullable(),
+        // Reads from before pictures were looked for have none.
+        photo: httpUrl.nullable().default(null),
       }),
     )
     .max(12),
@@ -105,6 +109,22 @@ export async function getLogo(ownerId: string, organizationId: string) {
       and(
         eq(organizationLogos.ownerId, ownerId),
         eq(organizationLogos.organizationId, organizationId),
+      ),
+    );
+  return row ?? null;
+}
+
+export async function getPhoto(ownerId: string, contactId: string) {
+  const [row] = await db
+    .select({
+      contentType: contactPhotos.contentType,
+      bytes: contactPhotos.bytes,
+    })
+    .from(contactPhotos)
+    .where(
+      and(
+        eq(contactPhotos.ownerId, ownerId),
+        eq(contactPhotos.contactId, contactId),
       ),
     );
   return row ?? null;

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
 import type { FormState } from "@/app/(app)/settings/actions";
 import { readFields } from "@/lib/form";
@@ -28,7 +29,10 @@ import {
   updateContact,
   type ContactResult,
 } from "@/modules/contacts/service";
+import { removeContactPhoto, requestPhoto } from "@/modules/enrichment/photos";
 import { suggestedPeople } from "@/modules/enrichment/queries";
+import { runDueJobs } from "@/modules/jobs/service";
+import { handlers } from "@/modules/jobs/tick";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
 import { companyHref, contactHref, contactPanelHref } from "../labels";
 
@@ -172,6 +176,7 @@ export async function addSuggestedContactsAction(
     (person) => chosen.has(person.name),
   );
   let added = 0;
+  let pictured = false;
   for (const person of people) {
     const [firstName, ...rest] = person.name.split(" ");
     const input = newContactInput.safeParse({
@@ -193,9 +198,16 @@ export async function addSuggestedContactsAction(
     });
     if (!input.success) continue;
     const result = await createContact(owner.id, input.data);
-    if (result.ok) added += 1;
+    if (!result.ok) continue;
+    added += 1;
+    if (person.photo) {
+      await requestPhoto(owner.id, result.id, person.photo);
+      pictured = true;
+    }
   }
 
+  // The pictures would otherwise wait for the scheduler, up to fifteen minutes away.
+  if (pictured) after(() => runDueJobs(handlers, 10_000));
   if (added > 0) revalidatePath("/people", "layout");
   const skipped = chosen.size - added;
   if (skipped === 0) return { ok: true, message: `${added} added.` };
@@ -269,6 +281,12 @@ export async function setContactRelationshipAction(
     z.enum(RELATIONSHIP_TYPES).parse(relationshipType),
   );
   if (!changed) notFound();
+  revalidatePath("/people", "layout");
+}
+
+export async function removeContactPhotoAction(formData: FormData) {
+  const owner = await requireOwner();
+  await removeContactPhoto(owner.id, z.uuid().parse(formData.get("id")));
   revalidatePath("/people", "layout");
 }
 

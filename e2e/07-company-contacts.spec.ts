@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { Pool } from "pg";
 import { OWNER_SESSION, recordAction } from "./support";
 
 test.describe.configure({ mode: "serial" });
@@ -15,6 +16,10 @@ const star = (page: Page, name: string) =>
     exact: true,
   });
 const IN_PANEL = /\?company=[0-9a-f-]+&contact=[0-9a-f-]+$/;
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 async function openContacts(page: Page) {
   await page.goto("/people/organizations");
@@ -132,6 +137,62 @@ test("the status of a company and of a person is switched from its badge", async
   await badge("Relationship", "Referrer").click();
   await choose("Prospect");
   await expect(badge("Relationship", "Prospect")).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("a picture read from the company's site shows for the person and can be removed", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  // Placed directly, standing in for a read that found one beside the name.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  const { rows } = await pool.query(
+    `insert into contact_photos (contact_id, owner_id, content_type, bytes, sha256, source_url)
+     select id, owner_id, 'image/png', $1, 'abcdef0123456789', 'https://acme.test/people/arjun.png'
+     from contacts where full_name = 'Arjun Rao'
+     returning contact_id`,
+    [ONE_PIXEL_PNG],
+  );
+  await pool.end();
+  const src = `/api/contacts/${rows[0].contact_id}/photo?v=abcdef012345`;
+
+  await openContacts(page);
+  const inTable = panel(page).getByRole("row", { name: /Arjun Rao/ }).locator("img");
+  await expect(inTable).toHaveAttribute("src", src);
+  // Decoded by the browser: the page's CSP let it load and the bytes are an image.
+  await expect
+    .poll(() => inTable.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(1);
+  // The others keep their initials.
+  await expect(panel(page).getByRole("row").locator("img")).toHaveCount(1);
+
+  const response = await page.request.get(src);
+  expect(response.headers()).toMatchObject({
+    "content-type": "image/png",
+    "cache-control": "private, max-age=31536000, immutable",
+    "x-content-type-options": "nosniff",
+  });
+  const signedOut = await browser.newContext({
+    storageState: { cookies: [], origins: [] },
+  });
+  expect((await signedOut.request.get(`${baseURL}${src}`)).status()).toBe(401);
+  await signedOut.close();
+
+  await panel(page).getByRole("link", { name: "Arjun Rao" }).click();
+  const inHeader = panel(page).locator("header img");
+  await expect(inHeader).toHaveAttribute("src", src);
+  await recordAction(page, "Remove photo");
+  await expect(inHeader).toHaveCount(0);
+  // With no picture left there is nothing to remove.
+  await page.getByRole("button", { name: "More actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Remove photo" })).toHaveCount(0);
+  expect((await page.request.get(src)).status()).toBe(404);
   expect(consoleErrors).toEqual([]);
 });
 

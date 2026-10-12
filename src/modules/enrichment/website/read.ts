@@ -170,7 +170,7 @@ export async function readWebsite(
           html(more.contentType) &&
           sameSite(landed.hostname, new URL(more.url).hostname)
         ) {
-          named.push(...extractPeople(text(more)));
+          named.push(...extractPeople(text(more), more.url));
         }
       } catch (error) {
         // As with the contact page: the company's own details were read.
@@ -184,7 +184,13 @@ export async function readWebsite(
         fields,
         links: found.links,
         logo,
-        people: listPeople([...named, ...found.staff]),
+        people: listPeople([...named, ...found.staff]).map((person) => {
+          const photo = person.photo ? new URL(person.photo) : null;
+          // The site's own pictures are under its robots rules, like its pages.
+          const refused =
+            photo && photo.origin === landed.origin && !allowed(photo);
+          return refused ? { ...person, photo: null } : person;
+        }),
       },
     };
   } catch (error) {

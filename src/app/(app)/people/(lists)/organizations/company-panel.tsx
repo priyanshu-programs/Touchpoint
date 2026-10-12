@@ -1,7 +1,7 @@
 import { Star } from "lucide-react";
 import Link from "next/link";
 import { ClickableRow } from "@/components/clickable-row";
-import { CompanyLogo, Monogram } from "@/components/company-logo";
+import { CompanyLogo, ContactAvatar } from "@/components/company-logo";
 import {
   DetailRows,
   SECTION_HEADING,
@@ -351,9 +351,10 @@ export async function CompanyPanel({
                                 />
                               </button>
                             </form>
-                            <Monogram
+                            <ContactAvatar
+                              id={contact.id}
                               name={contact.fullName}
-                              className="rounded-full"
+                              photoVersion={contact.photoVersion}
                             />
                             <div className="grid min-w-0 gap-0.5">
                               <Link

@@ -17,7 +17,7 @@ export type Extracted = {
   // The page listing the company's people, when this page links to one.
   teamPage: string | null;
   // People the company names as its own (JSON-LD founder, employee, member).
-  staff: { name: string; title: string | null }[];
+  staff: { name: string; title: string | null; photo: string | null }[];
 };
 
 const MAX_JSON_LD = 200_000;
@@ -41,7 +41,7 @@ export function clean(value: unknown, max: number) {
   return text || null;
 }
 
-function webUrl(value: unknown, base: string) {
+export function webUrl(value: unknown, base: string) {
   if (typeof value !== "string") return null;
   try {
     const url = new URL(value.trim(), base);
@@ -51,6 +51,15 @@ function webUrl(value: unknown, base: string) {
   } catch {
     return null;
   }
+}
+
+const MAX_URL = 2000;
+
+// A picture that can be stored: a web address, and not an SVG, which can carry script.
+export function photoUrl(value: unknown, base: string) {
+  const url = webUrl(value, base);
+  if (!url || url.length > MAX_URL) return null;
+  return new URL(url).pathname.toLowerCase().endsWith(".svg") ? null : url;
 }
 
 type Node = Record<string, unknown>;
@@ -235,7 +244,16 @@ export function extract(html: string, baseUrl: string): Extracted {
       .slice(0, MAX_STAFF)
       .flatMap((person) => {
         const name = clean(person.name, 60);
-        return name ? [{ name, title: clean(person.jobTitle, 150) }] : [];
+        const image = list(person.image)[0];
+        return name
+          ? [
+              {
+                name,
+                title: clean(person.jobTitle, 150),
+                photo: photoUrl(isNode(image) ? image.url : image, baseUrl),
+              },
+            ]
+          : [];
       }),
   };
 }

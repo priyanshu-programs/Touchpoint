@@ -1,12 +1,23 @@
 import { Parser } from "htmlparser2";
-import { clean } from "./extract";
+import { clean, photoUrl } from "./extract";
 
-export type Person = { name: string; title: string | null };
+export type Person = {
+  name: string;
+  title: string | null;
+  // The address of a picture shown beside the name, not the picture itself.
+  photo: string | null;
+};
 
 const MAX_PEOPLE = 12;
 const MAX_PAIRS = 200;
+const MAX_IMAGES = 500;
+// Places are compared from the outside in; past this depth every card looks the same and gets no picture.
+const MAX_DEPTH = 128;
 const MAX_NAME = 60;
 const MAX_TITLE = 150;
+// How far up from a name its card can reach; further up is the page, not the card.
+const CARD_REACH = 4;
+const MIN_PHOTO_SIDE = 40;
 const HEADING = /^h[2-6]$/;
 const HONORIFIC = /^(mr|mrs|ms|miss|dr|prof)\.?\s+/i;
 // Two to four words, each starting with a capital: how a name is written and few headings are.
@@ -26,24 +37,63 @@ export function listPeople(candidates: Person[]): Person[] {
     const key = name.toLowerCase();
     if (!name || seen.has(key)) continue;
     seen.add(key);
-    people.push({ name, title: candidate.title });
+    people.push({ ...candidate, name });
     if (people.length === MAX_PEOPLE) break;
   }
   return people;
 }
 
-// Reads a team page laid out as a name in a heading with the role under it.
-export function extractPeople(html: string): Person[] {
-  const pairs: { level: string; name: string; title: string | null }[] = [];
-  let heading: { level: string; text: string } | null = null;
+// Where an element sits: the numbers of the elements around it, outermost first.
+type Place = number[];
+
+function shared(a: Place, b: Place) {
+  let length = 0;
+  while (length < a.length && length < b.length && a[length] === b[length]) {
+    length += 1;
+  }
+  return length;
+}
+
+// Lazy-loading pages keep the real address out of `src` until the picture scrolls into view.
+function imageAddress(attributes: Record<string, string>, baseUrl: string) {
+  const declared = [attributes.width, attributes.height]
+    .map((side) => Number.parseInt(side ?? "", 10))
+    .filter((side) => !Number.isNaN(side));
+  if (declared.some((side) => side < MIN_PHOTO_SIDE)) return null;
+  const candidates = [
+    attributes.src,
+    attributes["data-src"],
+    attributes["data-lazy-src"],
+    attributes.srcset?.trim().split(/[\s,]/)[0],
+  ];
+  for (const candidate of candidates) {
+    const url = photoUrl(candidate, baseUrl);
+    if (url) return url;
+  }
+  return null;
+}
+
+// Reads a team page laid out as a name in a heading with the role under it,
+// and the picture in the same card when there is one.
+export function extractPeople(html: string, baseUrl: string): Person[] {
+  const pairs: {
+    level: string;
+    name: string;
+    title: string | null;
+    place: Place;
+  }[] = [];
+  const images: { place: Place; url: string }[] = [];
+  let heading: { level: string; text: string; place: Place } | null = null;
   // A name waiting for its role; `within` is how deep the role's first words sit.
   let pending: {
     level: string;
     name: string;
     text: string;
     within: number | null;
+    place: Place;
   } | null = null;
-  let depth = 0;
+  const place: Place = [];
+  let opened = 0;
   let chrome = 0;
   let unseen = false;
 
@@ -51,7 +101,7 @@ export function extractPeople(html: string): Person[] {
     if (heading) {
       if (heading.text.length < 200) heading.text += text;
     } else if (pending && pending.text.length < 400) {
-      if (pending.within === null && text.trim()) pending.within = depth;
+      if (pending.within === null && text.trim()) pending.within = place.length;
       pending.text += text;
     }
   };
@@ -65,6 +115,7 @@ export function extractPeople(html: string): Person[] {
         name: pending.name,
         // Longer than a role: a biography or the next section's opening line.
         title: title && title.length <= MAX_TITLE ? title : null,
+        place: pending.place,
       });
     }
     pending = null;
@@ -72,14 +123,21 @@ export function extractPeople(html: string): Person[] {
 
   const parser = new Parser(
     {
-      onopentag(name) {
-        depth += 1;
+      onopentag(name, attributes) {
+        opened += 1;
+        place.push(opened);
         if (CHROME.has(name)) chrome += 1;
         else if (UNSEEN.has(name)) unseen = true;
         else if (HEADING.test(name)) {
           settle();
-          if (chrome === 0) heading = { level: name, text: "" };
+          if (chrome === 0) {
+            heading = { level: name, text: "", place: place.slice(0, MAX_DEPTH) };
+          }
         } else {
+          if (name === "img" && chrome === 0 && images.length < MAX_IMAGES) {
+            const url = imageAddress(attributes, baseUrl);
+            if (url) images.push({ place: place.slice(0, MAX_DEPTH), url });
+          }
           // Words on either side of a tag are separate words.
           read(" ");
         }
@@ -88,15 +146,22 @@ export function extractPeople(html: string): Person[] {
         if (!unseen) read(text);
       },
       onclosetag(name) {
-        const closing = depth;
-        depth = Math.max(0, depth - 1);
+        const closing = place.length;
+        place.pop();
         if (CHROME.has(name)) chrome = Math.max(0, chrome - 1);
         else if (UNSEEN.has(name)) unseen = false;
         else if (heading && name === heading.level) {
           const stated = clean(heading.text, 80)?.replace(HONORIFIC, "") ?? "";
+          const at = heading.place;
           heading = null;
           if (stated.length <= MAX_NAME && NAME.test(stated)) {
-            pending = { level: name, name: stated, text: "", within: null };
+            pending = {
+              level: name,
+              name: stated,
+              text: "",
+              within: null,
+              place: at,
+            };
           }
         } else if (pending?.within === closing) {
           // The element holding the first words after the name has ended.
@@ -119,5 +184,18 @@ export function extractPeople(html: string): Person[] {
   );
   return pairs
     .filter((pair) => staffed.has(pair.level))
-    .map(({ name, title }) => ({ name, title }));
+    .map((pair) => {
+      // The card is whatever holds this name and no other; its first picture is the person's.
+      const others = Math.max(
+        0,
+        ...pairs
+          .filter((other) => other !== pair)
+          .map((other) => shared(pair.place, other.place)),
+      );
+      const own = images.find((image) => {
+        const common = shared(pair.place, image.place);
+        return common > others && pair.place.length - common <= CARD_REACH;
+      });
+      return { name: pair.name, title: pair.title, photo: own?.url ?? null };
+    });
 }

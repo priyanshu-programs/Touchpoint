@@ -1,6 +1,13 @@
 "use client";
 
-import { Archive, ArchiveRestore, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  ImageOff,
+  MoreVertical,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
@@ -28,12 +35,15 @@ export function RecordActions({
   editHref,
   archived,
   archiveAction,
+  removePhotoAction,
   remove,
 }: {
   id: string;
   editHref: string;
   archived: boolean;
   archiveAction: (formData: FormData) => Promise<void>;
+  // Given when the record has a picture read from a website, which may be the wrong one.
+  removePhotoAction?: (formData: FormData) => Promise<void>;
   remove: {
     title: string;
     description: string;
@@ -51,6 +61,12 @@ export function RecordActions({
     formData.set("id", id);
     formData.set("archived", archived ? "0" : "1");
     void archiveAction(formData);
+  }
+
+  function removePhoto() {
+    const formData = new FormData();
+    formData.set("id", id);
+    void removePhotoAction?.(formData);
   }
 
   return (
@@ -71,6 +87,12 @@ export function RecordActions({
             {archived ? <ArchiveRestore aria-hidden /> : <Archive aria-hidden />}
             {archived ? "Restore" : "Archive"}
           </DropdownMenuItem>
+          {removePhotoAction && (
+            <DropdownMenuItem onClick={removePhoto}>
+              <ImageOff aria-hidden />
+              Remove photo
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"

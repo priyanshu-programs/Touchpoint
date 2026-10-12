@@ -9,6 +9,12 @@ import {
 import { likePrefix, prefixTsQuery } from "@/lib/text-search";
 import { contactTagNames } from "@/modules/tags/queries";
 
+// Changes whenever the picture does, so its address can be cached for good.
+const photoVersion = sql<string | null>`(
+  select left(contact_photos.sha256, 12) from contact_photos
+  where contact_photos.contact_id = contacts.id
+)`;
+
 export const countContacts = (ownerId: string) =>
   db.$count(
     contacts,
@@ -40,6 +46,7 @@ export async function listContacts(
       organizationId: contacts.organizationId,
       organizationName: organizations.name,
       primaryEmail: contactEmails.email,
+      photoVersion,
     })
     .from(contacts)
     .leftJoin(organizations, eq(organizations.id, contacts.organizationId))
@@ -97,7 +104,11 @@ export async function listContacts(
 
 export async function getContact(ownerId: string, id: string) {
   const [row] = await db
-    .select({ contact: contacts, organizationName: organizations.name })
+    .select({
+      contact: contacts,
+      organizationName: organizations.name,
+      photoVersion,
+    })
     .from(contacts)
     .leftJoin(organizations, eq(organizations.id, contacts.organizationId))
     .where(and(eq(contacts.ownerId, ownerId), eq(contacts.id, id)));
@@ -132,6 +143,7 @@ export async function getContact(ownerId: string, id: string) {
   return {
     ...row.contact,
     organizationName: row.organizationName,
+    photoVersion: row.photoVersion,
     emails,
     links,
     tags,

@@ -264,8 +264,8 @@ describe("enrichment", () => {
   it("keeps the people a read found as suggestions, and creates no contact", async () => {
     const id = await create();
     const people = [
-      { name: "Asha Rao", title: "Founder" },
-      { name: "Vikram Shah", title: null },
+      { name: "Asha Rao", title: "Founder", photo: null },
+      { name: "Vikram Shah", title: null, photo: null },
     ];
 
     await work(reading({ people }));
@@ -282,9 +282,9 @@ describe("enrichment", () => {
     await work(
       reading({
         people: [
-          { name: "Asha Rao", title: "Founder" },
-          { name: "Vikram Shah", title: null },
-          { name: "Meera Iyer", title: "Director" },
+          { name: "Asha Rao", title: "Founder", photo: null },
+          { name: "Vikram Shah", title: null, photo: null },
+          { name: "Meera Iyer", title: "Director", photo: null },
         ],
       }),
     );
@@ -319,19 +319,27 @@ describe("enrichment", () => {
     await add("Meera", "Iyer", elsewhere);
 
     expect(await suggestedPeople(ownerId, id)).toEqual([
-      { name: "Meera Iyer", title: "Director" },
+      { name: "Meera Iyer", title: "Director", photo: null },
     ]);
   });
 
   it("goes on suggesting from the last read that worked, and nothing it cannot trust", async () => {
     const id = await create();
-    await work(reading({ people: [{ name: "Asha Rao", title: "Founder" }] }));
+    await work(reading({ people: [{ name: "Asha Rao", title: "Founder", photo: null }] }));
 
     await aMinuteLater();
     await requestEnrichment(ownerId, id);
     await work({ ok: false, error: "unreachable" });
     expect(await suggestedPeople(ownerId, id)).toEqual([
-      { name: "Asha Rao", title: "Founder" },
+      { name: "Asha Rao", title: "Founder", photo: null },
+    ]);
+
+    // A read stored before pictures were looked for.
+    await db
+      .update(enrichmentRuns)
+      .set({ rawResult: { people: [{ name: "Asha Rao", title: "Founder" }] } });
+    expect(await suggestedPeople(ownerId, id)).toEqual([
+      { name: "Asha Rao", title: "Founder", photo: null },
     ]);
 
     await db

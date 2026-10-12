@@ -219,16 +219,23 @@ describe("extract", () => {
        <a href="/people">People</a>
        <script type="application/ld+json">
         {"@type":"Organization",
-         "founder":{"@type":"Person","name":" Asha  Rao ","jobTitle":"Founder"},
-         "employee":[{"@type":"Person","name":"Vikram Shah"},{"name":42},"Someone"]}
+         "founder":{"@type":"Person","name":" Asha  Rao ","jobTitle":"Founder",
+           "image":{"@type":"ImageObject","url":"/people/asha.jpg"}},
+         "employee":[{"@type":"Person","name":"Vikram Shah","image":"javascript:alert(1)"},
+           {"name":"Meera Iyer","image":["https://cdn.acme.test/meera.svg"]},{"name":42},"Someone"]}
        </script>`,
       base,
     );
 
     expect(found.teamPage).toBe("https://www.acme.test/about/our-team/");
     expect(found.staff).toEqual([
-      { name: "Asha Rao", title: "Founder" },
-      { name: "Vikram Shah", title: null },
+      {
+        name: "Asha Rao",
+        title: "Founder",
+        photo: "https://www.acme.test/people/asha.jpg",
+      },
+      { name: "Vikram Shah", title: null, photo: null },
+      { name: "Meera Iyer", title: null, photo: null },
     ]);
     expect(extract(`<a href="/contact">Contact</a>`, base)).toMatchObject({
       teamPage: null,
@@ -239,33 +246,95 @@ describe("extract", () => {
 
 describe("extractPeople", () => {
   // The shape of the page that prompted this: site links first, then the team.
+  const at = "https://www.acme.test/team";
+  // Site links and a banner first, then one card per person: with a picture, with
+  // initials, and with a picture that only loads when it scrolls into view.
   const teamPage = `
-    <header><h2>Acme Design</h2></header>
+    <header><h2>Acme Design</h2><img src="/logo.png"></header>
     <footer>
       <h3>THE STUDIO</h3><ul><li><a href="/about">About Us</a></li></ul>
       <h3>FINE PRINT</h3><ul><li><a href="/privacy">Privacy Policy</a></li></ul>
     </footer>
-    <h2>Our Team</h2><p>The people behind it all</p>
-    <div><div>AR</div><div><h3 class="x">Mrs. Asha Rao</h3><p>Founder</p></div></div>
-    <div><div>VS</div><div><h3>Mr Vikram <span>Shah</span></h3><p>Design <b>Lead</b> &amp; Partner</p></div></div>
-    <div><div>MD</div><div><h3>Ms. Meera D'Souza</h3><p>Part of the team</p></div></div>`;
+    <section>
+      <img src="/team-banner.jpg">
+      <h2>Our Team</h2><p>The people behind it all</p>
+      <div>
+        <div><img src="/people/asha.jpg" width="320" height="320"><div><h3 class="x">Mrs. Asha Rao</h3><p>Founder</p>
+          <a href="https://linkedin.test/in/asha"><img src="/icons/in.png" width="16" height="16"></a></div></div>
+        <div><div>VS</div><div><h3>Mr Vikram <span>Shah</span></h3><p>Design <b>Lead</b> &amp; Partner</p></div></div>
+        <div><figure><picture><source srcset="/people/meera.avif">
+          <img src="data:image/gif;base64,R0lGOD" data-src="//cdn.acme.test/people/meera.webp"></picture></figure>
+          <div><h3>Ms. Meera D'Souza</h3><p>Part of the team</p></div></div>
+      </div>
+    </section>`;
 
-  it("reads names in headings with the role under each", () => {
-    expect(extractPeople(teamPage)).toEqual([
-      { name: "Asha Rao", title: "Founder" },
-      { name: "Vikram Shah", title: "Design Lead & Partner" },
-      { name: "Meera D'Souza", title: "Part of the team" },
+  it("reads names in headings with the role under each, and the picture in the same card", () => {
+    expect(extractPeople(teamPage, at)).toEqual([
+      {
+        name: "Asha Rao",
+        title: "Founder",
+        photo: "https://www.acme.test/people/asha.jpg",
+      },
+      { name: "Vikram Shah", title: "Design Lead & Partner", photo: null },
+      {
+        name: "Meera D'Souza",
+        title: "Part of the team",
+        photo: "https://cdn.acme.test/people/meera.webp",
+      },
+    ]);
+  });
+
+  it.each([
+    [
+      "sits over two names",
+      `<div><img src="/both.jpg"><h3>Asha Rao</h3><p>Founder</p><h3>Vikram Shah</h3><p>Director</p></div>`,
+    ],
+    [
+      "is elsewhere on the page",
+      `<img src="/banner.jpg"><h2>Our Story</h2><p>Since 1990</p><h3>Asha Rao</h3><p>Founder</p>`,
+    ],
+    [
+      "is far above the name",
+      `<div><img src="/banner.jpg"><div><div><div><div><div><h3>Asha Rao</h3><p>Founder</p></div></div></div></div></div></div>`,
+    ],
+    [
+      "cannot be stored",
+      `<div><img src="/a.svg"><img src="javascript:alert(1)"><img src="/dot.png" width="1" height="1"><h3>Asha Rao</h3><p>Founder</p></div>`,
+    ],
+  ])("takes no picture that %s", (_label, html) => {
+    for (const person of extractPeople(html, at)) {
+      expect(person).toMatchObject({ photo: null });
+    }
+    expect(extractPeople(html, at)[0].name).toBe("Asha Rao");
+  });
+
+  it("takes the first picture in a card and reads a srcset", () => {
+    expect(
+      extractPeople(
+        `<div><img srcset="/_next/image?url=%2Fasha.jpg&w=640&q=75 640w, /big.jpg 1280w"><img src="/second.png"><h3>Asha Rao</h3><p>Founder</p></div>`,
+        at,
+      ),
+    ).toEqual([
+      {
+        name: "Asha Rao",
+        title: "Founder",
+        photo: "https://www.acme.test/_next/image?url=%2Fasha.jpg&w=640&q=75",
+      },
     ]);
   });
 
   it("takes a lone founder, and nobody from headings without a position among them", () => {
     expect(
-      extractPeople(`<h2>Our Story</h2><p>Since 1990</p><h4>Asha Rao</h4><span>Co-Founder</span>`),
-    ).toEqual([{ name: "Asha Rao", title: "Co-Founder" }]);
+      extractPeople(
+        `<h2>Our Story</h2><p>Since 1990</p><h4>Asha Rao</h4><span>Co-Founder</span>`,
+        at,
+      ),
+    ).toEqual([{ name: "Asha Rao", title: "Co-Founder", photo: null }]);
     expect(
       extractPeople(
         `<h3>Priya Sharma</h3><p>The quality feels premium.</p>
          <h3>Ananya Roy</h3><p>It exceeded expectations.</p>`,
+        at,
       ),
     ).toEqual([]);
   });
@@ -279,26 +348,30 @@ describe("extractPeople", () => {
          <h3>R2 D2</h3><p>Director</p>
          <h3><script>alert(1)</script></h3><p>Owner</p>
          <h3>Vikram Shah</h3><style>p{color:red}</style><p>${"Long ago. ".repeat(40)}</p>`,
+        at,
       ),
     ).toEqual([
-      { name: "Asha Rao", title: "Managing Director" },
-      { name: "Vikram Shah", title: null },
+      { name: "Asha Rao", title: "Managing Director", photo: null },
+      { name: "Vikram Shah", title: null, photo: null },
     ]);
   });
 
   it("lists each person once, without honorifics, and stops at twelve", () => {
     expect(
       listPeople([
-        { name: "Dr. Asha Rao", title: "Founder" },
-        { name: "asha rao", title: "Director" },
-        { name: "Mr. ", title: null },
+        { name: "Dr. Asha Rao", title: "Founder", photo: "https://acme.test/a.jpg" },
+        { name: "asha rao", title: "Director", photo: null },
+        { name: "Mr. ", title: null, photo: null },
       ]),
-    ).toEqual([{ name: "Asha Rao", title: "Founder" }]);
+    ).toEqual([
+      { name: "Asha Rao", title: "Founder", photo: "https://acme.test/a.jpg" },
+    ]);
     expect(
       listPeople(
         Array.from({ length: 30 }, (_, index) => ({
           name: `Person ${index}`,
           title: null,
+          photo: null,
         })),
       ),
     ).toHaveLength(12);
@@ -306,7 +379,10 @@ describe("extractPeople", () => {
 
   it("does not slow down on a hostile page", () => {
     const started = Date.now();
-    extractPeople(`<h3>${"A ".repeat(100_000)}</h3>${"<h3>Aa Bb</h3><p>x</p>".repeat(20_000)}`);
+    extractPeople(
+      `<h3>${"A ".repeat(100_000)}</h3>${"<div>".repeat(5_000)}${"<div><img src='/a.png'><h3>Aa Bb</h3><p>Founder</p></div>".repeat(20_000)}`,
+      at,
+    );
     expect(Date.now() - started).toBeLessThan(2_000);
   });
 });
@@ -372,15 +448,31 @@ describe("readWebsite", () => {
            </script>`,
         ),
         "https://acme.test/our-team": page(
-          `<h3>Mrs. Asha Rao</h3><p>Founder</p><h3>Vikram Shah</h3><p>Design Lead</p>`,
+          `<div><img src="/people/asha.jpg"><h3>Mrs. Asha Rao</h3><p>Founder</p></div>
+           <div><img src="/private/vikram.jpg"><h3>Vikram Shah</h3><p>Design Lead</p></div>
+           <div><img src="https://cdn.test/private/zoya.jpg"><h3>Zoya Khan</h3><p>Designer</p></div>`,
+        ),
+        // The site's own rules cover its own pictures; another host's are not its to forbid.
+        "https://acme.test/robots.txt": page(
+          "User-agent: *\nDisallow: /private/",
+          "text/plain",
         ),
       }),
     );
 
     expect(result.ok && result.reading.people).toEqual([
-      { name: "Asha Rao", title: "Founder" },
-      { name: "Vikram Shah", title: "Design Lead" },
-      { name: "Kabir Mehta", title: null },
+      {
+        name: "Asha Rao",
+        title: "Founder",
+        photo: "https://acme.test/people/asha.jpg",
+      },
+      { name: "Vikram Shah", title: "Design Lead", photo: null },
+      {
+        name: "Zoya Khan",
+        title: "Designer",
+        photo: "https://cdn.test/private/zoya.jpg",
+      },
+      { name: "Kabir Mehta", title: null, photo: null },
     ]);
   });
 

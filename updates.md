@@ -195,3 +195,14 @@
 - [2026-10-12] Added people/(lists)/status-menu.tsx: the status badge of a company and the relationship badge of a person open a menu of the allowed values
 - [2026-10-12] Tests: deleting a person, both status switches and the other-owner refusals (259 unit tests); e2e specs follow the menu through a recordAction helper in e2e/support.ts, and 07-company-contacts.spec.ts adds switching both badges and deleting a person, cancel and confirm (45 tests)
 - [2026-10-12] docs/PRD.md 6 and 8.2 describe the header menu, Re-enrich, the status menus and deleting a person, replacing "archive, never cascade"
+- [2026-10-12] plan.md records two more requests from the owner: pictures for contacts from the company's site, then profile links found by name through a free search tier
+- [2026-10-12] Added contact_photos (src/db/schema/enrichment.ts, migration 0008_contact_photos, additive; applied to Neon dev) to hold a person's picture the way organization_logos holds a logo
+- [2026-10-12] extractPeople (src/modules/enrichment/website/people.ts) now takes the page address and returns a picture's address with each person: the first image inside that person's own card, judged by which container it shares with the name; lazy-load attributes are read, SVG, data: and tiny images are not
+- [2026-10-12] extract() returns the image of a JSON-LD person, and exports webUrl and a new photoUrl; readWebsite drops a picture the site's robots rules disallow
+- [2026-10-12] Added src/modules/enrichment/photos.ts: the contact.photo job (guarded fetch, 300 KB cap, type by magic bytes), requestKnownPhotos for contacts a read finds without a picture, and removeContactPhoto, which records the removal so no later read undoes it; the job is registered in src/modules/jobs/tick.ts
+- [2026-10-12] applyReading queues pictures for existing contacts, and addSuggestedContactsAction queues one for each person added and runs it right after the response
+- [2026-10-12] Added GET /api/contacts/[id]/photo (signed-in owner only) and photoVersion on getContact and listContacts, so a picture's address can be cached for good
+- [2026-10-12] Added ContactAvatar (src/components/company-logo.tsx) to the contact panel header and the company's Contacts table, and "Remove photo" to the person's three-dots menu when there is a picture
+- [2026-10-12] deleteContact also clears the contact's provenance rows, which no foreign key covers
+- [2026-10-12] Tests: card matching on a team page, the photo job and its refusals, queuing on a read, removal that sticks, other owners kept out (276 unit tests); e2e/07-company-contacts.spec.ts covers a stored picture in the table and panel, the route's owner check and Remove photo (46 tests)
+- [2026-10-12] docs/PRD.md 8.2 and 11.2 describe contact_photos and how a picture is found, fetched, served and removed

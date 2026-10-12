@@ -4,6 +4,7 @@ import {
   contactEmails,
   contactLinks,
   contacts,
+  fieldProvenance,
   organizations,
 } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
@@ -221,6 +222,16 @@ export async function deleteContact(ownerId: string, id: string) {
     if (!before) return null;
 
     const tags = await contactTagNames(tx, ownerId, id);
+    // Provenance points at any kind of record, so no foreign key clears it.
+    await tx
+      .delete(fieldProvenance)
+      .where(
+        and(
+          eq(fieldProvenance.ownerId, ownerId),
+          eq(fieldProvenance.entityType, "contact"),
+          eq(fieldProvenance.entityId, id),
+        ),
+      );
     await tx
       .delete(contacts)
       .where(and(eq(contacts.ownerId, ownerId), eq(contacts.id, id)));

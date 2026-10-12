@@ -9,7 +9,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { bytea, createdAt, id, oneOf, ownerId } from "./columns";
-import { organizations } from "./people";
+import { contacts, organizations } from "./people";
 
 export const ENRICHMENT_STATUSES = [
   "queued",
@@ -91,6 +91,21 @@ export const organizationLogos = pgTable("organization_logos", {
   organizationId: uuid("organization_id")
     .primaryKey()
     .references(() => organizations.id, { onDelete: "cascade" }),
+  ownerId: ownerId(),
+  contentType: text("content_type").notNull(),
+  bytes: bytea("bytes").notNull(),
+  sha256: text("sha256").notNull(),
+  sourceUrl: text("source_url").notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// A person's picture, found beside their name on their company's website.
+export const contactPhotos = pgTable("contact_photos", {
+  contactId: uuid("contact_id")
+    .primaryKey()
+    .references(() => contacts.id, { onDelete: "cascade" }),
   ownerId: ownerId(),
   contentType: text("content_type").notNull(),
   bytes: bytea("bytes").notNull(),

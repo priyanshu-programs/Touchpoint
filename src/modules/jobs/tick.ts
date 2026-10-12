@@ -1,6 +1,7 @@
 import { and, eq, max } from "drizzle-orm";
 import { db } from "@/db/client";
 import { jobs } from "@/db/schema";
+import { fetchPhoto, PHOTO_JOB } from "@/modules/enrichment/photos";
 import { ENRICHMENT_JOB, runEnrichment } from "@/modules/enrichment/service";
 import { REMINDER_JOB, sendReminder } from "@/modules/tasks/service";
 import { enqueue, runDueJobs, type JobHandlers } from "./service";
@@ -12,6 +13,7 @@ export const handlers: JobHandlers = {
   [HEARTBEAT]: async () => {},
   [REMINDER_JOB]: sendReminder,
   [ENRICHMENT_JOB]: (job) => runEnrichment(job),
+  [PHOTO_JOB]: (job) => fetchPhoto(job),
 };
 
 export async function tick(budgetMs: number) {

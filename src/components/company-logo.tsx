@@ -36,6 +36,35 @@ export function CompanyLogo({
   return <Monogram name={name} className={className} />;
 }
 
+// A person's picture from their company's website, or their initials.
+export function ContactAvatar({
+  id,
+  name,
+  photoVersion,
+  className,
+}: {
+  id: string;
+  name: string;
+  photoVersion: string | null;
+  className?: string;
+}) {
+  if (photoVersion) {
+    return (
+      // Served per owner behind the session, as logos are.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={`/api/contacts/${id}/photo?v=${photoVersion}`}
+        alt=""
+        className={cn(
+          "size-7 shrink-0 rounded-full bg-muted object-cover",
+          className,
+        )}
+      />
+    );
+  }
+  return <Monogram name={name} className={cn("rounded-full", className)} />;
+}
+
 export function Monogram({
   name,
   className,

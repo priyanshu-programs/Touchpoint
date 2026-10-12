@@ -1,6 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { CompanyLogo, Monogram } from "@/components/company-logo";
+import { CompanyLogo, ContactAvatar } from "@/components/company-logo";
 import { SECTION_HEADING } from "@/components/detail-rows";
 import { Badge } from "@/components/ui/badge";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -12,6 +12,7 @@ import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
 import {
   deleteContactAction,
+  removeContactPhotoAction,
   setContactArchivedAction,
   setContactRelationshipAction,
 } from "../contacts/actions";
@@ -71,9 +72,11 @@ export function ContactPanel({
             <ArrowLeft aria-hidden className="size-4" />
           </Link>
         )}
-        <Monogram
+        <ContactAvatar
+          id={contact.id}
           name={contact.fullName}
-          className="size-10 rounded-full text-sm"
+          photoVersion={contact.photoVersion}
+          className="size-10 text-sm"
         />
         <div className="grid min-w-0 flex-1 gap-1">
           <SheetTitle className="text-lg break-words">
@@ -112,6 +115,9 @@ export function ContactPanel({
           editHref={`/people/contacts/${contact.id}/edit${editFrom ? `?from=${editFrom}` : ""}`}
           archived={Boolean(contact.archivedAt)}
           archiveAction={setContactArchivedAction}
+          removePhotoAction={
+            contact.photoVersion ? removeContactPhotoAction : undefined
+          }
           remove={{
             title: `Delete ${contact.fullName}?`,
             description:
