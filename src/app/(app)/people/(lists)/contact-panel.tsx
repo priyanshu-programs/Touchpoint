@@ -20,6 +20,7 @@ import { ContactDetails } from "../contacts/contact-details";
 import { ContactEmailsAndLinks } from "../contacts/contact-emails-links";
 import { ProfileSuggestions } from "../contacts/profile-suggestions";
 import { companyHref, labelFor, toOptions } from "../labels";
+import { FieldsLink } from "./fields-link";
 import { RecordActions } from "./record-actions";
 import { StatusMenu } from "./status-menu";
 
@@ -39,6 +40,7 @@ export function ContactPanel({
   tab,
   after,
   hrefFor,
+  fieldsHref,
 }: {
   ownerId: string;
   contact: NonNullable<Awaited<ReturnType<typeof getContact>>>;
@@ -49,6 +51,8 @@ export function ContactPanel({
   // Where the Activity tab's page of history starts.
   after?: string;
   hrefFor: (change: { tab: Tab; after?: string }) => string;
+  // The Fields panel, opened over this person.
+  fieldsHref: string;
 }) {
   const filter = { contactId: contact.id };
   const email = contact.emails.find((row) => row.isPrimary)?.email;
@@ -198,10 +202,13 @@ export function ContactPanel({
         {tab === undefined && (
           <>
             <section aria-labelledby="contact-details" className="grid gap-4">
-              <h3 id="contact-details" className={SECTION_HEADING}>
-                Details
-              </h3>
-              <ContactDetails contact={contact} />
+              <div className="flex items-center justify-between gap-2">
+                <h3 id="contact-details" className={SECTION_HEADING}>
+                  Details
+                </h3>
+                <FieldsLink href={fieldsHref} />
+              </div>
+              <ContactDetails ownerId={ownerId} contact={contact} />
             </section>
             <ProfileSuggestions ownerId={ownerId} contact={contact} />
             <ContactCompanies contact={contact} />

@@ -13,11 +13,16 @@ import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
 const optional = <T extends z.ZodType>(schema: T) =>
   schema.optional().catch(undefined);
 
+export const FIELDS_TABS = ["companies", "contacts"] as const;
+export type FieldsTab = (typeof FIELDS_TABS)[number];
+
+// `fields` puts the Fields panel in place of the open record, on the tab it names.
 export const listParams = z.object({
   q: optional(z.string().trim().max(100)),
   tag: optional(z.uuid()),
   archived: optional(z.literal("1")),
   after: optional(z.uuid()),
+  fields: optional(z.enum(FIELDS_TABS)),
 });
 type ListParams = z.infer<typeof listParams>;
 

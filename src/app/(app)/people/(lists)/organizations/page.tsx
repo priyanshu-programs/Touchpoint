@@ -35,6 +35,7 @@ import {
   type CompanyListParams,
 } from "../list-controls";
 import { ContactPanel } from "../contact-panel";
+import { FieldsPanel } from "../fields-panel";
 import { RecordSheet } from "../record-sheet";
 import { CompanyPanel } from "./company-panel";
 import { NewCompanyDialog } from "./new-company-dialog";
@@ -45,7 +46,12 @@ const PAGE_SIZE = 50;
 type Sort = NonNullable<CompanyListParams["sort"]>;
 // The direction a column takes when it is first chosen: names A to Z, numbers and dates largest first.
 const FIRST_DIRECTION = { name: "asc", contacts: "desc", activity: "desc" } as const;
-const NO_CONTACT = { contact: undefined, tab: undefined, after: undefined };
+const NO_CONTACT = {
+  contact: undefined,
+  tab: undefined,
+  after: undefined,
+  fields: undefined,
+};
 const NO_PANEL = { ...NO_CONTACT, company: undefined };
 
 function SortHead({
@@ -290,9 +296,19 @@ export default async function OrganizationsPage({
       {open && (
         <RecordSheet
           closeHref={companiesHref(params, NO_PANEL)}
-          recordKey={contact?.id ?? open.id}
+          recordKey={params.fields ? "fields" : (contact?.id ?? open.id)}
         >
-          {contact ? (
+          {params.fields ? (
+            <FieldsPanel
+              ownerId={owner.id}
+              tab={params.fields}
+              back={{
+                href: companiesHref(params, { fields: undefined }),
+                label: `Back to ${contact?.fullName ?? open.name}`,
+              }}
+              hrefFor={(fields) => companiesHref(params, { fields })}
+            />
+          ) : contact ? (
             <ContactPanel
               ownerId={owner.id}
               contact={contact}
@@ -308,6 +324,7 @@ export default async function OrganizationsPage({
               tab={params.tab === "contacts" ? undefined : params.tab}
               after={params.after}
               hrefFor={({ tab, after }) => companiesHref(params, { tab, after })}
+              fieldsHref={companiesHref(params, { fields: "contacts" })}
             />
           ) : (
             <CompanyPanel

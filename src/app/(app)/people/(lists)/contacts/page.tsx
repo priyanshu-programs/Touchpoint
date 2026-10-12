@@ -15,6 +15,7 @@ import { getContact, listContacts } from "@/modules/contacts/queries";
 import { listTags } from "@/modules/tags/queries";
 import { companyHref, labelFor } from "../../labels";
 import { ContactPanel } from "../contact-panel";
+import { FieldsPanel } from "../fields-panel";
 import {
   contactListParams,
   contactsHref,
@@ -26,7 +27,12 @@ import { RecordSheet } from "../record-sheet";
 export const metadata: Metadata = { title: "Contacts" };
 
 const PATH = "/people/contacts";
-const NO_PANEL = { contact: undefined, tab: undefined, earlier: undefined };
+const NO_PANEL = {
+  contact: undefined,
+  tab: undefined,
+  earlier: undefined,
+  fields: undefined,
+};
 
 export default async function ContactsPage({
   searchParams,
@@ -119,17 +125,30 @@ export default async function ContactsPage({
       {open && (
         <RecordSheet
           closeHref={contactsHref(params, NO_PANEL)}
-          recordKey={open.id}
+          recordKey={params.fields ? "fields" : open.id}
         >
-          <ContactPanel
-            ownerId={owner.id}
-            contact={open}
-            tab={params.tab}
-            after={params.earlier}
-            hrefFor={({ tab, after }) =>
-              contactsHref(params, { tab, earlier: after })
-            }
-          />
+          {params.fields ? (
+            <FieldsPanel
+              ownerId={owner.id}
+              tab={params.fields}
+              back={{
+                href: contactsHref(params, { fields: undefined }),
+                label: `Back to ${open.fullName}`,
+              }}
+              hrefFor={(fields) => contactsHref(params, { fields })}
+            />
+          ) : (
+            <ContactPanel
+              ownerId={owner.id}
+              contact={open}
+              tab={params.tab}
+              after={params.earlier}
+              hrefFor={({ tab, after }) =>
+                contactsHref(params, { tab, earlier: after })
+              }
+              fieldsHref={contactsHref(params, { fields: "contacts" })}
+            />
+          )}
         </RecordSheet>
       )}
     </div>

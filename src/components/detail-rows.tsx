@@ -7,6 +7,20 @@ export const SECTION_HEADING =
 // `note` is shown under a value that is there, such as where it came from.
 export type DetailRow = { label: string; value: ReactNode; note?: ReactNode };
 
+// The rows in the order the owner arranged the fields, without the ones they hid.
+// A row may give its own label where the field's name does not fit what it shows.
+export function arrangeRows<Key extends string>(
+  layout: { key: string; label: string; hidden: boolean }[],
+  rows: Record<Key, Omit<DetailRow, "label"> & { label?: string }>,
+): DetailRow[] {
+  return layout
+    .filter((field) => !field.hidden)
+    .map((field) => {
+      const row = rows[field.key as Key];
+      return { ...row, label: row.label ?? field.label };
+    });
+}
+
 // Every row is listed, with a dash where there is nothing yet.
 export function DetailRows({
   rows,

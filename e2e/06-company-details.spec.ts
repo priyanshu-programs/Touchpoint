@@ -74,7 +74,7 @@ test("the overview lists the company's details, with a phone and email once give
   await expect(details.getByText("Phone", { exact: true })).toBeVisible();
   await expect(details.getByText("Email", { exact: true })).toBeVisible();
   // Only the website so far; the empty rows show a dash.
-  await expect(details.getByRole("link")).toHaveCount(1);
+  await expect(details.locator("dd").getByRole("link")).toHaveCount(1);
 
   await recordAction(page, "Edit");
   await page.getByLabel("Phone").fill("12345");

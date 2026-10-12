@@ -1,11 +1,20 @@
 import Link from "next/link";
-import { DetailRows } from "@/components/detail-rows";
+import { arrangeRows, DetailRows } from "@/components/detail-rows";
 import type { getContact } from "@/modules/contacts/queries";
+import { getLayout } from "@/modules/fields/queries";
+import type { StandardKey } from "@/modules/fields/standard";
 import { companyHref, labelFor } from "../labels";
 
 type Contact = NonNullable<Awaited<ReturnType<typeof getContact>>>;
 
-export function ContactDetails({ contact }: { contact: Contact }) {
+export async function ContactDetails({
+  ownerId,
+  contact,
+}: {
+  ownerId: string;
+  contact: Contact;
+}) {
+  const layout = await getLayout(ownerId, "contact");
   const email = contact.emails.find((row) => row.isPrimary)?.email;
   const profile = (kind: string) => {
     const url = contact.links.find((link) => link.kind === kind)?.url;
@@ -26,32 +35,30 @@ export function ContactDetails({ contact }: { contact: Contact }) {
   return (
     <DetailRows
       columns={2}
-      rows={[
-        { label: "First name", value: contact.firstName },
-        { label: "Last name", value: contact.lastName },
-        { label: "Title", value: contact.jobTitle },
-        { label: "Department", value: contact.department },
-        {
-          label: "Email",
+      rows={arrangeRows<StandardKey<"contact">>(layout, {
+        firstName: { value: contact.firstName },
+        lastName: { value: contact.lastName },
+        jobTitle: { value: contact.jobTitle },
+        department: { value: contact.department },
+        email: {
           value: email && (
             <a href={`mailto:${email}`} className="underline">
               {email}
             </a>
           ),
         },
-        {
-          label: "Phone",
+        phone: {
           value: contact.phoneE164 && (
             <a href={`tel:${contact.phoneE164}`} className="underline">
               {contact.phoneE164}
             </a>
           ),
         },
-        { label: "LinkedIn", value: profile("linkedin") },
-        { label: "X", value: profile("x") },
-        { label: "GitHub", value: profile("github") },
-        {
-          label: contact.companies.length > 1 ? "Companies" : "Company",
+        linkedin: { value: profile("linkedin") },
+        x: { value: profile("x") },
+        github: { value: profile("github") },
+        companies: {
+          label: contact.companies.length > 1 ? "Companies" : undefined,
           value: contact.companies.length > 0 && (
             <ul className="grid gap-0.5">
               {contact.companies.map((company) => (
@@ -64,18 +71,16 @@ export function ContactDetails({ contact }: { contact: Contact }) {
             </ul>
           ),
         },
-        {
-          label: "Location",
+        location: {
           value: [contact.city, contact.region, contact.country]
             .filter(Boolean)
             .join(", "),
         },
-        { label: "Time zone", value: contact.timezone },
-        {
-          label: "Preferred channel",
+        timezone: { value: contact.timezone },
+        preferredChannel: {
           value: contact.preferredChannel && labelFor(contact.preferredChannel),
         },
-      ]}
+      })}
     />
   );
 }

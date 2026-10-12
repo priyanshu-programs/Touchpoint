@@ -3,9 +3,9 @@ import Link from "next/link";
 import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo, ContactAvatar } from "@/components/company-logo";
 import {
+  arrangeRows,
   DetailRows,
   SECTION_HEADING,
-  type DetailRow,
 } from "@/components/detail-rows";
 import { Badge } from "@/components/ui/badge";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -26,6 +26,8 @@ import {
   suggestedPeople,
   websiteFields,
 } from "@/modules/enrichment/queries";
+import { getLayout } from "@/modules/fields/queries";
+import type { StandardKey } from "@/modules/fields/standard";
 import type { getOrganization } from "@/modules/organizations/queries";
 import { getSettings } from "@/modules/settings/service";
 import { listTasks } from "@/modules/tasks/queries";
@@ -45,6 +47,7 @@ import {
   setOrganizationArchivedAction,
   setOrganizationStatusAction,
 } from "../../organizations/actions";
+import { FieldsLink } from "../fields-link";
 import { companiesHref, type CompanyListParams } from "../list-controls";
 import { StatusMenu } from "../status-menu";
 import { AddContactForm } from "./add-contact-form";
@@ -110,9 +113,10 @@ export async function CompanyPanel({
   params: CompanyListParams;
 }) {
   const filter = { organizationId: organization.id };
-  const [settings, contacts, openTasks, latest, run, sourced, suggested] =
+  const [settings, layout, contacts, openTasks, latest, run, sourced, suggested] =
     await Promise.all([
       getSettings(ownerId),
+      getLayout(ownerId, "organization"),
       listContacts(ownerId, { ...filter, limit: 100 }),
       listTasks(ownerId, { ...filter, limit: 100 }),
       listTimeline(ownerId, { ...filter, limit: 1 }),
@@ -147,37 +151,30 @@ export async function CompanyPanel({
       {text}
     </a>
   );
-  const details: DetailRow[] = [
-    { label: "Name", value: organization.name },
-    { label: "Domain", value: organization.domain },
-    {
-      label: "Website",
+  const details = arrangeRows<StandardKey<"organization">>(layout, {
+    name: { value: organization.name },
+    domain: { value: organization.domain },
+    website: {
       note: fromWebsite("website"),
       value:
         organization.website && link(organization.website, organization.website, true),
     },
-    {
-      label: "Phone",
+    phone: {
       note: fromWebsite("phone"),
       value:
         organization.phone &&
         link(`tel:${organization.phone.replace(/[^\d+]/g, "")}`, organization.phone),
     },
-    {
-      label: "Email",
+    email: {
       note: fromWebsite("email"),
       value:
         organization.email && link(`mailto:${organization.email}`, organization.email),
     },
-    {
-      label: "Industry",
-      note: fromWebsite("industry"),
-      value: organization.industry,
-    },
-    { label: "City", note: fromWebsite("city"), value: organization.city },
-    { label: "Region", note: fromWebsite("region"), value: organization.region },
-    { label: "Country", note: fromWebsite("country"), value: organization.country },
-  ];
+    industry: { note: fromWebsite("industry"), value: organization.industry },
+    city: { note: fromWebsite("city"), value: organization.city },
+    region: { note: fromWebsite("region"), value: organization.region },
+    country: { note: fromWebsite("country"), value: organization.country },
+  });
   const contactLink = (id: string) =>
     companiesHref(params, { contact: id, tab: undefined, after: undefined });
   const tiles = [
@@ -300,9 +297,12 @@ export async function CompanyPanel({
             aria-labelledby="details-heading"
             className="grid content-start border-t md:border-t-0 md:border-l"
           >
-            <h3 id="details-heading" className={cn(SECTION_HEADING, "p-4")}>
-              Details
-            </h3>
+            <div className="flex items-center justify-between gap-2 p-4">
+              <h3 id="details-heading" className={SECTION_HEADING}>
+                Details
+              </h3>
+              <FieldsLink href={companiesHref(params, { fields: "companies" })} />
+            </div>
             <DetailRows rows={details} className="px-4 pb-4" />
             {website && <WebsiteDetails {...website} />}
           </section>
