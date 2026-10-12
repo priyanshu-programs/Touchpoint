@@ -256,3 +256,4 @@
 - [2026-10-12] A person's Overview has a Profile links section when the key is set: Find profile links, the candidates with Add, and Dismiss; an added link shows in Details and Links through the existing code
 - [2026-10-12] Tests: profile address rules, the search request and its failures, limits, other owners and other people refused, safeFetch POST and redirect refusal (355 unit tests); e2e stages a stored search and adds and dismisses from the panel, with a stand-in key and no search sent (49 tests)
 - [2026-10-12] security.md, plan.md and docs/PRD.md 8.2 describe what is sent to Tavily, the limits and profile_searches
+- [2026-10-12] Deployed (a9cd200, CI green); migration 0010 ran on Neon main: profile_searches exists and is empty, all five people untouched. TAVILY_API_KEY is not set in production, so the Profile links section is not shown there yet and the search has not been tried against the live service
