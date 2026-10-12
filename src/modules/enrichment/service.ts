@@ -8,6 +8,8 @@ import {
   organizationLogos,
   organizations,
 } from "@/db/schema";
+import { env } from "@/lib/env";
+import { safeFetch } from "@/lib/safe-fetch";
 import { audit } from "@/modules/audit/service";
 import { enqueue, type ClaimedJob } from "@/modules/jobs/service";
 import { requestKnownPhotos } from "./photos";
@@ -16,6 +18,7 @@ import {
   readWebsite,
   type EnrichableField,
   type Reading,
+  type ReadResult,
 } from "./website/read";
 
 export const ENRICHMENT_JOB = "enrichment.run";
@@ -242,6 +245,7 @@ async function applyReading(run: Run, reading: Reading) {
           fields: reading.fields,
           links: reading.links,
           people: reading.people,
+          rendered: reading.rendered,
           logo: reading.logo && {
             sourceUrl: reading.logo.sourceUrl,
             contentType: reading.logo.contentType,
@@ -262,8 +266,11 @@ const failRun = (runId: string, error: string) =>
 
 const jobPayload = z.object({ runId: z.uuid() });
 
+const readSite = (url: string): Promise<ReadResult> =>
+  readWebsite(url, safeFetch, { render: env.WEBSITE_RENDERER !== "off" });
+
 // The job handler. Tests pass their own reader, since the real one only reaches public hosts.
-export async function runEnrichment(job: ClaimedJob, read = readWebsite) {
+export async function runEnrichment(job: ClaimedJob, read = readSite) {
   const { runId } = jobPayload.parse(job.payload);
   if (!job.ownerId) return;
   const [run] = await db

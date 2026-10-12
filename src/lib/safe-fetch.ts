@@ -70,6 +70,8 @@ export type FetchOptions = {
   // An instant (ms since epoch) by which the whole call must be over.
   deadline: number;
   accept?: string;
+  // For a server known to answer slowly; the deadline still applies.
+  timeoutMs?: number;
 };
 export type FetchResult = {
   url: string;
@@ -142,7 +144,9 @@ async function requestOnce(
           // A pooled socket would skip the lookup, and with it the check.
           agent: false,
           lookup: guardedLookup(allow, port),
-          signal: AbortSignal.timeout(Math.min(REQUEST_TIMEOUT_MS, remaining)),
+          signal: AbortSignal.timeout(
+            Math.min(options.timeoutMs ?? REQUEST_TIMEOUT_MS, remaining),
+          ),
           headers: {
             "user-agent": USER_AGENT,
             accept: options.accept ?? "*/*",

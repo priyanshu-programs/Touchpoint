@@ -215,6 +215,7 @@ describe("contact photos", () => {
               links: [],
               logo: null,
               people: [{ name: "Asha Rao", title: "Founder", photo: ASHA }],
+              rendered: false,
             },
           })),
         [PHOTO_JOB]: (job) => fetchPhoto(job, async () => image(JPEG)),

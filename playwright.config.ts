@@ -33,6 +33,8 @@ export default defineConfig({
       DATABASE_URL: databaseUrl,
       AUTH_SECRET: "e2e-auth-secret-0123456789abcdef01234",
       CRON_SECRET,
+      // The suite never sends an address to an outside service.
+      WEBSITE_RENDERER: "off",
     },
   },
 });

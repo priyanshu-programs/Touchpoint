@@ -25,6 +25,8 @@ Vercel's Hobby plan is for non-commercial personal use. If that does not fit how
    `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`
 
    Do not set `APP_URL` on Vercel. The app reads the production domain from Vercel.
+
+   Optional: `WEBSITE_RENDERER=off`. Some company websites send an empty page and build it in the browser. To read those, the app sends that page's address to Jina Reader (`r.jina.ai`, free, no key) and reads the drawn page it answers with. Set this to `off` if no company address should leave your instance; such sites then give only their description and logo.
 4. Deploy, then open the production URL. The first visit asks you to create the owner account.
 
 `vercel.json` pins functions to Singapore (`sin1`). Change `regions` to the Vercel region nearest your database before deploying if yours is elsewhere.

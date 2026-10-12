@@ -1,7 +1,8 @@
 import { FetchError, safeFetch, type Fetcher, type FetchResult } from "@/lib/safe-fetch";
 import { extract, type Extracted } from "./extract";
 import { imageType, MAX_LOGO_BYTES } from "./image";
-import { extractPeople, listPeople, type Person } from "./people";
+import { extractPeople, listPeople, type Person, type Scope } from "./people";
+import { readMarkdown, renderedPage } from "./render";
 import { robotsAllows } from "./robots";
 
 export const ENRICHABLE_FIELDS = [
@@ -34,12 +35,20 @@ export type Reading = {
   logo: { contentType: string; bytes: Buffer; sourceUrl: string } | null;
   // People the site names as the company's own; offered to the owner, never added unasked.
   people: Person[];
+  // Part of this came from the outside reader that draws script-built pages.
+  rendered: boolean;
 };
 export type ReadResult =
   | { ok: true; reading: Reading }
   | { ok: false; error: ReadError };
+export type ReadOptions = {
+  // Whether a page that arrives empty may be sent to the outside reader to be drawn.
+  render: boolean;
+};
 
 const BUDGET_MS = 10_000;
+// Drawing a page takes seconds, so it is timed apart from the site's own answers.
+const RENDER_BUDGET_MS = 20_000;
 const MAX_PAGE_BYTES = 1_000_000;
 const MAX_ROBOTS_BYTES = 100_000;
 const MAX_LOGO_TRIES = 3;
@@ -68,13 +77,26 @@ function text(page: FetchResult) {
 
 // Reads a company's home page once, its contact page when the home page leaves
 // contact details out and its team page when it links to one, and returns what
-// the site says about itself.
+// the site says about itself. A page built by scripts is read as drawn.
 export async function readWebsite(
   start: string,
   fetcher: Fetcher = safeFetch,
+  { render }: ReadOptions = { render: false },
 ): Promise<ReadResult> {
-  const deadline = Date.now() + BUDGET_MS;
+  const started = Date.now();
+  let deadline = started + BUDGET_MS;
+  let rendered = false;
   const fail = (error: ReadError): ReadResult => ({ ok: false, error });
+  const drawn = async (url: string, scope: Scope) => {
+    if (!render) return null;
+    const asked = Date.now();
+    const markdown = await renderedPage(url, fetcher, started + RENDER_BUDGET_MS);
+    // The wait was the reader's, not the site's.
+    deadline += Date.now() - asked;
+    if (markdown === null) return null;
+    rendered = true;
+    return readMarkdown(markdown, url, scope);
+  };
 
   try {
     const home = new URL("/", start);
@@ -100,7 +122,8 @@ export async function readWebsite(
     const landed = new URL(page.url);
     if (!sameSite(home.hostname, landed.hostname)) return fail("moved");
 
-    const found = extract(text(page), landed.href);
+    const homeHtml = text(page);
+    const found = extract(homeHtml, landed.href);
     const fields: Reading["fields"] = { website: landed.origin };
     const take = (
       from: Extracted,
@@ -130,7 +153,13 @@ export async function readWebsite(
       }
     }
 
-    const contact = found.contactPage ? new URL(found.contactPage) : null;
+    const homeDrawn = found.blank ? await drawn(landed.href, "section") : null;
+    if (homeDrawn?.phone && !fields.phone) fields.phone = homeDrawn.phone;
+    if (homeDrawn?.email && !fields.email) fields.email = homeDrawn.email;
+    const contactPage = found.contactPage ?? homeDrawn?.contactPage;
+    const teamPage = found.teamPage ?? homeDrawn?.teamPage;
+
+    const contact = contactPage ? new URL(contactPage) : null;
     if (
       contact &&
       contact.href !== landed.href &&
@@ -157,7 +186,7 @@ export async function readWebsite(
     }
 
     const named: Person[] = [];
-    const team = found.teamPage ? new URL(found.teamPage) : null;
+    const team = teamPage ? new URL(teamPage) : null;
     if (team && team.href !== landed.href && allowed(team)) {
       try {
         const more = await fetcher(team.href, {
@@ -170,13 +199,23 @@ export async function readWebsite(
           html(more.contentType) &&
           sameSite(landed.hostname, new URL(more.url).hostname)
         ) {
-          named.push(...extractPeople(text(more), more.url));
+          const teamHtml = text(more);
+          const listed = extractPeople(teamHtml, more.url);
+          named.push(
+            ...(listed.length === 0 && extract(teamHtml, more.url).blank
+              ? ((await drawn(more.url, "page"))?.people ?? [])
+              : listed),
+          );
         }
       } catch (error) {
         // As with the contact page: the company's own details were read.
         if (!(error instanceof FetchError)) throw error;
       }
     }
+    // A home page names its people among much else, so only its team section counts.
+    named.push(
+      ...(homeDrawn?.people ?? extractPeople(homeHtml, landed.href, "section")),
+    );
 
     return {
       ok: true,
@@ -191,6 +230,7 @@ export async function readWebsite(
             photo && photo.origin === landed.origin && !allowed(photo);
           return refused ? { ...person, photo: null } : person;
         }),
+        rendered,
       },
     };
   } catch (error) {

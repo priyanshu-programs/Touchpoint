@@ -9,8 +9,19 @@ const valid = {
 };
 
 describe("parseEnv", () => {
-  it("accepts a complete environment and defaults NODE_ENV", () => {
-    expect(parseEnv(valid)).toEqual({ ...valid, NODE_ENV: "development" });
+  it("accepts a complete environment and defaults the rest", () => {
+    expect(parseEnv(valid)).toEqual({
+      ...valid,
+      NODE_ENV: "development",
+      WEBSITE_RENDERER: "jina",
+    });
+  });
+
+  it("lets the outside page reader be turned off, and nothing else be named", () => {
+    expect(parseEnv({ ...valid, WEBSITE_RENDERER: "off" }).WEBSITE_RENDERER).toBe("off");
+    expect(() => parseEnv({ ...valid, WEBSITE_RENDERER: "browser" })).toThrow(
+      /WEBSITE_RENDERER/,
+    );
   });
 
   it("names every missing variable", () => {

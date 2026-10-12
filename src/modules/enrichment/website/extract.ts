@@ -18,16 +18,22 @@ export type Extracted = {
   teamPage: string | null;
   // People the company names as its own (JSON-LD founder, employee, member).
   staff: { name: string; title: string | null; photo: string | null }[];
+  // The page arrived with next to no text of its own: a browser draws it from scripts.
+  blank: boolean;
 };
 
 const MAX_JSON_LD = 200_000;
 const MAX_LINKS = 10;
 const MAX_CONTACT_LINKS = 20;
 const ORGANIZATION_TYPE = /(Organization|Business|Corporation|ProfessionalService)$/;
-const CONTACT_PATH = /\/contact[^/]*\/?$/i;
-const TEAM_PATH =
+export const CONTACT_PATH = /\/contact[^/]*\/?$/i;
+export const TEAM_PATH =
   /\/(our-)?(team|people|leadership|management|founders?)[^/]*\/?$/i;
 const MAX_STAFF = 50;
+// Fewer characters than this is a loading message, not a page.
+const MIN_PAGE_TEXT = 200;
+// Text in these is not what a visitor reads.
+const UNREAD = new Set(["script", "style", "template", "noscript", "title"]);
 
 // Page text is someone else's: one line, no control characters, no longer than the field allows.
 export function clean(value: unknown, max: number) {
@@ -86,7 +92,7 @@ function place(value: unknown) {
   return isNode(value) ? value.name : value;
 }
 
-function decoded(value: string) {
+export function decoded(value: string) {
   try {
     return decodeURIComponent(value);
   } catch {
@@ -95,20 +101,30 @@ function decoded(value: string) {
 }
 
 // Held to the rules of the company form, so a value read here can always be saved again.
-function phone(value: unknown) {
+export function phone(value: unknown) {
   const parsed = phoneNumber.safeParse(
     clean(value, 60)?.replace(/^tel:/i, ""),
   );
   return parsed.success ? parsed.data : null;
 }
 
-function email(value: unknown) {
+export function email(value: unknown) {
   const parsed = emailAddress.safeParse(
     clean(value, 400)
       ?.replace(/^mailto:/i, "")
       .split("?")[0],
   );
   return parsed.success ? parsed.data : null;
+}
+
+// Of the addresses a page links to, the one at the company's own domain, else the first.
+export function ownEmail(addresses: string[], host: string) {
+  const own = host.toLowerCase().replace(/^www\./, "");
+  const atOwnDomain = (address: string) => {
+    const domain = address.slice(address.indexOf("@") + 1);
+    return domain === own || own.endsWith(`.${domain}`) || domain.endsWith(`.${own}`);
+  };
+  return addresses.find(atOwnDomain) ?? addresses[0] ?? null;
 }
 
 const firstFound = (values: (string | null)[]) =>
@@ -124,10 +140,13 @@ export function extract(html: string, baseUrl: string): Extracted {
   const teamPages: string[] = [];
   let organization: Node | null = null;
   let jsonLd: string | null = null;
+  let unread = 0;
+  let pageText = 0;
 
   const parser = new Parser(
     {
       onopentag(name, attributes) {
+        if (UNREAD.has(name)) unread += 1;
         if (name === "meta") {
           const key = (attributes.name ?? attributes.property ?? "")
             .trim()
@@ -178,8 +197,12 @@ export function extract(html: string, baseUrl: string): Extracted {
       },
       ontext(text) {
         if (jsonLd !== null && jsonLd.length < MAX_JSON_LD) jsonLd += text;
+        if (unread === 0 && pageText < MIN_PAGE_TEXT) {
+          pageText += text.replace(/\s+/g, "").length;
+        }
       },
       onclosetag(name) {
+        if (UNREAD.has(name)) unread = Math.max(0, unread - 1);
         if (name !== "script" || jsonLd === null) return;
         const source = jsonLd;
         jsonLd = null;
@@ -201,11 +224,6 @@ export function extract(html: string, baseUrl: string): Extracted {
   // What the page states about the company outranks a link that may be anyone's.
   const stated = [found, ...list(found?.contactPoint)].filter(isNode);
   const linked = emailLinks.map(email).filter((address) => address !== null);
-  const own = site.replace(/^www\./, "");
-  const atOwnDomain = (address: string) => {
-    const domain = address.slice(address.indexOf("@") + 1);
-    return domain === own || own.endsWith(`.${domain}`) || domain.endsWith(`.${own}`);
-  };
 
   return {
     description:
@@ -217,9 +235,7 @@ export function extract(html: string, baseUrl: string): Extracted {
       firstFound(phoneLinks.map(phone)),
     email:
       firstFound(stated.map((node) => email(node.email))) ??
-      linked.find(atOwnDomain) ??
-      linked[0] ??
-      null,
+      ownEmail(linked, site),
     city: clean(place(address?.addressLocality), 100),
     region: clean(place(address?.addressRegion), 100),
     country: clean(place(address?.addressCountry), 100),
@@ -255,5 +271,6 @@ export function extract(html: string, baseUrl: string): Extracted {
             ]
           : [];
       }),
+    blank: pageText < MIN_PAGE_TEXT,
   };
 }

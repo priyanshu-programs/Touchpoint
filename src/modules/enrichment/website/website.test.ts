@@ -6,6 +6,7 @@ import { extract } from "./extract";
 import { imageType } from "./image";
 import { extractPeople, listPeople } from "./people";
 import { readWebsite } from "./read";
+import { readMarkdown, renderedPage } from "./render";
 import { robotsAllows } from "./robots";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
@@ -242,6 +243,20 @@ describe("extract", () => {
       staff: [],
     });
   });
+
+  it("tells a page a browser has yet to draw from one with words on it", () => {
+    // What a script-built site sends: a full head, scripts, and nothing to read.
+    const shell = `<html><head><title>Acme Anvils and much else besides</title>
+      <meta name="description" content="Anvils"><style>${"body{margin:0}".repeat(40)}</style></head>
+      <body><div id="root"></div><noscript>${"Please turn on JavaScript. ".repeat(20)}</noscript>
+      <template>${"Held back. ".repeat(40)}</template>
+      <script>self.__next_f.push(${JSON.stringify("x".repeat(2000))})</script></body></html>`;
+    expect(extract(shell, base)).toMatchObject({ blank: true, description: "Anvils" });
+    expect(
+      extract(`<body><h1>Acme</h1><p>${"We make anvils. ".repeat(20)}</p></body>`, base)
+        .blank,
+    ).toBe(false);
+  });
 });
 
 describe("extractPeople", () => {
@@ -356,15 +371,50 @@ describe("extractPeople", () => {
     ]);
   });
 
+  it("on a home page takes only the names under a heading that introduces the team", () => {
+    // Cards for figures, services and customers share the people's heading level.
+    const homePage = `
+      <h1>Acme Anvils</h1>
+      <h2>Our Vision</h2><h3>Combined Expertise</h3><p>30+</p>
+      <h2>Services Offered</h2><h3>Registration Services</h3><p>Head office filings</p>
+      <h2>What Our Clients Say</h2><h3>Priya Sharma</h3><p>Director, Elsewhere Ltd</p>
+      <h2>Join Our Team</h2><h3>Senior Accountant</h3><p>Lead the audit desk</p>
+      <h2>Our Team</h2><p>Led by two partners.</p>
+      <div><div><h3>CA Asha Rao</h3><p>Partner</p></div><div><img src="/people/asha.jpg"></div></div>
+      <div><h3>Vikram Shah</h3><p>Banking and advisory</p></div>
+      <h2>Contact</h2><h3>Head Office</h3><p>Pune</p>`;
+
+    expect(extractPeople(homePage, at, "section")).toEqual([
+      {
+        name: "Asha Rao",
+        title: "Partner",
+        photo: "https://www.acme.test/people/asha.jpg",
+      },
+      { name: "Vikram Shah", title: "Banking and advisory", photo: null },
+    ]);
+    // Read as a team page, the same markup offers its customer and its cards too.
+    expect(extractPeople(homePage, at).map((person) => person.name)).toContain(
+      "Priya Sharma",
+    );
+    expect(
+      extractPeople(`<h1>Leadership</h1><h2>Asha Rao</h2><p>Anvils</p>`, at, "section"),
+    ).toEqual([{ name: "Asha Rao", title: "Anvils", photo: null }]);
+    expect(extractPeople(`<h1>Asha Rao</h1><p>Founder</p>`, at)).toEqual([]);
+  });
+
   it("lists each person once, without honorifics, and stops at twelve", () => {
     expect(
       listPeople([
         { name: "Dr. Asha Rao", title: "Founder", photo: "https://acme.test/a.jpg" },
         { name: "asha rao", title: "Director", photo: null },
         { name: "Mr. ", title: null, photo: null },
+        { name: "CA Vikram Shah", title: "Partner", photo: null },
+        { name: "Ca Mau", title: null, photo: null },
       ]),
     ).toEqual([
       { name: "Asha Rao", title: "Founder", photo: "https://acme.test/a.jpg" },
+      { name: "Vikram Shah", title: "Partner", photo: null },
+      { name: "Ca Mau", title: null, photo: null },
     ]);
     expect(
       listPeople(
@@ -382,6 +432,154 @@ describe("extractPeople", () => {
     extractPeople(
       `<h3>${"A ".repeat(100_000)}</h3>${"<div>".repeat(5_000)}${"<div><img src='/a.png'><h3>Aa Bb</h3><p>Founder</p></div>".repeat(20_000)}`,
       at,
+    );
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+});
+
+// A script-built home page as the outside reader hands it back.
+const DRAWN_HOME = `Title: Acme Anvils
+
+URL Source: https://acme.test/
+
+Markdown Content:
+![Image 1: Acme Logo](https://acme.test/logo.png)
+
+## Services Offered
+
+### Registration Services
+
+Head office filings
+
+## Our Team
+
+Led by two partners.
+
+### CA Asha Rao
+
+![Image 7: CA Asha Rao](https://acme.test/_next/image?url=%2Fasha.jpg&w=640&q=75)
+
+**Partner**
+
+### [Vikram Shah](https://acme.test/people/vikram)
+
+${"He joined long ago. ".repeat(12)}
+
+![Image 8](https://acme.test/unnamed.jpg)
+
+#### Contact Us
+
+*   [+91 20 5550 1234](tel:+91%2020%205550%201234)[not a number](tel:call-us)
+*   [Write](mailto:someone@gmail.test) [Us](mailto:hello@acme.test?subject=Hi)
+*   [Elsewhere](https://elsewhere.test/team) [Team](/about/our-team#top) [Contact](https://acme.test/contact-us "Reach us")
+`;
+
+describe("renderedPage", () => {
+  const answer = (body: string, more: object = {}) => ({
+    url: "https://r.jina.ai/https://acme.test/",
+    status: 200,
+    contentType: "text/plain; charset=utf-8",
+    body: Buffer.from(body),
+    truncated: false,
+    ...more,
+  });
+
+  it("asks the reader for the address and returns the page under its heading lines", async () => {
+    const seen: unknown[] = [];
+    const page = await renderedPage(
+      "https://acme.test/",
+      async (url, options) => {
+        seen.push(url, options.accept, options.timeoutMs, options.deadline);
+        return answer(DRAWN_HOME);
+      },
+      1234,
+    );
+
+    expect(seen).toEqual(["https://r.jina.ai/https://acme.test/", "text/plain", 10_000, 1234]);
+    expect(page).toMatch(/^\s*!\[Image 1: Acme Logo\]/);
+    expect(page).not.toContain("URL Source");
+  });
+
+  it.each([
+    ["is over its limit", async () => answer("Slow down", { status: 429 })],
+    ["answers with more than can be kept", async () => answer(DRAWN_HOME, { truncated: true })],
+    [
+      "cannot be reached",
+      async () => {
+        throw new FetchError("timeout");
+      },
+    ],
+  ])("returns nothing when the reader %s", async (_label, fetcher) => {
+    expect(await renderedPage("https://acme.test/", fetcher, 0)).toBeNull();
+  });
+});
+
+describe("readMarkdown", () => {
+  const at = "https://acme.test/";
+
+  it("reads the team, the contact links and the site's own pages from a drawn home page", () => {
+    expect(readMarkdown(DRAWN_HOME, at, "section")).toEqual({
+      phone: "+91 20 5550 1234",
+      email: "hello@acme.test",
+      contactPage: "https://acme.test/contact-us",
+      teamPage: "https://acme.test/about/our-team",
+      people: [
+        {
+          name: "Asha Rao",
+          title: "Partner",
+          photo: "https://acme.test/_next/image?url=%2Fasha.jpg&w=640&q=75",
+        },
+        // A biography is not a role, and a picture nobody is named on is nobody's.
+        { name: "Vikram Shah", title: null, photo: null },
+      ],
+    });
+  });
+
+  it("reads a drawn team page by who holds a position, as the HTML reader does", () => {
+    expect(
+      readMarkdown(
+        `# Acme\n\n### Asha Rao\nFounder\n### Zoya Khan\nDesigner\n#### Head Office\nPune\n## Kabir Mehta\nA customer`,
+        at,
+        "page",
+      ).people,
+    ).toEqual([
+      { name: "Asha Rao", title: "Founder", photo: null },
+      { name: "Zoya Khan", title: "Designer", photo: null },
+    ]);
+  });
+
+  it("takes nothing from a page with nobody on it, and no picture that cannot be stored", () => {
+    expect(readMarkdown("Just words.\n\n## Our Story\n\nSince 1990", at, "section")).toEqual({
+      phone: null,
+      email: null,
+      contactPage: null,
+      teamPage: null,
+      people: [],
+    });
+    expect(
+      readMarkdown(
+        `## Our Team\n### Asha Rao\n![Asha Rao](javascript:void)![Asha Rao](/asha.svg)\nFounder`,
+        at,
+        "section",
+      ).people,
+    ).toEqual([{ name: "Asha Rao", title: "Founder", photo: null }]);
+  });
+
+  it("does not slow down on a hostile page", () => {
+    const started = Date.now();
+    readMarkdown(
+      [
+        "#".repeat(100_000),
+        // As many full-length lines of unclosed links as the size cap lets through.
+        ...Array.from({ length: 80 }, () => "[".repeat(2_000)),
+        ...Array.from({ length: 80 }, () => "![a](".repeat(400)),
+        ...Array.from({ length: 80 }, () => "[a](b".repeat(400)),
+        ...Array.from({ length: 80 }, () => `${"](".repeat(999)})`),
+        "## Our Team",
+        ..."### Aa Bb\nFounder\n![Aa Bb](/a.png)\n".repeat(20_000).split("\n"),
+      ].join("\n"),
+      at,
+      "section",
     );
     expect(Date.now() - started).toBeLessThan(2_000);
   });
@@ -433,8 +631,164 @@ describe("readWebsite", () => {
           sourceUrl: "https://www.acme.test/logo.svg.png",
         },
         people: [],
+        rendered: false,
       },
     });
+  });
+
+  describe("when the home page arrives empty", () => {
+    const READER = "https://r.jina.ai/";
+    const drawn = (body: string) => page(body, "text/plain; charset=utf-8");
+    const shell = page(
+      `<meta name="description" content="Anvils"><div id="root"></div><script src="/app.js"></script>`,
+    );
+    const asked = (pages: Parameters<typeof site>[0]) => {
+      const seen: string[] = [];
+      const answers = site(pages);
+      const fetcher: Fetcher = (url, options) => {
+        seen.push(url);
+        return answers(url, options);
+      };
+      return { seen, fetcher };
+    };
+
+    it.each([
+      [
+        "with its pictures",
+        "",
+        "https://acme.test/_next/image?url=%2Fasha.jpg&w=640&q=75",
+      ],
+      ["without a picture the site's rules close off", "User-agent: *\nDisallow: /_next/", null],
+    ])("reads the page as the outside reader draws it, %s", async (_label, rules, photo) => {
+      const { seen, fetcher } = asked({
+        "https://acme.test/": shell,
+        [`${READER}https://acme.test/`]: drawn(DRAWN_HOME),
+        "https://acme.test/robots.txt": page(rules, "text/plain"),
+      });
+      const result = await readWebsite("https://acme.test", fetcher, { render: true });
+
+      expect(result).toMatchObject({
+        ok: true,
+        reading: {
+          fields: {
+            website: "https://acme.test",
+            description: "Anvils",
+            phone: "+91 20 5550 1234",
+            email: "hello@acme.test",
+          },
+          rendered: true,
+          people: [
+            { name: "Asha Rao", title: "Partner", photo },
+            { name: "Vikram Shah", title: null, photo: null },
+          ],
+        },
+      });
+      expect(seen.filter((url) => url.startsWith(READER))).toEqual([
+        `${READER}https://acme.test/`,
+      ]);
+    });
+
+    it("has a script-built team page drawn too, and lets it speak first", async () => {
+      const { seen, fetcher } = asked({
+        "https://acme.test/": shell,
+        [`${READER}https://acme.test/`]: drawn(DRAWN_HOME),
+        "https://acme.test/about/our-team": shell,
+        [`${READER}https://acme.test/about/our-team`]: drawn(
+          `# Who We Are\n\n### Zoya Khan\n\nHead of Design\n\n### Asha Rao\n\nManaging Partner`,
+        ),
+        "https://acme.test/contact-us": shell,
+      });
+      const result = await readWebsite("https://acme.test", fetcher, { render: true });
+
+      expect(result.ok && result.reading.people).toEqual([
+        { name: "Zoya Khan", title: "Head of Design", photo: null },
+        { name: "Asha Rao", title: "Managing Partner", photo: null },
+        { name: "Vikram Shah", title: null, photo: null },
+      ]);
+      // The contact page is fetched for the location, and never sent to be drawn.
+      expect(seen).toContain("https://acme.test/contact-us");
+      expect(seen.filter((url) => url.startsWith(READER))).toEqual([
+        `${READER}https://acme.test/`,
+        `${READER}https://acme.test/about/our-team`,
+      ]);
+    });
+
+    it.each([
+      ["is over its limit", { status: 429 }],
+      ["answers with more than can be kept", { status: 200, truncated: true }],
+    ])("keeps what the site itself said when the reader %s", async (_label, answer) => {
+      const { fetcher } = asked({
+        "https://acme.test/": shell,
+        [`${READER}https://acme.test/`]: { ...drawn(DRAWN_HOME), ...answer },
+      });
+
+      expect(await readWebsite("https://acme.test", fetcher, { render: true })).toMatchObject({
+        ok: true,
+        reading: {
+          fields: { website: "https://acme.test", description: "Anvils" },
+          people: [],
+          rendered: false,
+        },
+      });
+    });
+
+    it("keeps what the site itself said when the reader cannot be reached", async () => {
+      const answers = site({ "https://acme.test/": shell });
+      const result = await readWebsite(
+        "https://acme.test",
+        async (url, options) => {
+          if (url.startsWith(READER)) throw new FetchError("unreachable");
+          return answers(url, options);
+        },
+        { render: true },
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        reading: { fields: { description: "Anvils" }, people: [], rendered: false },
+      });
+    });
+
+    it("sends no address to the outside reader unless told it may", async () => {
+      const { seen, fetcher } = asked({
+        "https://acme.test/": shell,
+        [`${READER}https://acme.test/`]: drawn(DRAWN_HOME),
+      });
+
+      expect(await readWebsite("https://acme.test", fetcher)).toMatchObject({
+        ok: true,
+        reading: { people: [], rendered: false },
+      });
+      expect(seen.some((url) => url.startsWith(READER))).toBe(false);
+    });
+  });
+
+  it("reads a home page with words on it by itself, team section included", async () => {
+    const seen: string[] = [];
+    const answers = site({
+      "https://acme.test/": page(
+        `<h1>Acme Anvils</h1><p>${"We make anvils. ".repeat(20)}</p>
+         <h2>Our Customers</h2><h3>Priya Sharma</h3><p>Director, Elsewhere Ltd</p>
+         <h2>Meet the Team</h2><h3>Asha Rao</h3><p>Partner</p>`,
+      ),
+    });
+    const result = await readWebsite(
+      "https://acme.test",
+      (url, options) => {
+        seen.push(url);
+        return answers(url, options);
+      },
+      { render: true },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      reading: {
+        people: [{ name: "Asha Rao", title: "Partner", photo: null }],
+        rendered: false,
+      },
+    });
+    expect(seen.some((url) => url.startsWith("https://r.jina.ai/"))).toBe(false);
   });
 
   it("reads the team page for the company's people", async () => {

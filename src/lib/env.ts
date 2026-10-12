@@ -8,6 +8,8 @@ const schema = z.object({
   DATABASE_URL: z.url(),
   AUTH_SECRET: z.string().min(32),
   CRON_SECRET: z.string().min(32),
+  // "off" keeps company addresses from the outside reader that draws script-built pages.
+  WEBSITE_RENDERER: z.enum(["jina", "off"]).default("jina"),
 });
 
 export type Env = z.infer<typeof schema>;

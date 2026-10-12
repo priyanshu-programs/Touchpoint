@@ -56,6 +56,7 @@ const reading = (override: Partial<Reading> = {}): ReadResult => ({
       sourceUrl: "https://www.acme.test/touch.png",
     },
     people: [],
+    rendered: false,
     ...override,
   },
 });
@@ -268,10 +269,10 @@ describe("enrichment", () => {
       { name: "Vikram Shah", title: null, photo: null },
     ];
 
-    await work(reading({ people }));
+    await work(reading({ people, rendered: true }));
 
     const [run] = await db.select().from(enrichmentRuns);
-    expect(run.rawResult).toMatchObject({ people });
+    expect(run.rawResult).toMatchObject({ people, rendered: true });
     expect(await suggestedPeople(ownerId, id)).toEqual(people);
     expect(await countContacts(ownerId)).toBe(0);
   });

@@ -13,27 +13,59 @@ const MAX_PAIRS = 200;
 const MAX_IMAGES = 500;
 // Places are compared from the outside in; past this depth every card looks the same and gets no picture.
 const MAX_DEPTH = 128;
-const MAX_NAME = 60;
-const MAX_TITLE = 150;
+export const MAX_NAME = 60;
+export const MAX_TITLE = 150;
 // How far up from a name its card can reach; further up is the page, not the card.
 const CARD_REACH = 4;
 const MIN_PHOTO_SIDE = 40;
-const HEADING = /^h[2-6]$/;
+const HEADING = /^h[1-6]$/;
 const HONORIFIC = /^(mr|mrs|ms|miss|dr|prof)\.?\s+/i;
+// A chartered accountant's prefix; in capitals only, so nobody called Ca loses a name.
+const CHARTERED = /^CA\.?\s+/;
 // Two to four words, each starting with a capital: how a name is written and few headings are.
-const NAME = /^\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){1,3}$/u;
+export const NAME = /^\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){1,3}$/u;
 const POSITION =
   /\b(founder|owner|director|chief|ceo|partner|head|lead|manager|president)\b/i;
+// A heading that says the names under it are the company's own people.
+const TEAM_SECTION =
+  /\b(team|leadership|founders?|management|directors|our people)\b/i;
+// "Join our team" is followed by openings, not by people.
+const RECRUITING = /\b(join|careers?|hiring|jobs?|vacanc(y|ies)|openings?)\b/i;
 // Headings here name sections of the site, not people.
 const CHROME = new Set(["footer", "nav", "header", "aside"]);
 const UNSEEN = new Set(["script", "style"]);
+
+export const plainName = (name: string) =>
+  name.replace(HONORIFIC, "").replace(CHARTERED, "");
+
+// A team page lists people wherever someone at that heading level holds a named
+// position. Any other page mixes people with services and customers, so there a
+// name counts only under a heading that says it introduces the team.
+export type Scope = "page" | "section";
+
+export function staffOnly<
+  T extends { level: string; title: string | null; section: string | null },
+>(pairs: T[], scope: Scope): T[] {
+  if (scope === "section") {
+    return pairs.filter(
+      ({ section }) =>
+        section !== null && TEAM_SECTION.test(section) && !RECRUITING.test(section),
+    );
+  }
+  const staffed = new Set(
+    pairs
+      .filter((pair) => pair.title && POSITION.test(pair.title))
+      .map((pair) => pair.level),
+  );
+  return pairs.filter((pair) => staffed.has(pair.level));
+}
 
 // One list from every source: honorifics dropped, each person once.
 export function listPeople(candidates: Person[]): Person[] {
   const seen = new Set<string>();
   const people: Person[] = [];
   for (const candidate of candidates) {
-    const name = candidate.name.replace(HONORIFIC, "");
+    const name = plainName(candidate.name);
     const key = name.toLowerCase();
     if (!name || seen.has(key)) continue;
     seen.add(key);
@@ -73,13 +105,18 @@ function imageAddress(attributes: Record<string, string>, baseUrl: string) {
   return null;
 }
 
-// Reads a team page laid out as a name in a heading with the role under it,
+// Reads a page laid out as a name in a heading with the role under it,
 // and the picture in the same card when there is one.
-export function extractPeople(html: string, baseUrl: string): Person[] {
+export function extractPeople(
+  html: string,
+  baseUrl: string,
+  scope: Scope = "page",
+): Person[] {
   const pairs: {
     level: string;
     name: string;
     title: string | null;
+    section: string | null;
     place: Place;
   }[] = [];
   const images: { place: Place; url: string }[] = [];
@@ -90,8 +127,11 @@ export function extractPeople(html: string, baseUrl: string): Person[] {
     name: string;
     text: string;
     within: number | null;
+    section: string | null;
     place: Place;
   } | null = null;
+  // The latest heading at each level above the one being read.
+  const sections = new Map<number, string>();
   const place: Place = [];
   let opened = 0;
   let chrome = 0;
@@ -115,6 +155,7 @@ export function extractPeople(html: string, baseUrl: string): Person[] {
         name: pending.name,
         // Longer than a role: a biography or the next section's opening line.
         title: title && title.length <= MAX_TITLE ? title : null,
+        section: pending.section,
         place: pending.place,
       });
     }
@@ -151,15 +192,27 @@ export function extractPeople(html: string, baseUrl: string): Person[] {
         if (CHROME.has(name)) chrome = Math.max(0, chrome - 1);
         else if (UNSEEN.has(name)) unseen = false;
         else if (heading && name === heading.level) {
-          const stated = clean(heading.text, 80)?.replace(HONORIFIC, "") ?? "";
+          const said = clean(heading.text, 80) ?? "";
+          const stated = plainName(said);
           const at = heading.place;
           heading = null;
-          if (stated.length <= MAX_NAME && NAME.test(stated)) {
+          const depth = Number(name[1]);
+          let section: string | null = null;
+          for (let above = depth - 1; above >= 1 && section === null; above--) {
+            section = sections.get(above) ?? null;
+          }
+          for (const level of [...sections.keys()]) {
+            if (level >= depth) sections.delete(level);
+          }
+          if (said) sections.set(depth, said);
+          // The page's own title is never one of its people.
+          if (depth > 1 && stated.length <= MAX_NAME && NAME.test(stated)) {
             pending = {
               level: name,
               name: stated,
               text: "",
               within: null,
+              section,
               place: at,
             };
           }
@@ -176,26 +229,18 @@ export function extractPeople(html: string, baseUrl: string): Person[] {
   parser.end(html);
   settle();
 
-  // A level of headings lists people when someone on it holds a named position.
-  const staffed = new Set(
-    pairs
-      .filter((pair) => pair.title && POSITION.test(pair.title))
-      .map((pair) => pair.level),
-  );
-  return pairs
-    .filter((pair) => staffed.has(pair.level))
-    .map((pair) => {
-      // The card is whatever holds this name and no other; its first picture is the person's.
-      const others = Math.max(
-        0,
-        ...pairs
-          .filter((other) => other !== pair)
-          .map((other) => shared(pair.place, other.place)),
-      );
-      const own = images.find((image) => {
-        const common = shared(pair.place, image.place);
-        return common > others && pair.place.length - common <= CARD_REACH;
-      });
-      return { name: pair.name, title: pair.title, photo: own?.url ?? null };
+  return staffOnly(pairs, scope).map((pair) => {
+    // The card is whatever holds this name and no other; its first picture is the person's.
+    const others = Math.max(
+      0,
+      ...pairs
+        .filter((other) => other !== pair)
+        .map((other) => shared(pair.place, other.place)),
+    );
+    const own = images.find((image) => {
+      const common = shared(pair.place, image.place);
+      return common > others && pair.place.length - common <= CARD_REACH;
     });
+    return { name: pair.name, title: pair.title, photo: own?.url ?? null };
+  });
 }

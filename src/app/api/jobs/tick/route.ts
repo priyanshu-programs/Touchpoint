@@ -2,7 +2,8 @@ import { timingSafeEqual } from "node:crypto";
 import { env } from "@/lib/env";
 import { tick } from "@/modules/jobs/tick";
 
-export const maxDuration = 30;
+// A website read that waits on a drawn page can take 20 seconds after the last job starts.
+export const maxDuration = 60;
 
 function isAuthorized(request: Request) {
   const given = Buffer.from(request.headers.get("authorization") ?? "");

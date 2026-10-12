@@ -76,6 +76,8 @@ Approved deviations (owner sign-off 2026-10-10, see `docs/PRD.md` section 13):
 - Sessions are Better Auth database sessions in `httpOnly`, `Secure` cookies, not 15-minute JWTs. They are revocable server-side and never stored in browser storage.
 - The Google OAuth callback uses a separate short-lived `SameSite=Lax` state cookie, because a `SameSite=Strict` cookie is not sent on the redirect back from Google. The session cookie itself is unaffected.
 
+- The website read sends the address of a company's page to Jina Reader (`r.jina.ai`, no key) when that page arrives empty because a browser builds it from scripts (owner sign-off 2026-10-12). Only the address goes, after this app has fetched the page itself and checked the site's robots rules; what comes back is untrusted page text like any other. `WEBSITE_RENDERER=off` stops it.
+
 Project rules:
 
 - Every table has `owner_id`; every server action and query calls `requireOwner()` and filters by it.
