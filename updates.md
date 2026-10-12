@@ -220,3 +220,4 @@
 - [2026-10-12] security.md records the owner's sign-off on sending a company page's address to Jina Reader, what is sent and how to turn it off
 - [2026-10-12] Tests: blank pages, the home-page team rule, the CA prefix, renderedPage and its refusals, readMarkdown and a hostile page, reads with a drawn home and team page, a refusing reader, rendering off, and the new environment variable (295 unit tests)
 - [2026-10-12] docs/PRD.md 11.2 and plan.md describe the drawn read, the home-page rule and what is still not read
+- [2026-10-12] Deployed (199d92d, CI green); Re-enrich on KBRS & Associates in production finished in seven seconds with rendered true, filled the phone and email, and the Contacts tab offers Komal Bhotika and Richa Sureka
