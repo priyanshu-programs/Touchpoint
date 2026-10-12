@@ -9,11 +9,16 @@ import {
 } from "@/components/fields";
 import { FormButtons, FormOutcome } from "@/components/form-outcome";
 import type { RecordFormState } from "@/app/(app)/form-state";
+import {
+  CustomFieldInputs,
+  type CustomFormField,
+} from "../fields/custom-inputs";
 
 export function OrganizationForm({
   action,
   initial,
   statuses,
+  customFields = [],
   submitLabel,
   cancelHref,
 }: {
@@ -23,6 +28,8 @@ export function OrganizationForm({
   ) => Promise<RecordFormState>;
   initial: Record<string, string>;
   statuses: Option[];
+  // The owner's own fields, filled in once the company exists.
+  customFields?: CustomFormField[];
   submitLabel: string;
   cancelHref: string;
 }) {
@@ -103,6 +110,7 @@ export function OrganizationForm({
         hint="Separate tags with commas."
         defaultValue={values.tags}
       />
+      <CustomFieldInputs fields={customFields} values={values} />
 
       <FormOutcome state={state} />
       <FormButtons

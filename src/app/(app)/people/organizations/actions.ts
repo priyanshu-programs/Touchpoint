@@ -24,6 +24,7 @@ import {
   type OrganizationResult,
 } from "@/modules/organizations/service";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
+import { readCustomValues } from "../fields/custom-values";
 import { companyHref } from "../labels";
 
 const FIELDS = [
@@ -166,11 +167,19 @@ export async function updateOrganizationAction(
 ): Promise<RecordFormState> {
   const owner = await requireOwner();
   const organizationId = z.uuid().parse(id);
-  const values = readFields(formData, FIELDS);
-  const parsed = organizationInput.safeParse(values);
+  const standard = readFields(formData, FIELDS);
+  const custom = await readCustomValues(owner.id, "organization", formData);
+  const values = { ...standard, ...custom.typed };
+  const parsed = organizationInput.safeParse(standard);
   if (!parsed.success) return invalid(parsed.error, values);
+  if (!custom.parsed.success) return invalid(custom.parsed.error, values);
 
-  const result = await updateOrganization(owner.id, organizationId, parsed.data);
+  const result = await updateOrganization(
+    owner.id,
+    organizationId,
+    parsed.data,
+    custom.parsed.data,
+  );
   if (!result.ok) return failure(result, values);
 
   revalidatePath("/people", "layout");

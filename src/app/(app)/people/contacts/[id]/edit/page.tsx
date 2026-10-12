@@ -4,6 +4,11 @@ import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
 import { getContact } from "@/modules/contacts/queries";
+import { listCustomFields } from "@/modules/fields/queries";
+import {
+  customFormFields,
+  customFormValues,
+} from "../../../fields/custom-values";
 import { contactHref, contactPanelHref } from "../../../labels";
 import { updateContactAction } from "../../actions";
 import { ContactForm } from "../../contact-form";
@@ -18,7 +23,10 @@ export default async function EditContactPage({
   const owner = await requireOwner();
   const id = z.uuid().safeParse((await params).id);
   if (!id.success) notFound();
-  const contact = await getContact(owner.id, id.data);
+  const [contact, customFields] = await Promise.all([
+    getContact(owner.id, id.data),
+    listCustomFields(owner.id, "contact"),
+  ]);
   if (!contact) notFound();
   // The company whose panel the edit was opened from, to go back there afterwards.
   const company = z.uuid().safeParse((await searchParams).company);
@@ -48,9 +56,11 @@ export default async function EditContactPage({
             country: contact.country ?? "",
             timezone: contact.timezone ?? "",
             tags: contact.tags.join(", "),
+            ...customFormValues(customFields, contact.custom),
           }}
           options={contactFormOptions(contact.timezone)}
           isNew={false}
+          customFields={customFormFields(customFields)}
           submitLabel="Save changes"
           cancelHref={
             companyId

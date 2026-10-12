@@ -3,12 +3,14 @@ import {
   boolean,
   check,
   index,
+  jsonb,
   pgTable,
   primaryKey,
   text,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { CustomValues } from "./fields";
 import {
   archivedAt,
   citext,
@@ -67,6 +69,7 @@ export const organizations = pgTable(
     region: text("region"),
     country: text("country"),
     status: text("status").notNull().default("prospect"),
+    custom: jsonb("custom").$type<CustomValues>().notNull().default({}),
     search: tsvector("search").generatedAlwaysAs(
       (): SQL =>
         sql`to_tsvector('simple', ${organizations.name} || ' ' || coalesce(${organizations.domain}, '') || ' ' || coalesce(${organizations.industry}, '') || ' ' || coalesce(${organizations.city}, ''))`,
@@ -120,6 +123,7 @@ export const contacts = pgTable(
     preferredChannel: text("preferred_channel"),
     status: text("status").notNull().default("active"),
     relationshipType: text("relationship_type").notNull().default("prospect"),
+    custom: jsonb("custom").$type<CustomValues>().notNull().default({}),
     search: tsvector("search").generatedAlwaysAs(
       (): SQL =>
         sql`to_tsvector('simple', ${contacts.firstName} || ' ' || coalesce(${contacts.lastName}, '') || ' ' || coalesce(${contacts.jobTitle}, '') || ' ' || coalesce(${contacts.department}, ''))`,

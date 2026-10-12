@@ -5,6 +5,10 @@ import { SelectField, TextField, type Option } from "@/components/fields";
 import { RecordPicker } from "@/components/record-picker";
 import { FormButtons, FormOutcome } from "@/components/form-outcome";
 import type { RecordFormState } from "@/app/(app)/form-state";
+import {
+  CustomFieldInputs,
+  type CustomFormField,
+} from "../fields/custom-inputs";
 import { searchOrganizationsAction } from "../organizations/actions";
 
 export function ContactForm({
@@ -12,6 +16,7 @@ export function ContactForm({
   initial,
   options,
   isNew,
+  customFields = [],
   submitLabel,
   cancelHref,
 }: {
@@ -29,6 +34,8 @@ export function ContactForm({
   // A new person is given a first email and a first company here; afterwards both
   // are kept in the person's panel, where there can be several.
   isNew: boolean;
+  // The owner's own fields, filled in once the person exists.
+  customFields?: CustomFormField[];
   submitLabel: string;
   cancelHref: string;
 }) {
@@ -137,6 +144,7 @@ export function ContactForm({
         hint="Separate tags with commas."
         defaultValue={values.tags}
       />
+      <CustomFieldInputs fields={customFields} values={values} />
 
       <FormOutcome state={state} />
       <FormButtons

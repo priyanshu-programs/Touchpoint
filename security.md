@@ -90,3 +90,4 @@ Project rules:
 - Outbound fetches for enrichment must block private and loopback addresses.
 - A link between a contact and a company is written only after both are checked against the owner. Saying a person a website names is an existing contact is accepted only for a pair the server itself offered for that company.
 - A profile link found by name is added only if the stored search offered that address for that person.
+- A custom value is stored only for a field the owner defined for that kind of record, and only if it fits that field's kind and options; a form's other keys are never read. A suggested field is added by its key from the list in code, never from a label or options sent with the request.

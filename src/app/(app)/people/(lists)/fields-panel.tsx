@@ -1,11 +1,16 @@
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { getLayout } from "@/modules/fields/queries";
+import { getLayout, listCustomFields } from "@/modules/fields/queries";
+import { customKey, isCustomKey } from "@/modules/fields/schema";
+import { SUGGESTED_FIELDS } from "@/modules/fields/suggested";
 import { saveFieldLayoutAction } from "../fields/actions";
+import { CustomFields } from "./custom-fields";
 import { FieldList } from "./field-list";
+import { FieldsSection } from "./fields-section";
 import type { FieldsTab } from "./list-controls";
+import { SuggestedFields } from "./suggested-fields";
 
 const TABS = [
   {
@@ -16,6 +21,14 @@ const TABS = [
   },
   { tab: "contacts", label: "Contacts", entityType: "contact", record: "contact" },
 ] as const;
+
+const KINDS = { text: "Text", number: "Number", date: "Date" };
+
+// What follows a field's name: the options of a dropdown, or its kind.
+const detailOf = (field: { type: string; options: readonly string[] }) =>
+  field.type === "select"
+    ? field.options.join(", ")
+    : KINDS[field.type as keyof typeof KINDS];
 
 // What the Details of a company and of a person list, and in what order. It takes
 // the place of the open record in the panel until the owner goes back.
@@ -31,7 +44,39 @@ export async function FieldsPanel({
   hrefFor: (tab: FieldsTab) => string;
 }) {
   const current = TABS.find((item) => item.tab === tab)!;
-  const layout = await getLayout(ownerId, current.entityType);
+  const [layout, defs] = await Promise.all([
+    getLayout(ownerId, current.entityType),
+    listCustomFields(ownerId, current.entityType),
+  ]);
+  const saveAction = saveFieldLayoutAction.bind(null, current.entityType);
+  const standard = layout.filter(({ key }) => !isCustomKey(key));
+  // In the layout's order, which is the one Details follows.
+  const custom = layout.flatMap((placed) => {
+    const def = defs.find(({ key }) => customKey(key) === placed.key);
+    return def
+      ? [
+          {
+            ...placed,
+            id: def.id,
+            detail: detailOf(def),
+            options: def.options,
+            isSelect: def.type === "select",
+          },
+        ]
+      : [];
+  });
+  const suggested = SUGGESTED_FIELDS[current.entityType]
+    .filter(
+      (field) =>
+        !defs.some(
+          (def) => def.label.toLowerCase() === field.label.toLowerCase(),
+        ),
+    )
+    .map((field) => ({
+      key: field.key,
+      label: field.label,
+      detail: detailOf(field),
+    }));
 
   return (
     <>
@@ -74,25 +119,33 @@ export async function FieldsPanel({
         </nav>
       </header>
 
-      <details open className="group border-b">
-        <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm [&::-webkit-details-marker]:hidden">
-          <ChevronRight
-            aria-hidden
-            className="size-4 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none"
-          />
-          <span className="font-medium">Standard fields</span>
-          <span className="ml-auto text-muted-foreground">
-            {layout.length} · reorder and hide only
-          </span>
-        </summary>
-        <div className="border-t bg-muted/30 px-3 py-2">
-          <FieldList
-            key={current.entityType}
-            fields={layout}
-            action={saveFieldLayoutAction.bind(null, current.entityType)}
-          />
-        </div>
-      </details>
+      <FieldsSection
+        title="Standard fields"
+        note={`${standard.length} · reorder and hide only`}
+        open
+      >
+        <FieldList
+          key={current.entityType}
+          fields={standard}
+          action={saveAction}
+        />
+      </FieldsSection>
+
+      {suggested.length > 0 && (
+        <SuggestedFields
+          key={current.entityType}
+          entityType={current.entityType}
+          fields={suggested}
+        />
+      )}
+
+      <CustomFields
+        key={current.entityType}
+        entityType={current.entityType}
+        record={current.record}
+        fields={custom}
+        saveAction={saveAction}
+      />
     </>
   );
 }

@@ -26,7 +26,7 @@ import {
   suggestedPeople,
   websiteFields,
 } from "@/modules/enrichment/queries";
-import { getLayout } from "@/modules/fields/queries";
+import { getLayout, listCustomFields } from "@/modules/fields/queries";
 import type { StandardKey } from "@/modules/fields/standard";
 import type { getOrganization } from "@/modules/organizations/queries";
 import { getSettings } from "@/modules/settings/service";
@@ -47,6 +47,7 @@ import {
   setOrganizationArchivedAction,
   setOrganizationStatusAction,
 } from "../../organizations/actions";
+import { customDetailRows } from "../../fields/custom-values";
 import { FieldsLink } from "../fields-link";
 import { companiesHref, type CompanyListParams } from "../list-controls";
 import { StatusMenu } from "../status-menu";
@@ -113,19 +114,27 @@ export async function CompanyPanel({
   params: CompanyListParams;
 }) {
   const filter = { organizationId: organization.id };
-  const [settings, layout, contacts, openTasks, latest, run, sourced, suggested] =
-    await Promise.all([
-      getSettings(ownerId),
-      getLayout(ownerId, "organization"),
-      listContacts(ownerId, { ...filter, limit: 100 }),
-      listTasks(ownerId, { ...filter, limit: 100 }),
-      listTimeline(ownerId, { ...filter, limit: 1 }),
-      latestRun(ownerId, organization.id),
-      websiteFields(ownerId, organization.id),
-      params.tab === "contacts"
-        ? suggestedPeople(ownerId, organization.id)
-        : [],
-    ]);
+  const [
+    settings,
+    layout,
+    customFields,
+    contacts,
+    openTasks,
+    latest,
+    run,
+    sourced,
+    suggested,
+  ] = await Promise.all([
+    getSettings(ownerId),
+    getLayout(ownerId, "organization"),
+    listCustomFields(ownerId, "organization"),
+    listContacts(ownerId, { ...filter, limit: 100 }),
+    listTasks(ownerId, { ...filter, limit: 100 }),
+    listTimeline(ownerId, { ...filter, limit: 1 }),
+    latestRun(ownerId, organization.id),
+    websiteFields(ownerId, organization.id),
+    params.tab === "contacts" ? suggestedPeople(ownerId, organization.id) : [],
+  ]);
   const timezone = settings?.timezone ?? "UTC";
   const lastActivity = latest.rows[0]?.occurredAt;
   const site =
@@ -151,7 +160,10 @@ export async function CompanyPanel({
       {text}
     </a>
   );
-  const details = arrangeRows<StandardKey<"organization">>(layout, {
+  const details = arrangeRows<
+    StandardKey<"organization"> | `custom.${string}`
+  >(layout, {
+    ...customDetailRows(customFields, organization.custom),
     name: { value: organization.name },
     domain: { value: organization.domain },
     website: {

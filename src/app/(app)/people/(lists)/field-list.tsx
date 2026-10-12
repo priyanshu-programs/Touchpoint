@@ -15,22 +15,27 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { Eye, EyeOff, GripVertical } from "lucide-react";
-import { startTransition, useId, useState } from "react";
+import { startTransition, useId, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "@/lib/utils";
 import type { LayoutField } from "@/modules/fields/queries";
 
 // A row reads as a plain name until it is pointed at or focused; a touch screen
 // has no pointing, so the controls stay in view there.
-const CONTROL =
+export const ROW_CONTROL =
   "rounded-md p-1 text-muted-foreground opacity-0 hover:text-foreground group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-100";
+
+// `detail` follows the name of a field the owner added: its kind, or what it offers.
+export type FieldListItem = LayoutField & { detail?: string };
 
 function FieldRow({
   field,
+  menu,
   onMove,
   onToggle,
 }: {
-  field: LayoutField;
+  field: FieldListItem;
+  menu?: ReactNode;
   onMove: (by: -1 | 1, handle: HTMLButtonElement) => void;
   onToggle: () => void;
 }) {
@@ -64,13 +69,17 @@ function FieldRow({
         )}
       >
         {field.label}
+        {field.detail && (
+          <span className="text-muted-foreground"> · {field.detail}</span>
+        )}
       </span>
+      {menu}
       <button
         type="button"
         aria-pressed={!field.hidden}
         aria-label={`Show ${field.label}`}
         onClick={onToggle}
-        className={cn(CONTROL, field.hidden && "opacity-100")}
+        className={cn(ROW_CONTROL, field.hidden && "opacity-100")}
       >
         {field.hidden ? (
           <EyeOff aria-hidden className="size-4" />
@@ -89,7 +98,10 @@ function FieldRow({
           event.preventDefault();
           onMove(event.key === "ArrowUp" ? -1 : 1, event.currentTarget);
         }}
-        className={cn(CONTROL, "cursor-grab touch-none active:cursor-grabbing")}
+        className={cn(
+          ROW_CONTROL,
+          "cursor-grab touch-none active:cursor-grabbing",
+        )}
       >
         <GripVertical aria-hidden className="size-4" />
       </button>
@@ -99,12 +111,15 @@ function FieldRow({
 
 // The fields of a company or a person: dragged into order by the handle, or moved
 // from it with the arrow keys, and shown or hidden with the eye. Each change is saved.
-export function FieldList({
+// `menu` gives a row more to do, such as renaming a field the owner added.
+export function FieldList<Item extends FieldListItem>({
   fields,
   action,
+  menu,
 }: {
-  fields: LayoutField[];
+  fields: Item[];
   action: (fields: { key: string; hidden: boolean }[]) => Promise<void>;
+  menu?: (field: Item) => ReactNode;
 }) {
   const [items, setItems] = useState(fields);
   const [moved, setMoved] = useState("");
@@ -113,7 +128,7 @@ export function FieldList({
   // on the server and in the browser.
   const id = useId();
 
-  const persist = (next: LayoutField[]) =>
+  const persist = (next: Item[]) =>
     startTransition(() =>
       action(next.map(({ key, hidden }) => ({ key, hidden }))),
     );
@@ -152,6 +167,7 @@ export function FieldList({
             <FieldRow
               key={field.key}
               field={field}
+              menu={menu?.(field)}
               onMove={(by, handle) => {
                 const to = index + by;
                 if (to < 0 || to >= items.length) return;

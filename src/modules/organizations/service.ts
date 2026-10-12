@@ -1,6 +1,10 @@
 import { and, eq, ne } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
-import { fieldProvenance, organizations } from "@/db/schema";
+import {
+  fieldProvenance,
+  organizations,
+  type CustomValues,
+} from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { markManual, requestEnrichment } from "@/modules/enrichment/service";
 import { ENRICHABLE_FIELDS } from "@/modules/enrichment/website/read";
@@ -28,6 +32,7 @@ const snapshot = (row: typeof organizations.$inferSelect, tags: string[]) => ({
   region: row.region,
   country: row.country,
   status: row.status,
+  custom: row.custom,
   tags,
 });
 
@@ -87,10 +92,13 @@ export async function createOrganization(
   });
 }
 
+// `custom` holds the values of the owner's own fields, already checked against
+// them; left out, the ones the company has are kept.
 export async function updateOrganization(
   ownerId: string,
   id: string,
   input: OrganizationInput,
+  custom?: CustomValues,
 ): Promise<OrganizationResult> {
   return db.transaction(async (tx) => {
     const [before] = await tx
@@ -109,7 +117,7 @@ export async function updateOrganization(
     const { tags, ...fields } = input;
     const [row] = await tx
       .update(organizations)
-      .set(fields)
+      .set({ ...fields, ...(custom && { custom }) })
       .where(and(eq(organizations.ownerId, ownerId), eq(organizations.id, id)))
       .returning();
     await setOrganizationTags(tx, ownerId, id, tags);

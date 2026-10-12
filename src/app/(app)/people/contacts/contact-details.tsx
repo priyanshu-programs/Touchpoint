@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { arrangeRows, DetailRows } from "@/components/detail-rows";
 import type { getContact } from "@/modules/contacts/queries";
-import { getLayout } from "@/modules/fields/queries";
+import { getLayout, listCustomFields } from "@/modules/fields/queries";
 import type { StandardKey } from "@/modules/fields/standard";
+import { customDetailRows } from "../fields/custom-values";
 import { companyHref, labelFor } from "../labels";
 
 type Contact = NonNullable<Awaited<ReturnType<typeof getContact>>>;
@@ -14,7 +15,10 @@ export async function ContactDetails({
   ownerId: string;
   contact: Contact;
 }) {
-  const layout = await getLayout(ownerId, "contact");
+  const [layout, customFields] = await Promise.all([
+    getLayout(ownerId, "contact"),
+    listCustomFields(ownerId, "contact"),
+  ]);
   const email = contact.emails.find((row) => row.isPrimary)?.email;
   const profile = (kind: string) => {
     const url = contact.links.find((link) => link.kind === kind)?.url;
@@ -35,7 +39,8 @@ export async function ContactDetails({
   return (
     <DetailRows
       columns={2}
-      rows={arrangeRows<StandardKey<"contact">>(layout, {
+      rows={arrangeRows<StandardKey<"contact"> | `custom.${string}`>(layout, {
+        ...customDetailRows(customFields, contact.custom),
         firstName: { value: contact.firstName },
         lastName: { value: contact.lastName },
         jobTitle: { value: contact.jobTitle },

@@ -3,8 +3,13 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
+import { listCustomFields } from "@/modules/fields/queries";
 import { getOrganization } from "@/modules/organizations/queries";
 import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
+import {
+  customFormFields,
+  customFormValues,
+} from "../../../fields/custom-values";
 import { companyHref, toOptions } from "../../../labels";
 import { updateOrganizationAction } from "../../actions";
 import { OrganizationForm } from "../../organization-form";
@@ -17,7 +22,10 @@ export default async function EditOrganizationPage({
   const owner = await requireOwner();
   const id = z.uuid().safeParse((await params).id);
   if (!id.success) notFound();
-  const organization = await getOrganization(owner.id, id.data);
+  const [organization, customFields] = await Promise.all([
+    getOrganization(owner.id, id.data),
+    listCustomFields(owner.id, "organization"),
+  ]);
   if (!organization) notFound();
 
   return (
@@ -43,8 +51,10 @@ export default async function EditOrganizationPage({
             country: organization.country ?? "",
             description: organization.description ?? "",
             tags: organization.tags.join(", "),
+            ...customFormValues(customFields, organization.custom),
           }}
           statuses={toOptions(ORGANIZATION_STATUSES)}
+          customFields={customFormFields(customFields)}
           submitLabel="Save changes"
           cancelHref={companyHref(organization.id)}
         />

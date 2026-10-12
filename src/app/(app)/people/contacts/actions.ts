@@ -43,6 +43,7 @@ import { suggestedPeople } from "@/modules/enrichment/queries";
 import { runDueJobs } from "@/modules/jobs/service";
 import { handlers } from "@/modules/jobs/tick";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
+import { readCustomValues } from "../fields/custom-values";
 import { companyHref, contactHref, contactPanelHref } from "../labels";
 
 const FIELDS = [
@@ -384,11 +385,19 @@ export async function updateContactAction(
   const owner = await requireOwner();
   const contactId = z.uuid().parse(id);
   const company = z.uuid().nullable().parse(companyId);
-  const values = readFields(formData, FIELDS);
-  const parsed = contactInput.safeParse(values);
+  const standard = readFields(formData, FIELDS);
+  const custom = await readCustomValues(owner.id, "contact", formData);
+  const values = { ...standard, ...custom.typed };
+  const parsed = contactInput.safeParse(standard);
   if (!parsed.success) return invalid(parsed.error, values);
+  if (!custom.parsed.success) return invalid(custom.parsed.error, values);
 
-  const result = await updateContact(owner.id, contactId, parsed.data);
+  const result = await updateContact(
+    owner.id,
+    contactId,
+    parsed.data,
+    custom.parsed.data,
+  );
   if (!result.ok) return failure(result, values);
 
   revalidatePath("/people", "layout");

@@ -7,6 +7,7 @@ import {
   contacts,
   fieldProvenance,
   organizations,
+  type CustomValues,
 } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { contactTagNames } from "@/modules/tags/queries";
@@ -52,6 +53,7 @@ const snapshot = (row: typeof contacts.$inferSelect, tags: string[]) => ({
   preferredChannel: row.preferredChannel,
   status: row.status,
   relationshipType: row.relationshipType,
+  custom: row.custom,
   tags,
 });
 
@@ -277,10 +279,13 @@ export async function setContactCompanyTitle(
   });
 }
 
+// `custom` holds the values of the owner's own fields, already checked against
+// them; left out, the ones the person has are kept.
 export async function updateContact(
   ownerId: string,
   id: string,
   input: ContactInput,
+  custom?: CustomValues,
 ): Promise<ContactResult> {
   return db.transaction(async (tx) => {
     const before = await lockContact(tx, ownerId, id);
@@ -290,7 +295,7 @@ export async function updateContact(
     const { tags, ...fields } = input;
     const [row] = await tx
       .update(contacts)
-      .set(fields)
+      .set({ ...fields, ...(custom && { custom }) })
       .where(and(eq(contacts.ownerId, ownerId), eq(contacts.id, id)))
       .returning();
     await setContactTags(tx, ownerId, id, tags);
