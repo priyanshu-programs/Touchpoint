@@ -246,3 +246,5 @@
 - [2026-10-12] The company picker stays on the New contact form and left the Edit form (isNew replaces withEmail), since companies are kept in the panel
 - [2026-10-12] Tests: two companies with a title and star at each, the listed name, removing a link, archiving and company deletion, other owners refused on either record, look-alike suggestions (310 unit tests); e2e adds an existing person to a second company and links a website suggestion to a look-alike (48 tests)
 - [2026-10-12] docs/PRD.md 6 and 8.2, plan.md and security.md describe contact_organizations, the screens and the two checks on a link
+- [2026-10-12] Deployed (20effea, CI green); migration 0009 ran on Neon main and all five people kept their company (four at Inoya Rouge, one at KBRS, none starred), with the two old columns gone
+- [2026-10-12] In production, "Same person, add here" on the KBRS suggestion put Komal Bajaj Bhotika at KBRS & Associates as Partner, listed there as Komal Bhotika; she is still one person, at Inoya Rouge with her own title, and her picture from the KBRS site was stored as a 3,332-byte WebP
