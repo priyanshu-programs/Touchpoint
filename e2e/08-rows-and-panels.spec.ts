@@ -102,6 +102,48 @@ test("a person row opens the same panel over the people list", async ({
   expect(consoleErrors).toEqual([]);
 });
 
+test("a bar across the top shows while a page or an action is on its way", async ({
+  page,
+}) => {
+  const bar = page.getByRole("progressbar", { name: "Loading" });
+  // The requests picked out here are held back, as a slow connection would hold them.
+  let held: (headers: Record<string, string>, url: string) => boolean = () =>
+    false;
+  await page.route("**/*", async (route) => {
+    const request = route.request();
+    if (held(request.headers(), request.url())) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    await route.continue();
+  });
+
+  await page.goto("/people/organizations");
+  await expect(page.getByRole("cell", { name: "acme.test" })).toBeVisible();
+  await expect(bar).toHaveCount(0);
+
+  held = (_headers, url) => url.includes("company=");
+  await page.getByRole("cell", { name: "acme.test" }).click();
+  await expect(bar).toHaveCSS("opacity", "1");
+  await expect(panel(page).getByRole("heading", { name: "Acme Design" })).toBeVisible();
+  await expect(bar).toHaveCount(0);
+
+  // A change made in place is not a navigation, and shows the bar all the same.
+  const badge = (value: string) =>
+    panel(page).getByRole("button", { name: `Status: ${value}`, exact: true });
+  held = (headers) => "next-action" in headers;
+  await badge("Prospect").click();
+  await page.getByRole("menuitemradio", { name: "Client", exact: true }).click();
+  await expect(bar).toHaveCSS("opacity", "1");
+  await expect(badge("Client")).toBeVisible();
+  await expect(bar).toHaveCount(0);
+
+  // Back as it was, for the files that follow.
+  held = () => false;
+  await badge("Client").click();
+  await page.getByRole("menuitemradio", { name: "Prospect", exact: true }).click();
+  await expect(badge("Prospect")).toBeVisible();
+});
+
 // The search itself goes to an outside service, so its answer is staged here as the
 // app would have stored it; the search and what it keeps are covered in the unit tests.
 // Arjun Rao has a GitHub link from the company contacts tests.

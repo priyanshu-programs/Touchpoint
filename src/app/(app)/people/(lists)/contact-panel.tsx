@@ -1,7 +1,8 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { CompanyLogo, ContactAvatar } from "@/components/company-logo";
+import { CompanyLogo } from "@/components/company-logo";
 import { SECTION_HEADING } from "@/components/detail-rows";
+import { PhotoPreview } from "@/components/photo-preview";
 import { Badge } from "@/components/ui/badge";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -80,7 +81,7 @@ export function ContactPanel({
             <ArrowLeft aria-hidden className="size-4" />
           </Link>
         )}
-        <ContactAvatar
+        <PhotoPreview
           id={contact.id}
           name={contact.fullName}
           photoVersion={contact.photoVersion}

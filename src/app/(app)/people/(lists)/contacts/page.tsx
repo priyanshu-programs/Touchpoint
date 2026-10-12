@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ButtonLink } from "@/components/button-link";
 import { ClickableRow } from "@/components/clickable-row";
+import { PhotoPreview } from "@/components/photo-preview";
 import {
   Table,
   TableBody,
@@ -83,16 +84,26 @@ export default async function ContactsPage({
               return (
                 <ClickableRow key={row.id} href={href}>
                   <TableCell className="whitespace-normal">
-                    <Link
-                      href={href}
-                      scroll={false}
-                      className="font-medium underline-offset-4 hover:underline"
-                    >
-                      {row.fullName}
-                    </Link>
-                    {row.jobTitle && (
-                      <p className="text-muted-foreground">{row.jobTitle}</p>
-                    )}
+                    <div className="flex items-center gap-3">
+                      <PhotoPreview
+                        id={row.id}
+                        name={row.fullName}
+                        photoVersion={row.photoVersion}
+                        className="size-8"
+                      />
+                      <div className="min-w-0">
+                        <Link
+                          href={href}
+                          scroll={false}
+                          className="font-medium underline-offset-4 hover:underline"
+                        >
+                          {row.fullName}
+                        </Link>
+                        {row.jobTitle && (
+                          <p className="text-muted-foreground">{row.jobTitle}</p>
+                        )}
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell className="hidden whitespace-normal sm:table-cell">
                     <ul className="grid gap-0.5">

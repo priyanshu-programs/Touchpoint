@@ -1,12 +1,13 @@
 import { Star } from "lucide-react";
 import Link from "next/link";
 import { ClickableRow } from "@/components/clickable-row";
-import { CompanyLogo, ContactAvatar } from "@/components/company-logo";
+import { CompanyLogo } from "@/components/company-logo";
 import {
   arrangeRows,
   DetailRows,
   SECTION_HEADING,
 } from "@/components/detail-rows";
+import { PhotoPreview } from "@/components/photo-preview";
 import { Badge } from "@/components/ui/badge";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -378,7 +379,7 @@ export async function CompanyPanel({
                                 />
                               </button>
                             </form>
-                            <ContactAvatar
+                            <PhotoPreview
                               id={contact.id}
                               name={contact.fullName}
                               photoVersion={contact.photoVersion}

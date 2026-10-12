@@ -27,7 +27,10 @@ export function ClickableRow({
       )}
       onClick={(event) => {
         // A link or button in the row does its own thing, and dragging to select text is not a click.
+        // Neither is a click in a dialog the row opened: it is drawn elsewhere on the page
+        // and reaches this handler only because React passes it up from where it was declared.
         if (
+          !event.currentTarget.contains(event.target as Node) ||
           (event.target as Element).closest(OWN_CONTROLS) ||
           window.getSelection()?.toString()
         ) {

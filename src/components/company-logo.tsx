@@ -36,6 +36,10 @@ export function CompanyLogo({
   return <Monogram name={name} className={className} />;
 }
 
+// Served per owner behind the session, as logos are; the version lets it be cached for good.
+export const contactPhotoSrc = (id: string, photoVersion: string) =>
+  `/api/contacts/${id}/photo?v=${photoVersion}`;
+
 // A person's picture from their company's website, or their initials.
 export function ContactAvatar({
   id,
@@ -50,10 +54,9 @@ export function ContactAvatar({
 }) {
   if (photoVersion) {
     return (
-      // Served per owner behind the session, as logos are.
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={`/api/contacts/${id}/photo?v=${photoVersion}`}
+        src={contactPhotoSrc(id, photoVersion)}
         alt=""
         className={cn(
           "size-7 shrink-0 rounded-full bg-muted object-cover",

@@ -183,6 +183,26 @@ test("a picture read from the company's site shows for the person and can be rem
   expect((await signedOut.request.get(`${baseURL}${src}`)).status()).toBe(401);
   await signedOut.close();
 
+  // In the table it opens larger on a click, and the click does not open the person.
+  await panel(page).getByRole("button", { name: "View photo of Arjun Rao" }).click();
+  const preview = page.getByRole("dialog", { name: "Arjun Rao", exact: true });
+  await expect(preview.getByRole("img", { name: "Photo of Arjun Rao" })).toHaveAttribute("src", src);
+  await preview.getByRole("img").click();
+  await page.keyboard.press("Escape");
+  await expect(preview).toBeHidden();
+  await expect(page).toHaveURL(/\?company=[0-9a-f-]+&tab=contacts$/);
+
+  // The People list shows it beside the name, the same way.
+  await page.goto("/people/contacts?q=arjun");
+  await expect(page.getByRole("row", { name: /Arjun Rao/ }).locator("img")).toHaveAttribute("src", src);
+  await page.getByRole("button", { name: "View photo of Arjun Rao" }).click();
+  await expect(preview.getByRole("img", { name: "Photo of Arjun Rao" })).toBeVisible();
+  await preview.getByRole("img").click();
+  await page.keyboard.press("Escape");
+  await expect(preview).toBeHidden();
+  await expect(page).toHaveURL(/contacts\?q=arjun$/);
+
+  await openContacts(page);
   await panel(page).getByRole("link", { name: "Arjun Rao" }).click();
   const inHeader = panel(page).locator("header img");
   await expect(inHeader).toHaveAttribute("src", src);
