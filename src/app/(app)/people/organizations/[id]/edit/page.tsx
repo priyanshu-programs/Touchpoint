@@ -5,12 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
 import { listCustomFields } from "@/modules/fields/queries";
 import { getOrganization } from "@/modules/organizations/queries";
-import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
+import { listCompanyStatuses } from "@/modules/statuses/queries";
 import {
   customFormFields,
   customFormValues,
 } from "../../../fields/custom-values";
-import { companyHref, toOptions } from "../../../labels";
+import { companyHref } from "../../../labels";
 import { updateOrganizationAction } from "../../actions";
 import { OrganizationForm } from "../../organization-form";
 
@@ -22,9 +22,10 @@ export default async function EditOrganizationPage({
   const owner = await requireOwner();
   const id = z.uuid().safeParse((await params).id);
   if (!id.success) notFound();
-  const [organization, customFields] = await Promise.all([
+  const [organization, customFields, statuses] = await Promise.all([
     getOrganization(owner.id, id.data),
     listCustomFields(owner.id, "organization"),
+    listCompanyStatuses(owner.id),
   ]);
   if (!organization) notFound();
 
@@ -53,7 +54,7 @@ export default async function EditOrganizationPage({
             tags: organization.tags.join(", "),
             ...customFormValues(customFields, organization.custom),
           }}
-          statuses={toOptions(ORGANIZATION_STATUSES)}
+          statuses={statuses.map(({ key, label }) => ({ value: key, label }))}
           customFields={customFormFields(customFields)}
           submitLabel="Save changes"
           cancelHref={companyHref(organization.id)}

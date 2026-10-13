@@ -27,12 +27,19 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import type { StatusColor } from "@/modules/statuses/schema";
+import { StatusDot } from "./status-badge";
 
 // One thing a list can be narrowed by. The first choice is the one that narrows nothing.
 export type ToolbarFilter = {
   label: string;
   value: string;
-  options: { value: string; label: string; href: string }[];
+  options: {
+    value: string;
+    label: string;
+    href: string;
+    color?: StatusColor;
+  }[];
 };
 
 // A column the list can be put in order by; `current` is the direction it is in now.
@@ -116,6 +123,7 @@ export function ListToolbar({
                         value={option.value}
                         closeOnClick
                       >
+                        {option.color && <StatusDot color={option.color} />}
                         {option.label}
                       </DropdownMenuRadioItem>
                     ))}

@@ -6,6 +6,7 @@ import {
   fieldLayouts,
   organizations,
 } from "@/db/schema";
+import { keyFor } from "@/lib/key";
 import { audit } from "@/modules/audit/service";
 import {
   customKey,
@@ -58,19 +59,6 @@ const labelTaken = (
   STANDARD_FIELDS[entityType].some((field) => sameText(field.label, label)) ||
   existing.some((field) => field.id !== exceptId && sameText(field.label, label));
 
-// "Lead source" becomes lead_source; a name with no letters or digits becomes field.
-function keyFor(label: string, taken: Set<string>) {
-  const base =
-    label
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .slice(0, 40) || "field";
-  let key = base;
-  for (let count = 2; taken.has(key); count++) key = `${base}_${count}`;
-  return key;
-}
-
 async function insertField(
   tx: Tx,
   ownerId: string,
@@ -88,7 +76,11 @@ async function insertField(
     .values({
       ownerId,
       entityType,
-      key: keyFor(field.label, new Set(existing.map(({ key }) => key))),
+      key: keyFor(
+        field.label,
+        new Set(existing.map(({ key }) => key)),
+        "field",
+      ),
       label: field.label,
       type: field.type,
       options: field.options,

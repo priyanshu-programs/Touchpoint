@@ -41,8 +41,7 @@ import {
   linkSuggestedContactAction,
   setPrimaryContactAction,
 } from "../../contacts/actions";
-import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
-import { toOptions } from "../../labels";
+import type { CompanyStatus } from "@/modules/statuses/queries";
 import {
   deleteOrganizationAction,
   setOrganizationArchivedAction,
@@ -51,9 +50,9 @@ import {
 import { customDetailRows } from "../../fields/custom-values";
 import { FieldsLink } from "../fields-link";
 import { companiesHref, type CompanyListParams } from "../list-controls";
-import { StatusMenu } from "../status-menu";
 import { AddContactForm } from "./add-contact-form";
 import { CompanyActions } from "./company-actions";
+import { CompanyStatusMenu } from "./company-status-menu";
 import { SuggestedContacts } from "./suggested-contacts";
 import { WebsiteDetails } from "./website-details";
 
@@ -108,10 +107,12 @@ const upTo = (page: { rows: unknown[]; nextAfter: string | null }) =>
 export async function CompanyPanel({
   ownerId,
   organization,
+  statuses,
   params,
 }: {
   ownerId: string;
   organization: NonNullable<Awaited<ReturnType<typeof getOrganization>>>;
+  statuses: CompanyStatus[];
   params: CompanyListParams;
 }) {
   const filter = { organizationId: organization.id };
@@ -216,10 +217,9 @@ export async function CompanyPanel({
             <SheetDescription>{organization.domain}</SheetDescription>
           )}
           <div className="flex flex-wrap gap-1">
-            <StatusMenu
-              label="Status"
+            <CompanyStatusMenu
               value={organization.status}
-              options={toOptions(ORGANIZATION_STATUSES)}
+              statuses={statuses}
               action={setOrganizationStatusAction.bind(null, organization.id)}
             />
             {organization.archivedAt && (

@@ -1,10 +1,7 @@
 import { z } from "zod";
-import { ORGANIZATION_STATUSES } from "@/db/schema";
 import { blankToNull, emailAddress, phoneNumber, text } from "@/lib/form";
 import { httpUrl } from "@/lib/url";
 import { tagList } from "@/modules/tags/schema";
-
-export { ORGANIZATION_STATUSES };
 
 const DOMAIN =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
@@ -37,7 +34,8 @@ export const organizationInput = z.strictObject({
   city: blankToNull(text(100)),
   region: blankToNull(text(100)),
   country: blankToNull(text(100)),
-  status: z.enum(ORGANIZATION_STATUSES),
+  // A built-in status or one of the owner's own; the service checks which exist.
+  status: z.string().min(1).max(60),
   tags: tagList,
 });
 

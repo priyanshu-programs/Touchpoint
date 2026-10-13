@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
-import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
-import { toOptions } from "../../labels";
+import { listCompanyStatuses } from "@/modules/statuses/queries";
 import { createOrganizationAction } from "../actions";
 import { OrganizationForm } from "../organization-form";
 
 export const metadata: Metadata = { title: "Add company" };
 
 export default async function NewOrganizationPage() {
-  await requireOwner();
+  const owner = await requireOwner();
+  const statuses = await listCompanyStatuses(owner.id);
 
   return (
     <Card>
@@ -35,7 +35,7 @@ export default async function NewOrganizationPage() {
             description: "",
             tags: "",
           }}
-          statuses={toOptions(ORGANIZATION_STATUSES)}
+          statuses={statuses.map(({ key, label }) => ({ value: key, label }))}
           submitLabel="Add company"
           cancelHref="/people/organizations"
         />

@@ -29,6 +29,17 @@ export const ORGANIZATION_STATUSES = [
   "partner",
   "other",
 ] as const;
+export const STATUS_COLORS = [
+  "gray",
+  "red",
+  "orange",
+  "amber",
+  "green",
+  "teal",
+  "blue",
+  "purple",
+  "pink",
+] as const;
 export const CONTACT_STATUSES = ["active", "dormant", "do_not_contact"] as const;
 export const RELATIONSHIP_TYPES = [
   "prospect",
@@ -78,11 +89,9 @@ export const organizations = pgTable(
     createdAt,
     updatedAt,
   },
+  // `status` is one of ORGANIZATION_STATUSES or the key of a company_statuses row;
+  // the organizations service checks it, since the owner's own cannot be listed here.
   (table) => [
-    check(
-      "organizations_status_check",
-      oneOf(table.status, ORGANIZATION_STATUSES),
-    ),
     uniqueIndex("organizations_owner_domain_idx")
       .on(table.ownerId, table.domain)
       .where(sql`${table.domain} is not null`),
@@ -96,6 +105,25 @@ export const organizations = pgTable(
       "gin",
       table.name.op("gin_trgm_ops"),
     ),
+  ],
+);
+
+// A status the owner made for companies, or the colour they gave a built-in one
+// (a row whose key is in ORGANIZATION_STATUSES; its label is not read).
+export const companyStatuses = pgTable(
+  "company_statuses",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    key: text("key").notNull(),
+    label: text("label").notNull(),
+    color: text("color").$type<(typeof STATUS_COLORS)[number]>().notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    check("company_statuses_color_check", oneOf(table.color, STATUS_COLORS)),
+    uniqueIndex("company_statuses_owner_key_idx").on(table.ownerId, table.key),
   ],
 );
 

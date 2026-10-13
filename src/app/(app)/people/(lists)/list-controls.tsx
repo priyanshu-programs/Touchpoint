@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { z } from "zod";
 import { ORGANIZATION_SORTS } from "@/modules/organizations/queries";
-import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
 
 const optional = <T extends z.ZodType>(schema: T) =>
   schema.optional().catch(undefined);
@@ -22,7 +21,8 @@ type ListParams = z.infer<typeof listParams>;
 // `company` and `tab` say which company panel is open over the list; `after` pages its timeline.
 // With `contact`, the panel shows that person at the company and `tab` is theirs.
 export const companyListParams = listParams.extend({
-  status: optional(z.enum(ORGANIZATION_STATUSES)),
+  // The page checks it against the owner's statuses.
+  status: optional(z.string().min(1).max(60)),
   sort: optional(z.enum(ORGANIZATION_SORTS)),
   dir: optional(z.enum(["asc", "desc"])),
   page: optional(z.coerce.number().int().min(1).max(1000)),

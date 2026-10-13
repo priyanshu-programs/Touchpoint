@@ -11,10 +11,7 @@ import { requestEnrichment } from "@/modules/enrichment/service";
 import { runDueJobs } from "@/modules/jobs/service";
 import { handlers } from "@/modules/jobs/tick";
 import { listOrganizations } from "@/modules/organizations/queries";
-import {
-  ORGANIZATION_STATUSES,
-  organizationInput,
-} from "@/modules/organizations/schema";
+import { organizationInput } from "@/modules/organizations/schema";
 import {
   createOrganization,
   deleteOrganization,
@@ -52,6 +49,13 @@ function failure(
   values: Record<string, string>,
 ): RecordFormState {
   if (result.reason === "not_found") notFound();
+  if (result.reason === "unknown_status") {
+    return {
+      ok: false,
+      message: "That status no longer exists. Choose another.",
+      values,
+    };
+  }
   if (result.reason === "duplicate") {
     return {
       ok: false,
@@ -202,7 +206,7 @@ export async function setOrganizationStatusAction(id: string, status: string) {
   const changed = await setOrganizationStatus(
     owner.id,
     z.uuid().parse(id),
-    z.enum(ORGANIZATION_STATUSES).parse(status),
+    organizationInput.shape.status.parse(status),
   );
   if (!changed) notFound();
   revalidatePath("/people", "layout");

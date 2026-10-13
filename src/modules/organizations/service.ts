@@ -8,6 +8,7 @@ import {
 import { audit } from "@/modules/audit/service";
 import { markManual, requestEnrichment } from "@/modules/enrichment/service";
 import { ENRICHABLE_FIELDS } from "@/modules/enrichment/website/read";
+import { statusOnOffer } from "@/modules/statuses/service";
 import { organizationTagNames } from "@/modules/tags/queries";
 import { setOrganizationTags } from "@/modules/tags/service";
 import { findSimilarOrganizations } from "./queries";
@@ -18,6 +19,7 @@ export type OrganizationResult =
   | { ok: true; id: string }
   | { ok: false; reason: "duplicate"; existing: Named }
   | { ok: false; reason: "similar"; candidates: Named[] }
+  | { ok: false; reason: "unknown_status" }
   | { ok: false; reason: "not_found" };
 
 const snapshot = (row: typeof organizations.$inferSelect, tags: string[]) => ({
@@ -61,6 +63,9 @@ export async function createOrganization(
   options: { confirmSimilar?: boolean } = {},
 ): Promise<OrganizationResult> {
   return db.transaction(async (tx) => {
+    if (!(await statusOnOffer(tx, ownerId, input.status))) {
+      return { ok: false, reason: "unknown_status" };
+    }
     if (input.domain) {
       const existing = await domainOwner(tx, ownerId, input.domain);
       if (existing) return { ok: false, reason: "duplicate", existing };
@@ -101,12 +106,15 @@ export async function updateOrganization(
   custom?: CustomValues,
 ): Promise<OrganizationResult> {
   return db.transaction(async (tx) => {
+    // The status is locked before the company, the order a status's delete takes them in.
+    const known = await statusOnOffer(tx, ownerId, input.status);
     const [before] = await tx
       .select()
       .from(organizations)
       .where(and(eq(organizations.ownerId, ownerId), eq(organizations.id, id)))
       .for("update");
     if (!before) return { ok: false, reason: "not_found" };
+    if (!known) return { ok: false, reason: "unknown_status" };
 
     if (input.domain) {
       const existing = await domainOwner(tx, ownerId, input.domain, id);
@@ -179,6 +187,7 @@ export async function deleteOrganization(ownerId: string, id: string) {
   });
 }
 
+// False for a company that is not the owner's, and for a status they do not have.
 export async function setOrganizationStatus(
   ownerId: string,
   id: string,
@@ -189,12 +198,13 @@ export async function setOrganizationStatus(
       eq(organizations.ownerId, ownerId),
       eq(organizations.id, id),
     );
+    const known = await statusOnOffer(tx, ownerId, status);
     const [before] = await tx
       .select({ status: organizations.status })
       .from(organizations)
       .where(owned)
       .for("update");
-    if (!before) return false;
+    if (!before || !known) return false;
     await tx.update(organizations).set({ status }).where(owned);
     await audit(tx, {
       ownerId,

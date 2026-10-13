@@ -10,11 +10,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { db, type Executor } from "@/db/client";
-import {
-  activities,
-  organizations,
-  type ORGANIZATION_STATUSES,
-} from "@/db/schema";
+import { activities, organizations } from "@/db/schema";
 import { likePrefix, prefixTsQuery } from "@/lib/text-search";
 import { organizationTagNames } from "@/modules/tags/queries";
 
@@ -63,7 +59,7 @@ export async function listOrganizations(
   options: {
     q?: string;
     tagId?: string;
-    status?: (typeof ORGANIZATION_STATUSES)[number];
+    status?: string;
     archived?: boolean;
     sort?: (typeof ORGANIZATION_SORTS)[number];
     dir?: "asc" | "desc";

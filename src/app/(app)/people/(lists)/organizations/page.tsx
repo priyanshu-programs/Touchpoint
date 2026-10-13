@@ -19,10 +19,9 @@ import {
   listOrganizations,
   ORGANIZATION_SORTS,
 } from "@/modules/organizations/queries";
-import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
 import { getSettings } from "@/modules/settings/service";
+import { listCompanyStatuses } from "@/modules/statuses/queries";
 import { listTags } from "@/modules/tags/queries";
-import { labelFor } from "../../labels";
 import { ContactPanel } from "../contact-panel";
 import { FieldsPanel } from "../fields-panel";
 import { ListCard, ListFooter } from "../list-card";
@@ -34,6 +33,7 @@ import {
 import { ListHeader } from "../list-header";
 import { ListToolbar } from "../list-toolbar";
 import { RecordSheet } from "../record-sheet";
+import { StatusBadge } from "../status-badge";
 import { CompanyPanel } from "./company-panel";
 import { NewCompanySheet } from "./new-company-sheet";
 
@@ -119,7 +119,15 @@ export default async function OrganizationsPage({
   searchParams,
 }: PageProps<"/people/organizations">) {
   const owner = await requireOwner();
-  const params = companyListParams.parse(await searchParams);
+  const typed = companyListParams.parse(await searchParams);
+  const statuses = await listCompanyStatuses(owner.id);
+  // A status the owner does not have, or no longer has, narrows nothing.
+  const params = {
+    ...typed,
+    status: statuses.some(({ key }) => key === typed.status)
+      ? typed.status
+      : undefined,
+  };
   const sort = params.sort ?? "name";
   const pageNumber = params.page ?? 1;
   const [page, tags, settings, open, person] = await Promise.all([
@@ -159,10 +167,11 @@ export default async function OrganizationsPage({
           label: "All statuses",
           href: companiesHref(params, { ...FIRST_PAGE, status: undefined }),
         },
-        ...ORGANIZATION_STATUSES.map((status) => ({
-          value: status,
-          label: labelFor(status),
-          href: companiesHref(params, { ...FIRST_PAGE, status }),
+        ...statuses.map(({ key, label, color }) => ({
+          value: key,
+          label,
+          color,
+          href: companiesHref(params, { ...FIRST_PAGE, status: key }),
         })),
       ],
     },
@@ -239,6 +248,7 @@ export default async function OrganizationsPage({
                 <TableHeader>
                   <TableRow>
                     <SortHead params={params} sort="name" />
+                    <TableHead className="hidden md:table-cell">Status</TableHead>
                     <SortHead
                       params={params}
                       sort="domain"
@@ -268,6 +278,7 @@ export default async function OrganizationsPage({
                       ...NO_PANEL,
                       company: row.id,
                     });
+                    const status = statuses.find(({ key }) => key === row.status);
                     return (
                       <ClickableRow key={row.id} href={href}>
                         <TableCell className="whitespace-normal">
@@ -285,6 +296,12 @@ export default async function OrganizationsPage({
                               {row.name}
                             </Link>
                           </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <StatusBadge
+                            label={status?.label ?? row.status}
+                            color={status?.color}
+                          />
                         </TableCell>
                         <TableCell className="hidden text-muted-foreground sm:table-cell">
                           {row.domain ?? "—"}
@@ -381,6 +398,7 @@ export default async function OrganizationsPage({
             <CompanyPanel
               ownerId={owner.id}
               organization={open}
+              statuses={statuses}
               params={{ ...params, contact: undefined }}
             />
           )}

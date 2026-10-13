@@ -14,6 +14,8 @@ import {
 import { listAudit } from "@/modules/audit/service";
 import { newContactInput } from "@/modules/contacts/schema";
 import { createContact } from "@/modules/contacts/service";
+import { statusInput } from "@/modules/statuses/schema";
+import { createCompanyStatus } from "@/modules/statuses/service";
 import { listTags } from "@/modules/tags/queries";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import {
@@ -73,7 +75,8 @@ describe("organizationInput", () => {
     ["a phone number with letters in it", { phone: "call 555 0000" }],
     ["a phone number too short to dial", { phone: "12345" }],
     ["an email without a domain", { email: "hello@" }],
-    ["an unknown status", { status: "enemy" }],
+    ["no status", { status: "" }],
+    ["a status longer than a key can be", { status: "x".repeat(61) }],
     ["an unexpected field", { ownerId: "x" }],
   ])("rejects %s", (_label, override) => {
     expect(organizationInput.safeParse({ ...form, ...override }).success).toBe(
@@ -227,6 +230,53 @@ describe("organizations", () => {
       before: { status: "prospect" },
       after: { status: "client" },
     });
+  });
+
+  it("takes a status of the owner's own, and none they do not have", async () => {
+    const made = await createCompanyStatus(
+      ownerId,
+      statusInput.parse({ label: "Hot lead", color: "red" }),
+    );
+    expect(made).toEqual({ ok: true, key: "hot_lead" });
+    const otherId = await createTestOwner("other@example.com");
+    await createCompanyStatus(
+      otherId,
+      statusInput.parse({ label: "Dormant", color: "gray" }),
+    );
+
+    const id = await create({ status: "hot_lead" });
+    expect(await getOrganization(ownerId, id)).toMatchObject({
+      status: "hot_lead",
+    });
+    await create({ name: "Borealis Labs" });
+    const hot = await listOrganizations(ownerId, { status: "hot_lead" });
+    expect(hot.rows.map((row) => row.name)).toEqual(["Acme Design"]);
+    expect(hot.total).toBe(1);
+
+    expect(await setOrganizationStatus(ownerId, id, "partner")).toBe(true);
+    expect(await setOrganizationStatus(ownerId, id, "hot_lead")).toBe(true);
+    expect(
+      await updateOrganization(ownerId, id, input({ status: "client" })),
+    ).toEqual({ ok: true, id });
+
+    // Neither a status nobody has nor another owner's is taken, and the company keeps its own.
+    for (const status of ["enemy", "dormant"]) {
+      expect(
+        await createOrganization(
+          ownerId,
+          input({ name: "Cobalt Works", status }),
+          { confirmSimilar: true },
+        ),
+      ).toEqual({ ok: false, reason: "unknown_status" });
+      expect(
+        await updateOrganization(ownerId, id, input({ status })),
+      ).toEqual({ ok: false, reason: "unknown_status" });
+      expect(await setOrganizationStatus(ownerId, id, status)).toBe(false);
+    }
+    expect(await getOrganization(ownerId, id)).toMatchObject({
+      status: "client",
+    });
+    expect((await listOrganizations(ownerId)).total).toBe(2);
   });
 
   it("filters by name prefix and by tag", async () => {
