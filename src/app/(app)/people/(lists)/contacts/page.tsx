@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { ButtonLink } from "@/components/button-link";
 import { ClickableRow } from "@/components/clickable-row";
@@ -15,7 +16,12 @@ import {
 import { requireOwner } from "@/lib/session";
 import { getContact, listContacts } from "@/modules/contacts/queries";
 import { listTags } from "@/modules/tags/queries";
+import {
+  archiveContactsAction,
+  deleteContactsAction,
+} from "../../contacts/actions";
 import { companyHref, labelFor } from "../../labels";
+import { COLUMN_COOKIES, CONTACT_COLUMNS, hiddenColumns } from "../columns";
 import { ContactPanel } from "../contact-panel";
 import { EntryPanel, entryKey, entryTab, findEntry } from "../entry-panel";
 import { FieldsPanel } from "../fields-panel";
@@ -28,6 +34,7 @@ import {
 import { ListHeader } from "../list-header";
 import { ListToolbar } from "../list-toolbar";
 import { RecordSheet } from "../record-sheet";
+import { RowCheckbox, SelectAll, Selection } from "../selection";
 
 export const metadata: Metadata = { title: "Contacts" };
 
@@ -55,7 +62,7 @@ export default async function ContactsPage({
     activity: entry?.kind === "activity" ? typed.activity : undefined,
     task: entry?.kind === "task" ? typed.task : undefined,
   };
-  const [page, tags, open] = await Promise.all([
+  const [page, tags, open, jar] = await Promise.all([
     listContacts(owner.id, {
       q: params.q,
       tagId: params.tag,
@@ -64,7 +71,14 @@ export default async function ContactsPage({
     }),
     listTags(owner.id),
     params.contact ? getContact(owner.id, params.contact) : null,
+    cookies(),
   ]);
+  const hidden = hiddenColumns(
+    jar.get(COLUMN_COOKIES.contacts)?.value,
+    CONTACT_COLUMNS,
+  );
+  const shows = (column: (typeof CONTACT_COLUMNS)[number]["key"]) =>
+    !hidden.includes(column);
   const filtered = Boolean(params.q || params.tag || params.archived);
 
   return (
@@ -117,6 +131,11 @@ export default async function ContactsPage({
                 ]
               : []
           }
+          columns={{
+            cookie: COLUMN_COOKIES.contacts,
+            options: CONTACT_COLUMNS,
+            hidden,
+          }}
           archived={{
             on: params.archived === "1",
             href: contactsHref(params, {
@@ -133,19 +152,35 @@ export default async function ContactsPage({
               : "No contacts yet. Add the first person you want to keep in touch with."}
           </p>
         ) : (
-          <>
+          <Selection
+            ids={page.rows.map((row) => row.id)}
+            noun={{ one: "person", many: "people" }}
+            archived={params.archived === "1"}
+            archiveAction={archiveContactsAction}
+            deleteAction={deleteContactsAction}
+            deleteNote="The people, their emails, links and tags are removed for good, at every company they are at, and they are taken off the activities logged with them. Their tasks are kept, no longer linked to a person. To hide them instead, use Archive."
+          >
             <ListCard>
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10 p-0!">
+                      <SelectAll />
+                    </TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead className="hidden sm:table-cell">
-                      Company
-                    </TableHead>
-                    <TableHead className="hidden md:table-cell">Email</TableHead>
-                    <TableHead className="hidden sm:table-cell">
-                      Relationship
-                    </TableHead>
+                    {shows("company") && (
+                      <TableHead className="hidden sm:table-cell">
+                        Company
+                      </TableHead>
+                    )}
+                    {shows("email") && (
+                      <TableHead className="hidden md:table-cell">Email</TableHead>
+                    )}
+                    {shows("relationship") && (
+                      <TableHead className="hidden sm:table-cell">
+                        Relationship
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -155,7 +190,14 @@ export default async function ContactsPage({
                       contact: row.id,
                     });
                     return (
-                      <ClickableRow key={row.id} href={href}>
+                      <ClickableRow
+                        key={row.id}
+                        href={href}
+                        className="has-checked:bg-muted/50"
+                      >
+                        <TableCell className="w-10 p-0!">
+                          <RowCheckbox id={row.id} name={row.fullName} />
+                        </TableCell>
                         <TableCell className="whitespace-normal">
                           <div className="flex items-center gap-3">
                             <PhotoPreview
@@ -180,26 +222,32 @@ export default async function ContactsPage({
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="hidden whitespace-normal sm:table-cell">
-                          <ul className="grid gap-0.5">
-                            {row.companies.map((company) => (
-                              <li key={company.id}>
-                                <Link
-                                  href={companyHref(company.id)}
-                                  className="underline-offset-4 hover:underline"
-                                >
-                                  {company.name}
-                                </Link>
-                              </li>
-                            ))}
-                          </ul>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {row.primaryEmail}
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          {labelFor(row.relationshipType)}
-                        </TableCell>
+                        {shows("company") && (
+                          <TableCell className="hidden whitespace-normal sm:table-cell">
+                            <ul className="grid gap-0.5">
+                              {row.companies.map((company) => (
+                                <li key={company.id}>
+                                  <Link
+                                    href={companyHref(company.id)}
+                                    className="underline-offset-4 hover:underline"
+                                  >
+                                    {company.name}
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          </TableCell>
+                        )}
+                        {shows("email") && (
+                          <TableCell className="hidden md:table-cell">
+                            {row.primaryEmail}
+                          </TableCell>
+                        )}
+                        {shows("relationship") && (
+                          <TableCell className="hidden sm:table-cell">
+                            {labelFor(row.relationshipType)}
+                          </TableCell>
+                        )}
                       </ClickableRow>
                     );
                   })}
@@ -214,7 +262,7 @@ export default async function ContactsPage({
             >
               <NextPageLink path={PATH} params={params} after={page.nextAfter} />
             </ListFooter>
-          </>
+          </Selection>
         )}
       </div>
 

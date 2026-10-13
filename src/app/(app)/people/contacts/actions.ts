@@ -468,6 +468,26 @@ export async function deleteContactAction(formData: FormData) {
   redirect(company ? companyHref(company, "contacts") : "/people/contacts");
 }
 
+// The rows ticked on one page of the list, which holds 50.
+const tickedIds = z.array(z.uuid()).min(1).max(50);
+
+export async function archiveContactsAction(ids: string[], archived: boolean) {
+  const owner = await requireOwner();
+  const to = z.boolean().parse(archived);
+  for (const id of tickedIds.parse(ids)) {
+    await setContactArchived(owner.id, id, to);
+  }
+  revalidatePath("/people", "layout");
+}
+
+export async function deleteContactsAction(ids: string[]) {
+  const owner = await requireOwner();
+  for (const id of tickedIds.parse(ids)) {
+    await deleteContact(owner.id, id);
+  }
+  revalidatePath("/people", "layout");
+}
+
 export async function addContactEmailAction(
   id: string,
   _previous: FormState,

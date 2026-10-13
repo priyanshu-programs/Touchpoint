@@ -5,14 +5,17 @@ import {
   ArrowDown,
   ArrowDownUp,
   ArrowUp,
+  Columns3,
   ListFilter as FilterIcon,
   Search,
 } from "lucide-react";
 import Form from "next/form";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -48,6 +51,59 @@ export type ToolbarSort = {
   current: "asc" | "desc" | null;
 };
 
+// The columns a list can go without, and which of them are turned off now.
+export type ToolbarColumns = {
+  cookie: string;
+  options: readonly { key: string; label: string }[];
+  hidden: readonly string[];
+};
+
+function keepHidden(cookie: string, keys: string[]) {
+  document.cookie = `${cookie}=${keys.join(".")}; path=/; max-age=31536000; samesite=lax`;
+}
+
+// Which columns show is not part of the address: it is how the owner likes the list,
+// whatever it is narrowed to, so it is kept in a cookie the page reads.
+function ColumnsMenu({ cookie, options, hidden }: ToolbarColumns) {
+  const router = useRouter();
+  const [off, setOff] = useState(hidden);
+
+  function show(key: string, shown: boolean) {
+    const next = options
+      .map((option) => option.key)
+      .filter((each) => (each === key ? !shown : off.includes(each)));
+    setOff(next);
+    keepHidden(cookie, next);
+    router.refresh();
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="outline" />}>
+        <Columns3 aria-hidden />
+        Columns
+        <span className="text-muted-foreground">
+          ({options.length - off.length + 1})
+        </span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-auto min-w-44">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Show columns</DropdownMenuLabel>
+          {options.map((option) => (
+            <DropdownMenuCheckboxItem
+              key={option.key}
+              checked={!off.includes(option.key)}
+              onCheckedChange={(shown) => show(option.key, shown)}
+            >
+              {option.label}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 // The row above a list: search at the left, and what narrows and orders it at the right.
 // Every choice is an address worked out by the page, so the list is always what its URL says.
 export function ListToolbar({
@@ -56,6 +112,7 @@ export function ListToolbar({
   keep,
   filters,
   sorts,
+  columns,
   archived,
 }: {
   path: string;
@@ -64,6 +121,7 @@ export function ListToolbar({
   keep: Record<string, string | undefined>;
   filters: ToolbarFilter[];
   sorts?: ToolbarSort[];
+  columns: ToolbarColumns;
   archived: { on: boolean; href: string };
 }) {
   const router = useRouter();
@@ -160,6 +218,8 @@ export function ListToolbar({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+
+        <ColumnsMenu {...columns} />
 
         <Button
           variant="outline"

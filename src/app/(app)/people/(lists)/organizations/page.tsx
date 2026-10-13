@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowDownUp, ArrowUp } from "lucide-react";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
@@ -22,6 +23,11 @@ import {
 import { getSettings } from "@/modules/settings/service";
 import { listCompanyStatuses } from "@/modules/statuses/queries";
 import { listTags } from "@/modules/tags/queries";
+import {
+  archiveOrganizationsAction,
+  deleteOrganizationsAction,
+} from "../../organizations/actions";
+import { COLUMN_COOKIES, COMPANY_COLUMNS, hiddenColumns } from "../columns";
 import { ContactPanel } from "../contact-panel";
 import { EntryPanel, entryKey, entryTab, findEntry } from "../entry-panel";
 import { FieldsPanel } from "../fields-panel";
@@ -34,6 +40,7 @@ import {
 import { ListHeader } from "../list-header";
 import { ListToolbar } from "../list-toolbar";
 import { RecordSheet } from "../record-sheet";
+import { RowCheckbox, SelectAll, Selection } from "../selection";
 import { StatusBadge } from "../status-badge";
 import { CompanyPanel } from "./company-panel";
 import { NewCompanySheet } from "./new-company-sheet";
@@ -123,10 +130,17 @@ export default async function OrganizationsPage({
 }: PageProps<"/people/organizations">) {
   const owner = await requireOwner();
   const typed = companyListParams.parse(await searchParams);
-  const [statuses, entry] = await Promise.all([
+  const [statuses, entry, jar] = await Promise.all([
     listCompanyStatuses(owner.id),
     typed.company ? findEntry(owner.id, typed) : null,
+    cookies(),
   ]);
+  const hidden = hiddenColumns(
+    jar.get(COLUMN_COOKIES.companies)?.value,
+    COMPANY_COLUMNS,
+  );
+  const shows = (column: (typeof COMPANY_COLUMNS)[number]["key"]) =>
+    !hidden.includes(column);
   // A status the owner does not have, or no longer has, narrows nothing, and an
   // entry that is not theirs opens nothing.
   const params = {
@@ -235,6 +249,11 @@ export default async function OrganizationsPage({
             label: SORT_LABELS[column],
             ...sorting(params, column),
           }))}
+          columns={{
+            cookie: COLUMN_COOKIES.companies,
+            options: COMPANY_COLUMNS,
+            hidden,
+          }}
           archived={{
             on: params.archived === "1",
             href: companiesHref(params, {
@@ -251,34 +270,54 @@ export default async function OrganizationsPage({
               : "No companies yet. Add a company or agency you work with."}
           </p>
         ) : (
-          <>
+          <Selection
+            ids={page.rows.map((row) => row.id)}
+            noun={{ one: "company", many: "companies" }}
+            archived={params.archived === "1"}
+            archiveAction={archiveOrganizationsAction}
+            deleteAction={deleteOrganizationsAction}
+            deleteNote="The companies, their tags, logos and website details are removed for good. Their contacts, tasks and logged activity are kept, no longer linked to a company. To hide them instead, use Archive."
+          >
             <ListCard>
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10 p-0!">
+                      <SelectAll />
+                    </TableHead>
                     <SortHead params={params} sort="name" />
-                    <TableHead className="hidden md:table-cell">Status</TableHead>
-                    <SortHead
-                      params={params}
-                      sort="domain"
-                      className="hidden sm:table-cell"
-                    />
-                    <SortHead
-                      params={params}
-                      sort="industry"
-                      className="hidden md:table-cell"
-                    />
+                    {shows("status") && (
+                      <TableHead className="hidden md:table-cell">Status</TableHead>
+                    )}
+                    {shows("domain") && (
+                      <SortHead
+                        params={params}
+                        sort="domain"
+                        className="hidden sm:table-cell"
+                      />
+                    )}
+                    {shows("industry") && (
+                      <SortHead
+                        params={params}
+                        sort="industry"
+                        className="hidden md:table-cell"
+                      />
+                    )}
                     {/* The last column on a phone, where the one after it is hidden. */}
-                    <SortHead
-                      params={params}
-                      sort="contacts"
-                      className="pr-4 text-right sm:pr-2"
-                    />
-                    <SortHead
-                      params={params}
-                      sort="activity"
-                      className="hidden text-right sm:table-cell"
-                    />
+                    {shows("contacts") && (
+                      <SortHead
+                        params={params}
+                        sort="contacts"
+                        className="pr-4 text-right sm:pr-2"
+                      />
+                    )}
+                    {shows("activity") && (
+                      <SortHead
+                        params={params}
+                        sort="activity"
+                        className="hidden text-right sm:table-cell"
+                      />
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -289,7 +328,14 @@ export default async function OrganizationsPage({
                     });
                     const status = statuses.find(({ key }) => key === row.status);
                     return (
-                      <ClickableRow key={row.id} href={href}>
+                      <ClickableRow
+                        key={row.id}
+                        href={href}
+                        className="has-checked:bg-muted/50"
+                      >
+                        <TableCell className="w-10 p-0!">
+                          <RowCheckbox id={row.id} name={row.name} />
+                        </TableCell>
                         <TableCell className="whitespace-normal">
                           <div className="flex items-center gap-3">
                             <CompanyLogo
@@ -306,26 +352,36 @@ export default async function OrganizationsPage({
                             </Link>
                           </div>
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <StatusBadge
-                            label={status?.label ?? row.status}
-                            color={status?.color}
-                          />
-                        </TableCell>
-                        <TableCell className="hidden text-muted-foreground sm:table-cell">
-                          {row.domain ?? "—"}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {row.industry ?? "—"}
-                        </TableCell>
-                        <TableCell className="pr-4 text-right tabular-nums sm:pr-2">
-                          {row.contactCount}
-                        </TableCell>
-                        <TableCell className="hidden text-right sm:table-cell">
-                          {row.lastActivityAt
-                            ? formatDate(dateIn(timezone, row.lastActivityAt))
-                            : "—"}
-                        </TableCell>
+                        {shows("status") && (
+                          <TableCell className="hidden md:table-cell">
+                            <StatusBadge
+                              label={status?.label ?? row.status}
+                              color={status?.color}
+                            />
+                          </TableCell>
+                        )}
+                        {shows("domain") && (
+                          <TableCell className="hidden text-muted-foreground sm:table-cell">
+                            {row.domain ?? "—"}
+                          </TableCell>
+                        )}
+                        {shows("industry") && (
+                          <TableCell className="hidden md:table-cell">
+                            {row.industry ?? "—"}
+                          </TableCell>
+                        )}
+                        {shows("contacts") && (
+                          <TableCell className="pr-4 text-right tabular-nums sm:pr-2">
+                            {row.contactCount}
+                          </TableCell>
+                        )}
+                        {shows("activity") && (
+                          <TableCell className="hidden text-right sm:table-cell">
+                            {row.lastActivityAt
+                              ? formatDate(dateIn(timezone, row.lastActivityAt))
+                              : "—"}
+                          </TableCell>
+                        )}
                       </ClickableRow>
                     );
                   })}
@@ -365,7 +421,7 @@ export default async function OrganizationsPage({
                 </nav>
               )}
             </ListFooter>
-          </>
+          </Selection>
         )}
       </div>
 
