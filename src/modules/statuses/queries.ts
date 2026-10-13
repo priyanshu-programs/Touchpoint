@@ -1,12 +1,12 @@
 import { asc, eq } from "drizzle-orm";
 import { db, type Executor } from "@/db/client";
 import { companyStatuses } from "@/db/schema";
-import { BUILT_IN_STATUSES, isBuiltInStatus, type StatusColor } from "./schema";
+import { BUILT_IN_STATUSES, isBuiltInStatus } from "./schema";
 
 export type CompanyStatus = {
   key: string;
   label: string;
-  color: StatusColor;
+  color: string;
   builtIn: boolean;
 };
 

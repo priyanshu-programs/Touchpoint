@@ -53,26 +53,27 @@ test("the owner makes a status with a colour, puts a company on it and finds it 
   await expect(listed(page).first()).toContainText("Prospect");
   await expect(listed(page).first()).toContainText("Built in");
 
-  // A name a built-in status has is refused, and what was typed stays.
-  const name = statuses(page).getByRole("textbox", { name: "New status" });
+  // The colour is any the picker gives, not one of a list. A name a built-in
+  // status has is refused, and both what was typed and what was picked stay.
+  const name = statuses(page).getByRole("textbox", { name: "New status", exact: true });
+  const colour = statuses(page).getByLabel("Colour of the new status");
+  await expect(colour).toHaveValue("#a1a1aa");
+  await colour.fill("#e11d8f");
   await name.fill("client");
   await statuses(page).getByRole("button", { name: "Add", exact: true }).click();
   await expect(statuses(page).getByRole("alert")).toHaveText(
     "There is already a status called client.",
   );
   await expect(name).toHaveValue("client");
+  await expect(colour).toHaveValue("#e11d8f");
 
-  await statuses(page)
-    .getByRole("button", { name: "Colour of the new status: Gray" })
-    .click();
-  await choose(page, "Red");
   await name.fill("Hot lead");
   await statuses(page).getByRole("button", { name: "Add", exact: true }).click();
   await expect(listed(page)).toHaveCount(6);
   await expect(statuses(page).getByLabel("Name of Hot lead")).toHaveValue("Hot lead");
-  await expect(
-    statuses(page).getByRole("button", { name: "Colour of Hot lead: Red" }),
-  ).toBeVisible();
+  await expect(statuses(page).getByLabel("Colour of Hot lead")).toHaveValue(
+    "#e11d8f",
+  );
   await expect(name).toHaveValue("");
   await closeStatuses(page);
 
@@ -84,7 +85,10 @@ test("the owner makes a status with a colour, puts a company on it and finds it 
   await page.goto("/people/organizations");
   const cell = row(page).getByRole("cell", { name: "Hot lead", exact: true });
   await expect(cell).toBeVisible();
-  await expect(cell.locator(".bg-red-500")).toHaveCount(1);
+  await expect(cell.locator('[aria-hidden="true"]')).toHaveCSS(
+    "background-color",
+    "rgb(225, 29, 143)",
+  );
   await page.getByRole("button", { name: "Filters" }).click();
   await choose(page, "Hot lead");
   await expect(page).toHaveURL(/[?&]status=hot_lead(&|$)/);
@@ -116,13 +120,16 @@ test("a status is recoloured and renamed, and deleting it moves its companies to
   await editStatuses(page, "Hot lead");
 
   // A built-in status takes a colour and keeps its name.
-  await statuses(page)
-    .getByRole("button", { name: "Colour of Client: Green" })
-    .click();
-  await choose(page, "Pink");
-  await expect(
-    statuses(page).getByRole("button", { name: "Colour of Client: Pink" }),
-  ).toBeVisible();
+  const client = statuses(page).getByLabel("Colour of Client");
+  await expect(client).toHaveValue("#22c55e");
+  const recoloured = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      "next-action" in response.request().headers(),
+  );
+  await client.fill("#00b3a4");
+  await recoloured;
+  await expect(client).toHaveValue("#00b3a4");
   await expect(statuses(page).getByLabel("Name of Client")).toHaveCount(0);
 
   // The owner's own is renamed, unless another status has the name.
@@ -143,6 +150,14 @@ test("a status is recoloured and renamed, and deleting it moves its companies to
   await expect(statuses(page).getByRole("alert")).toHaveCount(0);
   await closeStatuses(page);
   await expect(badge(page, "Warm lead")).toBeVisible();
+
+  // The colour picked for Client was kept.
+  await page.reload();
+  await editStatuses(page, "Warm lead");
+  await expect(statuses(page).getByLabel("Colour of Client")).toHaveValue(
+    "#00b3a4",
+  );
+  await closeStatuses(page);
 
   // Deleted only after confirming.
   await editStatuses(page, "Warm lead");

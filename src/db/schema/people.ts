@@ -29,17 +29,6 @@ export const ORGANIZATION_STATUSES = [
   "partner",
   "other",
 ] as const;
-export const STATUS_COLORS = [
-  "gray",
-  "red",
-  "orange",
-  "amber",
-  "green",
-  "teal",
-  "blue",
-  "purple",
-  "pink",
-] as const;
 export const CONTACT_STATUSES = ["active", "dormant", "do_not_contact"] as const;
 export const RELATIONSHIP_TYPES = [
   "prospect",
@@ -117,12 +106,14 @@ export const companyStatuses = pgTable(
     ownerId: ownerId(),
     key: text("key").notNull(),
     label: text("label").notNull(),
-    color: text("color").$type<(typeof STATUS_COLORS)[number]>().notNull(),
+    // Any colour the owner picked, as "#" and six hex digits. It is drawn through
+    // an inline style, so nothing but that shape may ever be stored here.
+    color: text("color").notNull(),
     createdAt,
     updatedAt,
   },
   (table) => [
-    check("company_statuses_color_check", oneOf(table.color, STATUS_COLORS)),
+    check("company_statuses_color_check", sql`${table.color} ~ '^#[0-9a-f]{6}$'`),
     uniqueIndex("company_statuses_owner_key_idx").on(table.ownerId, table.key),
   ],
 );

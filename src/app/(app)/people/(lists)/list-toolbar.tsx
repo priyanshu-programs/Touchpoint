@@ -27,7 +27,6 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import type { StatusColor } from "@/modules/statuses/schema";
 import { StatusDot } from "./status-badge";
 
 // One thing a list can be narrowed by. The first choice is the one that narrows nothing.
@@ -38,7 +37,7 @@ export type ToolbarFilter = {
     value: string;
     label: string;
     href: string;
-    color?: StatusColor;
+    color?: string;
   }[];
 };
 

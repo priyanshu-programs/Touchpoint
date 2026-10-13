@@ -13,38 +13,54 @@ import {
   setCompanyStatusColor,
 } from "./service";
 
-const status = (label: string, color = "teal") =>
+const status = (label: string, color = "#14b8a6") =>
   statusInput.parse({ label, color });
 
 const BUILT_IN = [
-  { key: "prospect", label: "Prospect", color: "blue", builtIn: true },
-  { key: "client", label: "Client", color: "green", builtIn: true },
-  { key: "past_client", label: "Past client", color: "amber", builtIn: true },
-  { key: "partner", label: "Partner", color: "purple", builtIn: true },
-  { key: "other", label: "Other", color: "gray", builtIn: true },
+  { key: "prospect", label: "Prospect", color: "#3b82f6", builtIn: true },
+  { key: "client", label: "Client", color: "#22c55e", builtIn: true },
+  { key: "past_client", label: "Past client", color: "#f59e0b", builtIn: true },
+  { key: "partner", label: "Partner", color: "#a855f7", builtIn: true },
+  { key: "other", label: "Other", color: "#a1a1aa", builtIn: true },
 ];
 
 describe("statusInput", () => {
-  it("trims the name", () => {
-    expect(statusInput.parse({ label: " Hot lead ", color: "red" })).toEqual({
+  it("trims the name and keeps the colour in lower case", () => {
+    expect(statusInput.parse({ label: " Hot lead ", color: " #FF8800 " })).toEqual({
       label: "Hot lead",
-      color: "red",
+      color: "#ff8800",
     });
   });
 
   it.each([
-    ["no name", { label: "  ", color: "red" }],
-    ["a name over 40 characters", { label: "x".repeat(41), color: "red" }],
-    ["a colour off the list", { label: "Hot lead", color: "#ff0000" }],
+    ["no name", { label: "  ", color: "#ef4444" }],
+    ["a name over 40 characters", { label: "x".repeat(41), color: "#ef4444" }],
     ["no colour", { label: "Hot lead" }],
-    ["an unexpected property", { label: "Hot lead", color: "red", key: "client" }],
+    ["an unexpected property", { label: "Hot lead", color: "#ef4444", key: "client" }],
   ])("rejects %s", (_label, value) => {
     expect(statusInput.safeParse(value).success).toBe(false);
   });
 
-  it("takes a colour only from the list", () => {
-    expect(statusColor.safeParse("pink").success).toBe(true);
-    expect(statusColor.safeParse("bg-red-500").success).toBe(false);
+  // The colour goes into a style, so only its one shape gets through.
+  it.each([
+    ["a colour's name", "red"],
+    ["three digits", "#f80"],
+    ["eight digits", "#ff880080"],
+    ["digits without the hash", "ff8800"],
+    ["letters that are not hex", "#gggggg"],
+    ["a colour function", "rgb(255, 136, 0)"],
+    ["a class", "bg-red-500"],
+    ["more CSS after the colour", "#ff0000;background:url(//example.com)"],
+    ["a second line", "#ff0000\n#00ff00"],
+    ["nothing", ""],
+  ])("rejects %s as a colour", (_label, value) => {
+    expect(statusColor.safeParse(value).success).toBe(false);
+  });
+
+  it("takes any colour of six hex digits", () => {
+    for (const value of ["#000000", "#ffffff", "#ec4899", "#0A1B2C"]) {
+      expect(statusColor.safeParse(value).success).toBe(true);
+    }
   });
 });
 
@@ -84,7 +100,7 @@ describe("company statuses", () => {
   });
 
   it("adds a status after the built-in ones, with a key from its name and an audit row", async () => {
-    expect(await createCompanyStatus(ownerId, status("Hot lead", "red"))).toEqual({
+    expect(await createCompanyStatus(ownerId, status("Hot lead", "#ef4444"))).toEqual({
       ok: true,
       key: "hot_lead",
     });
@@ -95,15 +111,15 @@ describe("company statuses", () => {
 
     expect(await listCompanyStatuses(ownerId)).toEqual([
       ...BUILT_IN,
-      { key: "hot_lead", label: "Hot lead", color: "red", builtIn: false },
-      { key: "status", label: "!!!", color: "teal", builtIn: false },
+      { key: "hot_lead", label: "Hot lead", color: "#ef4444", builtIn: false },
+      { key: "status", label: "!!!", color: "#14b8a6", builtIn: false },
     ]);
     const { rows } = await listAudit(ownerId);
     expect(rows[1]).toMatchObject({
       action: "status.create",
       entityType: "company_status",
       entityId: "hot_lead",
-      after: { label: "Hot lead", color: "red" },
+      after: { label: "Hot lead", color: "#ef4444" },
     });
   });
 
@@ -133,7 +149,7 @@ describe("company statuses", () => {
 
   it(`stops at ${MAX_COMPANY_STATUSES} statuses of the owner's own`, async () => {
     // A colour kept for a built-in status is not one of them.
-    await setCompanyStatusColor(ownerId, "client", "pink");
+    await setCompanyStatusColor(ownerId, "client", "#ec4899");
     for (let count = 1; count <= MAX_COMPANY_STATUSES; count++) {
       expect(
         (await createCompanyStatus(ownerId, status(`Stage ${count}`))).ok,
@@ -147,24 +163,24 @@ describe("company statuses", () => {
   });
 
   it("recolours a built-in status, which keeps its name and its place", async () => {
-    expect(await setCompanyStatusColor(ownerId, "client", "pink")).toBe(true);
-    expect(await setCompanyStatusColor(ownerId, "client", "teal")).toBe(true);
+    expect(await setCompanyStatusColor(ownerId, "client", "#ec4899")).toBe(true);
+    expect(await setCompanyStatusColor(ownerId, "client", "#14b8a6")).toBe(true);
 
     expect(await listCompanyStatuses(ownerId)).toEqual(
       BUILT_IN.map((builtIn) =>
-        builtIn.key === "client" ? { ...builtIn, color: "teal" } : builtIn,
+        builtIn.key === "client" ? { ...builtIn, color: "#14b8a6" } : builtIn,
       ),
     );
     const { rows } = await listAudit(ownerId);
     expect(rows[0]).toMatchObject({
       action: "status.update",
       entityId: "client",
-      before: { color: "pink" },
-      after: { color: "teal" },
+      before: { color: "#ec4899" },
+      after: { color: "#14b8a6" },
     });
     expect(rows[1]).toMatchObject({
-      before: { color: "green" },
-      after: { color: "pink" },
+      before: { color: "#22c55e" },
+      after: { color: "#ec4899" },
     });
 
     expect(await renameCompanyStatus(ownerId, "client", "Customer")).toEqual({
@@ -179,11 +195,11 @@ describe("company statuses", () => {
   });
 
   it("recolours and renames one of the owner's, and its companies follow", async () => {
-    await createCompanyStatus(ownerId, status("Hot lead", "red"));
+    await createCompanyStatus(ownerId, status("Hot lead", "#ef4444"));
     await createCompanyStatus(ownerId, status("Cold"));
     const id = await company("Acme Design", "hot_lead");
 
-    expect(await setCompanyStatusColor(ownerId, "hot_lead", "orange")).toBe(true);
+    expect(await setCompanyStatusColor(ownerId, "hot_lead", "#f97316")).toBe(true);
     expect(await renameCompanyStatus(ownerId, "hot_lead", "Warm lead")).toEqual({
       ok: true,
       key: "hot_lead",
@@ -203,13 +219,13 @@ describe("company statuses", () => {
     expect((await listCompanyStatuses(ownerId))[5]).toEqual({
       key: "hot_lead",
       label: "WARM lead",
-      color: "orange",
+      color: "#f97316",
       builtIn: false,
     });
     expect(await getOrganization(ownerId, id)).toMatchObject({
       status: "hot_lead",
     });
-    expect(await setCompanyStatusColor(ownerId, "nobody_has_this", "red")).toBe(
+    expect(await setCompanyStatusColor(ownerId, "nobody_has_this", "#ef4444")).toBe(
       false,
     );
     expect(await renameCompanyStatus(ownerId, "nobody_has_this", "X")).toEqual({
@@ -242,7 +258,7 @@ describe("company statuses", () => {
     expect(rows[0]).toMatchObject({
       action: "status.delete",
       entityId: "hot_lead",
-      before: { label: "Hot lead", color: "teal" },
+      before: { label: "Hot lead", color: "#14b8a6" },
       after: { companiesMoved: 2, movedTo: "other" },
     });
     expect(await deleteCompanyStatus(ownerId, "hot_lead")).toEqual({
@@ -253,12 +269,12 @@ describe("company statuses", () => {
 
   it("keeps another owner's statuses out of sight and out of reach", async () => {
     const otherId = await createTestOwner("other@example.com");
-    await createCompanyStatus(ownerId, status("Hot lead", "red"));
-    await setCompanyStatusColor(ownerId, "client", "pink");
+    await createCompanyStatus(ownerId, status("Hot lead", "#ef4444"));
+    await setCompanyStatusColor(ownerId, "client", "#ec4899");
     const id = await company("Acme Design", "hot_lead");
 
     expect(await listCompanyStatuses(otherId)).toEqual(BUILT_IN);
-    expect(await setCompanyStatusColor(otherId, "hot_lead", "blue")).toBe(false);
+    expect(await setCompanyStatusColor(otherId, "hot_lead", "#3b82f6")).toBe(false);
     expect(await renameCompanyStatus(otherId, "hot_lead", "Theirs")).toEqual({
       ok: false,
       reason: "not_found",
@@ -279,7 +295,7 @@ describe("company statuses", () => {
 
     expect((await listCompanyStatuses(ownerId))[5]).toMatchObject({
       label: "Hot lead",
-      color: "red",
+      color: "#ef4444",
     });
     expect(await getOrganization(ownerId, id)).toMatchObject({
       status: "hot_lead",

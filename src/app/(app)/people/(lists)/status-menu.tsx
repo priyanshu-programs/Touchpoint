@@ -14,8 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { StatusColor } from "@/modules/statuses/schema";
-import { statusBadgeClass, StatusDot } from "./status-badge";
+import { statusBadge, StatusDot } from "./status-badge";
 
 // The badge that says what a company or person is to the owner, changed where it is read.
 // `manage` adds a last item for the list itself, where the owner can change it.
@@ -28,21 +27,23 @@ export function StatusMenu({
 }: {
   label: string;
   value: string;
-  options: { value: string; label: string; color?: StatusColor }[];
+  options: { value: string; label: string; color?: string }[];
   action: (value: string) => Promise<void>;
   manage?: { label: string; onSelect: () => void };
 }) {
   const [pending, startTransition] = useTransition();
   const chosen = options.find((option) => option.value === value);
   const current = chosen?.label ?? value;
+  const pill = statusBadge(chosen?.color);
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`${label}: ${current}`}
         disabled={pending}
+        style={pill.style}
         className={cn(
-          statusBadgeClass(chosen?.color),
+          pill.className,
           "cursor-pointer disabled:opacity-60",
           chosen?.color ? "hover:opacity-80" : "hover:bg-secondary/80",
         )}

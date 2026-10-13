@@ -235,13 +235,13 @@ describe("organizations", () => {
   it("takes a status of the owner's own, and none they do not have", async () => {
     const made = await createCompanyStatus(
       ownerId,
-      statusInput.parse({ label: "Hot lead", color: "red" }),
+      statusInput.parse({ label: "Hot lead", color: "#ef4444" }),
     );
     expect(made).toEqual({ ok: true, key: "hot_lead" });
     const otherId = await createTestOwner("other@example.com");
     await createCompanyStatus(
       otherId,
-      statusInput.parse({ label: "Dormant", color: "gray" }),
+      statusInput.parse({ label: "Dormant", color: "#a1a1aa" }),
     );
 
     const id = await create({ status: "hot_lead" });

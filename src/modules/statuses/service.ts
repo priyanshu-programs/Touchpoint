@@ -8,7 +8,6 @@ import {
   FALLBACK_STATUS,
   isBuiltInStatus,
   MAX_COMPANY_STATUSES,
-  type StatusColor,
   type StatusInput,
 } from "./schema";
 
@@ -94,7 +93,7 @@ export async function createCompanyStatus(
 export async function setCompanyStatusColor(
   ownerId: string,
   key: string,
-  color: StatusColor,
+  color: string,
 ) {
   return db.transaction(async (tx) => {
     const builtIn = BUILT_IN_STATUSES.find((status) => status.key === key);
