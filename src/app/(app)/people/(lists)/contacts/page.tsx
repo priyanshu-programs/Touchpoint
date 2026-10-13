@@ -17,6 +17,7 @@ import { getContact, listContacts } from "@/modules/contacts/queries";
 import { listTags } from "@/modules/tags/queries";
 import { companyHref, labelFor } from "../../labels";
 import { ContactPanel } from "../contact-panel";
+import { EntryPanel, entryKey, entryTab, findEntry } from "../entry-panel";
 import { FieldsPanel } from "../fields-panel";
 import { ListCard, ListFooter } from "../list-card";
 import {
@@ -31,7 +32,9 @@ import { RecordSheet } from "../record-sheet";
 export const metadata: Metadata = { title: "Contacts" };
 
 const PATH = "/people/contacts";
+const NO_ENTRY = { activity: undefined, task: undefined };
 const NO_PANEL = {
+  ...NO_ENTRY,
   contact: undefined,
   tab: undefined,
   earlier: undefined,
@@ -44,7 +47,14 @@ export default async function ContactsPage({
   searchParams,
 }: PageProps<"/people/contacts">) {
   const owner = await requireOwner();
-  const params = contactListParams.parse(await searchParams);
+  const typed = contactListParams.parse(await searchParams);
+  const entry = typed.contact ? await findEntry(owner.id, typed) : null;
+  // An entry that is not the owner's opens nothing.
+  const params = {
+    ...typed,
+    activity: entry?.kind === "activity" ? typed.activity : undefined,
+    task: entry?.kind === "task" ? typed.task : undefined,
+  };
   const [page, tags, open] = await Promise.all([
     listContacts(owner.id, {
       q: params.q,
@@ -211,7 +221,9 @@ export default async function ContactsPage({
       {open && (
         <RecordSheet
           closeHref={contactsHref(params, NO_PANEL)}
-          recordKey={params.fields ? "fields" : open.id}
+          recordKey={
+            params.fields ? "fields" : entry ? entryKey(entry) : open.id
+          }
           narrow={Boolean(params.fields)}
         >
           {params.fields ? (
@@ -224,6 +236,21 @@ export default async function ContactsPage({
               }}
               hrefFor={(fields) => contactsHref(params, { fields })}
             />
+          ) : entry ? (
+            <EntryPanel
+              ownerId={owner.id}
+              entry={entry}
+              contact={open}
+              organization={null}
+              back={{
+                href: contactsHref(params, {
+                  ...NO_ENTRY,
+                  tab: entryTab(entry),
+                  earlier: undefined,
+                }),
+                label: `Back to ${open.fullName}`,
+              }}
+            />
           ) : (
             <ContactPanel
               ownerId={owner.id}
@@ -233,6 +260,7 @@ export default async function ContactsPage({
               hrefFor={({ tab, after }) =>
                 contactsHref(params, { tab, earlier: after })
               }
+              entryHref={(change) => contactsHref(params, change)}
               fieldsHref={contactsHref(params, { fields: "contacts" })}
             />
           )}

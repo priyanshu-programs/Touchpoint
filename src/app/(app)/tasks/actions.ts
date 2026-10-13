@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { companyHref, contactHref } from "@/app/(app)/people/labels";
-import { readFields } from "@/lib/form";
+import { companyHref, contactTabHref } from "@/app/(app)/people/labels";
+import { readFields, readOrigin } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import { taskInput } from "@/modules/tasks/schema";
 import {
@@ -62,6 +62,7 @@ export async function createTaskAction(
   formData: FormData,
 ): Promise<RecordFormState> {
   const owner = await requireOwner();
+  const { from, inside } = readOrigin(formData);
   const { fields, values } = read(formData);
   const parsed = taskInput.safeParse(fields);
   if (!parsed.success) return invalid(parsed.error, values);
@@ -71,9 +72,8 @@ export async function createTaskAction(
 
   refresh();
   // Back to the record the task was started from, when there was one.
-  const from = formData.get("from");
   if (from === "contact" && parsed.data.contactId) {
-    redirect(contactHref(parsed.data.contactId, "tasks"));
+    redirect(contactTabHref(parsed.data.contactId, "tasks", inside));
   }
   if (from === "organization" && parsed.data.organizationId) {
     redirect(companyHref(parsed.data.organizationId, "tasks"));

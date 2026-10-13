@@ -22,9 +22,12 @@ export function TaskList({
   tasks,
   timezone,
   snooze = false,
+  hrefFor,
 }: {
   tasks: TaskListRow[];
   timezone: string;
+  // Where a task opens: its own page, unless the panel showing it says otherwise.
+  hrefFor?: (id: string) => string;
   // Offered where the list is about today, so a task can be pushed to tomorrow in one click.
   snooze?: boolean;
 }) {
@@ -68,7 +71,9 @@ export function TaskList({
 
             <div className="grid min-w-0 flex-1 gap-0.5">
               <Link
-                href={`/tasks/${task.id}`}
+                href={hrefFor?.(task.id) ?? `/tasks/${task.id}`}
+                // A panel changes in place; a page of its own starts at its top.
+                scroll={!hrefFor}
                 className="font-medium break-words underline-offset-4 hover:underline"
               >
                 {task.title}

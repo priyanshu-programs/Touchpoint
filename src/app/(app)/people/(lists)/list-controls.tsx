@@ -16,6 +16,12 @@ export const listParams = z.object({
   after: optional(z.uuid()),
   fields: optional(z.enum(FIELDS_TABS)),
 });
+
+// `activity` and `task` put one entry in place of the open record: a new one, or the
+// one with that id. They come last, so an address reads record, tab, entry.
+const entry = optional(z.union([z.literal("new"), z.uuid()]));
+export type EntryParam = z.infer<typeof entry>;
+const entryParams = { activity: entry, task: entry };
 type ListParams = z.infer<typeof listParams>;
 
 // `company` and `tab` say which company panel is open over the list; `after` pages its timeline.
@@ -29,6 +35,7 @@ export const companyListParams = listParams.extend({
   company: optional(z.uuid()),
   contact: optional(z.uuid()),
   tab: optional(z.enum(["contacts", "activity", "tasks"])),
+  ...entryParams,
 });
 export type CompanyListParams = z.infer<typeof companyListParams>;
 
@@ -38,6 +45,7 @@ export const contactListParams = listParams.extend({
   contact: optional(z.uuid()),
   tab: optional(z.enum(["activity", "tasks"])),
   earlier: optional(z.uuid()),
+  ...entryParams,
 });
 export type ContactListParams = z.infer<typeof contactListParams>;
 

@@ -445,7 +445,8 @@ export async function CompanyPanel({
               moreHref={(earlier) =>
                 companiesHref(params, { tab: "activity", after: earlier })
               }
-              newHref={`/activities/new?organization=${organization.id}`}
+              newHref={companiesHref(params, { activity: "new" })}
+              openHref={(id) => companiesHref(params, { activity: id })}
               after={params.after}
             />
           )}
@@ -454,7 +455,8 @@ export async function CompanyPanel({
             <RecordTasks
               ownerId={ownerId}
               filter={filter}
-              newHref={`/tasks/new?organization=${organization.id}`}
+              newHref={companiesHref(params, { task: "new" })}
+              openHref={(id) => companiesHref(params, { task: id })}
             />
           )}
         </div>

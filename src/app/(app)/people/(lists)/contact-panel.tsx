@@ -41,6 +41,7 @@ export function ContactPanel({
   tab,
   after,
   hrefFor,
+  entryHref,
   fieldsHref,
 }: {
   ownerId: string;
@@ -52,6 +53,8 @@ export function ContactPanel({
   // Where the Activity tab's page of history starts.
   after?: string;
   hrefFor: (change: { tab: Tab; after?: string }) => string;
+  // An activity or a task, new or existing, opened in place of this person.
+  entryHref: (entry: { activity: string } | { task: string }) => string;
   // The Fields panel, opened over this person.
   fieldsHref: string;
 }) {
@@ -66,7 +69,6 @@ export function ContactPanel({
   const starred = inside
     ? contact.companies.filter(({ id, isPrimary }) => isPrimary && id === inside.id)
     : contact.companies.filter(({ isPrimary }) => isPrimary);
-  const from = inside ? `&organization=${inside.id}` : "";
 
   return (
     <>
@@ -222,7 +224,8 @@ export function ContactPanel({
             ownerId={ownerId}
             filter={filter}
             moreHref={(earlier) => hrefFor({ tab: "activity", after: earlier })}
-            newHref={`/activities/new?contact=${contact.id}${from}`}
+            newHref={entryHref({ activity: "new" })}
+            openHref={(id) => entryHref({ activity: id })}
             after={after}
           />
         )}
@@ -231,7 +234,8 @@ export function ContactPanel({
           <RecordTasks
             ownerId={ownerId}
             filter={filter}
-            newHref={`/tasks/new?contact=${contact.id}${from}`}
+            newHref={entryHref({ task: "new" })}
+            openHref={(id) => entryHref({ task: id })}
           />
         )}
       </div>

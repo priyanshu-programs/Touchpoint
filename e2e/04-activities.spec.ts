@@ -37,6 +37,10 @@ test("log a call from a contact; the timeline and the task list update together"
   await expect(page.getByText("Nothing logged yet.")).toBeVisible();
 
   await page.getByRole("link", { name: "Log activity" }).click();
+  // The form opens in the person's panel, not on a page of its own.
+  await expect(page).toHaveURL(
+    /\/people\/contacts\?contact=[0-9a-f-]+&tab=activity&activity=new$/,
+  );
   // The contact and their organization arrive filled in.
   await expect(
     page.getByRole("button", { name: "Remove contact: Priya Sharma" }),
@@ -79,6 +83,9 @@ test("an activity can involve a second contact, be edited and be deleted", async
 }) => {
   await openContactTimeline(page, "Priya Sharma");
   await page.getByRole("link", { name: "Intro call" }).click();
+  await expect(page).toHaveURL(
+    /\/people\/contacts\?contact=[0-9a-f-]+&tab=activity&activity=[0-9a-f-]{36}$/,
+  );
 
   await page.getByRole("button", { name: "Add contact" }).click();
   await page.getByPlaceholder("Search contacts…").fill("Arjun");

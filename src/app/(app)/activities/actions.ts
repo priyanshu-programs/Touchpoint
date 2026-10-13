@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { companyHref, contactHref } from "@/app/(app)/people/labels";
-import { readFields } from "@/lib/form";
+import { companyHref, contactTabHref } from "@/app/(app)/people/labels";
+import { readFields, readOrigin } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import {
   activityInput,
@@ -84,21 +84,26 @@ function read<const Name extends string>(
 
 const BAD_CONTACTS = "Choose contacts from the list.";
 
-const timelineOf = (links: {
-  contactIds: string[];
-  organizationId: string | null;
-}) =>
-  links.contactIds[0]
-    ? contactHref(links.contactIds[0], "activity")
-    : links.organizationId
-      ? companyHref(links.organizationId, "activity")
-      : "/people/contacts";
+// Back to the record the form was opened from: the company when it says so, else the
+// first person on the activity, inside the company's panel when that is where they were.
+const timelineOf = (
+  links: { contactIds: string[]; organizationId: string | null },
+  origin: ReturnType<typeof readOrigin>,
+) =>
+  origin.from === "organization" && links.organizationId
+    ? companyHref(links.organizationId, "activity")
+    : links.contactIds[0]
+      ? contactTabHref(links.contactIds[0], "activity", origin.inside)
+      : links.organizationId
+        ? companyHref(links.organizationId, "activity")
+        : "/people/contacts";
 
 export async function logActivityAction(
   _previous: RecordFormState,
   formData: FormData,
 ): Promise<RecordFormState> {
   const owner = await requireOwner();
+  const origin = readOrigin(formData);
   const { input, values, contactsValid } = read(formData, [
     ...FIELDS,
     ...FOLLOW_UP,
@@ -111,11 +116,7 @@ export async function logActivityAction(
   if (!result.ok) return failure(result, values);
 
   refresh();
-  // Back to the record the activity was logged from.
-  if (formData.get("from") === "organization" && parsed.data.organizationId) {
-    redirect(companyHref(parsed.data.organizationId, "activity"));
-  }
-  redirect(timelineOf(parsed.data));
+  redirect(timelineOf(parsed.data, origin));
 }
 
 export async function updateActivityAction(
@@ -139,11 +140,12 @@ export async function updateActivityAction(
 
 export async function deleteActivityAction(formData: FormData) {
   const owner = await requireOwner();
+  const origin = readOrigin(formData);
   const removed = await deleteActivity(
     owner.id,
     z.uuid().parse(formData.get("id")),
   );
   if (!removed) notFound();
   refresh();
-  redirect(timelineOf(removed));
+  redirect(timelineOf(removed, origin));
 }

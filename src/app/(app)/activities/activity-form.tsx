@@ -23,6 +23,7 @@ export function ActivityForm({
   options,
   timezone,
   from,
+  inside,
   followUp = false,
   submitLabel,
   cancelHref,
@@ -35,6 +36,8 @@ export function ActivityForm({
   options: { kinds: Option[]; directions: Option[] };
   timezone: string;
   from?: "contact" | "organization";
+  // The company whose panel the person was opened in, to go back there afterwards.
+  inside?: string;
   // Offered when logging, so the next step is decided while the conversation is fresh.
   followUp?: boolean;
   submitLabel: string;
@@ -51,6 +54,7 @@ export function ActivityForm({
       className="grid gap-4"
     >
       {from && <input type="hidden" name="from" value={from} />}
+      {inside && <input type="hidden" name="inside" value={inside} />}
       <div className="grid gap-4 sm:grid-cols-3">
         <SelectField
           name="kind"

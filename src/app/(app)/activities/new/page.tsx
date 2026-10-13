@@ -3,13 +3,10 @@ import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
-import { toLocalInput } from "@/lib/time";
 import { getContact } from "@/modules/contacts/queries";
 import { getOrganization } from "@/modules/organizations/queries";
 import { getSettings } from "@/modules/settings/service";
-import { logActivityAction } from "../actions";
-import { ActivityForm } from "../activity-form";
-import { activityFormOptions } from "../form-options";
+import { NewActivity } from "../new-activity";
 
 export const metadata: Metadata = { title: "Log activity" };
 
@@ -25,8 +22,6 @@ export default async function NewActivityPage({
     contactId.success ? getContact(owner.id, contactId.data) : null,
     organizationId.success ? getOrganization(owner.id, organizationId.data) : null,
   ]);
-  const timezone = settings?.timezone ?? "UTC";
-  const only = contact?.companies.length === 1 ? contact.companies[0] : null;
 
   return (
     <Card>
@@ -36,30 +31,10 @@ export default async function NewActivityPage({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ActivityForm
-          action={logActivityAction}
-          initial={{
-            kind: "note",
-            direction: "",
-            occurredAt: toLocalInput(new Date(), timezone),
-            title: "",
-            body: "",
-            outcome: "",
-            contacts: JSON.stringify(
-              contact ? [{ id: contact.id, label: contact.fullName }] : [],
-            ),
-            // What happened with a person is also part of their organization's history,
-            // when they have just the one.
-            organizationId: (organization ?? only)?.id ?? "",
-            organizationName: (organization ?? only)?.name ?? "",
-            followUpDate: "",
-            followUpTitle: "",
-          }}
-          options={activityFormOptions}
-          timezone={timezone}
-          from={contact ? "contact" : organization ? "organization" : undefined}
-          followUp
-          submitLabel="Log activity"
+        <NewActivity
+          contact={contact}
+          organization={organization}
+          timezone={settings?.timezone ?? "UTC"}
           cancelHref={
             contact
               ? contactHref(contact.id, "activity")

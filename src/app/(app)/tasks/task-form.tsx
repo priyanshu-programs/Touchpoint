@@ -19,6 +19,7 @@ export function TaskForm({
   options,
   timezone,
   from,
+  inside,
   submitLabel,
   cancelHref,
 }: {
@@ -30,6 +31,8 @@ export function TaskForm({
   options: { priorities: Option[]; repeats: Option[] };
   timezone: string;
   from?: "contact" | "organization";
+  // The company whose panel the person was opened in, to go back there afterwards.
+  inside?: string;
   submitLabel: string;
   cancelHref: string;
 }) {
@@ -44,6 +47,7 @@ export function TaskForm({
       className="grid gap-4"
     >
       {from && <input type="hidden" name="from" value={from} />}
+      {inside && <input type="hidden" name="inside" value={inside} />}
       <TextField
         name="title"
         label="Task"

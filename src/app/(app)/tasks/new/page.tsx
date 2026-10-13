@@ -6,9 +6,7 @@ import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import { getContact } from "@/modules/contacts/queries";
 import { getOrganization } from "@/modules/organizations/queries";
 import { getSettings } from "@/modules/settings/service";
-import { createTaskAction } from "../actions";
-import { taskFormOptions } from "../form-options";
-import { TaskForm } from "../task-form";
+import { NewTask } from "../new-task";
 
 export const metadata: Metadata = { title: "Add task" };
 
@@ -24,7 +22,6 @@ export default async function NewTaskPage({
     contactId.success ? getContact(owner.id, contactId.data) : null,
     organizationId.success ? getOrganization(owner.id, organizationId.data) : null,
   ]);
-  const only = contact?.companies.length === 1 ? contact.companies[0] : null;
 
   return (
     <Card>
@@ -34,27 +31,10 @@ export default async function NewTaskPage({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <TaskForm
-          action={createTaskAction}
-          initial={{
-            title: "",
-            notes: "",
-            priority: "normal",
-            dueDate: "",
-            dueTime: "",
-            repeat: "",
-            repeatEvery: "1",
-            remindAt: "",
-            contactId: contact?.id ?? "",
-            contactName: contact?.fullName ?? "",
-            // A task for a person is also about their organization, when they have just the one.
-            organizationId: (organization ?? only)?.id ?? "",
-            organizationName: (organization ?? only)?.name ?? "",
-          }}
-          options={taskFormOptions}
+        <NewTask
+          contact={contact}
+          organization={organization}
           timezone={settings?.timezone ?? "UTC"}
-          from={contact ? "contact" : organization ? "organization" : undefined}
-          submitLabel="Add task"
           cancelHref={
             contact
               ? contactHref(contact.id, "tasks")

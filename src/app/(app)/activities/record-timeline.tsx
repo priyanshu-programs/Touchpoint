@@ -18,12 +18,14 @@ export async function RecordTimeline({
   filter,
   moreHref,
   newHref,
+  openHref,
   after,
 }: {
   ownerId: string;
   filter: { contactId: string } | { organizationId: string };
   moreHref: (after: string) => string;
   newHref: string;
+  openHref: (id: string) => string;
   after?: string;
 }) {
   const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
@@ -43,7 +45,7 @@ export async function RecordTimeline({
       <CardHeader>
         <CardTitle>Timeline</CardTitle>
         <CardAction>
-          <ButtonLink href={newHref} variant="outline" size="sm">
+          <ButtonLink href={newHref} scroll={false} variant="outline" size="sm">
             Log activity
           </ButtonLink>
         </CardAction>
@@ -65,6 +67,7 @@ export async function RecordTimeline({
                   <TimelineEvent
                     event={event}
                     when={formatTime(event.occurredAt, timezone)}
+                    hrefFor={openHref}
                   />
                   {event.outcome && (
                     <p className="text-sm break-words">

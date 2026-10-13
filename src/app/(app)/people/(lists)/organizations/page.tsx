@@ -23,6 +23,7 @@ import { getSettings } from "@/modules/settings/service";
 import { listCompanyStatuses } from "@/modules/statuses/queries";
 import { listTags } from "@/modules/tags/queries";
 import { ContactPanel } from "../contact-panel";
+import { EntryPanel, entryKey, entryTab, findEntry } from "../entry-panel";
 import { FieldsPanel } from "../fields-panel";
 import { ListCard, ListFooter } from "../list-card";
 import {
@@ -56,7 +57,9 @@ const FIRST_DIRECTION = {
   contacts: "desc",
   activity: "desc",
 } as const;
+const NO_ENTRY = { activity: undefined, task: undefined };
 const NO_CONTACT = {
+  ...NO_ENTRY,
   contact: undefined,
   tab: undefined,
   after: undefined,
@@ -120,13 +123,19 @@ export default async function OrganizationsPage({
 }: PageProps<"/people/organizations">) {
   const owner = await requireOwner();
   const typed = companyListParams.parse(await searchParams);
-  const statuses = await listCompanyStatuses(owner.id);
-  // A status the owner does not have, or no longer has, narrows nothing.
+  const [statuses, entry] = await Promise.all([
+    listCompanyStatuses(owner.id),
+    typed.company ? findEntry(owner.id, typed) : null,
+  ]);
+  // A status the owner does not have, or no longer has, narrows nothing, and an
+  // entry that is not theirs opens nothing.
   const params = {
     ...typed,
     status: statuses.some(({ key }) => key === typed.status)
       ? typed.status
       : undefined,
+    activity: entry?.kind === "activity" ? typed.activity : undefined,
+    task: entry?.kind === "task" ? typed.task : undefined,
   };
   const sort = params.sort ?? "name";
   const pageNumber = params.page ?? 1;
@@ -363,7 +372,13 @@ export default async function OrganizationsPage({
       {open && (
         <RecordSheet
           closeHref={companiesHref(params, NO_PANEL)}
-          recordKey={params.fields ? "fields" : (contact?.id ?? open.id)}
+          recordKey={
+            params.fields
+              ? "fields"
+              : entry
+                ? entryKey(entry)
+                : (contact?.id ?? open.id)
+          }
           narrow={Boolean(params.fields)}
         >
           {params.fields ? (
@@ -375,6 +390,21 @@ export default async function OrganizationsPage({
                 label: `Back to ${contact?.fullName ?? open.name}`,
               }}
               hrefFor={(fields) => companiesHref(params, { fields })}
+            />
+          ) : entry ? (
+            <EntryPanel
+              ownerId={owner.id}
+              entry={entry}
+              contact={contact}
+              organization={open}
+              back={{
+                href: companiesHref(params, {
+                  ...NO_ENTRY,
+                  tab: entryTab(entry),
+                  after: undefined,
+                }),
+                label: `Back to ${contact?.fullName ?? open.name}`,
+              }}
             />
           ) : contact ? (
             <ContactPanel
@@ -392,6 +422,7 @@ export default async function OrganizationsPage({
               tab={params.tab === "contacts" ? undefined : params.tab}
               after={params.after}
               hrefFor={({ tab, after }) => companiesHref(params, { tab, after })}
+              entryHref={(change) => companiesHref(params, change)}
               fieldsHref={companiesHref(params, { fields: "contacts" })}
             />
           ) : (

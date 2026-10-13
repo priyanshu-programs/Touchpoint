@@ -25,5 +25,13 @@ export const contactHref = (id: string, tab?: "activity" | "tasks") =>
 export const contactPanelHref = (organizationId: string, contactId: string) =>
   `${companyHref(organizationId)}&contact=${contactId}`;
 
+// A tab of a person's panel: over the people list, or inside the company they were opened in.
+export const contactTabHref = (
+  id: string,
+  tab: "activity" | "tasks",
+  inside?: string,
+) =>
+  inside ? `${contactPanelHref(inside, id)}&tab=${tab}` : contactHref(id, tab);
+
 export const toOptions =(values: readonly string[]) =>
   values.map((value) => ({ value, label: labelFor(value) }));

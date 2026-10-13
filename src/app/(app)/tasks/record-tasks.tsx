@@ -15,10 +15,12 @@ export async function RecordTasks({
   ownerId,
   filter,
   newHref,
+  openHref,
 }: {
   ownerId: string;
   filter: { contactId: string } | { organizationId: string };
   newHref: string;
+  openHref: (id: string) => string;
 }) {
   const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
   const [open, done] = await Promise.all([
@@ -32,7 +34,7 @@ export async function RecordTasks({
         <CardHeader>
           <CardTitle>Open tasks</CardTitle>
           <CardAction>
-            <ButtonLink href={newHref} variant="outline" size="sm">
+            <ButtonLink href={newHref} scroll={false} variant="outline" size="sm">
               Add task
             </ButtonLink>
           </CardAction>
@@ -41,7 +43,7 @@ export async function RecordTasks({
           {open.rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No open tasks.</p>
           ) : (
-            <TaskList tasks={open.rows} timezone={timezone} />
+            <TaskList tasks={open.rows} timezone={timezone} hrefFor={openHref} />
           )}
         </CardContent>
       </Card>
@@ -52,7 +54,7 @@ export async function RecordTasks({
             <CardTitle>Recently done</CardTitle>
           </CardHeader>
           <CardContent>
-            <TaskList tasks={done.rows} timezone={timezone} />
+            <TaskList tasks={done.rows} timezone={timezone} hrefFor={openHref} />
           </CardContent>
         </Card>
       )}

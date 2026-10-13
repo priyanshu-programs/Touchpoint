@@ -38,3 +38,13 @@ export function readFields<const Name extends string>(
     }),
   ) as Record<Name, string>;
 }
+
+const origin = z.strictObject({
+  from: z.enum(["", "contact", "organization"]),
+  inside: z.union([z.literal(""), z.uuid()]),
+});
+
+// Which kind of record a form was opened from and, for a person shown inside a
+// company's panel, that company. An action goes back there by ids it has checked.
+export const readOrigin = (formData: FormData) =>
+  origin.parse(readFields(formData, ["from", "inside"]));

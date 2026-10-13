@@ -34,6 +34,10 @@ test("add a task from a contact and complete it on Today", async ({ page }) => {
   await expect(page.getByText("No open tasks.")).toBeVisible();
 
   await page.getByRole("link", { name: "Add task" }).click();
+  // The form opens in the person's panel, not on a page of its own.
+  await expect(page).toHaveURL(
+    /\/people\/contacts\?contact=[0-9a-f-]+&tab=tasks&task=new$/,
+  );
   await expect(
     page.getByRole("button", { name: /contact: Priya Sharma/ }),
   ).toBeVisible();
