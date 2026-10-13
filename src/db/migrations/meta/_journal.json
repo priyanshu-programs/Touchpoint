@@ -113,6 +113,13 @@
       "when": 1791868328680,
       "tag": "0015_status_hex_colors",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791882621066,
+      "tag": "0016_workflow_templates",
+      "breakpoints": true
     }
   ]
 }

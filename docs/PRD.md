@@ -129,7 +129,7 @@ Left sidebar on desktop, bottom bar on mobile. The account menu (the owner's nam
 | Pipeline | Board per workflow template, list view, opportunity workspace |
 | Work | Engagements list, engagement workspace (overview, roadmap, milestones, owed/waiting, files) |
 | Tasks | Today, Week, All, Calendar |
-| Workflows | Template list, visual template editor |
+| Workflows | Template list, visual template editor. Built so far: `/workflows` lists the owner's workflows by name, each with its description and its stages in order, with "New workflow" at the right of the title row; under the list, "Starter workflows" offers Prospecting and Website Project with an Add button each, and an added one is no longer offered. A workflow's page (`/workflows/<id>`) is the list editor: a Stages card where a stage is added, opened from its name to edit, dragged into order by its handle or moved from it with the arrow keys, and deleted from its three-dots menu after a confirmation; under each name a line says where the stage leads and what it holds ("Then Contacted or Lost · 1 to tick · 1 task · 7 days at most"). A stage's form asks for a name, a kind (a step along the way, or an end: won, lost, done), a description, a deadline in days, checklist items each with a Required tick, and the tasks made on entering it (title, days after entry, priority); an end stage has no deadline and no checklist. Below, a Details card renames and describes the workflow, and Delete (after a confirmation) removes it; running workflows are copies and are not touched by any of this. In the sidebar Workflows comes after Tasks; the phone's bar keeps Today, Companies, Tasks and Settings, and Workflows is reached there through "Go to". The canvas editor comes with Step 6 |
 | Materials | Library, material detail with versions and send history |
 | Money | Invoices, invoice detail, payments, revenue overview |
 | Reports | Pipeline, outreach, revenue, follow-up compliance |
@@ -324,6 +324,8 @@ Organization details are stored once on the organization; contacts show them by 
 
 See section 9 for behaviour.
 
+Built so far (migration 0016): the three template tables. `workflow_templates` has name (unique per owner without regard to case), description, version (1 when made, one more with every change to the workflow or its stages) and starter_key (the starter it was added from). `applies_to` is left out: until opportunities and engagements exist a template serves companies and people alike. `workflow_template_stages` has name (unique within the workflow without regard to case, checked in the service), description, position, kind, checklist (`[{id, label, required}]`, the id kept across edits), default_tasks (`[{title, offsetDays, priority}]`) and sla_days; entry_criteria, completion_criteria and required_fields arrive with what reads them, canvas_x and canvas_y with the canvas editor. `workflow_template_edges` has from_stage_id and to_stage_id as its key; label and condition arrive with the canvas editor. The edges of a workflow are derived, not edited: `linearEdges` (`src/modules/workflows/edges.ts`) works them out from the order and kinds of the stages on every change. An owner has at most 50 workflows, a workflow 30 stages, a stage 30 checklist items and 10 tasks.
+
 ### 8.5 Tasks and calendar
 
 | Table | Key columns | Notes |
@@ -398,7 +400,9 @@ Logging an activity can create a follow-up task (origin `follow_up`) in the same
 - **Editor.** Stages are nodes and paths are edges on a React Flow canvas, with a side panel for description, checklist, required fields, default tasks and deadlines. A simple ordered-list editor is offered for linear workflows.
 - **Automatic actions in MVP** are limited to: create tasks, set reminders, flag an SLA breach. Sending anything externally is never automatic.
 
-Seed templates (editable, not hard-coded): Prospecting, Website Project.
+Seed templates (editable, not hard-coded): Prospecting, Website Project. They are offered on the Workflows page and added in one click, not written when the account is made, so an account older than the feature gets them too; once added a starter is an ordinary workflow, and it is offered again only if it is deleted.
+
+**Linear until the canvas (Step 5).** The list editor has no way to draw a path, so a workflow's paths follow its stages: each step leads to the next step, the last step leads to every `won` and `done` stage, and every step leads to every `lost` stage. End stages lead nowhere. Any other move (back, or past a step) is a forced move with a reason.
 
 **Order of work (owner's decision, 2026-10-13).** The engine is built before opportunities exist, so an instance first belongs to a company or a person; an opportunity and an engagement are further kinds of record it can belong to, added with their modules without changing the engine. Until opportunities are built, "One pipeline per record" and the status half of "Terminal stages" have nothing to act on: a `won` or `lost` stage ends the workflow and sets nothing else, and the board shows the instances of companies and people.
 

@@ -8,6 +8,7 @@ import {
   Search,
   Settings,
   Sun,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -52,6 +53,12 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
     },
     { href: "/tasks", label: "Tasks", icon: ListChecks, prefix: "/tasks" },
     {
+      href: "/workflows",
+      label: "Workflows",
+      icon: Workflow,
+      prefix: "/workflows",
+    },
+    {
       href: "/settings/profile",
       label: "Settings",
       icon: Settings,
@@ -59,7 +66,7 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
     },
   ];
 // The phone bar has room for four destinations; the rest are reached through "Go to".
-const MOBILE_NAV = NAV.slice(0, 4);
+const MOBILE_NAV = NAV.filter((item) => item.href !== "/workflows");
 
 const COLLAPSED_WIDTH = 56;
 const DEFAULT_WIDTH = 224;
