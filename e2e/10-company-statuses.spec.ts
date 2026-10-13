@@ -131,11 +131,15 @@ test("a status is recoloured and renamed, and deleting it moves its companies to
   await expect(statuses(page).getByRole("alert")).toHaveText(
     "There is already a status called Partner.",
   );
+  // The box keeps what was typed and the cursor, so the name can be put right at once.
+  await expect(statuses(page).getByLabel("Name of Hot lead")).toHaveValue("Partner");
+  await expect(statuses(page).getByLabel("Name of Hot lead")).toBeFocused();
   await statuses(page).getByLabel("Name of Hot lead").fill("Warm lead");
   await page.keyboard.press("Enter");
   await expect(statuses(page).getByLabel("Name of Warm lead")).toHaveValue(
     "Warm lead",
   );
+  await expect(statuses(page).getByLabel("Name of Warm lead")).toBeFocused();
   await expect(statuses(page).getByRole("alert")).toHaveCount(0);
   await closeStatuses(page);
   await expect(badge(page, "Warm lead")).toBeVisible();

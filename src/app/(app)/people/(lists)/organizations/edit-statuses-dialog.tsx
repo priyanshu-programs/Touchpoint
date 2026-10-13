@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import type { CompanyStatus } from "@/modules/statuses/queries";
 import type { StatusColor } from "@/modules/statuses/schema";
+import type { RecordFormState } from "@/app/(app)/form-state";
 import {
   createCompanyStatusAction,
   deleteCompanyStatusAction,
@@ -102,7 +103,14 @@ function StatusRow({
     renameCompanyStatusAction.bind(null, status.key),
     null,
   );
-  const typed = state?.ok === false ? state.values?.label : undefined;
+  // The box is never rebuilt, so a refused name stays in it with the cursor.
+  // It follows the name the server holds whenever that changes.
+  const [name, setName] = useState(status.label);
+  const [held, setHeld] = useState(status.label);
+  if (held !== status.label) {
+    setHeld(status.label);
+    setName(status.label);
+  }
 
   return (
     <li className="grid gap-1">
@@ -124,16 +132,12 @@ function StatusRow({
           </>
         ) : (
           <>
-            <form
-              // A saved name comes back as the new starting value.
-              key={typed ?? status.label}
-              action={renameAction}
-              className="flex min-w-0 flex-1 gap-2"
-            >
+            <form action={renameAction} className="flex min-w-0 flex-1 gap-2">
               <Input
                 name="label"
                 aria-label={`Name of ${status.label}`}
-                defaultValue={typed ?? status.label}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
                 maxLength={40}
                 required
               />
@@ -160,28 +164,29 @@ function StatusRow({
 
 function NewStatusForm() {
   const [color, setColor] = useState<StatusColor>("gray");
+  const [label, setLabel] = useState("");
+  // Empty again once a status is added; a refused name stays, with the cursor.
   const [state, formAction, pending] = useActionState(
-    createCompanyStatusAction,
+    async (previous: RecordFormState, formData: FormData) => {
+      const result = await createCompanyStatusAction(previous, formData);
+      if (result?.ok) setLabel("");
+      return result;
+    },
     null,
   );
-  const typed = state?.ok === false ? (state.values?.label ?? "") : "";
 
   return (
     <div className="grid gap-1 border-t pt-4">
       <div className="flex items-center gap-2">
         <ColorMenu label="Colour of the new status" value={color} onChange={setColor} />
-        <form
-          // Empty again once a status is added; a refused name stays.
-          key={state?.ok ? state.message : typed}
-          action={formAction}
-          className="flex min-w-0 flex-1 gap-2"
-        >
+        <form action={formAction} className="flex min-w-0 flex-1 gap-2">
           <input type="hidden" name="color" value={color} />
           <Input
             name="label"
             aria-label="New status"
             placeholder="New status"
-            defaultValue={typed}
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
             maxLength={40}
             required
           />
