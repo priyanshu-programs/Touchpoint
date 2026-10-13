@@ -1,10 +1,18 @@
 import type { BoardStage, StageStatus } from "@/db/schema";
-import { STAGE_SHAPES } from "./drawing";
+import { MAX_STAGE_NAME, STAGE_COLORS, STAGE_SHAPES } from "./drawing";
 
 export const UNNAMED_STAGE = "Untitled stage";
 
 type Drawn = Record<string, unknown>;
-type Box = { id: string; status: StageStatus; x: number; y: number; height: number };
+type Box = {
+  id: string;
+  status: StageStatus;
+  // Given with the mark, for a box that holds handwriting and no text.
+  name?: string;
+  x: number;
+  y: number;
+  height: number;
+};
 
 const number = (value: unknown) => (typeof value === "number" ? value : 0);
 const boundTo = (value: unknown) =>
@@ -14,12 +22,13 @@ const boundTo = (value: unknown) =>
 
 function stageBox(element: Drawn): Box | null {
   const { stage } = (element.customData ?? {}) as {
-    stage?: { status: StageStatus };
+    stage?: { status: StageStatus; name?: string };
   };
   if (!stage || !STAGE_SHAPES.some((shape) => shape === element.type)) return null;
   return {
     id: String(element.id),
     status: stage.status,
+    name: stage.name,
     x: number(element.x),
     y: number(element.y),
     height: number(element.height),
@@ -27,6 +36,16 @@ function stageBox(element: Drawn): Box | null {
 }
 
 export const isStage = (element: Drawn) => stageBox(element) !== null;
+
+// A stage's box at that status and in its colour. What else its mark holds
+// (a name) is kept.
+export const atStatus = (element: Drawn, status: StageStatus) => ({
+  ...element,
+  customData: {
+    stage: { ...(element.customData as { stage: object }).stage, status },
+  },
+  backgroundColor: STAGE_COLORS[status],
+});
 
 // Top to bottom, then left to right: boxes whose middles are within half a box
 // of each other count as one row, so a row placed by hand reads in order.
@@ -58,7 +77,7 @@ export function stagesOf(elements: readonly Drawn[]): BoardStage[] {
       const written = String(element.originalText ?? element.text ?? "")
         .replace(/\s+/g, " ")
         .trim();
-      if (written) names.set(element.containerId, written.slice(0, 200));
+      if (written) names.set(element.containerId, written.slice(0, MAX_STAGE_NAME));
     }
     if (element.type !== "arrow") continue;
     const from = boundTo(element.startBinding);
@@ -86,7 +105,7 @@ export function stagesOf(elements: readonly Drawn[]): BoardStage[] {
 
   return ordered.map((box) => ({
     elementId: box.id,
-    name: names.get(box.id) ?? UNNAMED_STAGE,
+    name: names.get(box.id) ?? box.name ?? UNNAMED_STAGE,
     status: box.status,
   }));
 }

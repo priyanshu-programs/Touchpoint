@@ -18,6 +18,9 @@ export const ELEMENT_TYPES = [
 // The shapes that hold text, and so can be a named stage.
 export const STAGE_SHAPES = ["rectangle", "diamond", "ellipse"] as const;
 
+// A stage's name is cut to this, wherever it comes from.
+export const MAX_STAGE_NAME = 200;
+
 export const STAGE_COLORS: Record<StageStatus, string> = {
   not_started: "#e9ecef",
   in_progress: "#ffec99",

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { STAGE_STATUSES } from "@/db/schema";
 import { blankToNull, text } from "@/lib/form";
 import { httpUrl } from "@/lib/url";
-import { ELEMENT_TYPES } from "./drawing";
+import { ELEMENT_TYPES, MAX_STAGE_NAME } from "./drawing";
 
 export { STAGE_STATUSES };
 
@@ -61,7 +61,13 @@ const element = z.looseObject({
     .optional(),
   customData: z
     .strictObject({
-      stage: z.strictObject({ status: z.enum(STAGE_STATUSES) }).optional(),
+      stage: z
+        .strictObject({
+          status: z.enum(STAGE_STATUSES),
+          // What a stage made of handwriting is called: its box holds no text.
+          name: z.string().trim().min(1).max(MAX_STAGE_NAME).optional(),
+        })
+        .optional(),
     })
     .optional(),
 });

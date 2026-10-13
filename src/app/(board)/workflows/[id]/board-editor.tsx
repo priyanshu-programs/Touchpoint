@@ -2,12 +2,15 @@
 
 import {
   CaptureUpdateAction,
+  convertToExcalidrawElements,
   Excalidraw,
   FONT_FAMILY,
+  getCommonBounds,
   getNonDeletedElements,
   hashElementsVersion,
   MainMenu,
   newElementWith,
+  ROUNDNESS,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import type {
@@ -25,8 +28,10 @@ import {
 } from "@/modules/workflows/drawing";
 import "./board.css";
 import { createBoardSaver, type SaveState } from "./board-saver";
-import { BoxCard } from "./box-card";
+import { closedShape } from "@/modules/workflows/sketch";
+import { BoxCard, StrokesCard } from "./box-card";
 import { PAPER_COOKIE, PAPERS, type Paper } from "./paper";
+import { StageAsk } from "./stage-ask";
 import { StageHalos, type StageBox } from "./stage-halos";
 
 const SAVE_LABELS: Record<SaveState, string> = {
@@ -69,23 +74,90 @@ const watchTheme = (changed: () => void) => {
 const oneOf = (types: readonly string[], element: ExcalidrawElement) =>
   types.includes(element.type);
 
-// `status` is nothing for a box that is not a stage.
-type Selected = { id: string; status: StageStatus | null };
+// What is selected, as far as stages go: one box (`status` is nothing when it
+// is not a stage), or strokes of the pen, which can be made one.
+type Selected =
+  | { kind: "box"; id: string; status: StageStatus | null; name?: string }
+  | { kind: "strokes"; ids: string[] };
 
-// The one box that is selected, if a single box is all that is.
-function selectedBox(
+// One box counts with whatever is grouped with it (the handwriting a stage was
+// made around); a box selected beside anything else does not.
+function selection(
   elements: readonly ExcalidrawElement[],
   { selectedElementIds }: AppState,
 ): Selected | null {
-  const ids = Object.keys(selectedElementIds);
-  if (ids.length !== 1) return null;
-  const box = elements.find(
-    (element) => element.id === ids[0] && !element.isDeleted,
+  const chosen = elements.filter(
+    (element) => selectedElementIds[element.id] && !element.isDeleted,
   );
-  if (!box || !oneOf(STAGE_SHAPES, box)) return null;
-  const stage = box.customData?.stage as { status: StageStatus } | undefined;
-  return { id: box.id, status: stage?.status ?? null };
+  if (chosen.length === 0) return null;
+  if (chosen.every((element) => element.type === "freedraw")) {
+    return { kind: "strokes", ids: chosen.map(({ id }) => id) };
+  }
+  const boxes = chosen.filter((element) => oneOf(STAGE_SHAPES, element));
+  if (boxes.length !== 1) return null;
+  const [box] = boxes;
+  const together = chosen.every(
+    (element) =>
+      element === box || element.groupIds.some((id) => box.groupIds.includes(id)),
+  );
+  if (!together) return null;
+  const stage = box.customData?.stage as
+    | { status: StageStatus; name?: string }
+    | undefined;
+  return { kind: "box", id: box.id, status: stage?.status ?? null, name: stage?.name };
 }
+
+const sameSelected = (before: Selected | null, now: Selected | null) =>
+  before?.kind === "box" && now?.kind === "box"
+    ? before.id === now.id && before.status === now.status && before.name === now.name
+    : before?.kind === "strokes" && now?.kind === "strokes"
+      ? before.ids.join() === now.ids.join()
+      : before === now;
+
+// A shape just drawn with the pen that the whiteboard is asking about. `version`
+// is the stroke's as it was asked about: a stroke changed since is left alone.
+type Ask = {
+  id: string;
+  version: number;
+  shape: "rectangle" | "ellipse";
+  x: number;
+  y: number;
+  below: boolean;
+};
+
+// A shape smaller than this on the screen is more likely a letter than a stage.
+const MIN_SHAPE = 48;
+// The question stands under a shape drawn this near the top, clear of the tools.
+const TOOLS = 150;
+// The room left around handwriting by the box put behind it.
+const ROOM = 16;
+
+// A box or a circle in the hand-drawn style, marked a stage that is not started.
+const sketched = (
+  shape: Ask["shape"],
+  [left, top, right, bottom]: readonly number[],
+  like: ExcalidrawElement,
+  more: { name?: string; groupIds?: string[] } = {},
+) =>
+  convertToExcalidrawElements([
+    {
+      type: shape,
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+      strokeColor: like.strokeColor,
+      strokeWidth: like.strokeWidth,
+      roughness: 1,
+      roundness: shape === "rectangle" ? { type: ROUNDNESS.ADAPTIVE_RADIUS } : null,
+      backgroundColor: STAGE_COLORS.not_started,
+      fillStyle: "solid",
+      groupIds: more.groupIds ?? [],
+      customData: {
+        stage: { status: "not_started", ...(more.name && { name: more.name }) },
+      },
+    },
+  ])[0];
 
 // Every stage of the drawing, with where its box is.
 function stageBoxes(elements: readonly ExcalidrawElement[]): StageBox[] {
@@ -210,6 +282,10 @@ function Whiteboard({
   const [stages, setStages] = useState<StageBox[]>([]);
   const halos = useRef<HTMLDivElement>(null);
   const page = useRef<HTMLDivElement>(null);
+  const [ask, setAsk] = useState<Ask | null>(null);
+  const asks = useRef<HTMLDivElement>(null);
+  // The stroke the pen is in the middle of, to tell when it is lifted.
+  const drawing = useRef<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [saver] = useState(() =>
     createBoardSaver<NonDeletedExcalidrawElement>({
@@ -248,7 +324,7 @@ function Whiteboard({
 
   // Makes the selected box a stage with that status, or no stage at all.
   const setStage = (status: StageStatus | null) => {
-    if (!api || !selected) return;
+    if (!api || selected?.kind !== "box") return;
     api.updateScene({
       elements: api.getSceneElements().map((element) =>
         element.id === selected.id
@@ -256,7 +332,8 @@ function Whiteboard({
               element,
               status
                 ? {
-                    customData: { stage: { status } },
+                    // A name given with the mark stays with it.
+                    customData: { stage: { ...element.customData?.stage, status } },
                     backgroundColor: STAGE_COLORS[status],
                     fillStyle: "solid",
                   }
@@ -266,6 +343,61 @@ function Whiteboard({
             )
           : element,
       ),
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+  };
+
+  // Swaps the shape asked about for a real box or circle where it was drawn,
+  // which arrows attach to and text goes inside. One undo brings the stroke back.
+  const tidy = () => {
+    if (!api || !ask) return;
+    setAsk(null);
+    const all = api.getSceneElements();
+    const stroke = all.find((element) => element.id === ask.id);
+    if (!stroke) return;
+    const shape = sketched(ask.shape, getCommonBounds([stroke]), stroke);
+    api.updateScene({
+      elements: all.flatMap((element) =>
+        element === stroke
+          ? [newElementWith(stroke, { isDeleted: true }), shape]
+          : element,
+      ),
+      appState: { selectedElementIds: { [shape.id]: true } },
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    api.setActiveTool({ type: "selection" });
+  };
+
+  // Makes a stage of the selected strokes: a box behind them, grouped with them
+  // so they move as one, under the name typed, since handwriting cannot be read.
+  const wrap = (name: string) => {
+    if (!api || selected?.kind !== "strokes") return;
+    const all = api.getSceneElements();
+    const strokes = all.filter((element) => selected.ids.includes(element.id));
+    if (strokes.length === 0) return;
+    const [left, top, right, bottom] = getCommonBounds(strokes);
+    const group = crypto.randomUUID();
+    const box = sketched(
+      "rectangle",
+      [left - ROOM, top - ROOM, right + ROOM, bottom + ROOM],
+      strokes[0],
+      { name, groupIds: [group] },
+    );
+    api.updateScene({
+      elements: all.flatMap((element) =>
+        strokes.includes(element)
+          ? [
+              ...(element === strokes[0] ? [box] : []),
+              newElementWith(element, { groupIds: [...element.groupIds, group] }),
+            ]
+          : element,
+      ),
+      appState: {
+        selectedElementIds: Object.fromEntries(
+          [box, ...strokes].map(({ id }) => [id, true as const]),
+        ),
+        selectedGroupIds: { [group]: true },
+      },
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
   };
@@ -318,17 +450,51 @@ function Whiteboard({
               }),
             );
           }
-          const box = selectedBox(all, appState);
-          setSelected((before) =>
-            before?.id === box?.id && before?.status === box?.status
-              ? before
-              : box,
-          );
+          const now = selection(all, appState);
+          setSelected((before) => (sameSelected(before, now) ? before : now));
           // The glows go where the drawing goes. Moving and zooming it changes
-          // no box, so the layer is moved here and nothing is drawn again.
+          // no box, so the layer is moved here and nothing is drawn again. The
+          // question about a shape stands at a point of the drawing as well.
           const zoom = appState.zoom.value;
-          if (halos.current) {
-            halos.current.style.transform = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
+          const placed = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
+          if (halos.current) halos.current.style.transform = placed;
+          if (asks.current) {
+            asks.current.style.transform = placed;
+            asks.current.style.setProperty("--board-zoom", String(zoom));
+          }
+
+          // The pen has been lifted when the stroke it was drawing is no longer
+          // the one under way. A stroke that closes into a shape is asked about.
+          const pen =
+            appState.newElement?.type === "freedraw" ? appState.newElement.id : null;
+          if (pen !== drawing.current) {
+            const lifted = all.find(
+              (element) => element.id === drawing.current && !element.isDeleted,
+            );
+            drawing.current = pen;
+            let next: Ask | null = null;
+            if (!pen && lifted?.type === "freedraw") {
+              const shape = closedShape(lifted.points);
+              const [left, top, right, bottom] = getCommonBounds([lifted]);
+              if (shape && Math.min(right - left, bottom - top) * zoom >= MIN_SHAPE) {
+                const below = (top + appState.scrollY) * zoom < TOOLS;
+                next = {
+                  id: lifted.id,
+                  version: lifted.version,
+                  shape,
+                  x: (left + right) / 2,
+                  y: below ? bottom : top,
+                  below,
+                };
+              }
+            }
+            setAsk(next);
+          } else if (ask) {
+            // Asked about as it was drawn: moved, changed or gone, it is let be.
+            const stroke = all.find((element) => element.id === ask.id);
+            if (!stroke || stroke.isDeleted || stroke.version !== ask.version) {
+              setAsk(null);
+            }
           }
           // The page moves and grows with the drawing too. Zoomed far out, its
           // marks would run together, so every other one is left out, and again,
@@ -391,8 +557,29 @@ function Whiteboard({
           </MainMenu.Group>
         </MainMenu>
       </Excalidraw>
-      {selected && (
-        <BoxCard status={selected.status} tracked={tracked} onChange={setStage} />
+      <div ref={asks} className="stage-asks">
+        {ask && (
+          <StageAsk
+            x={ask.x}
+            y={ask.y}
+            below={ask.below}
+            onYes={tidy}
+            onNo={() => setAsk(null)}
+          />
+        )}
+      </div>
+      {selected?.kind === "box" && (
+        <BoxCard
+          status={selected.status}
+          name={selected.name}
+          tracked={tracked}
+          onChange={setStage}
+        />
+      )}
+      {selected?.kind === "strokes" && (
+        // A card of its own for each selection, so a name typed for one is
+        // not left in the box for the next.
+        <StrokesCard key={selected.ids.join()} onMake={wrap} />
       )}
     </div>
   );

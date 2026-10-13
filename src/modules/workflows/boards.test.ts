@@ -112,9 +112,19 @@ describe("sceneSave", () => {
     ["an element with no id", [{ type: "rectangle" }]],
     ["a status that is not one", [stage("a", { customData: { stage: { status: "late" } } })]],
     ["anything else kept on a box", [box("a", { customData: { note: "x" } })]],
-    ["more beside a stage's status", [box("a", { customData: { stage: { status: "done", by: "x" } } })]],
+    ["more beside a stage's status and name", [box("a", { customData: { stage: { status: "done", by: "x" } } })]],
+    ["a stage's name over 200 characters", [box("a", { customData: { stage: { status: "done", name: "x".repeat(201) } } })]],
+    ["a stage's name that is blank", [box("a", { customData: { stage: { status: "done", name: " " } } })]],
+    ["a stage's name that is not text", [box("a", { customData: { stage: { status: "done", name: 7 } } })]],
   ])("refuses %s", (_label, elements) => {
     expect(sceneSave.safeParse({ version: 1, elements }).success).toBe(false);
+  });
+
+  it("keeps the name given with a stage's mark, trimmed", () => {
+    const [kept] = save(1, [
+      box("a", { customData: { stage: { status: "done", name: " Signed off " } } }),
+    ]).elements;
+    expect(kept.customData).toEqual({ stage: { status: "done", name: "Signed off" } });
   });
 
   it.each([
@@ -149,6 +159,15 @@ describe("stagesOf", () => {
     ).toEqual([
       { elementId: "a", name: "Kickoff call", status: "not_started" },
       { elementId: "c", name: UNNAMED_STAGE, status: "done" },
+    ]);
+  });
+
+  it("takes the name given with the mark where the box holds no text", () => {
+    const named = (id: string, x: number) =>
+      box(id, { x, customData: { stage: { status: "done", name: "Signed off" } } });
+    expect(names([named("a", 0), named("b", 200), label("b", "Sent")])).toEqual([
+      "Signed off",
+      "Sent",
     ]);
   });
 
@@ -745,6 +764,26 @@ describe("workflows", () => {
       expect(await saveScene(ownerId, id, save(1, []))).toEqual({
         ok: false,
         reason: "conflict",
+      });
+    });
+
+    it("keeps the name given to a stage of handwriting through a copy and a status", async () => {
+      const sketched = await create("Sketched");
+      const named = { stage: { status: "done", name: "Signed off" } };
+      await saveScene(ownerId, sketched, save(1, [box("s", { customData: named })]));
+
+      const id = await start({ organizationId }, { templateId: sketched });
+      expect((await stored(id)).stages).toEqual([
+        { elementId: "s", name: "Signed off", status: "not_started" },
+      ]);
+      const change = { boardId: id, elementId: "s", status: "blocked" } as const;
+      expect(await setStageStatus(ownerId, change)).toBe(true);
+      const after = await stored(id);
+      expect(after.stages).toEqual([
+        { elementId: "s", name: "Signed off", status: "blocked" },
+      ]);
+      expect(after.scene.elements[0].customData).toEqual({
+        stage: { status: "blocked", name: "Signed off" },
       });
     });
 

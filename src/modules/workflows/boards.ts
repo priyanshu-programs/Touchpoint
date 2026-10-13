@@ -7,7 +7,6 @@ import {
   type BoardScene,
 } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
-import { STAGE_COLORS } from "./drawing";
 import {
   MAX_BOARD_STAGES,
   MAX_RECORD_BOARDS,
@@ -18,7 +17,7 @@ import {
   type SceneSave,
   type StageChange,
 } from "./schema";
-import { isStage, stagesOf } from "./stages";
+import { atStatus, isStage, stagesOf } from "./stages";
 import { STARTER_BOARDS, starterScene } from "./starters";
 
 export type BoardResult =
@@ -303,13 +302,7 @@ export async function startBoard(
         description: template.description,
         scene: {
           elements: template.scene.elements.map((element) =>
-            isStage(element)
-              ? {
-                  ...element,
-                  customData: { stage: { status: "not_started" } },
-                  backgroundColor: STAGE_COLORS.not_started,
-                }
-              : element,
+            isStage(element) ? atStatus(element, "not_started") : element,
           ),
         },
         sourceBoardId: from.templateId,
@@ -371,11 +364,7 @@ export async function setStageStatus(
 
     const elements = board.scene.elements.map((element) =>
       element.id === elementId && isStage(element)
-        ? {
-            ...element,
-            customData: { stage: { status } },
-            backgroundColor: STAGE_COLORS[status],
-          }
+        ? atStatus(element, status)
         : element,
     );
     await tx

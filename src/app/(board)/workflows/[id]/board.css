@@ -148,6 +148,34 @@
   }
 }
 
+/* The question about a shape just drawn. Its layer lies over the whiteboard in
+   the drawing's own measures, moved and scaled with it as the glows are, so the
+   question stays at its shape; the question itself is scaled back to keep its
+   size, about the point it stands at. */
+.stage-asks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  transform-origin: 0 0;
+  pointer-events: none;
+  --board-zoom: 1;
+}
+
+.stage-ask {
+  position: absolute;
+  padding-bottom: 10px;
+  pointer-events: auto;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) scale(calc(1 / var(--board-zoom)));
+}
+
+.stage-ask[data-below] {
+  padding: 10px 0 0;
+  transform-origin: 50% 0;
+  transform: translate(-50%, 0) scale(calc(1 / var(--board-zoom)));
+}
+
 /* The whiteboard's own chrome, mapped onto this app's tokens. The app's
    --card/--popover/--primary already follow the system theme through
    prefers-color-scheme in globals.css, so these follow too. */

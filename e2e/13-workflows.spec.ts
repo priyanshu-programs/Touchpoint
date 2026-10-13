@@ -33,6 +33,20 @@ const middle = (box: { x: number; y: number; width: number; height: number }) =>
 const heading = (page: Page, name: string) =>
   page.getByRole("heading", { name, exact: true });
 
+// One stroke of the pen through those points, and a ring of points for a circle
+// drawn by hand, ending a little short of where it began.
+async function stroke(page: Page, points: [number, number][]) {
+  await page.mouse.move(...points[0]);
+  await page.mouse.down();
+  for (const [x, y] of points.slice(1)) await page.mouse.move(x, y, { steps: 5 });
+  await page.mouse.up();
+}
+const ring = (x: number, y: number, radius: number) =>
+  Array.from({ length: 33 }, (_, index): [number, number] => {
+    const angle = (index / 32) * 2 * Math.PI * 0.98;
+    return [x + radius * Math.cos(angle), y + radius * Math.sin(angle)];
+  });
+
 const SCENE = /\/api\/workflows\/[0-9a-f-]{36}\/scene$/;
 // A drawing saves itself a little after the last change to it.
 const saved = (page: Page) =>
@@ -574,6 +588,164 @@ test("a blank board on a person: a stage's status is set on the board and in the
   const canvas = (await whiteboard(page).boundingBox())!;
   await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
   await expect(status("In progress")).toHaveAttribute("aria-pressed", "true");
+});
+
+test("a shape drawn with the pen is offered as a stage, and becomes a real box or circle", async ({
+  page,
+}) => {
+  const seen = watch(page);
+  const ask = page.getByRole("group", { name: "Make this a stage?" });
+
+  await page.goto("/workflows/new");
+  await page.getByLabel("Name").fill("Sketches");
+  await page.getByRole("button", { name: "Create workflow" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  const scene = `${new URL(page.url()).pathname.replace("/workflows/", "/api/workflows/")}/scene`;
+  const kinds = async () => {
+    const { elements } = (await (await page.request.get(scene)).json()) as {
+      elements: { type: string }[];
+    };
+    return elements.map(({ type }) => type).sort();
+  };
+
+  // A rough box, closed where it began: the whiteboard asks, and No leaves it a stroke.
+  await page.keyboard.press("p");
+  await stroke(page, [
+    [400, 250],
+    [650, 250],
+    [650, 400],
+    [400, 400],
+    [400, 256],
+  ]);
+  await expect(ask).toBeVisible();
+  await ask.getByRole("button", { name: "No" }).click();
+  await expect(ask).toHaveCount(0);
+  await expect(halos(page)).toHaveCount(0);
+
+  // A stroke left open is no shape, and brings no question.
+  let save = saved(page);
+  await stroke(page, [
+    [380, 470],
+    [520, 500],
+    [680, 480],
+  ]);
+  expect((await save).status()).toBe(200);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(ask).toHaveCount(0);
+
+  // A rough circle, taken up: it becomes a real one, a stage, where it was drawn.
+  await stroke(page, ring(820, 330, 80));
+  await expect(ask).toBeVisible();
+  save = saved(page);
+  await ask.getByRole("button", { name: "Yes" }).click();
+  await expect(ask).toHaveCount(0);
+  await expect(halos(page)).toHaveCount(1);
+  await expect(halos(page)).toHaveAttribute("data-shape", "ellipse");
+  const circle = middle((await halos(page).boundingBox())!);
+  expect(Math.abs(circle.x - 820)).toBeLessThan(6);
+  expect(Math.abs(circle.y - 330)).toBeLessThan(6);
+  await expect(card(page).getByRole("button", { name: "Not a stage" })).toBeVisible();
+  expect((await save).status()).toBe(200);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(await kinds()).toEqual(["ellipse", "freedraw", "freedraw"]);
+
+  // One undo brings the stroke back in place of the circle, and redo the circle.
+  save = saved(page);
+  await page.keyboard.press("Control+z");
+  await expect(halos(page)).toHaveCount(0);
+  expect((await save).status()).toBe(200);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(await kinds()).toEqual(["freedraw", "freedraw", "freedraw"]);
+  save = saved(page);
+  await page.keyboard.press("Control+Shift+z");
+  await expect(halos(page)).toHaveCount(1);
+  expect((await save).status()).toBe(200);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+  // It is a stage like any other after a reload.
+  await page.reload();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect(halos(page)).toHaveCount(1);
+
+  expect(seen.outside).toEqual([]);
+  expect(seen.errors).toEqual([]);
+});
+
+test("handwriting is made a stage by selecting it and giving it a name", async ({
+  page,
+}) => {
+  await page.goto("/people/contacts/new");
+  await page.getByLabel("First name").fill("Hana");
+  await page.getByLabel("Last name").fill("Writer");
+  await page.getByRole("button", { name: "Add contact" }).click();
+  await expect(panel(page).getByRole("heading", { name: "Hana Writer" })).toBeVisible();
+  await contactTabs(page).getByRole("link", { name: "Workflows" }).click();
+  await panel(page).getByRole("button", { name: "Start a workflow" }).click();
+  await page.getByRole("menuitem", { name: "Blank board…" }).click();
+  const blank = page.getByRole("dialog", { name: "Blank board" });
+  await blank.getByLabel("Name").fill("Notes");
+  await blank.getByRole("button", { name: "Create board" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  const scene = `${new URL(page.url()).pathname.replace("/workflows/", "/api/workflows/")}/scene`;
+
+  // Two strokes of a scribble: neither closes into a shape, so nothing is asked.
+  await page.keyboard.press("p");
+  await stroke(page, [
+    [500, 300],
+    [540, 350],
+    [580, 300],
+  ]);
+  await stroke(page, [
+    [610, 300],
+    [650, 350],
+  ]);
+  await expect(page.getByRole("group", { name: "Make this a stage?" })).toHaveCount(0);
+
+  // Selected together, they can be made a stage under a typed name.
+  await page.keyboard.press("v");
+  await page.mouse.move(440, 250);
+  await page.mouse.down();
+  await page.mouse.move(720, 420, { steps: 8 });
+  await page.mouse.up();
+  const strokes = page.getByRole("form", { name: "Selected drawing" });
+  await strokes.getByLabel("Name").fill("  Signed off ");
+  const save = saved(page);
+  await strokes.getByRole("button", { name: "Make this a stage" }).click();
+  await expect(strokes).toHaveCount(0);
+  await expect(halos(page)).toHaveCount(1);
+  expect((await save).status()).toBe(200);
+
+  // The box behind them is the stage, and they are grouped with it to move as one.
+  const { elements } = (await (await page.request.get(scene)).json()) as {
+    elements: {
+      type: string;
+      groupIds: string[];
+      customData?: { stage?: { status: string; name?: string } };
+    }[];
+  };
+  expect(elements.map(({ type }) => type)).toEqual(["rectangle", "freedraw", "freedraw"]);
+  expect(elements[0].customData).toEqual({
+    stage: { status: "not_started", name: "Signed off" },
+  });
+  expect(elements[0].groupIds).toHaveLength(1);
+  for (const element of elements) expect(element.groupIds).toEqual(elements[0].groupIds);
+
+  // Selected as one, it has a status like any stage, which keeps its name.
+  const status = (name: string) =>
+    card(page).getByRole("group", { name: "Status" }).getByRole("button", { name });
+  await expect(status("Not started")).toHaveAttribute("aria-pressed", "true");
+  await expect(card(page)).toContainText("called “Signed off”");
+  const again = saved(page);
+  await status("Done").click();
+  expect((await again).status()).toBe(200);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: "Hana Writer" }).click();
+  const notes = board(page, "Notes");
+  await expect(notes).toContainText("1 of 1 done");
+  await expect(
+    notes.getByRole("button", { name: "Status of Signed off: Done" }),
+  ).toBeVisible();
 });
 
 test("closing the whiteboard with a change not yet saved asks first", async ({
