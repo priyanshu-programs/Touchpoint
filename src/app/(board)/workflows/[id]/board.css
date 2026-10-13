@@ -1,0 +1,8 @@
+/* Two of the whiteboard's own controls are left out, since this app keeps
+   neither: its shared-library panel, and the tool that embeds another site's
+   page. That tool shares its test id with "Mermaid to Excalidraw", which is
+   kept and is the last item of the menu. */
+.board .default-sidebar-trigger,
+.board .dropdown-menu-item[data-testid="toolbar-embeddable"]:not(:last-child) {
+  display: none !important;
+}

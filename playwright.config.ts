@@ -24,7 +24,7 @@ export default defineConfig({
   reporter: process.env.GITHUB_ACTIONS ? [["list"], ["github"]] : "list",
   use: { baseURL, trace: "retain-on-failure" },
   webServer: {
-    command: `pnpm exec next build && pnpm exec next start -p ${PORT}`,
+    command: `pnpm build && pnpm exec next start -p ${PORT}`,
     url: `${baseURL}/sign-in`,
     timeout: 300_000,
     reuseExistingServer: false,

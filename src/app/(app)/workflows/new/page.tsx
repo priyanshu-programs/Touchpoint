@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
-import { createTemplateAction } from "../actions";
+import { createBoardAction } from "../actions";
 import { TemplateForm } from "../template-form";
 
 export const metadata: Metadata = { title: "New workflow" };
@@ -18,7 +18,7 @@ export default async function NewWorkflowPage() {
       </CardHeader>
       <CardContent>
         <TemplateForm
-          action={createTemplateAction}
+          action={createBoardAction}
           initial={{ name: "", description: "" }}
           submitLabel="Create workflow"
         />

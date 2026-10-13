@@ -5,100 +5,66 @@ import {
   integer,
   jsonb,
   pgTable,
-  primaryKey,
   text,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
-import { citext, createdAt, id, oneOf, ownerId, updatedAt } from "./columns";
-import type { TASK_PRIORITIES } from "./tasks";
+import { citext, createdAt, id, ownerId, updatedAt } from "./columns";
+import { contacts, organizations } from "./people";
 
-// `won`, `lost` and `done` end a workflow; nothing leads on from them.
-export const STAGE_KINDS = ["normal", "won", "lost", "done"] as const;
-export type StageKind = (typeof STAGE_KINDS)[number];
+export const STAGE_STATUSES = [
+  "not_started",
+  "in_progress",
+  "done",
+  "blocked",
+] as const;
+export type StageStatus = (typeof STAGE_STATUSES)[number];
 
-export type ChecklistItem = { id: string; label: string; required: boolean };
-// A task made when a workflow enters the stage, due that many days later.
-export type StageTask = {
-  title: string;
-  offsetDays: number;
-  priority: (typeof TASK_PRIORITIES)[number];
-};
+// A box of the drawing that was made a stage, named by the text inside it.
+export type BoardStage = { elementId: string; name: string; status: StageStatus };
+// The drawing as the whiteboard gave it. Only the fields the schema in
+// src/modules/workflows checks are ever read here.
+export type BoardScene = { elements: Record<string, unknown>[] };
 
-export const workflowTemplates = pgTable(
-  "workflow_templates",
+// A workflow drawn on a whiteboard. One that belongs to no company and no person
+// is a template; a copy started on a record is that record's own.
+export const workflowBoards = pgTable(
+  "workflow_boards",
   {
     id: id(),
     ownerId: ownerId(),
     name: citext("name").notNull(),
     description: text("description"),
-    // Goes up with every change, so a running workflow can say which one it was copied from.
+    scene: jsonb("scene").$type<BoardScene>().notNull().default({ elements: [] }),
+    // Worked out from the scene on every save, so a list never has to open a drawing.
+    stages: jsonb("stages").$type<BoardStage[]>().notNull().default([]),
+    // Goes up with every save; a save made from an older one is refused.
     version: integer("version").notNull().default(1),
     // The starter it was added from, which is then no longer offered.
     starterKey: text("starter_key"),
-    createdAt,
-    updatedAt,
-  },
-  (table) => [
-    uniqueIndex("workflow_templates_owner_name_idx").on(
-      table.ownerId,
-      table.name,
+    sourceBoardId: uuid("source_board_id").references(
+      (): AnyPgColumn => workflowBoards.id,
+      { onDelete: "set null" },
     ),
-  ],
-);
-
-export const workflowTemplateStages = pgTable(
-  "workflow_template_stages",
-  {
-    id: id(),
-    ownerId: ownerId(),
-    templateId: uuid("template_id")
-      .notNull()
-      .references(() => workflowTemplates.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    description: text("description"),
-    position: integer("position").notNull(),
-    kind: text("kind").$type<StageKind>().notNull().default("normal"),
-    checklist: jsonb("checklist").$type<ChecklistItem[]>().notNull().default([]),
-    defaultTasks: jsonb("default_tasks")
-      .$type<StageTask[]>()
-      .notNull()
-      .default([]),
-    slaDays: integer("sla_days"),
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
+    contactId: uuid("contact_id").references(() => contacts.id, {
+      onDelete: "cascade",
+    }),
     createdAt,
     updatedAt,
   },
   (table) => [
-    check("workflow_template_stages_kind_check", oneOf(table.kind, STAGE_KINDS)),
     check(
-      "workflow_template_stages_sla_days_check",
-      sql`${table.slaDays} is null or ${table.slaDays} > 0`,
+      "workflow_boards_subject_check",
+      sql`num_nonnulls(${table.organizationId}, ${table.contactId}) <= 1`,
     ),
-    index("workflow_template_stages_template_idx").on(
-      table.templateId,
-      table.position,
-    ),
-  ],
-);
-
-// The stages a stage leads to. The list editor works them out from the order
-// of the stages; they are stored so that a move only ever has to look one up.
-export const workflowTemplateEdges = pgTable(
-  "workflow_template_edges",
-  {
-    ownerId: ownerId(),
-    templateId: uuid("template_id")
-      .notNull()
-      .references(() => workflowTemplates.id, { onDelete: "cascade" }),
-    fromStageId: uuid("from_stage_id")
-      .notNull()
-      .references(() => workflowTemplateStages.id, { onDelete: "cascade" }),
-    toStageId: uuid("to_stage_id")
-      .notNull()
-      .references(() => workflowTemplateStages.id, { onDelete: "cascade" }),
-  },
-  (table) => [
-    primaryKey({ columns: [table.fromStageId, table.toStageId] }),
-    index("workflow_template_edges_template_idx").on(table.templateId),
+    uniqueIndex("workflow_boards_template_name_idx")
+      .on(table.ownerId, table.name)
+      .where(sql`${table.organizationId} is null and ${table.contactId} is null`),
+    index("workflow_boards_organization_idx").on(table.organizationId),
+    index("workflow_boards_contact_idx").on(table.contactId),
   ],
 );

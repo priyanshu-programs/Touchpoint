@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { FormMessage } from "@/components/form-message";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { addStarterTemplateAction } from "./actions";
+import { addStarterBoardAction } from "./actions";
 
 // Workflows this app offers ready-made. One click adds a starter as the owner's
 // own, to change as they like, after which it is no longer offered.
@@ -15,7 +15,7 @@ export function StarterTemplates({
   starters: { key: string; name: string; description: string; stages: string }[];
 }) {
   const [state, formAction, pending] = useActionState(
-    addStarterTemplateAction,
+    addStarterBoardAction,
     null,
   );
 

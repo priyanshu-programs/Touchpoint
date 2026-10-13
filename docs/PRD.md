@@ -63,7 +63,7 @@ It must answer five questions at any time:
 - Contacts and organizations (both independent and organization-linked contacts), tags, custom fields, duplicate detection
 - Unified activity timeline with manual logging (notes, calls, meetings, LinkedIn, emails pasted or summarised)
 - Opportunities, pipeline board and list
-- Workflow templates (visual editor), per-client workflow instances, Kanban, stage history
+- Workflows drawn on a whiteboard, a copy per client with a status on each stage, Kanban
 - Engagements with milestones, deliverables, risks, blockers, pending decisions
 - Tasks, follow-ups, recurring tasks, reminders, Today and Week views
 - Materials library with manual send logging
@@ -91,8 +91,8 @@ It must answer five questions at any time:
 | Organization | A company or agency | Has many contacts, opportunities, engagements |
 | Opportunity | A possible deal with a value and probability | One organization (optional), many contacts; has one workflow instance as its pipeline |
 | Engagement | Paid work in progress or completed | May originate from a won opportunity; has milestones, deliverables, invoices |
-| Workflow template | A reusable set of stages and paths | Copied when applied |
-| Workflow instance | One client's private copy of a workflow | Belongs to exactly one opportunity, engagement, contact or organization |
+| Workflow template | A workflow drawn on a whiteboard: boxes, arrows and free drawing, with some boxes marked as stages | Copied when started on a record |
+| Workflow instance | One client's own copy of a workflow's whiteboard, each stage with a status | Belongs to exactly one company or person (an opportunity or engagement later) |
 | Activity | Something that happened (note, call, email, meeting) | Links to contacts, organization, opportunity, engagement |
 | Task | Something to do | One row with optional links to any record; shown everywhere relevant, counted once |
 | Material | A thing that can be sent (proposal, deck, link) | Has versions; each send is its own record |
@@ -129,7 +129,7 @@ Left sidebar on desktop, bottom bar on mobile. The account menu (the owner's nam
 | Pipeline | Board per workflow template, list view, opportunity workspace |
 | Work | Engagements list, engagement workspace (overview, roadmap, milestones, owed/waiting, files) |
 | Tasks | Today, Week, All, Calendar |
-| Workflows | Template list, visual template editor. Built so far: `/workflows` lists the owner's workflows by name, each with its description and its stages in order, with "New workflow" at the right of the title row; under the list, "Starter workflows" offers Prospecting and Website Project with an Add button each, and an added one is no longer offered. A workflow's page (`/workflows/<id>`) is the list editor: a Stages card where a stage is added, opened from its name to edit, dragged into order by its handle or moved from it with the arrow keys, and deleted from its three-dots menu after a confirmation; under each name a line says where the stage leads and what it holds ("Then Contacted or Lost · 1 to tick · 1 task · 7 days at most"). A stage's form asks for a name, a kind (a step along the way, or an end: won, lost, done), a description, a deadline in days, checklist items each with a Required tick, and the tasks made on entering it (title, days after entry, priority); an end stage has no deadline and no checklist. Below, a Details card renames and describes the workflow, and Delete (after a confirmation) removes it; running workflows are copies and are not touched by any of this. In the sidebar Workflows comes after Tasks; the phone's bar keeps Today, Companies, Tasks and Settings, and Workflows is reached there through "Go to". The canvas editor comes with Step 6 |
+| Workflows | Whiteboards. `/workflows` lists the owner's workflows by name, each with its description and its stages in order, with "New workflow" at the right of the title row; under the list, "Starter workflows" offers Prospecting and Website Project with an Add button each, and an added one is no longer offered. A workflow opens at `/workflows/<id>` as a whiteboard that takes the whole window, outside the sidebar and top bar: a slim header with a way back, the workflow's name and a three-dots menu (Rename, which also edits the description, and Delete after a confirmation), and under it the canvas (Excalidraw): boxes, diamonds, ellipses, arrows that stay attached, lines, free drawing, text, frames, a link on any element, and Mermaid text turned into a diagram. Selecting one box shows a card with "Make this a stage"; a stage is named by the text inside the box and listed in the order the arrows give. The drawing saves itself two seconds after the last change and says so ("Saved", "Saving…", "Unsaved changes"); a whiteboard open in two places refuses the older one's save and asks for a reload. The whiteboard follows the system's light or dark theme and opens with the whole drawing in view. Left out of the whiteboard's own controls: its shared-library panel, embedding another site's page, loading and saving files, and pictures (a later slice). In the sidebar Workflows comes after Tasks; the phone's bar keeps Today, Companies, Tasks and Settings, and Workflows is reached there through "Go to". Still to come: starting a copy on a company or a person with a Workflows tab in the panel, a status on each stage, links and files on a box, pictures |
 | Materials | Library, material detail with versions and send history |
 | Money | Invoices, invoice detail, payments, revenue overview |
 | Reports | Pipeline, outreach, revenue, follow-up compliance |
@@ -179,7 +179,7 @@ Supporting both keeps the app free on either kind of host and gives open-source 
 |---|---|---|---|
 | Framework | Next.js 16 App Router, TypeScript, Node 24 LTS | Owner preference; official docs confirm full feature support self-hosted | React Router 7, TanStack Start |
 | UI | Tailwind v4, shadcn/ui, cmdk | Components are owned in-repo, accessible primitives | MUI, Mantine |
-| Workflow canvas | `@xyflow/react` (MIT) | Standard node-canvas library | Custom canvas |
+| Workflow whiteboard | `@excalidraw/excalidraw` (MIT), pinned | Free drawing, shapes, attached arrows and links in one maintained component; tldraw needs a licence key and shows a watermark | Custom canvas; React Flow (nodes only, no free drawing) |
 | Drag and drop | dnd-kit | Keyboard-accessible Kanban | react-beautiful-dnd (unmaintained) |
 | Database | PostgreSQL with pgvector, tsvector FTS, pg_trgm | One store for data, search, vectors, jobs | Pinecone, Elasticsearch, Redis |
 | ORM | Drizzle + drizzle-kit migrations | SQL-first, good for explainable aggregates | Prisma |
@@ -314,17 +314,13 @@ Organization details are stored once on the organization; contacts show them by 
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `workflow_templates` | name, description, applies_to (opportunity/engagement/contact), version | |
-| `workflow_template_stages` | template_id, name, description, position, kind (normal/won/lost/done), entry_criteria, completion_criteria, checklist, required_fields, default_tasks, sla_days, canvas_x, canvas_y | |
-| `workflow_template_edges` | from_stage_id, to_stage_id, label, condition | Branches and conditional paths |
-| `workflow_instances` | template_id (provenance only), template_version, exactly one of opportunity_id/engagement_id/contact_id, current_stage_id, status | CHECK enforces exactly one subject; one active instance per subject |
-| `workflow_instance_stages` | instance_id, source_stage_id, plus a full copy of the stage definition and checklist state | |
-| `workflow_instance_edges` | | |
-| `stage_transitions` | instance_id, from_stage_id, to_stage_id, at, reason, note, actor, is_exception | Append-only |
+| `workflow_boards` | name, description, scene, stages, version, starter_key, source_board_id, organization_id, contact_id | One row per whiteboard. With no company and no person it is a template; a copy started on a record carries that record and the template it came from |
+| `files` | content_type, size, sha256, bytes | Planned with links and files on a box: bytes kept in Postgres, one stored copy per owner and sha256 |
+| `workflow_attachments` | board_id, element_id, kind (link/file/image), title, url, file_id | Planned with the same slice |
 
 See section 9 for behaviour.
 
-Built so far (migration 0016): the three template tables. `workflow_templates` has name (unique per owner without regard to case), description, version (1 when made, one more with every change to the workflow or its stages) and starter_key (the starter it was added from). `applies_to` is left out: until opportunities and engagements exist a template serves companies and people alike. `workflow_template_stages` has name (unique within the workflow without regard to case, checked in the service), description, position, kind, checklist (`[{id, label, required}]`, the id kept across edits), default_tasks (`[{title, offsetDays, priority}]`) and sla_days; entry_criteria, completion_criteria and required_fields arrive with what reads them, canvas_x and canvas_y with the canvas editor. `workflow_template_edges` has from_stage_id and to_stage_id as its key; label and condition arrive with the canvas editor. The edges of a workflow are derived, not edited: `linearEdges` (`src/modules/workflows/edges.ts`) works them out from the order and kinds of the stages on every change. An owner has at most 50 workflows, a workflow 30 stages, a stage 30 checklist items and 10 tasks.
+Built so far (migrations 0017 and 0018): `workflow_boards`. `name` is unique per owner among templates without regard to case; `scene` is the drawing as the whiteboard gave it (`{ elements }`); `stages` is worked out from the scene on every save (`[{ elementId, name, status }]`, by `stagesOf` in `src/modules/workflows/stages.ts`) so that a list never opens a drawing; `version` goes up with every save and a save made from an older one is refused; a check allows at most one of organization_id and contact_id, and a board goes with the record it belongs to. Migration 0018 dropped `workflow_templates`, `workflow_template_stages` and `workflow_template_edges`, the stage-list design built first (migration 0016) and replaced at the owner's request on 2026-10-13. An owner has at most 50 workflows; a drawing at most 10,000 elements, 3 MB and 100 stages.
 
 ### 8.5 Tasks and calendar
 
@@ -390,21 +386,21 @@ Logging an activity can create a follow-up task (origin `follow_up`) in the same
 
 ## 9. Workflow engine
 
-- **Template vs instance.** Applying a template copies its stages and edges into instance tables. Editing an instance never touches the template or other clients. Editing a template never changes running instances; the instance records which template version it came from.
-- **One pipeline per record.** An opportunity's stage is its instance's `current_stage_id`. Board drag, roadmap advance, and the assistant all call the same `transition()` service, so every view agrees.
-- **Transition rules.** `transition()` checks that an edge exists, evaluates required checklist items and required fields, and either moves or returns what is incomplete. A forced move needs a reason and is saved with `is_exception = true`.
-- **Terminal stages.** A stage of kind `won` or `lost` sets the opportunity status (and lost reason) in the same transaction.
-- **Stage tasks.** Entering a stage creates its default tasks with due dates offset from the entry time, linked back to the instance stage.
-- **History.** `stage_transitions` is append-only. Time in stage and average time between stages are computed from it.
-- **Kanban.** A board shows all instances created from one template. Columns are the template's stages; a card sits in the column matching its current stage's `source_stage_id`. Stages a user added to a single instance appear in a "Custom" column.
-- **Editor.** Stages are nodes and paths are edges on a React Flow canvas, with a side panel for description, checklist, required fields, default tasks and deadlines. A simple ordered-list editor is offered for linear workflows.
-- **Automatic actions in MVP** are limited to: create tasks, set reminders, flag an SLA breach. Sending anything externally is never automatic.
+**Changed design (owner's decision, 2026-10-13).** This section first described stages kept as rows and moved by a `transition()` service, with checklists, required fields, tasks made on entering a stage and an append-only history. A list editor for that was built, and the owner found it too plain: a workflow is now a whiteboard drawn freely. What that design had and this one does not, unless it is asked for again: checklists and required fields on a stage, tasks made on entering a stage, deadlines, forced moves with a reason, the move history and the time-in-stage figures.
 
-Seed templates (editable, not hard-coded): Prospecting, Website Project. They are offered on the Workflows page and added in one click, not written when the account is made, so an account older than the feature gets them too; once added a starter is an ordinary workflow, and it is offered again only if it is deleted.
+- **Whiteboard.** A workflow is one drawing (Excalidraw): boxes, arrows, free strokes, text and frames, saved whole in `workflow_boards.scene`.
+- **Stages.** Any box, diamond or ellipse can be made a stage; the mark and its status are kept on the element itself (`customData.stage`). A stage is named by the text inside it. Their order follows the arrows that join them, and for boxes no arrow joins, how they read on the page: top to bottom, then left to right.
+- **Template and copy.** Starting a workflow on a company or a person copies the template's drawing, every stage set to not started. Changing a copy never touches the template or another client's copy, and changing the template never changes a copy. A copy keeps the template's element ids, so copies of one template can be lined up stage by stage.
+- **Status.** A stage is not started, in progress, done or blocked, and takes its colour from that. Where a client stands is read from the stored list of stages, without opening the drawing.
+- **Saving.** The whiteboard saves the whole drawing a little after the last change, from the version it loaded; a save from an older version is refused, so a drawing open in two places cannot silently lose work. Saves are not written to the audit log; creating, renaming, deleting and starting a workflow are.
+- **Links and files.** A box can carry links and uploaded files (PDFs, pictures, office documents), kept in Postgres up to 4 MB each.
+- **Kanban.** A board shows the copies made from one template, a column per stage.
 
-**Linear until the canvas (Step 5).** The list editor has no way to draw a path, so a workflow's paths follow its stages: each step leads to the next step, the last step leads to every `won` and `done` stage, and every step leads to every `lost` stage. End stages lead nowhere. Any other move (back, or past a step) is a forced move with a reason.
+Built so far: the whiteboard, stages and their order, templates, and the two starters. The status of a stage, copies on companies and people, links and files, pictures and the board follow.
 
-**Order of work (owner's decision, 2026-10-13).** The engine is built before opportunities exist, so an instance first belongs to a company or a person; an opportunity and an engagement are further kinds of record it can belong to, added with their modules without changing the engine. Until opportunities are built, "One pipeline per record" and the status half of "Terminal stages" have nothing to act on: a `won` or `lost` stage ends the workflow and sets nothing else, and the board shows the instances of companies and people.
+Seed templates (editable, not hard-coded): Prospecting, Website Project, each a row of stage boxes joined by arrows. They are offered on the Workflows page and added in one click, not written when the account is made, so an account older than the feature gets them too; once added a starter is an ordinary workflow, and it is offered again only if it is deleted.
+
+**Order of work (owner's decision, 2026-10-13).** Workflows are built before opportunities exist, so a copy belongs to a company or a person; an opportunity and an engagement are further kinds of record it can belong to, added with their modules. Until then a stage called Won or Lost sets nothing else.
 
 ---
 
@@ -577,7 +573,7 @@ Known trade-offs accepted with this choice:
 
 ## 15. Testing
 
-- **Unit (Vitest):** money maths and allocation limits, duplicate-payment guard, revenue definitions, workflow transition rules and exceptions, template/instance isolation, recurrence, time-zone handling, encryption round-trip, AI tier policy.
+- **Unit (Vitest):** money maths and allocation limits, duplicate-payment guard, revenue definitions, workflow stage order and save rules, template and copy isolation, recurrence, time-zone handling, encryption round-trip, AI tier policy.
 - **Integration (Vitest + real Postgres):** every module service, owner scoping, migrations from empty.
 - **End to end (Playwright):** the ten journeys in section 5, on desktop and mobile widths.
 - **Integrations:** adapters tested against recorded fixtures; one manual checklist against a real Google account. Nothing is reported as working without a real run.
@@ -612,7 +608,7 @@ Dependencies: workflows need opportunities and tasks; revenue reports need invoi
 | Google token expiry for unverified restricted-scope apps | Spike first in phase 5; fallback is a clear weekly reconnect prompt |
 | Free-tier limits change (Oracle halved its ARM allowance in June 2026) | App stays portable: plain Postgres, plain Docker, no host-specific APIs |
 | Vercel Hobby terms | Stated plainly in docs; option A or C avoids it |
-| Workflow editor complexity | Ship linear list editor first, canvas with branches second |
+| Workflow editor complexity | A maintained whiteboard component (Excalidraw) instead of an editor of our own |
 | Version claims from secondary sources (Drizzle, AI SDK) | Pin from official docs at scaffold time |
 | Free AI tiers and client privacy | Assistant is off by default; onboarding states what each provider does with data |
 

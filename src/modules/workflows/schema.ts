@@ -1,69 +1,45 @@
 import { z } from "zod";
-import { STAGE_KINDS, TASK_PRIORITIES } from "@/db/schema";
+import { STAGE_STATUSES } from "@/db/schema";
 import { blankToNull, text } from "@/lib/form";
+import { httpUrl } from "@/lib/url";
+import { ELEMENT_TYPES } from "./drawing";
 
-export { STAGE_KINDS };
+export { STAGE_STATUSES };
 
 export const MAX_TEMPLATES = 50;
-export const MAX_STAGES = 30;
-export const MAX_CHECKLIST_ITEMS = 30;
-export const MAX_STAGE_TASKS = 10;
+export const MAX_ELEMENTS = 10_000;
+export const MAX_SCENE_BYTES = 3_000_000;
+export const MAX_BOARD_STAGES = 100;
 
-export const templateInput = z.strictObject({
+export const boardInput = z.strictObject({
   name: z.string().trim().min(1, "Give the workflow a name").max(80),
   description: blankToNull(text(1000)),
 });
-export type TemplateInput = z.infer<typeof templateInput>;
+export type BoardInput = z.infer<typeof boardInput>;
 
-// Numbers arrive as the owner typed them.
-const days = (max: number, message: string) =>
-  z.coerce.number(message).int(message).max(max, message);
-
-const checklistItem = z.strictObject({
-  // Kept when the item was already there, so a later edit does not make it a new one.
-  id: z.uuid().optional(),
-  label: z.string().trim().min(1, "Give every checklist item a name").max(200),
-  required: z.boolean(),
+// One element of the drawing. What the server reads or what could do harm is
+// checked; the rest (where it is, how it is drawn) is the whiteboard's own and
+// only ever goes back to it, so it is kept as it came.
+const element = z.looseObject({
+  id: z.string().min(1).max(100),
+  type: z.enum(ELEMENT_TYPES),
+  // A link that is not a web address is dropped, not refused: the whiteboard
+  // lets one be typed, and it must not stop the rest of the drawing saving.
+  link: z
+    .unknown()
+    .transform((link) => (httpUrl.safeParse(link).success ? (link as string) : null))
+    .optional(),
+  customData: z
+    .strictObject({
+      stage: z.strictObject({ status: z.enum(STAGE_STATUSES) }).optional(),
+    })
+    .optional(),
 });
+export type SceneElement = z.infer<typeof element>;
 
-const stageTask = z.strictObject({
-  title: z.string().trim().min(1, "Give every task a title").max(300),
-  offsetDays: days(365, "Enter when a task is due as 0 to 365 days").min(
-    0,
-    "Enter when a task is due as 0 to 365 days",
-  ),
-  priority: z.enum(TASK_PRIORITIES),
+export const sceneSave = z.strictObject({
+  // The version the drawing was loaded at.
+  version: z.number().int().min(1),
+  elements: z.array(element).max(MAX_ELEMENTS),
 });
-
-export const stageInput = z
-  .strictObject({
-    name: z.string().trim().min(1, "Give the stage a name").max(80),
-    description: blankToNull(text(2000)),
-    kind: z.enum(STAGE_KINDS),
-    slaDays: blankToNull(
-      days(365, "Enter the deadline as 1 to 365 days").min(
-        1,
-        "Enter the deadline as 1 to 365 days",
-      ),
-    ),
-    checklist: z
-      .array(checklistItem)
-      .max(
-        MAX_CHECKLIST_ITEMS,
-        `A stage has at most ${MAX_CHECKLIST_ITEMS} checklist items`,
-      ),
-    defaultTasks: z
-      .array(stageTask)
-      .max(MAX_STAGE_TASKS, `A stage creates at most ${MAX_STAGE_TASKS} tasks`),
-  })
-  // Nothing leads on from an end stage, so there is nothing to tick before leaving it
-  // and no time to leave it by.
-  .refine(
-    (stage) =>
-      stage.kind === "normal" ||
-      (stage.slaDays === null && stage.checklist.length === 0),
-    { message: "A stage that ends the workflow has no deadline or checklist" },
-  );
-export type StageInput = z.infer<typeof stageInput>;
-
-export const stageOrder = z.array(z.uuid()).min(1).max(MAX_STAGES);
+export type SceneSave = z.infer<typeof sceneSave>;

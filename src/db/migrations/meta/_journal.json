@@ -120,6 +120,20 @@
       "when": 1791882621066,
       "tag": "0016_workflow_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791888814302,
+      "tag": "0017_workflow_boards",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791888834366,
+      "tag": "0018_drop_workflow_templates",
+      "breakpoints": true
     }
   ]
 }

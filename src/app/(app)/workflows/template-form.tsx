@@ -3,12 +3,16 @@
 import { useActionState } from "react";
 import { TextareaField, TextField } from "@/components/fields";
 import { FormButtons, FormOutcome } from "@/components/form-outcome";
+import { Button } from "@/components/ui/button";
 import type { RecordFormState } from "@/app/(app)/form-state";
 
+// The name and description of a workflow. On a page it leads back to the list;
+// in a dialog `onDone` closes it, after a save or on Cancel.
 export function TemplateForm({
   action,
   initial,
   submitLabel,
+  onDone,
 }: {
   action: (
     state: RecordFormState,
@@ -16,8 +20,16 @@ export function TemplateForm({
   ) => Promise<RecordFormState>;
   initial: { name: string; description: string };
   submitLabel: string;
+  onDone?: () => void;
 }) {
-  const [state, formAction, pending] = useActionState(action, null);
+  const [state, formAction, pending] = useActionState(
+    async (previous: RecordFormState, formData: FormData) => {
+      const next = await action(previous, formData);
+      if (next?.ok) onDone?.();
+      return next;
+    },
+    null,
+  );
   const values = state?.values ?? initial;
 
   return (
@@ -41,12 +53,23 @@ export function TemplateForm({
         defaultValue={values.description}
       />
       <FormOutcome state={state} />
-      <FormButtons
-        state={state}
-        pending={pending}
-        submitLabel={submitLabel}
-        cancelHref="/workflows"
-      />
+      {onDone ? (
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={pending}>
+            {pending ? "Saving…" : submitLabel}
+          </Button>
+          <Button type="button" variant="ghost" onClick={onDone}>
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <FormButtons
+          state={state}
+          pending={pending}
+          submitLabel={submitLabel}
+          cancelHref="/workflows"
+        />
+      )}
     </form>
   );
 }

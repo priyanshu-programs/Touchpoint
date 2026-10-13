@@ -48,3 +48,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /e2e/.auth/
+
+# the whiteboard's fonts, copied from its package before dev and build
+/public/excalidraw/
