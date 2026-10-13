@@ -1,14 +1,24 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
-import { workflowBoards, type BoardScene } from "@/db/schema";
+import {
+  contacts,
+  organizations,
+  workflowBoards,
+  type BoardScene,
+} from "@/db/schema";
 import { audit } from "@/modules/audit/service";
+import { STAGE_COLORS } from "./drawing";
 import {
   MAX_BOARD_STAGES,
+  MAX_RECORD_BOARDS,
   MAX_TEMPLATES,
   type BoardInput,
+  type BoardStart,
+  type BoardSubject,
   type SceneSave,
+  type StageChange,
 } from "./schema";
-import { stagesOf } from "./stages";
+import { isStage, stagesOf } from "./stages";
 import { STARTER_BOARDS, starterScene } from "./starters";
 
 export type BoardResult =
@@ -48,7 +58,11 @@ async function lockBoard(tx: Tx, ownerId: string, id: string) {
 
 const templateNames = (tx: Tx, ownerId: string) =>
   tx
-    .select({ id: workflowBoards.id, name: workflowBoards.name })
+    .select({
+      id: workflowBoards.id,
+      name: workflowBoards.name,
+      position: workflowBoards.position,
+    })
     .from(workflowBoards)
     .where(and(eq(workflowBoards.ownerId, ownerId), isTemplate));
 
@@ -65,9 +79,11 @@ async function insertTemplate(
     return { ok: false, reason: "name_taken" };
   }
   const stages = stagesOf(scene.elements);
+  // A new workflow goes to the end of the owner's list.
+  const position = Math.max(-1, ...existing.map((other) => other.position)) + 1;
   const [row] = await tx
     .insert(workflowBoards)
-    .values({ ownerId, ...input, starterKey, scene, stages })
+    .values({ ownerId, ...input, starterKey, scene, stages, position })
     .returning({ id: workflowBoards.id });
   await audit(tx, {
     ownerId,
@@ -170,6 +186,214 @@ export async function deleteBoard(ownerId: string, id: string) {
         description: before.description,
         stages: before.stages.map(({ name }) => name),
       },
+    });
+    return true;
+  });
+}
+
+// The owner's workflows in the order given. The list has to be exactly theirs,
+// each once, so nothing else can be moved and none is left without a place.
+export async function reorderTemplates(ownerId: string, ids: string[]) {
+  return db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: workflowBoards.id })
+      .from(workflowBoards)
+      .where(and(eq(workflowBoards.ownerId, ownerId), isTemplate))
+      .for("update");
+    const before = existing.map(({ id }) => id);
+    if (
+      before.length !== ids.length ||
+      !ids.every((id) => before.includes(id))
+    ) {
+      return false;
+    }
+
+    const place = sql.join(
+      ids.map((id, index) => sql`when ${id}::uuid then ${index}::int`),
+      sql` `,
+    );
+    await tx
+      .update(workflowBoards)
+      .set({ position: sql`case ${workflowBoards.id} ${place} end` })
+      .where(
+        and(eq(workflowBoards.ownerId, ownerId), inArray(workflowBoards.id, ids)),
+      );
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "workflow.reorder",
+      entityType: "workflow",
+      after: ids,
+    });
+    return true;
+  });
+}
+
+export type StartResult =
+  | { ok: true; id: string }
+  | { ok: false; reason: "not_found" | "limit" };
+
+const ofSubject = (subject: BoardSubject) =>
+  "organizationId" in subject
+    ? eq(workflowBoards.organizationId, subject.organizationId)
+    : eq(workflowBoards.contactId, subject.contactId);
+
+// Held while a board is started on it, so the record's limit cannot be passed
+// by two at once. Nothing is found for a record that is not the owner's.
+async function lockSubject(tx: Tx, ownerId: string, subject: BoardSubject) {
+  const [row] =
+    "organizationId" in subject
+      ? await tx
+          .select({ id: organizations.id })
+          .from(organizations)
+          .where(
+            and(
+              eq(organizations.ownerId, ownerId),
+              eq(organizations.id, subject.organizationId),
+            ),
+          )
+          .for("update")
+      : await tx
+          .select({ id: contacts.id })
+          .from(contacts)
+          .where(
+            and(eq(contacts.ownerId, ownerId), eq(contacts.id, subject.contactId)),
+          )
+          .for("update");
+  return row;
+}
+
+// A record's own board: a copy of one of the owner's workflows with every stage
+// not started, or an empty one. The copy keeps the workflow's element ids, so
+// its stages can be lined up with the workflow's, and is its own drawing from
+// then on: nothing done to either reaches the other.
+export async function startBoard(
+  ownerId: string,
+  subject: BoardSubject,
+  from: BoardStart,
+): Promise<StartResult> {
+  return db.transaction(async (tx) => {
+    if (!(await lockSubject(tx, ownerId, subject))) {
+      return { ok: false, reason: "not_found" };
+    }
+    const running = await tx
+      .select({ id: workflowBoards.id })
+      .from(workflowBoards)
+      .where(and(eq(workflowBoards.ownerId, ownerId), ofSubject(subject)));
+    if (running.length >= MAX_RECORD_BOARDS) return { ok: false, reason: "limit" };
+
+    let values: {
+      name: string;
+      description: string | null;
+      scene: BoardScene;
+      sourceBoardId: string | null;
+    };
+    if ("templateId" in from) {
+      const [template] = await tx
+        .select({
+          name: workflowBoards.name,
+          description: workflowBoards.description,
+          scene: workflowBoards.scene,
+        })
+        .from(workflowBoards)
+        .where(and(owned(ownerId, from.templateId), isTemplate));
+      if (!template) return { ok: false, reason: "not_found" };
+      values = {
+        name: template.name,
+        description: template.description,
+        scene: {
+          elements: template.scene.elements.map((element) =>
+            isStage(element)
+              ? {
+                  ...element,
+                  customData: { stage: { status: "not_started" } },
+                  backgroundColor: STAGE_COLORS.not_started,
+                }
+              : element,
+          ),
+        },
+        sourceBoardId: from.templateId,
+      };
+    } else {
+      values = { ...from, scene: { elements: [] }, sourceBoardId: null };
+    }
+
+    const [row] = await tx
+      .insert(workflowBoards)
+      .values({
+        ownerId,
+        ...subject,
+        ...values,
+        stages: stagesOf(values.scene.elements),
+      })
+      .returning({ id: workflowBoards.id });
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "workflow.start",
+      entityType: "workflow",
+      entityId: row.id,
+      after: {
+        name: values.name,
+        sourceBoardId: values.sourceBoardId,
+        ...subject,
+      },
+    });
+    return { ok: true, id: row.id };
+  });
+}
+
+// One stage of a record's board, changed without opening the drawing: that box
+// takes the status and its colour, and nothing else of the drawing is touched.
+// The version moves on, so a whiteboard that has this board open stops saving
+// over the change and says so.
+export async function setStageStatus(
+  ownerId: string,
+  { boardId, elementId, status }: StageChange,
+) {
+  return db.transaction(async (tx) => {
+    const [board] = await tx
+      .select({
+        scene: workflowBoards.scene,
+        stages: workflowBoards.stages,
+        version: workflowBoards.version,
+        organizationId: workflowBoards.organizationId,
+        contactId: workflowBoards.contactId,
+      })
+      .from(workflowBoards)
+      .where(owned(ownerId, boardId))
+      .for("update");
+    // A status means something only on a record's own board.
+    if (!board || (!board.organizationId && !board.contactId)) return false;
+    const before = board.stages.find((stage) => stage.elementId === elementId);
+    if (!before) return false;
+    if (before.status === status) return true;
+
+    const elements = board.scene.elements.map((element) =>
+      element.id === elementId && isStage(element)
+        ? {
+            ...element,
+            customData: { stage: { status } },
+            backgroundColor: STAGE_COLORS[status],
+          }
+        : element,
+    );
+    await tx
+      .update(workflowBoards)
+      .set({
+        scene: { elements },
+        stages: stagesOf(elements),
+        version: board.version + 1,
+      })
+      .where(owned(ownerId, boardId));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "workflow.stage_status",
+      entityType: "workflow",
+      entityId: boardId,
+      before: { stage: before.name, status: before.status },
+      after: { status },
     });
     return true;
   });

@@ -43,7 +43,11 @@ export const BoardCanvas = dynamic(
   {
     ssr: false,
     loading: () => (
-      <p className="p-4 text-sm text-muted-foreground">Opening the whiteboard…</p>
+      <div className="absolute inset-0 grid place-items-center bg-background p-4">
+        <p className="rounded-xl bg-card px-4 py-3 text-sm text-muted-foreground shadow-lg ring-1 ring-foreground/10">
+          Opening the whiteboard…
+        </p>
+      </div>
     ),
   },
 );

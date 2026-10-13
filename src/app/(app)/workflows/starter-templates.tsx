@@ -12,7 +12,7 @@ import { addStarterBoardAction } from "./actions";
 export function StarterTemplates({
   starters,
 }: {
-  starters: { key: string; name: string; description: string; stages: string }[];
+  starters: { key: string; name: string; description: string }[];
 }) {
   const [state, formAction, pending] = useActionState(
     addStarterBoardAction,
@@ -33,9 +33,6 @@ export function StarterTemplates({
               <div className="grid min-w-0 flex-1 gap-1">
                 <p className="font-medium">{starter.name}</p>
                 <p className="text-muted-foreground">{starter.description}</p>
-                <p className="break-words text-muted-foreground">
-                  {starter.stages}
-                </p>
               </div>
               <form action={formAction}>
                 <input type="hidden" name="key" value={starter.key} />

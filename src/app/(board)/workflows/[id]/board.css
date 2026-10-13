@@ -1,3 +1,11 @@
+/* The workflows whiteboard, drawn in this app's own style: the card and popover
+   tokens of the rest of the app, and a dotted grid behind the drawing like the
+   site's dark hero (white dots on black there; dark dots on light here). */
+
+.board {
+  background: var(--background);
+}
+
 /* Two of the whiteboard's own controls are left out, since this app keeps
    neither: its shared-library panel, and the tool that embeds another site's
    page. That tool shares its test id with "Mermaid to Excalidraw", which is
@@ -5,4 +13,89 @@
 .board .default-sidebar-trigger,
 .board .dropdown-menu-item[data-testid="toolbar-embeddable"]:not(:last-child) {
   display: none !important;
+}
+
+/* The dotted grid. A sibling layer behind the whiteboard's canvases, so the
+   drawing floats over dots; the canvases themselves are made transparent below
+   and through the viewBackgroundColor prop. Uniform like the reference image:
+   no fade, no mask. */
+.board-dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--foreground) 16%, transparent) 1.2px,
+    transparent 1.4px
+  );
+  background-size: 24px 24px;
+  background-position: 12px 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .board-dots {
+    background-image: radial-gradient(
+      circle,
+      color-mix(in oklch, var(--foreground) 30%, transparent) 1.3px,
+      transparent 1.5px
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-dots {
+    background-position: 0 0;
+  }
+}
+
+/* The whiteboard's own chrome, mapped onto this app's tokens. The app's
+   --card/--popover/--primary already follow the system theme through
+   prefers-color-scheme in globals.css, so these follow too. */
+.board .excalidraw {
+  --ui-font: var(--font-sans);
+  --default-bg-color: var(--background);
+  --input-bg-color: var(--card);
+  --island-bg-color: var(--card);
+  --sidebar-bg-color: var(--card);
+  --popup-bg-color: var(--popover);
+  --popup-secondary-bg-color: var(--muted);
+  --text-primary-color: var(--foreground);
+  --color-on-surface: var(--foreground);
+  --border-radius-md: calc(var(--radius) - 4px);
+  --border-radius-lg: var(--radius);
+  --shadow-island: var(--shadow-lg);
+  /* Lime like the rest of the site, instead of the whiteboard's purple. */
+  --color-primary: var(--primary);
+  --color-primary-darker: color-mix(in oklch, var(--primary) 85%, black);
+  --color-primary-darkest: color-mix(in oklch, var(--primary) 70%, black);
+  --color-primary-light: color-mix(in oklch, var(--primary) 22%, var(--card));
+  --color-primary-light-darker: color-mix(
+    in oklch,
+    var(--primary) 35%,
+    var(--card)
+  );
+  --color-primary-hover: color-mix(in oklch, var(--primary) 90%, black);
+  --color-brand-hover: color-mix(in oklch, var(--primary) 90%, black);
+  --color-brand-active: color-mix(in oklch, var(--primary) 80%, black);
+  --color-surface-primary-container: color-mix(
+    in oklch,
+    var(--primary) 22%,
+    var(--card)
+  );
+  --color-on-primary-container: var(--primary-foreground);
+  background: transparent;
+  font-family: var(--font-sans);
+}
+
+/* Let the dots show through: the container and both canvases paint nothing of
+   their own once viewBackgroundColor is "transparent". */
+.board .excalidraw .excalidraw__canvas,
+.board .excalidraw canvas {
+  background: transparent !important;
+}
+
+/* The toolbar island reads as one of the app's cards. */
+.board .excalidraw .Island {
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
 }

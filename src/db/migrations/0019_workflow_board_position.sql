@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_boards" ADD COLUMN "position" integer DEFAULT 0 NOT NULL;

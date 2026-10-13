@@ -34,6 +34,7 @@ import { getSettings } from "@/modules/settings/service";
 import { listTasks } from "@/modules/tasks/queries";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
+import { RecordWorkflows } from "@/app/(app)/workflows/record-workflows";
 import {
   addCompanyContactAction,
   addExistingContactAction,
@@ -98,6 +99,7 @@ const TABS = [
   { tab: "contacts", label: "Contacts" },
   { tab: "activity", label: "Activity" },
   { tab: "tasks", label: "Tasks" },
+  { tab: "workflows", label: "Workflows" },
 ] as const;
 
 // Counts come from one capped page, so a full page is shown as "100+".
@@ -458,6 +460,10 @@ export async function CompanyPanel({
               newHref={companiesHref(params, { task: "new" })}
               openHref={(id) => companiesHref(params, { task: id })}
             />
+          )}
+
+          {params.tab === "workflows" && (
+            <RecordWorkflows ownerId={ownerId} subject={filter} />
           )}
         </div>
       )}

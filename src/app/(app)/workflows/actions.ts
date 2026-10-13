@@ -9,12 +9,24 @@ import {
   addStarterBoard,
   createBoard,
   deleteBoard,
+  reorderTemplates,
+  setStageStatus,
+  startBoard,
   updateBoard,
   type BoardResult,
 } from "@/modules/workflows/boards";
-import { boardInput, MAX_TEMPLATES } from "@/modules/workflows/schema";
+import { getBoard } from "@/modules/workflows/queries";
+import {
+  boardInput,
+  boardOrder,
+  boardSubject,
+  MAX_RECORD_BOARDS,
+  MAX_TEMPLATES,
+  stageChange,
+} from "@/modules/workflows/schema";
 import { STARTER_BOARDS } from "@/modules/workflows/starters";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
+import { companyHref, contactHref } from "@/app/(app)/people/labels";
 
 function failure(
   result: Exclude<BoardResult, { ok: true }>,
@@ -29,6 +41,14 @@ function failure(
   }[result.reason];
   return { ok: false, message, values };
 }
+
+// A board shows in the Workflows list and in the panel of the record it is on.
+function revalidateBoards() {
+  revalidatePath("/workflows", "layout");
+  revalidatePath("/people", "layout");
+}
+
+const FULL = `A record can have at most ${MAX_RECORD_BOARDS} workflows.`;
 
 export async function createBoardAction(
   _previous: RecordFormState,
@@ -78,17 +98,84 @@ export async function updateBoardAction(
   const result = await updateBoard(owner.id, z.uuid().parse(id), parsed.data);
   if (!result.ok) return failure(result, parsed.data.name, values);
 
-  revalidatePath("/workflows", "layout");
+  revalidateBoards();
   return { ok: true, message: "Saved." };
 }
 
+// A record's board goes back to that record's Workflows tab, which is worked out
+// from the board as stored and never from an address the browser sent.
 export async function deleteBoardAction(formData: FormData) {
   const owner = await requireOwner();
-  const deleted = await deleteBoard(
-    owner.id,
-    z.uuid().parse(formData.get("id")),
+  const id = z.uuid().parse(formData.get("id"));
+  const board = await getBoard(owner.id, id);
+  if (!board || !(await deleteBoard(owner.id, id))) notFound();
+  revalidateBoards();
+  redirect(
+    board.organizationId
+      ? companyHref(board.organizationId, "workflows")
+      : board.contactId
+        ? contactHref(board.contactId, "workflows")
+        : "/workflows",
   );
-  if (!deleted) notFound();
+}
+
+export async function reorderBoardsAction(ids: string[]) {
+  const owner = await requireOwner();
+  if (!(await reorderTemplates(owner.id, boardOrder.parse(ids)))) notFound();
   revalidatePath("/workflows", "layout");
-  redirect("/workflows");
+}
+
+// A copy of one of the owner's workflows, started on a company or a person.
+export async function startWorkflowAction(
+  subject: unknown,
+  templateId: string,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const result = await startBoard(owner.id, boardSubject.parse(subject), {
+    templateId: z.uuid().parse(templateId),
+  });
+  if (!result.ok) {
+    if (result.reason === "not_found") notFound();
+    return { ok: false, message: FULL };
+  }
+  revalidatePath("/people", "layout");
+  return { ok: true, message: "Workflow started." };
+}
+
+// An empty board on a company or a person, opened at once to be drawn on.
+export async function startBlankBoardAction(
+  subject: unknown,
+  _previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const values = readFields(formData, ["name", "description"]);
+  const parsed = boardInput.safeParse(values);
+  if (!parsed.success) return invalid(parsed.error, values);
+
+  const result = await startBoard(
+    owner.id,
+    boardSubject.parse(subject),
+    parsed.data,
+  );
+  if (!result.ok) {
+    if (result.reason === "not_found") notFound();
+    return { ok: false, message: FULL, values };
+  }
+  revalidatePath("/people", "layout");
+  redirect(`/workflows/${result.id}`);
+}
+
+export async function setStageStatusAction(
+  boardId: string,
+  elementId: string,
+  status: string,
+) {
+  const owner = await requireOwner();
+  const changed = await setStageStatus(
+    owner.id,
+    stageChange.parse({ boardId, elementId, status }),
+  );
+  if (!changed) notFound();
+  revalidatePath("/people", "layout");
 }

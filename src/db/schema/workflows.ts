@@ -41,6 +41,8 @@ export const workflowBoards = pgTable(
     stages: jsonb("stages").$type<BoardStage[]>().notNull().default([]),
     // Goes up with every save; a save made from an older one is refused.
     version: integer("version").notNull().default(1),
+    // Where a template stands in the owner's list; ties fall back to the name.
+    position: integer("position").notNull().default(0),
     // The starter it was added from, which is then no longer offered.
     starterKey: text("starter_key"),
     sourceBoardId: uuid("source_board_id").references(

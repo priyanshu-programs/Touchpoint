@@ -1,25 +1,39 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
-import { workflowBoards } from "@/db/schema";
+import { contacts, organizations, workflowBoards } from "@/db/schema";
 import { listAudit } from "@/modules/audit/service";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import {
   addStarterBoard,
   createBoard,
   deleteBoard,
+  reorderTemplates,
   saveScene,
+  setStageStatus,
+  startBoard,
   updateBoard,
 } from "./boards";
-import { getBoard, listTemplates } from "./queries";
+import { STAGE_COLORS } from "./drawing";
+import {
+  boardSubjectOf,
+  getBoard,
+  listRecordBoards,
+  listTemplates,
+} from "./queries";
 import {
   boardInput,
+  boardOrder,
+  boardStart,
+  boardSubject,
   MAX_BOARD_STAGES,
   MAX_ELEMENTS,
+  MAX_RECORD_BOARDS,
   MAX_TEMPLATES,
   sceneSave,
+  stageChange,
 } from "./schema";
-import { stagesOf, UNNAMED_STAGE } from "./stages";
+import { progressOf, stagesOf, UNNAMED_STAGE } from "./stages";
 import { STARTER_BOARDS, starterScene } from "./starters";
 
 const board = (name: string, description = "") =>
@@ -208,6 +222,88 @@ describe("stagesOf", () => {
   });
 });
 
+describe("progressOf", () => {
+  const at = (...statuses: string[]) =>
+    progressOf(
+      stagesOf(
+        statuses.flatMap((status, index) => [
+          stage(`s${index}`, { x: index * 200, customData: { stage: { status } } }),
+          label(`s${index}`, `Stage ${index + 1}`),
+        ]),
+      ),
+    );
+
+  it("counts what is done and names the stage under way", () => {
+    expect(at("done", "in_progress", "not_started")).toEqual({
+      done: 1,
+      total: 3,
+      current: "Stage 2",
+      blocked: [],
+    });
+  });
+
+  it("names the first stage not begun when none is under way", () => {
+    expect(at("done", "not_started", "not_started").current).toBe("Stage 2");
+  });
+
+  it("lists what is blocked, and names no stage once nothing is left to begin", () => {
+    expect(at("done", "blocked", "done")).toEqual({
+      done: 2,
+      total: 3,
+      current: null,
+      blocked: ["Stage 2"],
+    });
+    expect(at()).toEqual({ done: 0, total: 0, current: null, blocked: [] });
+  });
+});
+
+describe("what a record's board is asked for", () => {
+  const id = "0b0f1f0e-6a3c-4d1e-9a51-2f3f5c1f0a11";
+
+  it("takes a company or a person, never both or anything else", () => {
+    expect(boardSubject.safeParse({ organizationId: id }).success).toBe(true);
+    expect(boardSubject.safeParse({ contactId: id }).success).toBe(true);
+    for (const value of [
+      { organizationId: id, contactId: id },
+      { organizationId: "acme" },
+      { contactId: id, ownerId: id },
+      {},
+    ]) {
+      expect(boardSubject.safeParse(value).success).toBe(false);
+    }
+  });
+
+  it("starts from a workflow or from a name", () => {
+    expect(boardStart.safeParse({ templateId: id }).success).toBe(true);
+    expect(boardStart.parse({ name: " Audit ", description: "" })).toEqual({
+      name: "Audit",
+      description: null,
+    });
+    expect(boardStart.safeParse({ templateId: id, name: "Audit" }).success).toBe(false);
+    expect(boardStart.safeParse({ name: " ", description: "" }).success).toBe(false);
+  });
+
+  it("changes a stage only to one of the four statuses", () => {
+    const change = { boardId: id, elementId: "box-1", status: "done" };
+    expect(stageChange.safeParse(change).success).toBe(true);
+    for (const value of [
+      { ...change, status: "won" },
+      { ...change, elementId: "" },
+      { ...change, elementId: "x".repeat(101) },
+      { ...change, backgroundColor: "#000000" },
+    ]) {
+      expect(stageChange.safeParse(value).success).toBe(false);
+    }
+  });
+
+  it("takes an order as ids, each once", () => {
+    expect(boardOrder.safeParse([id]).success).toBe(true);
+    expect(boardOrder.safeParse([id, id]).success).toBe(false);
+    expect(boardOrder.safeParse([]).success).toBe(false);
+    expect(boardOrder.safeParse(["first"]).success).toBe(false);
+  });
+});
+
 describe("starters", () => {
   it.each(STARTER_BOARDS)("$name is a drawing the whiteboard may save", (starter) => {
     const { elements } = starterScene(starter);
@@ -321,7 +417,6 @@ describe("workflows", () => {
       { elementId: "a", name: "Kickoff", status: "not_started" },
       { elementId: "b", name: "Build", status: "not_started" },
     ]);
-    expect((await listTemplates(ownerId))[0].stages).toHaveLength(2);
     // A drawing is saved every few seconds, so a save leaves no audit row.
     expect((await listAudit(ownerId)).rows).toHaveLength(1);
   });
@@ -420,5 +515,307 @@ describe("workflows", () => {
       .from(workflowBoards)
       .where(eq(workflowBoards.id, id));
     expect(kept).toEqual({ name: "Onboarding", version: 1 });
+  });
+
+  describe("in the owner's order", () => {
+    const listed = async () =>
+      (await listTemplates(ownerId)).map(({ name }) => name);
+
+    it("lists a new workflow last, and by name where none was moved", async () => {
+      await db.insert(workflowBoards).values([
+        { ownerId, name: "Retainer" },
+        { ownerId, name: "Audit" },
+      ]);
+      expect(await listed()).toEqual(["Audit", "Retainer"]);
+      await create("Build");
+      expect(await listed()).toEqual(["Audit", "Retainer", "Build"]);
+    });
+
+    it("keeps the order the owner gives", async () => {
+      const a = await create("Audit");
+      const b = await create("Build");
+      const c = await create("Care");
+
+      expect(await reorderTemplates(ownerId, [c, a, b])).toBe(true);
+      expect(await listed()).toEqual(["Care", "Audit", "Build"]);
+      expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+        action: "workflow.reorder",
+        after: [c, a, b],
+      });
+    });
+
+    it("refuses an order that is not exactly the owner's workflows", async () => {
+      const a = await create("Audit");
+      const b = await create("Build");
+      const stranger = await createTestOwner("stranger@example.com");
+      const theirs = await createBoard(stranger, board("Theirs"));
+      if (!theirs.ok) throw new Error(theirs.reason);
+      const [company] = await db
+        .insert(organizations)
+        .values({ ownerId, name: "Acme" })
+        .returning({ id: organizations.id });
+      const copy = await startBoard(
+        ownerId,
+        { organizationId: company.id },
+        { templateId: a },
+      );
+      if (!copy.ok) throw new Error(copy.reason);
+
+      for (const ids of [[b], [b, a, theirs.id], [b, theirs.id], [b, a, copy.id]]) {
+        expect(await reorderTemplates(ownerId, ids)).toBe(false);
+      }
+      expect(await reorderTemplates(stranger, [b, a])).toBe(false);
+      expect(await listed()).toEqual(["Audit", "Build"]);
+    });
+  });
+
+  describe("on a company or a person", () => {
+    let organizationId: string;
+    let contactId: string;
+    let templateId: string;
+
+    const drawn = [
+      stage("a"),
+      label("a", "Kickoff"),
+      stage("b", { x: 200, backgroundColor: "#a5d8ff" }),
+      label("b", "Build"),
+      arrow("a", "b"),
+      box("note", { x: 400 }),
+    ];
+    const start = async (
+      subject: Parameters<typeof startBoard>[1],
+      from: Parameters<typeof startBoard>[2] = { templateId },
+    ) => {
+      const result = await startBoard(ownerId, subject, from);
+      if (!result.ok) throw new Error(result.reason);
+      return result.id;
+    };
+    const stored = async (id: string) => (await getBoard(ownerId, id))!;
+
+    beforeEach(async () => {
+      [{ id: organizationId }] = await db
+        .insert(organizations)
+        .values({ ownerId, name: "Acme" })
+        .returning({ id: organizations.id });
+      [{ id: contactId }] = await db
+        .insert(contacts)
+        .values({ ownerId, firstName: "Priya", lastName: "Sharma" })
+        .returning({ id: contacts.id });
+      templateId = await create("Onboarding");
+      await saveScene(ownerId, templateId, save(1, drawn));
+    });
+
+    it("starts a copy with the same boxes and every stage not started", async () => {
+      const id = await start({ organizationId });
+      const copy = await stored(id);
+
+      expect(copy).toMatchObject({
+        name: "Onboarding",
+        version: 1,
+        sourceBoardId: templateId,
+        organizationId,
+        contactId: null,
+        stages: [
+          { elementId: "a", name: "Kickoff", status: "not_started" },
+          { elementId: "b", name: "Build", status: "not_started" },
+        ],
+      });
+      expect(copy.scene.elements.map((element) => element.id)).toEqual(
+        drawn.map((element) => element.id),
+      );
+      expect(copy.scene.elements.find((element) => element.id === "b")).toMatchObject({
+        backgroundColor: STAGE_COLORS.not_started,
+      });
+      expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+        action: "workflow.start",
+        entityId: id,
+        after: { name: "Onboarding", sourceBoardId: templateId, organizationId },
+      });
+      // A record's board is not one of the owner's workflows.
+      expect(await listTemplates(ownerId)).toHaveLength(1);
+      expect(await boardSubjectOf(ownerId, copy)).toEqual({
+        kind: "organization",
+        id: organizationId,
+        name: "Acme",
+      });
+    });
+
+    it("starts a blank board on a person under a name of its own", async () => {
+      const id = await start(
+        { contactId },
+        boardInput.parse({ name: "Onboarding", description: "" }),
+      );
+      const blank = await stored(id);
+
+      expect(blank).toMatchObject({
+        name: "Onboarding",
+        scene: { elements: [] },
+        stages: [],
+        sourceBoardId: null,
+        organizationId: null,
+        contactId,
+      });
+      expect(await boardSubjectOf(ownerId, blank)).toEqual({
+        kind: "contact",
+        id: contactId,
+        name: "Priya Sharma",
+      });
+      expect(await boardSubjectOf(ownerId, await stored(templateId))).toBeNull();
+    });
+
+    it("lists a record's own boards and no other's", async () => {
+      const first = await start({ organizationId });
+      const second = await start({ organizationId });
+      await start({ contactId });
+
+      const boards = await listRecordBoards(ownerId, { organizationId });
+      expect(boards.map(({ id }) => id).sort()).toEqual([first, second].sort());
+      expect(await listRecordBoards(ownerId, { contactId })).toHaveLength(1);
+    });
+
+    it("starts nothing on a record or from a workflow that is not the owner's", async () => {
+      const stranger = await createTestOwner("stranger@example.com");
+      const copy = await start({ organizationId });
+      const missing = { ok: false, reason: "not_found" };
+
+      expect(await startBoard(stranger, { organizationId }, { templateId })).toEqual(missing);
+      expect(await startBoard(stranger, { contactId }, { templateId })).toEqual(missing);
+      // Their own record, the owner's workflow.
+      const [theirs] = await db
+        .insert(organizations)
+        .values({ ownerId: stranger, name: "Elsewhere" })
+        .returning({ id: organizations.id });
+      expect(
+        await startBoard(stranger, { organizationId: theirs.id }, { templateId }),
+      ).toEqual(missing);
+      // A record's board is not a workflow to copy.
+      expect(
+        await startBoard(ownerId, { contactId }, { templateId: copy }),
+      ).toEqual(missing);
+      expect(await listRecordBoards(ownerId, { contactId })).toEqual([]);
+    });
+
+    it("stops at the most boards a record can have", async () => {
+      await db.insert(workflowBoards).values(
+        Array.from({ length: MAX_RECORD_BOARDS }, (_, index) => ({
+          ownerId,
+          organizationId,
+          name: `Board ${index}`,
+        })),
+      );
+      expect(await startBoard(ownerId, { organizationId }, { templateId })).toEqual({
+        ok: false,
+        reason: "limit",
+      });
+      // Another record has room of its own.
+      expect((await startBoard(ownerId, { contactId }, { templateId })).ok).toBe(true);
+    });
+
+    it("changes one stage's status, colour and nothing else", async () => {
+      const id = await start({ organizationId });
+      const before = await stored(id);
+      const change = { boardId: id, elementId: "b", status: "done" } as const;
+
+      expect(await setStageStatus(ownerId, change)).toBe(true);
+      const after = await stored(id);
+      expect(after.version).toBe(2);
+      expect(after.stages).toEqual([
+        { elementId: "a", name: "Kickoff", status: "not_started" },
+        { elementId: "b", name: "Build", status: "done" },
+      ]);
+      expect(after.scene.elements.find((element) => element.id === "b")).toMatchObject({
+        x: 200,
+        customData: { stage: { status: "done" } },
+        backgroundColor: STAGE_COLORS.done,
+      });
+      expect(after.scene.elements.filter((element) => element.id !== "b")).toEqual(
+        before.scene.elements.filter((element) => element.id !== "b"),
+      );
+      expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+        action: "workflow.stage_status",
+        entityId: id,
+        before: { stage: "Build", status: "not_started" },
+        after: { status: "done" },
+      });
+
+      // The same status again changes nothing, the version included.
+      expect(await setStageStatus(ownerId, change)).toBe(true);
+      expect((await stored(id)).version).toBe(2);
+      // A whiteboard that opened the board before the change cannot save over it.
+      expect(await saveScene(ownerId, id, save(1, []))).toEqual({
+        ok: false,
+        reason: "conflict",
+      });
+    });
+
+    it("refuses a status on a workflow, a box that is no stage, or another owner's board", async () => {
+      const id = await start({ organizationId });
+      const stranger = await createTestOwner("stranger@example.com");
+      const done = { status: "done" } as const;
+
+      expect(
+        await setStageStatus(ownerId, { boardId: templateId, elementId: "a", ...done }),
+      ).toBe(false);
+      for (const elementId of ["note", "a-text", "nowhere"]) {
+        expect(await setStageStatus(ownerId, { boardId: id, elementId, ...done })).toBe(
+          false,
+        );
+      }
+      expect(
+        await setStageStatus(stranger, { boardId: id, elementId: "a", ...done }),
+      ).toBe(false);
+      expect((await stored(id)).version).toBe(1);
+    });
+
+    it("keeps a copy, its workflow and its sibling copies apart", async () => {
+      const copy = await start({ organizationId });
+      const sibling = await start({ contactId });
+      const template = await stored(templateId);
+      const untouched = await stored(sibling);
+
+      // The copy changes: a status, a new drawing, a new name.
+      await setStageStatus(ownerId, { boardId: copy, elementId: "a", status: "done" });
+      await saveScene(ownerId, copy, save(2, [stage("z"), label("z", "Handover")]));
+      await updateBoard(ownerId, copy, board("Acme onboarding"));
+      expect(await stored(templateId)).toEqual(template);
+      expect(await stored(sibling)).toEqual(untouched);
+
+      // The workflow changes: the copies made before stay as they were.
+      const changed = await stored(copy);
+      await saveScene(ownerId, templateId, save(2, [stage("q"), label("q", "Review")]));
+      await updateBoard(ownerId, templateId, board("Review cycle"));
+      expect(await stored(copy)).toEqual(changed);
+      expect(await stored(sibling)).toEqual(untouched);
+      // A copy started now is of the workflow as it is now.
+      expect((await stored(await start({ contactId }))).stages).toEqual([
+        { elementId: "q", name: "Review", status: "not_started" },
+      ]);
+
+      // The workflow is deleted: the copies stay, and only forget where they came from.
+      await deleteBoard(ownerId, templateId);
+      expect(await stored(copy)).toEqual({ ...changed, sourceBoardId: null });
+      expect(await stored(sibling)).toEqual({ ...untouched, sourceBoardId: null });
+
+      // A copy is deleted: its sibling stays.
+      await deleteBoard(ownerId, copy);
+      expect(await getBoard(ownerId, copy)).toBeNull();
+      expect(await stored(sibling)).toEqual({ ...untouched, sourceBoardId: null });
+    });
+
+    it("lets a record's board share a name with a workflow or another board", async () => {
+      const copy = await start({ organizationId });
+      await start({ organizationId });
+      expect(await updateBoard(ownerId, copy, board("Onboarding"))).toEqual({
+        ok: true,
+        id: copy,
+      });
+    });
+
+    it("removes a record's boards with the record", async () => {
+      const copy = await start({ organizationId });
+      await db.delete(organizations).where(eq(organizations.id, organizationId));
+      expect(await getBoard(ownerId, copy)).toBeNull();
+      expect(await getBoard(ownerId, templateId)).not.toBeNull();
+    });
   });
 });

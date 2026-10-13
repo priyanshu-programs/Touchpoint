@@ -1,10 +1,14 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { workflowBoards } from "@/db/schema";
-import { MAX_TEMPLATES } from "./schema";
+import { contacts, organizations, workflowBoards } from "@/db/schema";
+import {
+  MAX_RECORD_BOARDS,
+  MAX_TEMPLATES,
+  type BoardSubject,
+} from "./schema";
 
-// The owner's workflows by name, each with its stages in order. A company's or
-// a person's own copy is not among them.
+// The owner's workflows in the order they put them in, by name where they have
+// not. A company's or a person's own copy is not among them.
 export async function listTemplates(ownerId: string) {
   return db
     .select({
@@ -12,7 +16,6 @@ export async function listTemplates(ownerId: string) {
       name: workflowBoards.name,
       description: workflowBoards.description,
       starterKey: workflowBoards.starterKey,
-      stages: workflowBoards.stages,
     })
     .from(workflowBoards)
     .where(
@@ -22,8 +25,29 @@ export async function listTemplates(ownerId: string) {
         isNull(workflowBoards.contactId),
       ),
     )
-    .orderBy(asc(workflowBoards.name))
+    .orderBy(asc(workflowBoards.position), asc(workflowBoards.name))
     .limit(MAX_TEMPLATES);
+}
+
+// The boards started on one company or one person, the newest first.
+export async function listRecordBoards(ownerId: string, subject: BoardSubject) {
+  return db
+    .select({
+      id: workflowBoards.id,
+      name: workflowBoards.name,
+      stages: workflowBoards.stages,
+    })
+    .from(workflowBoards)
+    .where(
+      and(
+        eq(workflowBoards.ownerId, ownerId),
+        "organizationId" in subject
+          ? eq(workflowBoards.organizationId, subject.organizationId)
+          : eq(workflowBoards.contactId, subject.contactId),
+      ),
+    )
+    .orderBy(desc(workflowBoards.createdAt), asc(workflowBoards.id))
+    .limit(MAX_RECORD_BOARDS);
 }
 
 export async function getBoard(ownerId: string, id: string) {
@@ -32,4 +56,33 @@ export async function getBoard(ownerId: string, id: string) {
     .from(workflowBoards)
     .where(and(eq(workflowBoards.ownerId, ownerId), eq(workflowBoards.id, id)));
   return board ?? null;
+}
+
+// The company or the person a board was started on; nothing for a template.
+export async function boardSubjectOf(
+  ownerId: string,
+  board: { organizationId: string | null; contactId: string | null },
+) {
+  if (board.organizationId) {
+    const [company] = await db
+      .select({ id: organizations.id, name: organizations.name })
+      .from(organizations)
+      .where(
+        and(
+          eq(organizations.ownerId, ownerId),
+          eq(organizations.id, board.organizationId),
+        ),
+      );
+    return company ? { kind: "organization" as const, ...company } : null;
+  }
+  if (board.contactId) {
+    const [person] = await db
+      .select({ id: contacts.id, name: contacts.fullName })
+      .from(contacts)
+      .where(
+        and(eq(contacts.ownerId, ownerId), eq(contacts.id, board.contactId)),
+      );
+    return person ? { kind: "contact" as const, ...person } : null;
+  }
+  return null;
 }

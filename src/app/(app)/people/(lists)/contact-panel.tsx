@@ -10,6 +10,7 @@ import type { getContact } from "@/modules/contacts/queries";
 import { RELATIONSHIP_TYPES } from "@/modules/contacts/schema";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
+import { RecordWorkflows } from "@/app/(app)/workflows/record-workflows";
 import {
   deleteContactAction,
   removeContactPhotoAction,
@@ -25,12 +26,13 @@ import { FieldsLink } from "./fields-link";
 import { RecordActions } from "./record-actions";
 import { StatusMenu } from "./status-menu";
 
-type Tab = "activity" | "tasks" | undefined;
+type Tab = "activity" | "tasks" | "workflows" | undefined;
 
 const TABS = [
   { tab: undefined, label: "Overview" },
   { tab: "activity", label: "Activity" },
   { tab: "tasks", label: "Tasks" },
+  { tab: "workflows", label: "Workflows" },
 ] as const;
 
 // One person, shown in the panel over the people list or inside the panel of a company they are at.
@@ -237,6 +239,10 @@ export function ContactPanel({
             newHref={entryHref({ task: "new" })}
             openHref={(id) => entryHref({ task: id })}
           />
+        )}
+
+        {tab === "workflows" && (
+          <RecordWorkflows ownerId={ownerId} subject={filter} />
         )}
       </div>
     </>

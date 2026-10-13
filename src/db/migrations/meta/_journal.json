@@ -134,6 +134,13 @@
       "when": 1791888834366,
       "tag": "0018_drop_workflow_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791903361341,
+      "tag": "0019_workflow_board_position",
+      "breakpoints": true
     }
   ]
 }

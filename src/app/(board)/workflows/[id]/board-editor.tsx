@@ -15,7 +15,9 @@ import type {
   NonDeletedExcalidrawElement,
 } from "@excalidraw/excalidraw/element/types";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { StageStatus } from "@/db/schema";
 import {
   ELEMENT_TYPES,
   STAGE_COLORS,
@@ -33,6 +35,16 @@ const SAVE_LABELS: Record<SaveState, string> = {
   conflict: "Changed somewhere else. Reload to go on.",
 };
 
+// The dot beside the save label: green at rest, amber while work is pending,
+// red when saving stopped or failed.
+const SAVE_DOTS: Record<SaveState, string> = {
+  saved: "bg-emerald-500",
+  unsaved: "bg-amber-500",
+  saving: "animate-pulse bg-amber-500",
+  error: "bg-destructive",
+  conflict: "bg-destructive",
+};
+
 const dark = () => window.matchMedia("(prefers-color-scheme: dark)");
 const watchTheme = (changed: () => void) => {
   dark().addEventListener("change", changed);
@@ -42,7 +54,8 @@ const watchTheme = (changed: () => void) => {
 const oneOf = (types: readonly string[], element: ExcalidrawElement) =>
   types.includes(element.type);
 
-type Selected = { id: string; isStage: boolean };
+// `status` is nothing for a box that is not a stage.
+type Selected = { id: string; status: StageStatus | null };
 
 // The one box that is selected, if a single box is all that is.
 function selectedBox(
@@ -55,7 +68,8 @@ function selectedBox(
     (element) => element.id === ids[0] && !element.isDeleted,
   );
   if (!box || !oneOf(STAGE_SHAPES, box)) return null;
-  return { id: box.id, isStage: Boolean(box.customData?.stage) };
+  const stage = box.customData?.stage as { status: StageStatus } | undefined;
+  return { id: box.id, status: stage?.status ?? null };
 }
 
 type Drawing = { version: number; elements: Record<string, unknown>[] };
@@ -66,9 +80,12 @@ type Drawing = { version: number; elements: Record<string, unknown>[] };
 export function BoardEditor({
   boardId,
   name,
+  tracked,
 }: {
   boardId: string;
   name: string;
+  // A company's or a person's own board, whose stages have a status.
+  tracked: boolean;
 }) {
   const [drawing, setDrawing] = useState<Drawing | "failed" | null>(null);
 
@@ -88,27 +105,47 @@ export function BoardEditor({
 
   if (drawing === null) {
     return (
-      <p className="p-4 text-sm text-muted-foreground">Opening the whiteboard…</p>
+      <div className="board absolute inset-0">
+        <div aria-hidden className="board-dots" />
+        <div className="relative grid h-full place-items-center p-4">
+          <p className="flex items-center gap-2 rounded-xl bg-card px-4 py-3 text-sm text-muted-foreground shadow-lg ring-1 ring-foreground/10">
+            <Loader2 aria-hidden className="size-4 animate-spin" />
+            Opening the whiteboard…
+          </p>
+        </div>
+      </div>
     );
   }
   if (drawing === "failed") {
     return (
-      <p role="alert" className="p-4 text-sm">
-        The drawing could not be opened. Reload the page to try again.
-      </p>
+      <div className="board absolute inset-0">
+        <div aria-hidden className="board-dots" />
+        <div className="relative grid h-full place-items-center p-4">
+          <p
+            role="alert"
+            className="max-w-sm rounded-xl bg-card p-4 text-sm shadow-lg ring-1 ring-foreground/10"
+          >
+            The drawing could not be opened. Reload the page to try again.
+          </p>
+        </div>
+      </div>
     );
   }
-  return <Whiteboard boardId={boardId} name={name} {...drawing} />;
+  return (
+    <Whiteboard boardId={boardId} name={name} tracked={tracked} {...drawing} />
+  );
 }
 
 function Whiteboard({
   boardId,
   name,
+  tracked,
   version,
   elements,
 }: Drawing & {
   boardId: string;
   name: string;
+  tracked: boolean;
 }) {
   const isDark = useSyncExternalStore(
     watchTheme,
@@ -141,17 +178,30 @@ function Whiteboard({
     };
   }, [saver]);
 
-  const setStage = (isStage: boolean) => {
+  // While something drawn is not yet stored, the browser asks before the tab is
+  // closed or reloaded: a save made as the page goes can be cut short. Not once
+  // saving has stopped for good, when a reload is the way on.
+  const unstored =
+    saveState === "unsaved" || saveState === "saving" || saveState === "error";
+  useEffect(() => {
+    if (!unstored) return;
+    const ask = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", ask);
+    return () => window.removeEventListener("beforeunload", ask);
+  }, [unstored]);
+
+  // Makes the selected box a stage with that status, or no stage at all.
+  const setStage = (status: StageStatus | null) => {
     if (!api || !selected) return;
     api.updateScene({
       elements: api.getSceneElements().map((element) =>
         element.id === selected.id
           ? newElementWith(
               element,
-              isStage
+              status
                 ? {
-                    customData: { stage: { status: "not_started" } },
-                    backgroundColor: STAGE_COLORS.not_started,
+                    customData: { stage: { status } },
+                    backgroundColor: STAGE_COLORS[status],
                     fillStyle: "solid",
                   }
                 : // Emptied, not removed: the whiteboard skips an update that
@@ -166,6 +216,7 @@ function Whiteboard({
 
   return (
     <div className="board absolute inset-0">
+      <div aria-hidden className="board-dots" />
       <Excalidraw
         excalidrawAPI={setApi}
         name={name}
@@ -176,11 +227,13 @@ function Whiteboard({
         initialData={{
           elements: elements as unknown as ExcalidrawElement[],
           // Clean lines and a plain font, so it reads as a whiteboard; the
-          // hand-drawn look is still there to choose.
+          // hand-drawn look is still there to choose. Transparent so the
+          // dotted grid behind the canvases shows through.
           appState: {
             currentItemRoughness: 0,
             currentItemFontFamily: FONT_FAMILY.Nunito,
             currentItemFillStyle: "solid",
+            viewBackgroundColor: "transparent",
           },
           scrollToContent: true,
         }}
@@ -210,7 +263,7 @@ function Whiteboard({
           }
           const box = selectedBox(all, appState);
           setSelected((before) =>
-            before?.id === box?.id && before?.isStage === box?.isStage
+            before?.id === box?.id && before?.status === box?.status
               ? before
               : box,
           );
@@ -223,11 +276,16 @@ function Whiteboard({
           );
         }}
         renderTopRightUI={() => (
+          // A plain word on a phone, where the pill pushes the tools off the screen.
           <p
             role="status"
-            className="self-center px-1 text-xs whitespace-nowrap text-muted-foreground"
+            className="inline-flex items-center gap-1.5 self-center px-1 text-xs whitespace-nowrap sm:rounded-full sm:bg-card/90 sm:px-2.5 sm:py-1 sm:shadow-sm sm:ring-1 sm:ring-foreground/10 sm:backdrop-blur"
           >
-            {SAVE_LABELS[saveState]}
+            <span
+              aria-hidden
+              className={`hidden size-1.5 rounded-full sm:block ${SAVE_DOTS[saveState]}`}
+            />
+            <span className="text-muted-foreground">{SAVE_LABELS[saveState]}</span>
           </p>
         )}
       >
@@ -238,7 +296,9 @@ function Whiteboard({
           <MainMenu.DefaultItems.ClearCanvas />
         </MainMenu>
       </Excalidraw>
-      {selected && <BoxCard isStage={selected.isStage} onChange={setStage} />}
+      {selected && (
+        <BoxCard status={selected.status} tracked={tracked} onChange={setStage} />
+      )}
     </div>
   );
 }

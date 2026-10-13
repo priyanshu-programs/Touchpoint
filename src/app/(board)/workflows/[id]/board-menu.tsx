@@ -50,7 +50,7 @@ export function BoardMenu({
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label="Workflow actions"
-          className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <MoreVertical aria-hidden className="size-4" />
         </DropdownMenuTrigger>

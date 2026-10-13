@@ -34,7 +34,7 @@ export const companyListParams = listParams.extend({
   page: optional(z.coerce.number().int().min(1).max(1000)),
   company: optional(z.uuid()),
   contact: optional(z.uuid()),
-  tab: optional(z.enum(["contacts", "activity", "tasks"])),
+  tab: optional(z.enum(["contacts", "activity", "tasks", "workflows"])),
   ...entryParams,
 });
 export type CompanyListParams = z.infer<typeof companyListParams>;
@@ -43,7 +43,7 @@ export type CompanyListParams = z.infer<typeof companyListParams>;
 // that person's timeline, since `after` already pages the list.
 export const contactListParams = listParams.extend({
   contact: optional(z.uuid()),
-  tab: optional(z.enum(["activity", "tasks"])),
+  tab: optional(z.enum(["activity", "tasks", "workflows"])),
   earlier: optional(z.uuid()),
   ...entryParams,
 });

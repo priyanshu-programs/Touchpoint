@@ -1,25 +1,15 @@
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { ButtonLink } from "@/components/button-link";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { requireOwner } from "@/lib/session";
 import { listTemplates } from "@/modules/workflows/queries";
 import { STARTER_BOARDS } from "@/modules/workflows/starters";
 import { ListCard } from "../people/(lists)/list-card";
+import { reorderBoardsAction } from "./actions";
 import { StarterTemplates } from "./starter-templates";
+import { WorkflowList } from "./workflow-list";
 
 export const metadata: Metadata = { title: "Workflows" };
-
-const inOrder = (stages: readonly { name: string }[]) =>
-  stages.map(({ name }) => name).join(" → ");
 
 export default async function WorkflowsPage() {
   const owner = await requireOwner();
@@ -52,55 +42,29 @@ export default async function WorkflowsPage() {
         </p>
       ) : (
         <ListCard>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Workflow</TableHead>
-                <TableHead className="hidden md:table-cell">Stages</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {templates.map((template) => (
-                <TableRow key={template.id}>
-                  <TableCell className="whitespace-normal">
-                    <div className="grid gap-0.5">
-                      <Link
-                        href={`/workflows/${template.id}`}
-                        className="font-medium underline-offset-4 hover:underline"
-                      >
-                        {template.name}
-                      </Link>
-                      {template.description && (
-                        <p className="break-words text-muted-foreground">
-                          {template.description}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground md:hidden">
-                        {template.stages.length === 1
-                          ? "1 stage"
-                          : `${template.stages.length} stages`}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden whitespace-normal text-muted-foreground md:table-cell">
-                    {template.stages.length > 0
-                      ? inOrder(template.stages)
-                      : "No stages yet"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <WorkflowList
+            // The list holds the order itself, so it starts again only when a
+            // workflow is added or removed, not when one is moved.
+            key={templates
+              .map(({ id }) => id)
+              .sort()
+              .join(" ")}
+            workflows={templates.map(({ id, name, description }) => ({
+              id,
+              name,
+              description,
+            }))}
+            action={reorderBoardsAction}
+          />
         </ListCard>
       )}
 
       {starters.length > 0 && (
         <StarterTemplates
-          starters={starters.map((starter) => ({
-            key: starter.key,
-            name: starter.name,
-            description: starter.description,
-            stages: inOrder(starter.stages),
+          starters={starters.map(({ key, name, description }) => ({
+            key,
+            name,
+            description,
           }))}
         />
       )}

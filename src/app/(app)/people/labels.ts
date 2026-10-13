@@ -14,12 +14,14 @@ export function labelFor(value: string) {
 // A company opens as a panel over the companies list, so its address is a query string.
 export const companyHref = (
   id: string,
-  tab?: "contacts" | "activity" | "tasks",
+  tab?: "contacts" | "activity" | "tasks" | "workflows",
 ) => `/people/organizations?company=${id}${tab ? `&tab=${tab}` : ""}`;
 
 // A person opens as a panel over the people list.
-export const contactHref = (id: string, tab?: "activity" | "tasks") =>
-  `/people/contacts?contact=${id}${tab ? `&tab=${tab}` : ""}`;
+export const contactHref = (
+  id: string,
+  tab?: "activity" | "tasks" | "workflows",
+) => `/people/contacts?contact=${id}${tab ? `&tab=${tab}` : ""}`;
 
 // A contact at a company can also be shown inside that company's panel.
 export const contactPanelHref = (organizationId: string, contactId: string) =>

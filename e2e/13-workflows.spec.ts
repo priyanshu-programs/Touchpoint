@@ -6,8 +6,20 @@ test.use({ storageState: OWNER_SESSION });
 
 // The sidebar has a "Workflows" link too, so the page's own are looked for in its content.
 const main = (page: Page) => page.getByRole("main");
-const row = (page: Page, name: string) =>
-  main(page).getByRole("row", { name: new RegExp(name) });
+const workflows = (page: Page) =>
+  main(page).getByRole("list", { name: "Your workflows" }).getByRole("listitem");
+const row = (page: Page, name: string) => workflows(page).filter({ hasText: name });
+const names = (page: Page) => workflows(page).getByRole("link");
+const panel = (page: Page) => page.getByRole("dialog");
+// The sidebar also has a link named Workflows, so a tab is looked for in the record's own bar.
+const companyTabs = (page: Page) =>
+  page.getByRole("navigation", { name: "Company", exact: true });
+const contactTabs = (page: Page) =>
+  page.getByRole("navigation", { name: "Contact", exact: true });
+// One board in a record's Workflows tab.
+const board = (page: Page, name: string) =>
+  panel(page).getByRole("region", { name, exact: true });
+const ID = "[0-9a-f-]{36}";
 const whiteboard = (page: Page) => page.locator(".excalidraw canvas.interactive");
 const card = (page: Page) => page.getByRole("region", { name: "Selected box" });
 const heading = (page: Page, name: string) =>
@@ -20,6 +32,14 @@ const saved = (page: Page) =>
     (response) =>
       response.request().method() === "PUT" &&
       SCENE.test(new URL(response.url()).pathname),
+  );
+
+// A change made outside the whiteboard is saved by a server action.
+const acted = (page: Page) =>
+  page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      "next-action" in response.request().headers(),
   );
 
 // What the page says on its console, and every address it asks another site for.
@@ -58,12 +78,13 @@ test("a starter workflow is added in one click and opens as a whiteboard", async
   const add = (name: string) =>
     main(page).getByRole("button", { name: `Add ${name}` });
   await expect(add("Website Project")).toBeVisible();
+  // Neither a starter nor a workflow of the owner's lists its stages here.
+  await expect(main(page)).not.toContainText("Identified");
   await add("Prospecting").click();
 
-  // Listed with its stages in the order its arrows give, and no longer offered.
-  await expect(row(page, "Prospecting")).toContainText(
-    "Identified → Contacted → In conversation → Proposal sent → Won → Lost",
-  );
+  // Listed by its name and what it is for, and no longer offered.
+  await expect(row(page, "Prospecting")).toContainText("From a first look");
+  await expect(main(page)).not.toContainText("Identified");
   await expect(add("Prospecting")).toHaveCount(0);
   await expect(add("Website Project")).toBeVisible();
 
@@ -156,7 +177,7 @@ test("a workflow is drawn by hand: a box made a stage, saved, renamed and delete
   await page.getByRole("link", { name: "Workflows" }).click();
   await expect(page).toHaveURL(/\/workflows$/);
   await expect(row(page, "Onboarding")).toContainText("First month with a new client");
-  await expect(row(page, "Onboarding")).toContainText("Welcome call");
+  await expect(row(page, "Onboarding")).not.toContainText("Welcome call");
 
   // Back shows the drawing as it is stored, and it still saves: off and on again.
   await page.goBack();
@@ -169,7 +190,7 @@ test("a workflow is drawn by hand: a box made a stage, saved, renamed and delete
     expect((await again).status()).toBe(200);
   }
   await page.getByRole("link", { name: "Workflows" }).click();
-  await expect(row(page, "Onboarding")).toContainText("Welcome call");
+  await expect(row(page, "Onboarding")).toBeVisible();
 
   // The workflow goes only after confirming; the starter added earlier stays.
   await main(page).getByRole("link", { name: "Onboarding" }).click();
@@ -256,9 +277,12 @@ test("a drawing is saved only by the owner, from this app, and from its latest v
   ).toBeVisible();
 
   // What the other one saved is what is kept.
+  expect(await (await page.request.get(scene)).json()).toMatchObject({
+    version: 2,
+    elements: [{ id: "elsewhere" }],
+  });
   await page.getByRole("link", { name: "Workflows" }).click();
   await expect(page).toHaveURL(/\/workflows$/);
-  await expect(row(page, "Elsewhere")).toContainText("No stages yet");
   await main(page).getByRole("link", { name: "Elsewhere" }).click();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Workflow actions" }).click();
@@ -266,6 +290,222 @@ test("a drawing is saved only by the owner, from this app, and from its latest v
   await page.getByRole("button", { name: "Delete workflow" }).click();
   await expect(page).toHaveURL(/\/workflows$/);
   await expect(row(page, "Elsewhere")).toHaveCount(0);
+});
+
+test("workflows are put in an order of the owner's own, by keyboard and by mouse", async ({
+  page,
+}) => {
+  await page.goto("/workflows");
+  await main(page).getByRole("button", { name: "Add Website Project" }).click();
+  // A workflow added later goes to the end.
+  await expect(names(page)).toHaveText(["Prospecting", "Website Project"]);
+
+  const handle = (name: string) =>
+    main(page).getByRole("button", { name: `Move ${name}` });
+  let save = acted(page);
+  await handle("Website Project").focus();
+  await page.keyboard.press("ArrowUp");
+  await expect(names(page)).toHaveText(["Website Project", "Prospecting"]);
+  await expect(
+    main(page).getByText("Website Project moved to place 1 of 2."),
+  ).toBeAttached();
+  // The handle keeps the focus, so the next key press moves the same row.
+  await expect(handle("Website Project")).toBeFocused();
+  await save;
+
+  await page.reload();
+  await expect(names(page)).toHaveText(["Website Project", "Prospecting"]);
+
+  const from = (await handle("Website Project").boundingBox())!;
+  const to = (await handle("Prospecting").boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  save = acted(page);
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2 + 4, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  await save;
+  await expect(names(page)).toHaveText(["Prospecting", "Website Project"]);
+  await page.reload();
+  await expect(names(page)).toHaveText(["Prospecting", "Website Project"]);
+});
+
+test("a workflow is started on a company, followed from its panel and opened as its own board", async ({
+  page,
+}) => {
+  const seen = watch(page);
+
+  // A company of this file's own.
+  await page.goto("/people/organizations");
+  await page.getByRole("button", { name: "New company" }).click();
+  const form = page.getByRole("dialog", { name: "New company" });
+  await form.getByLabel("Name", { exact: true }).fill("Board Works");
+  await form.getByRole("button", { name: "Add company" }).click();
+  await expect(panel(page).getByRole("heading", { name: "Board Works" })).toBeVisible();
+
+  await companyTabs(page).getByRole("link", { name: "Workflows" }).click();
+  await expect(page).toHaveURL(new RegExp(`company=${ID}&tab=workflows$`));
+  await expect(panel(page).getByText(/^No workflow started yet\./)).toBeVisible();
+
+  await panel(page).getByRole("button", { name: "Start a workflow" }).click();
+  await page.getByRole("menuitem", { name: "Prospecting" }).click();
+  const prospecting = board(page, "Prospecting");
+  await expect(prospecting).toContainText("0 of 6 done · Now: Identified");
+  await expect(prospecting.getByRole("listitem")).toHaveCount(6);
+
+  // A stage's status is changed where it is read, and the line above follows.
+  const setStatus = async (stage: string, from: string, to: string) => {
+    await prospecting
+      .getByRole("button", { name: `Status of ${stage}: ${from}` })
+      .click();
+    await page.getByRole("menuitemradio", { name: to }).click();
+    await expect(
+      prospecting.getByRole("button", { name: `Status of ${stage}: ${to}` }),
+    ).toBeVisible();
+  };
+  await setStatus("Identified", "Not started", "Done");
+  await expect(prospecting).toContainText("1 of 6 done · Now: Contacted");
+  await setStatus("Contacted", "Not started", "Blocked");
+  await expect(prospecting).toContainText("1 of 6 done · Now: In conversation");
+  await expect(prospecting).toContainText("Blocked: Contacted");
+
+  // The board is the company's own: it says whose it is and leads back there.
+  await prospecting.getByRole("link", { name: "Prospecting" }).click();
+  await expect(page).toHaveURL(new RegExp(`/workflows/${ID}$`));
+  await expect(heading(page, "Prospecting")).toBeVisible();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Board Works" }).click();
+  await expect(page).toHaveURL(new RegExp(`company=${ID}&tab=workflows$`));
+  await expect(board(page, "Prospecting")).toContainText("Blocked: Contacted");
+  const company = page.url();
+
+  // The owner's workflow is as it was: its copy's statuses are the copy's alone.
+  await page.goto("/workflows");
+  await main(page).getByRole("link", { name: "Prospecting" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Workflows" })).toBeVisible();
+  const template = `${new URL(page.url()).pathname.replace("/workflows/", "/api/workflows/")}/scene`;
+  const { elements } = (await (await page.request.get(template)).json()) as {
+    elements: { customData?: { stage?: { status: string } } }[];
+  };
+  expect(
+    elements.flatMap((element) => element.customData?.stage?.status ?? []),
+  ).toEqual(Array(6).fill("not_started"));
+
+  // Deleting the company's board leads back to the company, and leaves the workflow.
+  await page.goto(company);
+  await board(page, "Prospecting").getByRole("link", { name: "Prospecting" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  await page.getByRole("button", { name: "Workflow actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Delete workflow" }).click();
+  await expect(page).toHaveURL(new RegExp(`company=${ID}&tab=workflows$`));
+  await expect(panel(page).getByText(/^No workflow started yet\./)).toBeVisible();
+  await page.goto("/workflows");
+  await expect(row(page, "Prospecting")).toBeVisible();
+
+  expect(seen.outside).toEqual([]);
+  expect(seen.errors).toEqual([]);
+});
+
+test("a blank board on a person: a stage's status is set on the board and in the panel", async ({
+  page,
+}) => {
+  await page.goto("/people/contacts/new");
+  await page.getByLabel("First name").fill("Bea");
+  await page.getByLabel("Last name").fill("Boarder");
+  await page.getByRole("button", { name: "Add contact" }).click();
+  await expect(panel(page).getByRole("heading", { name: "Bea Boarder" })).toBeVisible();
+
+  await contactTabs(page).getByRole("link", { name: "Workflows" }).click();
+  await panel(page).getByRole("button", { name: "Start a workflow" }).click();
+  await page.getByRole("menuitem", { name: "Blank board…" }).click();
+  const blank = page.getByRole("dialog", { name: "Blank board" });
+  await blank.getByLabel("Name").fill("Custom plan");
+  await blank.getByRole("button", { name: "Create board" }).click();
+  await expect(page).toHaveURL(new RegExp(`/workflows/${ID}$`));
+  await expect(heading(page, "Custom plan")).toBeVisible();
+  await expect(whiteboard(page)).toBeVisible();
+
+  // A box drawn here can be a stage, and on a record's board a stage has a status.
+  await page.keyboard.press("r");
+  await page.mouse.move(500, 300);
+  await page.mouse.down();
+  await page.mouse.move(700, 400, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Draft");
+  await page.keyboard.press("Escape");
+  await expect(card(page).getByRole("group", { name: "Status" })).toHaveCount(0);
+  await card(page).getByRole("button", { name: "Make this a stage" }).click();
+  const status = (name: string) =>
+    card(page).getByRole("group", { name: "Status" }).getByRole("button", { name });
+  await expect(status("Not started")).toHaveAttribute("aria-pressed", "true");
+  const save = saved(page);
+  await status("Done").click();
+  await expect(status("Done")).toHaveAttribute("aria-pressed", "true");
+  expect((await save).status()).toBe(200);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+  // The panel shows what the board says, and changes it without opening the board.
+  await page.getByRole("link", { name: "Bea Boarder" }).click();
+  await expect(page).toHaveURL(new RegExp(`contact=${ID}&tab=workflows$`));
+  const plan = board(page, "Custom plan");
+  await expect(plan).toContainText("1 of 1 done");
+  await plan.getByRole("button", { name: "Status of Draft: Done" }).click();
+  await page.getByRole("menuitemradio", { name: "In progress" }).click();
+  await expect(plan).toContainText("0 of 1 done · Now: Draft");
+
+  // Opened again, the box is in the middle of the whiteboard and has that status.
+  await plan.getByRole("link", { name: "Custom plan" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const canvas = (await whiteboard(page).boundingBox())!;
+  await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
+  await expect(status("In progress")).toHaveAttribute("aria-pressed", "true");
+});
+
+test("closing the whiteboard with a change not yet saved asks first", async ({
+  page,
+}) => {
+  await page.goto("/workflows");
+  await main(page).getByRole("link", { name: "Website Project" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+  const asked: string[] = [];
+  page.on("dialog", async (dialog) => {
+    asked.push(dialog.type());
+    // Stay on the page.
+    await dialog.dismiss();
+  });
+
+  // The save is held back, so the change stays unsaved for as long as it takes.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(SCENE, async (route) => {
+    if (route.request().method() === "PUT") await held;
+    await route.continue();
+  });
+  await page.keyboard.press("r");
+  await page.mouse.move(300, 500);
+  await page.mouse.down();
+  await page.mouse.move(400, 560, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+
+  await page.close({ runBeforeUnload: true });
+  await expect.poll(() => asked).toEqual(["beforeunload"]);
+  expect(page.isClosed()).toBe(false);
+
+  // Once it is saved, the page closes without a word.
+  release();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await page.close({ runBeforeUnload: true });
+  await expect.poll(() => page.isClosed()).toBe(true);
+  expect(asked).toEqual(["beforeunload"]);
 });
 
 test("an address that names no workflow of the owner's shows a not-found page", async ({
@@ -297,7 +537,7 @@ test.describe("on a phone", () => {
       page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
       );
-    await expect(row(page, "Prospecting")).toContainText("6 stages");
+    await expect(row(page, "Prospecting")).toBeVisible();
     expect(await fits()).toBe(true);
 
     await main(page).getByRole("link", { name: "Prospecting" }).click();
@@ -305,5 +545,19 @@ test.describe("on a phone", () => {
     await expect(whiteboard(page)).toBeVisible();
     await expect(page.getByText("Saved", { exact: true })).toBeVisible();
     expect(await fits()).toBe(true);
+
+    // A record's Workflows tab fits the panel. The view eases in from the right
+    // and is wider than the panel while it does, so the width is asked for until it holds.
+    await page.goto("/people/contacts");
+    await page.getByRole("link", { name: "Bea Boarder", exact: true }).click();
+    await contactTabs(page).getByRole("link", { name: "Workflows" }).click();
+    await expect(board(page, "Custom plan")).toContainText("0 of 1 done");
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-slot="sheet-content"]')
+          .evaluate((sheet) => sheet.scrollWidth <= sheet.clientWidth),
+      )
+      .toBe(true);
   });
 });
