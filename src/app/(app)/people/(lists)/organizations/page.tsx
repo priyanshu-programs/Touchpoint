@@ -1,15 +1,8 @@
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowDownUp, ArrowUp } from "lucide-react";
 import type { Metadata } from "next";
-import Form from "next/form";
 import Link from "next/link";
 import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
 import {
   Table,
   TableBody,
@@ -24,28 +17,45 @@ import { getContact } from "@/modules/contacts/queries";
 import {
   getOrganization,
   listOrganizations,
+  ORGANIZATION_SORTS,
 } from "@/modules/organizations/queries";
 import { ORGANIZATION_STATUSES } from "@/modules/organizations/schema";
 import { getSettings } from "@/modules/settings/service";
 import { listTags } from "@/modules/tags/queries";
 import { labelFor } from "../../labels";
+import { ContactPanel } from "../contact-panel";
+import { FieldsPanel } from "../fields-panel";
+import { ListCard, ListFooter } from "../list-card";
 import {
   companiesHref,
   companyListParams,
   type CompanyListParams,
 } from "../list-controls";
-import { ContactPanel } from "../contact-panel";
-import { FieldsPanel } from "../fields-panel";
+import { ListHeader } from "../list-header";
+import { ListToolbar } from "../list-toolbar";
 import { RecordSheet } from "../record-sheet";
 import { CompanyPanel } from "./company-panel";
-import { NewCompanyDialog } from "./new-company-dialog";
+import { NewCompanySheet } from "./new-company-sheet";
 
 export const metadata: Metadata = { title: "Companies" };
 
 const PAGE_SIZE = 50;
 type Sort = NonNullable<CompanyListParams["sort"]>;
-// The direction a column takes when it is first chosen: names A to Z, numbers and dates largest first.
-const FIRST_DIRECTION = { name: "asc", contacts: "desc", activity: "desc" } as const;
+const SORT_LABELS: Record<Sort, string> = {
+  name: "Company",
+  domain: "Domain",
+  industry: "Industry",
+  contacts: "Contacts",
+  activity: "Last activity",
+};
+// The direction a column takes when it is first chosen: text A to Z, numbers and dates largest first.
+const FIRST_DIRECTION = {
+  name: "asc",
+  domain: "asc",
+  industry: "asc",
+  contacts: "desc",
+  activity: "desc",
+} as const;
 const NO_CONTACT = {
   contact: undefined,
   tab: undefined,
@@ -53,18 +63,12 @@ const NO_CONTACT = {
   fields: undefined,
 };
 const NO_PANEL = { ...NO_CONTACT, company: undefined };
+// A change to what the list shows starts again from its first page, with no record open.
+const FIRST_PAGE = { ...NO_PANEL, page: undefined };
 
-function SortHead({
-  params,
-  sort,
-  label,
-  className,
-}: {
-  params: CompanyListParams;
-  sort: Sort;
-  label: string;
-  className?: string;
-}) {
+// Where a column is in the order now, and the address that sorts by it: the other
+// direction when it already leads, its own first direction otherwise.
+function sorting(params: CompanyListParams, sort: Sort) {
   const current = (params.sort ?? "name") === sort;
   const dir = params.dir ?? FIRST_DIRECTION[sort];
   const next = current
@@ -72,29 +76,40 @@ function SortHead({
       ? "desc"
       : "asc"
     : FIRST_DIRECTION[sort];
+  return {
+    current: current ? dir : null,
+    href: companiesHref(params, { ...FIRST_PAGE, sort, dir: next }),
+  };
+}
+
+function SortHead({
+  params,
+  sort,
+  className,
+}: {
+  params: CompanyListParams;
+  sort: Sort;
+  className?: string;
+}) {
+  const { current, href } = sorting(params, sort);
+  const Icon =
+    current === "asc" ? ArrowUp : current === "desc" ? ArrowDown : ArrowDownUp;
   return (
     <TableHead
       aria-sort={
-        current ? (dir === "asc" ? "ascending" : "descending") : undefined
+        current ? (current === "asc" ? "ascending" : "descending") : undefined
       }
       className={className}
     >
       <Link
-        href={companiesHref(params, {
-          ...NO_PANEL,
-          sort,
-          dir: next,
-          page: undefined,
-        })}
+        href={href}
         className="inline-flex items-center gap-1 hover:text-foreground"
       >
-        {label}
-        {current &&
-          (dir === "asc" ? (
-            <ArrowUp className="size-3" aria-hidden />
-          ) : (
-            <ArrowDown className="size-3" aria-hidden />
-          ))}
+        {SORT_LABELS[sort]}
+        <Icon
+          className={current ? "size-3 text-foreground" : "size-3 opacity-50"}
+          aria-hidden
+        />
       </Link>
     </TableHead>
   );
@@ -134,164 +149,199 @@ export default async function OrganizationsPage({
   const filtered = Boolean(
     params.q || params.tag || params.status || params.archived,
   );
+  const filters = [
+    {
+      label: "Status",
+      value: params.status ?? "",
+      options: [
+        {
+          value: "",
+          label: "All statuses",
+          href: companiesHref(params, { ...FIRST_PAGE, status: undefined }),
+        },
+        ...ORGANIZATION_STATUSES.map((status) => ({
+          value: status,
+          label: labelFor(status),
+          href: companiesHref(params, { ...FIRST_PAGE, status }),
+        })),
+      ],
+    },
+    ...(tags.length > 0
+      ? [
+          {
+            label: "Tag",
+            value: params.tag ?? "",
+            options: [
+              {
+                value: "",
+                label: "All tags",
+                href: companiesHref(params, { ...FIRST_PAGE, tag: undefined }),
+              },
+              ...tags.map((tag) => ({
+                value: tag.id,
+                label: tag.name,
+                href: companiesHref(params, { ...FIRST_PAGE, tag: tag.id }),
+              })),
+            ],
+          },
+        ]
+      : []),
+  ];
 
   return (
-    <div className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Form
-          action="/people/organizations"
-          className="flex flex-wrap items-center gap-2"
-        >
-          <Input
-            name="q"
-            type="search"
-            aria-label="Search companies by name or domain"
-            placeholder="Search by name or domain"
-            defaultValue={params.q}
-            className="w-full sm:w-64"
-          />
-          {tags.length > 0 && (
-            <NativeSelect
-              name="tag"
-              aria-label="Tag"
-              defaultValue={params.tag ?? ""}
+    <div className="grid gap-6">
+      <ListHeader
+        title="Companies"
+        subtitle="Every company you work with."
+        // A new one each time a company opens, so the form is not left open over the company it made.
+        action={<NewCompanySheet key={params.company ?? "list"} />}
+      />
+
+      <div className="grid gap-4">
+        <ListToolbar
+          path="/people/organizations"
+          search={{
+            label: "Search companies by name or domain",
+            placeholder: "Search companies by name or domain…",
+            value: params.q,
+          }}
+          keep={{
+            tag: params.tag,
+            status: params.status,
+            archived: params.archived,
+            sort: params.sort,
+            dir: params.dir,
+          }}
+          filters={filters}
+          sorts={ORGANIZATION_SORTS.map((column) => ({
+            label: SORT_LABELS[column],
+            ...sorting(params, column),
+          }))}
+          archived={{
+            on: params.archived === "1",
+            href: companiesHref(params, {
+              ...FIRST_PAGE,
+              archived: params.archived ? undefined : "1",
+            }),
+          }}
+        />
+
+        {page.rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {filtered
+              ? "No companies match these filters."
+              : "No companies yet. Add a company or agency you work with."}
+          </p>
+        ) : (
+          <>
+            <ListCard>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortHead params={params} sort="name" />
+                    <SortHead
+                      params={params}
+                      sort="domain"
+                      className="hidden sm:table-cell"
+                    />
+                    <SortHead
+                      params={params}
+                      sort="industry"
+                      className="hidden md:table-cell"
+                    />
+                    {/* The last column on a phone, where the one after it is hidden. */}
+                    <SortHead
+                      params={params}
+                      sort="contacts"
+                      className="pr-4 text-right sm:pr-2"
+                    />
+                    <SortHead
+                      params={params}
+                      sort="activity"
+                      className="hidden text-right sm:table-cell"
+                    />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {page.rows.map((row) => {
+                    const href = companiesHref(params, {
+                      ...NO_PANEL,
+                      company: row.id,
+                    });
+                    return (
+                      <ClickableRow key={row.id} href={href}>
+                        <TableCell className="whitespace-normal">
+                          <div className="flex items-center gap-3">
+                            <CompanyLogo
+                              id={row.id}
+                              name={row.name}
+                              logoVersion={row.logoVersion}
+                            />
+                            <Link
+                              href={href}
+                              scroll={false}
+                              className="font-medium underline-offset-4 hover:underline"
+                            >
+                              {row.name}
+                            </Link>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden text-muted-foreground sm:table-cell">
+                          {row.domain ?? "—"}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {row.industry ?? "—"}
+                        </TableCell>
+                        <TableCell className="pr-4 text-right tabular-nums sm:pr-2">
+                          {row.contactCount}
+                        </TableCell>
+                        <TableCell className="hidden text-right sm:table-cell">
+                          {row.lastActivityAt
+                            ? formatDate(dateIn(timezone, row.lastActivityAt))
+                            : "—"}
+                        </TableCell>
+                      </ClickableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ListCard>
+
+            <ListFooter
+              first={(pageNumber - 1) * PAGE_SIZE + 1}
+              shown={page.rows.length}
+              total={page.total}
             >
-              <NativeSelectOption value="">All tags</NativeSelectOption>
-              {tags.map((tag) => (
-                <NativeSelectOption key={tag.id} value={tag.id}>
-                  {tag.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          )}
-          <NativeSelect
-            name="status"
-            aria-label="Status"
-            defaultValue={params.status ?? ""}
-          >
-            <NativeSelectOption value="">All statuses</NativeSelectOption>
-            {ORGANIZATION_STATUSES.map((status) => (
-              <NativeSelectOption key={status} value={status}>
-                {labelFor(status)}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              name="archived"
-              value="1"
-              defaultChecked={params.archived === "1"}
-            />
-            Archived
-          </label>
-          {params.sort && <input type="hidden" name="sort" value={params.sort} />}
-          {params.dir && <input type="hidden" name="dir" value={params.dir} />}
-          <Button type="submit" variant="outline">
-            Filter
-          </Button>
-        </Form>
-        <NewCompanyDialog />
+              {(pageNumber > 1 || page.hasMore) && (
+                <nav aria-label="Pages" className="flex gap-4">
+                  {pageNumber > 1 && (
+                    <Link
+                      href={companiesHref(params, {
+                        ...NO_PANEL,
+                        page: pageNumber === 2 ? undefined : pageNumber - 1,
+                      })}
+                      className="underline"
+                    >
+                      Previous page
+                    </Link>
+                  )}
+                  {page.hasMore && (
+                    <Link
+                      href={companiesHref(params, {
+                        ...NO_PANEL,
+                        page: pageNumber + 1,
+                      })}
+                      className="underline"
+                    >
+                      Next page
+                    </Link>
+                  )}
+                </nav>
+              )}
+            </ListFooter>
+          </>
+        )}
       </div>
-
-      {page.rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {filtered
-            ? "No companies match these filters."
-            : "No companies yet. Add a company or agency you work with."}
-        </p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <SortHead params={params} sort="name" label="Company" />
-              <TableHead className="hidden sm:table-cell">Domain</TableHead>
-              <TableHead className="hidden md:table-cell">Industry</TableHead>
-              <SortHead
-                params={params}
-                sort="contacts"
-                label="Contacts"
-                className="text-right"
-              />
-              <SortHead
-                params={params}
-                sort="activity"
-                label="Last activity"
-                className="hidden text-right sm:table-cell"
-              />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {page.rows.map((row) => {
-              const href = companiesHref(params, {
-                ...NO_PANEL,
-                company: row.id,
-              });
-              return (
-                <ClickableRow key={row.id} href={href}>
-                  <TableCell className="whitespace-normal">
-                    <div className="flex items-center gap-3">
-                      <CompanyLogo
-                        id={row.id}
-                        name={row.name}
-                        logoVersion={row.logoVersion}
-                      />
-                      <Link
-                        href={href}
-                        scroll={false}
-                        className="font-medium underline-offset-4 hover:underline"
-                      >
-                        {row.name}
-                      </Link>
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden text-muted-foreground sm:table-cell">
-                    {row.domain ?? "—"}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {row.industry ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {row.contactCount}
-                  </TableCell>
-                  <TableCell className="hidden text-right sm:table-cell">
-                    {row.lastActivityAt
-                      ? formatDate(dateIn(timezone, row.lastActivityAt))
-                      : "—"}
-                  </TableCell>
-                </ClickableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
-
-      {(pageNumber > 1 || page.hasMore) && (
-        <nav aria-label="Pages" className="flex gap-4 text-sm">
-          {pageNumber > 1 && (
-            <Link
-              href={companiesHref(params, {
-                ...NO_PANEL,
-                page: pageNumber === 2 ? undefined : pageNumber - 1,
-              })}
-              className="underline"
-            >
-              Previous page
-            </Link>
-          )}
-          {page.hasMore && (
-            <Link
-              href={companiesHref(params, {
-                ...NO_PANEL,
-                page: pageNumber + 1,
-              })}
-              className="underline"
-            >
-              Next page
-            </Link>
-          )}
-        </nav>
-      )}
 
       {open && (
         <RecordSheet

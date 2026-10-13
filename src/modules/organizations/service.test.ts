@@ -266,6 +266,8 @@ describe("organizations", () => {
       "echo",
     ]);
     expect(pages.map((page) => page.hasMore)).toEqual([true, true, false]);
+    // Every page says how many there are in all, not how many it holds.
+    expect(pages.map((page) => page.total)).toEqual([5, 5, 5]);
   });
 
   it("filters by status", async () => {
@@ -274,6 +276,38 @@ describe("organizations", () => {
 
     const clients = await listOrganizations(ownerId, { status: "client" });
     expect(clients.rows.map((row) => row.name)).toEqual(["Borealis Labs"]);
+    expect(clients.total).toBe(1);
+  });
+
+  it("sorts by domain and by industry, with companies that have none last", async () => {
+    await create({ domain: "zeta.example.com", industry: "accounting" });
+    await create({ name: "Borealis Labs", domain: "alpha.example.com", industry: "Design" });
+    await create({ name: "Cobalt Works" });
+    const names = async (
+      options: Parameters<typeof listOrganizations>[1],
+    ) => (await listOrganizations(ownerId, options)).rows.map((row) => row.name);
+
+    expect(await names({ sort: "domain", dir: "asc" })).toEqual([
+      "Borealis Labs",
+      "Acme Design",
+      "Cobalt Works",
+    ]);
+    expect(await names({ sort: "domain", dir: "desc" })).toEqual([
+      "Acme Design",
+      "Borealis Labs",
+      "Cobalt Works",
+    ]);
+    // Without regard to case: "accounting" comes before "Design".
+    expect(await names({ sort: "industry", dir: "asc" })).toEqual([
+      "Acme Design",
+      "Borealis Labs",
+      "Cobalt Works",
+    ]);
+    expect(await names({ sort: "industry", dir: "desc" })).toEqual([
+      "Borealis Labs",
+      "Acme Design",
+      "Cobalt Works",
+    ]);
   });
 
   it("sorts by contacts and by last activity, with untouched companies last", async () => {

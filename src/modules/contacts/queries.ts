@@ -1,4 +1,14 @@
-import { and, asc, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import { db, type Executor } from "@/db/client";
 import {
   contactEmails,
@@ -48,78 +58,88 @@ export async function listContacts(
   const q = options.q?.trim();
   const tsQuery = q ? prefixTsQuery(q) : "";
   const at = options.organizationId;
+  const atCompany = at
+    ? and(
+        eq(contactOrganizations.contactId, contacts.id),
+        eq(contactOrganizations.organizationId, at),
+      )
+    : sql`false`;
+  const matching = and(
+    eq(contacts.ownerId, ownerId),
+    options.archived
+      ? isNotNull(contacts.archivedAt)
+      : isNull(contacts.archivedAt),
+    at ? isNotNull(contactOrganizations.contactId) : undefined,
+    q
+      ? or(
+          tsQuery
+            ? sql`${contacts.search} @@ to_tsquery('simple', ${tsQuery})`
+            : undefined,
+          sql`exists (
+            select 1 from contact_emails e
+            where e.contact_id = ${contacts.id} and e.email like ${likePrefix(q)}
+          )`,
+        )
+      : undefined,
+    options.tagId
+      ? sql`exists (
+          select 1 from contact_tags
+          where contact_tags.contact_id = ${contacts.id}
+            and contact_tags.tag_id = ${options.tagId}
+        )`
+      : undefined,
+  );
 
-  const rows = await db
-    .select({
-      id: contacts.id,
-      fullName: contacts.fullName,
-      // Asked for one company's people, the title and the star are the ones held there.
-      jobTitle: sql<
-        string | null
-      >`coalesce(${contactOrganizations.jobTitle}, ${contacts.jobTitle})`,
-      relationshipType: contacts.relationshipType,
-      isPrimary: sql<boolean>`coalesce(${contactOrganizations.isPrimary}, false)`,
-      companies,
-      primaryEmail: contactEmails.email,
-      photoVersion,
-    })
-    .from(contacts)
-    .leftJoin(
-      contactOrganizations,
-      at
-        ? and(
-            eq(contactOrganizations.contactId, contacts.id),
-            eq(contactOrganizations.organizationId, at),
-          )
-        : sql`false`,
-    )
-    .leftJoin(
-      contactEmails,
-      and(
-        eq(contactEmails.contactId, contacts.id),
-        eq(contactEmails.isPrimary, true),
-      ),
-    )
-    .where(
-      and(
-        eq(contacts.ownerId, ownerId),
-        options.archived
-          ? isNotNull(contacts.archivedAt)
-          : isNull(contacts.archivedAt),
-        at ? isNotNull(contactOrganizations.contactId) : undefined,
-        q
-          ? or(
-              tsQuery
-                ? sql`${contacts.search} @@ to_tsquery('simple', ${tsQuery})`
-                : undefined,
-              sql`exists (
-                select 1 from contact_emails e
-                where e.contact_id = ${contacts.id} and e.email like ${likePrefix(q)}
-              )`,
-            )
-          : undefined,
-        options.tagId
-          ? sql`exists (
-              select 1 from contact_tags
-              where contact_tags.contact_id = ${contacts.id}
-                and contact_tags.tag_id = ${options.tagId}
-            )`
-          : undefined,
-        options.after
-          ? sql`(lower(${contacts.fullName}), ${contacts.id}) > (
-              select lower(full_name), id from contacts
-              where id = ${options.after} and owner_id = ${ownerId}
-            )`
-          : undefined,
-      ),
-    )
-    .orderBy(sql`lower(${contacts.fullName})`, asc(contacts.id))
-    .limit(limit + 1);
+  const [rows, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: contacts.id,
+        fullName: contacts.fullName,
+        // Asked for one company's people, the title and the star are the ones held there.
+        jobTitle: sql<
+          string | null
+        >`coalesce(${contactOrganizations.jobTitle}, ${contacts.jobTitle})`,
+        relationshipType: contacts.relationshipType,
+        isPrimary: sql<boolean>`coalesce(${contactOrganizations.isPrimary}, false)`,
+        companies,
+        primaryEmail: contactEmails.email,
+        photoVersion,
+      })
+      .from(contacts)
+      .leftJoin(contactOrganizations, atCompany)
+      .leftJoin(
+        contactEmails,
+        and(
+          eq(contactEmails.contactId, contacts.id),
+          eq(contactEmails.isPrimary, true),
+        ),
+      )
+      .where(
+        and(
+          matching,
+          options.after
+            ? sql`(lower(${contacts.fullName}), ${contacts.id}) > (
+                select lower(full_name), id from contacts
+                where id = ${options.after} and owner_id = ${ownerId}
+              )`
+            : undefined,
+        ),
+      )
+      .orderBy(sql`lower(${contacts.fullName})`, asc(contacts.id))
+      .limit(limit + 1),
+    // Everyone the filters match, on whichever page they fall.
+    db
+      .select({ total: count() })
+      .from(contacts)
+      .leftJoin(contactOrganizations, atCompany)
+      .where(matching),
+  ]);
 
   const page = rows.slice(0, limit);
   return {
     rows: page,
     nextAfter: rows.length > limit ? page[page.length - 1].id : null,
+    total,
   };
 }
 

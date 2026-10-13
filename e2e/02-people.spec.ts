@@ -38,15 +38,25 @@ test("add a company; a second one on the same domain is refused", async ({
   await expect(page.getByText("No contacts yet")).toBeVisible();
 
   await tabs.getByRole("link", { name: "Companies" }).click();
+  await expect(page.getByRole("heading", { name: "Companies", level: 1 })).toBeVisible();
+  // The form slides in at the side and asks for two things; Cancel puts it away.
   await page.getByRole("button", { name: "New company" }).click();
-  await page.getByLabel("Name", { exact: true }).fill("Acme Design");
-  // A reserved name, so the read that follows never reaches a real site.
-  await page.getByLabel("Website").fill("www.acme.test/about");
-  await page.getByRole("button", { name: "Create company" }).click();
+  const form = page.getByRole("dialog", { name: "New company" });
+  await expect(form.getByRole("textbox")).toHaveCount(2);
+  await form.getByRole("button", { name: "Cancel" }).click();
+  await expect(form).toHaveCount(0);
 
-  // The new company opens as a panel over the list, with its domain read from the website.
+  await page.getByRole("button", { name: "New company" }).click();
+  await form.getByLabel("Name", { exact: true }).fill("Acme Design");
+  // A reserved name, so the read that follows never reaches a real site.
+  await form.getByLabel("Domain", { exact: true }).fill("www.acme.test/about");
+  await form.getByRole("button", { name: "Add company" }).click();
+
+  // The new company opens as a panel over the list, with its domain read from the website,
+  // and the form it came from is gone.
   await expect(page).toHaveURL(/\/people\/organizations\?company=[0-9a-f-]+$/);
   await expect(panel(page).getByRole("heading", { name: "Acme Design" })).toBeVisible();
+  await expect(form).toHaveCount(0);
   await expect(
     panel(page).getByRole("link", { name: "https://www.acme.test/about" }),
   ).toBeVisible();
@@ -157,7 +167,7 @@ test("the companies list sorts, filters and searches by domain", async ({
   await page.goto("/people/organizations");
   await page.getByRole("button", { name: "New company" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Borealis Labs");
-  await page.getByRole("button", { name: "Create company" }).click();
+  await page.getByRole("button", { name: "Add company" }).click();
   await expect(
     panel(page).getByRole("heading", { name: "Borealis Labs" }),
   ).toBeVisible();
@@ -166,23 +176,54 @@ test("the companies list sorts, filters and searches by domain", async ({
   await expect(panel(page)).toHaveCount(0);
 
   const names = page.getByRole("row").getByRole("link");
-  await expect(names).toHaveText(["Company", "Contacts", "Last activity", "Acme Design", "Borealis Labs"]);
+  await expect(names).toHaveText([
+    "Company",
+    "Domain",
+    "Industry",
+    "Contacts",
+    "Last activity",
+    "Acme Design",
+    "Borealis Labs",
+  ]);
+  await expect(page.getByText("Showing 1–2 of 2")).toBeVisible();
   await page.getByRole("link", { name: "Contacts", exact: true }).click();
   await expect(page).toHaveURL(/sort=contacts&dir=desc/);
-  await expect(names.nth(3)).toHaveText("Acme Design");
+  await expect(names.nth(5)).toHaveText("Acme Design");
   await page.getByRole("link", { name: "Contacts", exact: true }).click();
   await expect(page).toHaveURL(/sort=contacts&dir=asc/);
-  await expect(names.nth(3)).toHaveText("Borealis Labs");
+  await expect(names.nth(5)).toHaveText("Borealis Labs");
 
+  // The Sort menu orders by the same columns; a company with no domain comes last either way.
+  const sortBy = async (column: string) => {
+    await page.getByRole("button", { name: "Sort" }).click();
+    await page.getByRole("menuitem", { name: column }).click();
+  };
+  await sortBy("Domain");
+  await expect(page).toHaveURL(/sort=domain&dir=asc/);
+  await expect(names.nth(5)).toHaveText("Acme Design");
+  await sortBy("Domain");
+  await expect(page).toHaveURL(/sort=domain&dir=desc/);
+  await expect(names.nth(5)).toHaveText("Acme Design");
+
+  // A search keeps the order it was given.
   await page.getByLabel("Search companies by name or domain").fill("acme.test");
-  await page.getByRole("button", { name: "Filter" }).click();
+  await page.getByLabel("Search companies by name or domain").press("Enter");
+  await expect(page).toHaveURL(/q=acme\.test&sort=domain&dir=desc$/);
   await expect(page.getByRole("link", { name: "Acme Design" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Borealis Labs" })).toBeHidden();
+  await expect(page.getByText("Showing 1–1 of 1")).toBeVisible();
 
   await page.goto("/people/organizations");
-  await page.getByLabel("Status").selectOption("client");
-  await page.getByRole("button", { name: "Filter" }).click();
+  const filters = page.getByRole("button", { name: "Filters" });
+  await filters.click();
+  await page.getByRole("menuitemradio", { name: "Client", exact: true }).click();
+  await expect(page).toHaveURL(/status=client$/);
   await expect(page.getByText("No companies match these filters.")).toBeVisible();
+  await expect(filters).toContainText("(1)");
+  await filters.click();
+  await page.getByRole("menuitemradio", { name: "All statuses" }).click();
+  await expect(page).toHaveURL(/\/people\/organizations$/);
+  await expect(page.getByRole("link", { name: "Acme Design" })).toBeVisible();
 });
 
 test("pick a company, then filter and archive contacts", async ({
@@ -206,14 +247,19 @@ test("pick a company, then filter and archive contacts", async ({
   const rao = page.getByRole("link", { name: "Arjun Rao" });
   await expect(rao).toBeVisible();
 
+  await expect(page.getByRole("heading", { name: "People", level: 1 })).toBeVisible();
+  await expect(page.getByText("Showing 1–3 of 3")).toBeVisible();
   await page.getByLabel("Search by name").fill("pri");
-  await page.getByRole("button", { name: "Filter" }).click();
+  await page.getByLabel("Search by name").press("Enter");
   await expect(sharma).toBeVisible();
   await expect(sharmaa).toBeVisible();
   await expect(rao).toBeHidden();
+  await expect(page.getByText("Showing 1–2 of 2")).toBeVisible();
 
-  await page.getByLabel("Tag").selectOption({ label: "vip" });
-  await page.getByRole("button", { name: "Filter" }).click();
+  // A filter narrows what the search found.
+  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByRole("menuitemradio", { name: "vip", exact: true }).click();
+  await expect(page).toHaveURL(/q=pri&tag=[0-9a-f-]+$/);
   await expect(sharma).toBeVisible();
   await expect(sharmaa).toBeHidden();
 
@@ -227,10 +273,16 @@ test("pick a company, then filter and archive contacts", async ({
   await page.goto("/people/contacts");
   await expect(sharma).toBeVisible();
   await expect(sharmaa).toBeHidden();
-  await page.getByLabel("Archived").check();
-  await page.getByRole("button", { name: "Filter" }).click();
+  const archived = page.getByRole("button", { name: "Archived" });
+  await expect(archived).toHaveAttribute("aria-pressed", "false");
+  await archived.click();
+  await expect(page).toHaveURL(/archived=1$/);
+  await expect(archived).toHaveAttribute("aria-pressed", "true");
   await expect(sharmaa).toBeVisible();
   await expect(sharma).toBeHidden();
+  await archived.click();
+  await expect(page).toHaveURL(/\/people\/contacts$/);
+  await expect(sharma).toBeVisible();
 });
 
 test("manage a contact's emails and links", async ({ page }) => {

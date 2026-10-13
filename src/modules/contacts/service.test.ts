@@ -682,6 +682,9 @@ describe("contacts", () => {
       [...first.rows, ...second.rows, ...third.rows].map((row) => row.fullName),
     ).toEqual(["anil", "bela", "Chitra", "Dev", "Esha"]);
     expect(third.nextAfter).toBeNull();
+    // Every page says how many there are in all, wherever it starts.
+    expect([first, second, third].map((page) => page.total)).toEqual([5, 5, 5]);
+    expect((await listContacts(ownerId, { q: "an" })).total).toBe(1);
   });
 
   it("keeps another owner's contacts out of reach", async () => {

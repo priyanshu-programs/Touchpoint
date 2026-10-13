@@ -43,9 +43,17 @@ const logoVersion = sql<string | null>`(
   where organization_logos.organization_id = organizations.id
 )`;
 
-export const ORGANIZATION_SORTS =["name", "contacts", "activity"] as const;
+export const ORGANIZATION_SORTS = [
+  "name",
+  "domain",
+  "industry",
+  "contacts",
+  "activity",
+] as const;
 const SORT_BY = {
   name: sql`lower(${organizations.name})`,
+  domain: sql`${organizations.domain}`,
+  industry: sql`lower(${organizations.industry})`,
   contacts: contactCount,
   activity: lastActivityAt,
 };
@@ -68,56 +76,58 @@ export async function listOrganizations(
   const tsQuery = q ? prefixTsQuery(q) : "";
   const sort =options.sort ?? "name";
   const direction = options.dir === "desc" ? sql`desc` : sql`asc`;
+  const matching = and(
+    eq(organizations.ownerId, ownerId),
+    options.archived
+      ? isNotNull(organizations.archivedAt)
+      : isNull(organizations.archivedAt),
+    options.status ? eq(organizations.status, options.status) : undefined,
+    // A whole domain is one search token ("acme.com"), which the word-prefix query cannot reach.
+    q
+      ? or(
+          tsQuery
+            ? sql`${organizations.search} @@ to_tsquery('simple', ${tsQuery})`
+            : undefined,
+          sql`${organizations.domain} like ${likePrefix(q)}`,
+        )
+      : undefined,
+    options.tagId
+      ? sql`exists (
+          select 1 from organization_tags
+          where organization_tags.organization_id = ${organizations.id}
+            and organization_tags.tag_id = ${options.tagId}
+        )`
+      : undefined,
+  );
 
-  const rows = await db
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-      domain: organizations.domain,
-      industry: organizations.industry,
-      status: organizations.status,
-      city: organizations.city,
-      country: organizations.country,
-      contactCount,
-      lastActivityAt,
-      logoVersion,
-    })
-    .from(organizations)
-    .where(
-      and(
-        eq(organizations.ownerId, ownerId),
-        options.archived
-          ? isNotNull(organizations.archivedAt)
-          : isNull(organizations.archivedAt),
-        options.status ? eq(organizations.status, options.status) : undefined,
-        // A whole domain is one search token ("acme.com"), which the word-prefix query cannot reach.
-        q
-          ? or(
-              tsQuery
-                ? sql`${organizations.search} @@ to_tsquery('simple', ${tsQuery})`
-                : undefined,
-              sql`${organizations.domain} like ${likePrefix(q)}`,
-            )
-          : undefined,
-        options.tagId
-          ? sql`exists (
-              select 1 from organization_tags
-              where organization_tags.organization_id = ${organizations.id}
-                and organization_tags.tag_id = ${options.tagId}
-            )`
-          : undefined,
-      ),
-    )
-    // Companies with no activity sort last either way; the name and id keep pages stable.
-    .orderBy(
-      sql`${SORT_BY[sort]} ${direction} nulls last`,
-      sql`lower(${organizations.name})`,
-      asc(organizations.id),
-    )
-    .limit(limit + 1)
-    .offset(options.offset ?? 0);
+  const [rows, total] = await Promise.all([
+    db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        domain: organizations.domain,
+        industry: organizations.industry,
+        status: organizations.status,
+        city: organizations.city,
+        country: organizations.country,
+        contactCount,
+        lastActivityAt,
+        logoVersion,
+      })
+      .from(organizations)
+      .where(matching)
+      // Companies without a value sort last either way; the name and id keep pages stable.
+      .orderBy(
+        sql`${SORT_BY[sort]} ${direction} nulls last`,
+        sql`lower(${organizations.name})`,
+        asc(organizations.id),
+      )
+      .limit(limit + 1)
+      .offset(options.offset ?? 0),
+    db.$count(organizations, matching),
+  ]);
 
-  return { rows: rows.slice(0, limit), hasMore: rows.length > limit };
+  return { rows: rows.slice(0, limit), hasMore: rows.length > limit, total };
 }
 
 export async function getOrganization(ownerId: string, id: string) {

@@ -30,8 +30,8 @@ test("a website that cannot be read is reported and the company still works", as
   await page.getByRole("button", { name: "New company" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Nowhere Works");
   // A reserved name that never resolves.
-  await page.getByLabel("Website").fill("nowhere.invalid");
-  await page.getByRole("button", { name: "Create company" }).click();
+  await page.getByLabel("Domain", { exact: true }).fill("nowhere.invalid");
+  await page.getByRole("button", { name: "Add company" }).click();
 
   await expect(
     panel(page).getByRole("heading", { name: "Nowhere Works" }),
