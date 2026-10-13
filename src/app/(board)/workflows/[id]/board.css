@@ -16,41 +16,55 @@
 }
 
 /* The page the drawing sits on. A sibling layer behind the whiteboard's
-   canvases, so the drawing floats over it; the canvases themselves are made
-   transparent below and through the viewBackgroundColor prop. The owner picks
-   one of four from the whiteboard's menu (paper.ts); a plain page draws
-   nothing. Uniform like the reference images: no fade, no mask. */
+   canvases; the canvases themselves are made transparent below and through the
+   viewBackgroundColor prop. The owner picks one of four from the whiteboard's
+   menu (paper.ts); a plain page draws nothing. The page moves and grows with
+   the drawing: board-editor.tsx writes where the drawing's corner is and how
+   large it is drawn into the three properties below. Uniform like the
+   reference images: no fade, no mask. */
 .board-paper {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  --paper-scale: 1;
+  --paper-x: 0px;
+  --paper-y: 0px;
   /* Dark on light: lime cannot be seen on the off-white background. */
   --paper-line: color-mix(in oklch, var(--foreground) 10%, transparent);
   --paper-knot: color-mix(in oklch, var(--foreground) 26%, transparent);
+  --paper-dot: color-mix(in oklch, var(--foreground) 16%, transparent);
 }
 
+/* A dot is drawn in the middle of its own square, so the squares are moved
+   half of one for the dots to fall where the squares' corners were. A dot
+   grows a little with the drawing, and no further. */
 .board-paper[data-paper="dots"] {
+  --paper-cell: calc(24px * var(--paper-scale));
+  --paper-r: clamp(1px, calc(1.2px * var(--paper-scale)), 2.4px);
   background-image: radial-gradient(
     circle,
-    color-mix(in oklch, var(--foreground) 16%, transparent) 1.2px,
-    transparent 1.4px
+    var(--paper-dot) var(--paper-r),
+    transparent calc(var(--paper-r) + 0.2px)
   );
-  background-size: 24px 24px;
-  background-position: 12px 12px;
+  background-size: var(--paper-cell) var(--paper-cell);
+  background-position: calc(var(--paper-x) + var(--paper-cell) / 2)
+    calc(var(--paper-y) + var(--paper-cell) / 2);
 }
 
-/* Squares, with a brighter point where the lines cross. A point is drawn in
-   the middle of its own square, so that layer is moved back half a square. */
+/* Squares, with a brighter point where the lines cross: the points are moved
+   back half a square, as the dots are, and half the width of a line. */
 .board-paper[data-paper="grid"] {
+  --paper-cell: calc(48px * var(--paper-scale));
   background-image:
     radial-gradient(circle, var(--paper-knot) 1.2px, transparent 1.7px),
     linear-gradient(to right, var(--paper-line) 1px, transparent 1px),
     linear-gradient(to bottom, var(--paper-line) 1px, transparent 1px);
-  background-size: 48px 48px;
+  background-size: var(--paper-cell) var(--paper-cell);
   background-position:
-    -23.5px -23.5px,
-    0 0,
-    0 0;
+    calc(var(--paper-x) - var(--paper-cell) / 2 + 0.5px)
+      calc(var(--paper-y) - var(--paper-cell) / 2 + 0.5px),
+    var(--paper-x) var(--paper-y),
+    var(--paper-x) var(--paper-y);
 }
 
 .board-paper[data-paper="lines"] {
@@ -59,7 +73,8 @@
     var(--paper-line) 1px,
     transparent 1px
   );
-  background-size: 100% 32px;
+  background-size: 100% calc(32px * var(--paper-scale));
+  background-position: 0 var(--paper-y);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -67,20 +82,7 @@
   .board-paper {
     --paper-line: color-mix(in oklch, var(--primary) 24%, transparent);
     --paper-knot: color-mix(in oklch, var(--primary) 75%, transparent);
-  }
-
-  .board-paper[data-paper="dots"] {
-    background-image: radial-gradient(
-      circle,
-      color-mix(in oklch, var(--foreground) 30%, transparent) 1.3px,
-      transparent 1.5px
-    );
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .board-paper[data-paper="dots"] {
-    background-position: 0 0;
+    --paper-dot: color-mix(in oklch, var(--foreground) 30%, transparent);
   }
 }
 

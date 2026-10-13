@@ -209,6 +209,7 @@ function Whiteboard({
   const [selected, setSelected] = useState<Selected | null>(null);
   const [stages, setStages] = useState<StageBox[]>([]);
   const halos = useRef<HTMLDivElement>(null);
+  const page = useRef<HTMLDivElement>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [saver] = useState(() =>
     createBoardSaver<NonDeletedExcalidrawElement>({
@@ -271,7 +272,7 @@ function Whiteboard({
 
   return (
     <div className="board absolute inset-0">
-      <div aria-hidden className="board-paper" data-paper={paper} />
+      <div ref={page} aria-hidden className="board-paper" data-paper={paper} />
       <StageHalos layer={halos} stages={stages} tracked={tracked} />
       <Excalidraw
         excalidrawAPI={setApi}
@@ -325,8 +326,19 @@ function Whiteboard({
           );
           // The glows go where the drawing goes. Moving and zooming it changes
           // no box, so the layer is moved here and nothing is drawn again.
+          const zoom = appState.zoom.value;
           if (halos.current) {
-            halos.current.style.transform = `scale(${appState.zoom.value}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
+            halos.current.style.transform = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
+          }
+          // The page moves and grows with the drawing too. Zoomed far out, its
+          // marks would run together, so every other one is left out, and again,
+          // until they stand apart; those kept stay where they were.
+          if (page.current) {
+            let scale: number = zoom;
+            while (scale < 0.5) scale *= 2;
+            page.current.style.setProperty("--paper-scale", String(scale));
+            page.current.style.setProperty("--paper-x", `${appState.scrollX * zoom}px`);
+            page.current.style.setProperty("--paper-y", `${appState.scrollY * zoom}px`);
           }
           const boxes = stageBoxes(all);
           setStages((before) => (sameBoxes(before, boxes) ? before : boxes));

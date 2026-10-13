@@ -135,6 +135,23 @@ test("the page behind the drawing is the owner's choice, and is remembered", asy
   await expect(paper).toHaveAttribute("data-paper", "grid");
   expect(await drawn()).toContain("linear-gradient");
 
+  // The page grows with the drawing when it is zoomed in, and moves with it.
+  const squares = () =>
+    paper.evaluate((layer) => parseFloat(getComputedStyle(layer).backgroundSize));
+  const corner = () =>
+    paper.evaluate((layer) => getComputedStyle(layer).getPropertyValue("--paper-y"));
+  const canvas = (await whiteboard(page).boundingBox())!;
+  await page.mouse.move(canvas.x + canvas.width * 0.75, canvas.y + canvas.height * 0.8);
+  const before = { size: await squares(), y: await corner() };
+  // A turn of the wheel with Control held zooms in by a tenth.
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -300);
+  await page.keyboard.up("Control");
+  await expect.poll(squares).toBeGreaterThan(before.size * 1.05);
+  const zoomed = await corner();
+  await page.mouse.wheel(0, 200);
+  await expect.poll(corner).not.toBe(zoomed);
+
   // The choice is for every whiteboard, and is there again after a reload.
   await page.reload();
   await expect(paper).toHaveAttribute("data-paper", "grid");
