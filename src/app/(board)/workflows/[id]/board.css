@@ -48,6 +48,68 @@
   }
 }
 
+/* The glow behind each stage: a second layer under the canvases, above the
+   dots. The layer is in the drawing's own measures and is moved and scaled with
+   it from board-editor.tsx, so a glow is as large as its box at any zoom. The
+   box's fill covers the middle; what shows is the blurred rim, which slowly
+   grows and fades. */
+.stage-halos {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.stage-halos-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.stage-halo {
+  position: absolute;
+  filter: blur(14px);
+  opacity: 0.5;
+  animation: stage-halo 4s ease-in-out infinite alternate;
+}
+
+/* The shape is drawn a level down, so the blur above it also softens the cut
+   corners of a diamond. */
+.stage-halo::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 28px;
+  background: var(--halo);
+}
+
+.stage-halo[data-shape="ellipse"]::before {
+  border-radius: 50%;
+}
+
+.stage-halo[data-shape="diamond"]::before {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+@keyframes stage-halo {
+  from {
+    opacity: 0.3;
+    scale: 1;
+  }
+  to {
+    opacity: 0.7;
+    scale: 1.05;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-halo {
+    animation: none;
+  }
+}
+
 /* The whiteboard's own chrome, mapped onto this app's tokens. The app's
    --card/--popover/--primary already follow the system theme through
    prefers-color-scheme in globals.css, so these follow too. */

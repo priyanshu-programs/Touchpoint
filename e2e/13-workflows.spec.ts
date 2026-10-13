@@ -22,6 +22,14 @@ const board = (page: Page, name: string) =>
 const ID = "[0-9a-f-]{36}";
 const whiteboard = (page: Page) => page.locator(".excalidraw canvas.interactive");
 const card = (page: Page) => page.getByRole("region", { name: "Selected box" });
+// The glow behind a stage, and the colour it is drawn in.
+const halos = (page: Page) => page.locator(".stage-halo");
+const haloColor = (page: Page) =>
+  halos(page).evaluate((halo) => getComputedStyle(halo, "::before").backgroundColor);
+const middle = (box: { x: number; y: number; width: number; height: number }) => ({
+  x: box.x + box.width / 2,
+  y: box.y + box.height / 2,
+});
 const heading = (page: Page, name: string) =>
   page.getByRole("heading", { name, exact: true });
 
@@ -143,11 +151,21 @@ test("a workflow is drawn by hand: a box made a stage, saved, renamed and delete
   await page.keyboard.type("Welcome call");
   await page.keyboard.press("Escape");
 
+  // A box that is not a stage has no glow; a stage has one, where it was drawn.
+  await expect(halos(page)).toHaveCount(0);
   const save = saved(page);
   await card(page).getByRole("button", { name: "Make this a stage" }).click();
   await expect(card(page).getByRole("button", { name: "Not a stage" })).toBeVisible();
   expect((await save).status()).toBe(200);
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(halos(page)).toHaveCount(1);
+  const drawn = (await halos(page).boundingBox())!;
+  expect(Math.abs(middle(drawn).x - 600)).toBeLessThan(3);
+  expect(Math.abs(middle(drawn).y - 350)).toBeLessThan(3);
+  // As wide as its box, and up to a twentieth wider as it grows and fades.
+  expect(drawn.width).toBeGreaterThan(197);
+  expect(drawn.width).toBeLessThan(213);
+  await expect(halos(page)).toHaveCSS("animation-name", "stage-halo");
 
   // It is all still there after a reload: the box, in the middle of the
   // whiteboard now, is a stage.
@@ -156,6 +174,28 @@ test("a workflow is drawn by hand: a box made a stage, saved, renamed and delete
   const box = await whiteboard(page).boundingBox();
   await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await expect(card(page).getByRole("button", { name: "Not a stage" })).toBeVisible();
+
+  // The glow went to the middle with its box, and stays behind it when the
+  // drawing is made smaller: a click on the glow still lands on the box.
+  await expect
+    .poll(async () => Math.abs(middle((await halos(page).boundingBox())!).x - middle(box!).x))
+    .toBeLessThan(3);
+  // A click on bare canvas, clear of the whiteboard's panels, selects nothing.
+  await page.mouse.click(box!.x + box!.width * 0.75, box!.y + box!.height * 0.8);
+  await expect(card(page)).toHaveCount(0);
+  await page.keyboard.press("Control+Minus");
+  await expect
+    .poll(async () => (await halos(page).boundingBox())!.width)
+    .toBeLessThan(192);
+  const smaller = middle((await halos(page).boundingBox())!);
+  await page.mouse.click(smaller.x, smaller.y);
+  await expect(card(page).getByRole("button", { name: "Not a stage" })).toBeVisible();
+  await page.keyboard.press("Control+0");
+
+  // It holds still for someone who has asked for less motion.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(halos(page)).toHaveCSS("animation-name", "none");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
 
   // Renaming keeps the drawing; a name another workflow has is refused.
   await page.getByRole("button", { name: "Workflow actions" }).click();
@@ -443,9 +483,12 @@ test("a blank board on a person: a stage's status is set on the board and in the
   const status = (name: string) =>
     card(page).getByRole("group", { name: "Status" }).getByRole("button", { name });
   await expect(status("Not started")).toHaveAttribute("aria-pressed", "true");
+  // On a record's board the glow behind a stage is in its status's colour.
+  await expect.poll(() => haloColor(page)).toBe("rgb(134, 142, 150)");
   const save = saved(page);
   await status("Done").click();
   await expect(status("Done")).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => haloColor(page)).toBe("rgb(47, 158, 68)");
   expect((await save).status()).toBe(200);
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 

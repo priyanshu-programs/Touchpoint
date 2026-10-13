@@ -26,6 +26,7 @@ import {
 import "./board.css";
 import { createBoardSaver, type SaveState } from "./board-saver";
 import { BoxCard } from "./box-card";
+import { StageHalos, type StageBox } from "./stage-halos";
 
 const SAVE_LABELS: Record<SaveState, string> = {
   saved: "Saved",
@@ -71,6 +72,32 @@ function selectedBox(
   const stage = box.customData?.stage as { status: StageStatus } | undefined;
   return { id: box.id, status: stage?.status ?? null };
 }
+
+// Every stage of the drawing, with where its box is.
+function stageBoxes(elements: readonly ExcalidrawElement[]): StageBox[] {
+  return elements.flatMap((element) => {
+    const stage = element.customData?.stage as { status: StageStatus } | undefined;
+    if (!stage || element.isDeleted || !oneOf(STAGE_SHAPES, element)) return [];
+    const { id, version, x, y, width, height, angle } = element;
+    return {
+      id,
+      version,
+      shape: element.type as StageBox["shape"],
+      status: stage.status,
+      x,
+      y,
+      width,
+      height,
+      angle,
+    };
+  });
+}
+
+const sameBoxes = (before: readonly StageBox[], now: readonly StageBox[]) =>
+  before.length === now.length &&
+  before.every(
+    (box, index) => box.id === now[index].id && box.version === now[index].version,
+  );
 
 type Drawing = { version: number; elements: Record<string, unknown>[] };
 
@@ -154,6 +181,8 @@ function Whiteboard({
   );
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [selected, setSelected] = useState<Selected | null>(null);
+  const [stages, setStages] = useState<StageBox[]>([]);
+  const halos = useRef<HTMLDivElement>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [saver] = useState(() =>
     createBoardSaver<NonDeletedExcalidrawElement>({
@@ -217,6 +246,7 @@ function Whiteboard({
   return (
     <div className="board absolute inset-0">
       <div aria-hidden className="board-dots" />
+      <StageHalos layer={halos} stages={stages} tracked={tracked} />
       <Excalidraw
         excalidrawAPI={setApi}
         name={name}
@@ -267,6 +297,13 @@ function Whiteboard({
               ? before
               : box,
           );
+          // The glows go where the drawing goes. Moving and zooming it changes
+          // no box, so the layer is moved here and nothing is drawn again.
+          if (halos.current) {
+            halos.current.style.transform = `scale(${appState.zoom.value}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
+          }
+          const boxes = stageBoxes(all);
+          setStages((before) => (sameBoxes(before, boxes) ? before : boxes));
           // Only what the server keeps is sent, so nothing it would refuse can
           // stop the rest of the drawing saving.
           saver.changed(
