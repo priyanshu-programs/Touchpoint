@@ -1,5 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -8,6 +9,7 @@ import { boardSubjectOf, getBoard } from "@/modules/workflows/queries";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import { BoardCanvas } from "./board-canvas";
 import { BoardMenu } from "./board-menu";
+import { PAPER_COOKIE, paperOf } from "./paper";
 
 export const metadata: Metadata = { title: "Workflow" };
 
@@ -64,6 +66,7 @@ export default async function BoardPage({
           boardId={board.id}
           name={board.name}
           tracked={subject !== null}
+          paper={paperOf((await cookies()).get(PAPER_COOKIE)?.value)}
         />
       </main>
     </div>

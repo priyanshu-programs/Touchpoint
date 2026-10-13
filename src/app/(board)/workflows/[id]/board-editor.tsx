@@ -15,7 +15,7 @@ import type {
   NonDeletedExcalidrawElement,
 } from "@excalidraw/excalidraw/element/types";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { Loader2 } from "lucide-react";
+import { Grid3x3, Grip, Loader2, Rows3, Square } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { StageStatus } from "@/db/schema";
 import {
@@ -26,6 +26,7 @@ import {
 import "./board.css";
 import { createBoardSaver, type SaveState } from "./board-saver";
 import { BoxCard } from "./box-card";
+import { PAPER_COOKIE, PAPERS, type Paper } from "./paper";
 import { StageHalos, type StageBox } from "./stage-halos";
 
 const SAVE_LABELS: Record<SaveState, string> = {
@@ -45,6 +46,19 @@ const SAVE_DOTS: Record<SaveState, string> = {
   error: "bg-destructive",
   conflict: "bg-destructive",
 };
+
+const PAPER_ICONS: Record<Paper, typeof Grip> = {
+  dots: Grip,
+  grid: Grid3x3,
+  lines: Rows3,
+  plain: Square,
+};
+
+// The page is how the owner likes every whiteboard, so it is kept in a cookie
+// the board's page reads, and the next whiteboard opens on it at once.
+function keepPaper(paper: Paper) {
+  document.cookie = `${PAPER_COOKIE}=${paper}; path=/; max-age=31536000; samesite=lax`;
+}
 
 const dark = () => window.matchMedia("(prefers-color-scheme: dark)");
 const watchTheme = (changed: () => void) => {
@@ -108,11 +122,14 @@ export function BoardEditor({
   boardId,
   name,
   tracked,
+  paper,
 }: {
   boardId: string;
   name: string;
   // A company's or a person's own board, whose stages have a status.
   tracked: boolean;
+  // The page the owner last chose to draw on.
+  paper: Paper;
 }) {
   const [drawing, setDrawing] = useState<Drawing | "failed" | null>(null);
 
@@ -133,7 +150,7 @@ export function BoardEditor({
   if (drawing === null) {
     return (
       <div className="board absolute inset-0">
-        <div aria-hidden className="board-dots" />
+        <div aria-hidden className="board-paper" data-paper={paper} />
         <div className="relative grid h-full place-items-center p-4">
           <p className="flex items-center gap-2 rounded-xl bg-card px-4 py-3 text-sm text-muted-foreground shadow-lg ring-1 ring-foreground/10">
             <Loader2 aria-hidden className="size-4 animate-spin" />
@@ -146,7 +163,7 @@ export function BoardEditor({
   if (drawing === "failed") {
     return (
       <div className="board absolute inset-0">
-        <div aria-hidden className="board-dots" />
+        <div aria-hidden className="board-paper" data-paper={paper} />
         <div className="relative grid h-full place-items-center p-4">
           <p
             role="alert"
@@ -159,7 +176,13 @@ export function BoardEditor({
     );
   }
   return (
-    <Whiteboard boardId={boardId} name={name} tracked={tracked} {...drawing} />
+    <Whiteboard
+      boardId={boardId}
+      name={name}
+      tracked={tracked}
+      opensOn={paper}
+      {...drawing}
+    />
   );
 }
 
@@ -167,13 +190,16 @@ function Whiteboard({
   boardId,
   name,
   tracked,
+  opensOn,
   version,
   elements,
 }: Drawing & {
   boardId: string;
   name: string;
   tracked: boolean;
+  opensOn: Paper;
 }) {
+  const [paper, setPaper] = useState(opensOn);
   const isDark = useSyncExternalStore(
     watchTheme,
     () => dark().matches,
@@ -245,7 +271,7 @@ function Whiteboard({
 
   return (
     <div className="board absolute inset-0">
-      <div aria-hidden className="board-dots" />
+      <div aria-hidden className="board-paper" data-paper={paper} />
       <StageHalos layer={halos} stages={stages} tracked={tracked} />
       <Excalidraw
         excalidrawAPI={setApi}
@@ -331,6 +357,26 @@ function Whiteboard({
           <MainMenu.DefaultItems.SearchMenu />
           <MainMenu.DefaultItems.Help />
           <MainMenu.DefaultItems.ClearCanvas />
+          <MainMenu.Separator />
+          <MainMenu.Group title="Page">
+            {PAPERS.map(({ key, label }) => {
+              const Icon = PAPER_ICONS[key];
+              return (
+                <MainMenu.Item
+                  key={key}
+                  icon={<Icon aria-hidden />}
+                  selected={paper === key}
+                  aria-pressed={paper === key}
+                  onSelect={() => {
+                    setPaper(key);
+                    keepPaper(key);
+                  }}
+                >
+                  {label}
+                </MainMenu.Item>
+              );
+            })}
+          </MainMenu.Group>
         </MainMenu>
       </Excalidraw>
       {selected && (

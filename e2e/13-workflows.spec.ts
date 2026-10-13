@@ -113,6 +113,55 @@ test("a starter workflow is added in one click and opens as a whiteboard", async
   expect(seen.errors).toEqual([]);
 });
 
+test("the page behind the drawing is the owner's choice, and is remembered", async ({
+  page,
+}) => {
+  const paper = page.locator(".board-paper");
+  const drawn = () =>
+    paper.evaluate((layer) => getComputedStyle(layer).backgroundImage);
+  const menu = page.getByTestId("main-menu-trigger");
+  const choice = (name: string) => page.getByRole("button", { name, exact: true });
+
+  await page.goto("/workflows");
+  await main(page).getByRole("link", { name: "Prospecting" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  // The dotted grid, until another page is chosen.
+  await expect(paper).toHaveAttribute("data-paper", "dots");
+  expect(await drawn()).toContain("radial-gradient");
+
+  await menu.click();
+  await expect(choice("Dotted grid")).toHaveAttribute("aria-pressed", "true");
+  await choice("Grid").click();
+  await expect(paper).toHaveAttribute("data-paper", "grid");
+  expect(await drawn()).toContain("linear-gradient");
+
+  // The choice is for every whiteboard, and is there again after a reload.
+  await page.reload();
+  await expect(paper).toHaveAttribute("data-paper", "grid");
+  await expect(whiteboard(page)).toBeVisible();
+  await menu.click();
+  await expect(choice("Grid")).toHaveAttribute("aria-pressed", "true");
+  await choice("Lines").click();
+  await expect(paper).toHaveAttribute("data-paper", "lines");
+  expect(await drawn()).toContain("linear-gradient");
+  await menu.click();
+  await choice("Plain").click();
+  await expect(paper).toHaveAttribute("data-paper", "plain");
+  expect(await drawn()).toBe("none");
+
+  // The cookie is the browser's to write: one that names no page gives the dots.
+  await page.context().addCookies([
+    {
+      name: "board-paper",
+      value: "url(x)",
+      domain: new URL(page.url()).hostname,
+      path: "/",
+    },
+  ]);
+  await page.reload();
+  await expect(paper).toHaveAttribute("data-paper", "dots");
+});
+
 test("a workflow is drawn by hand: a box made a stage, saved, renamed and deleted", async ({
   page,
 }) => {

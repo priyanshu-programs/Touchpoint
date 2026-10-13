@@ -15,14 +15,21 @@
   display: none !important;
 }
 
-/* The dotted grid. A sibling layer behind the whiteboard's canvases, so the
-   drawing floats over dots; the canvases themselves are made transparent below
-   and through the viewBackgroundColor prop. Uniform like the reference image:
-   no fade, no mask. */
-.board-dots {
+/* The page the drawing sits on. A sibling layer behind the whiteboard's
+   canvases, so the drawing floats over it; the canvases themselves are made
+   transparent below and through the viewBackgroundColor prop. The owner picks
+   one of four from the whiteboard's menu (paper.ts); a plain page draws
+   nothing. Uniform like the reference images: no fade, no mask. */
+.board-paper {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  /* Dark on light: lime cannot be seen on the off-white background. */
+  --paper-line: color-mix(in oklch, var(--foreground) 10%, transparent);
+  --paper-knot: color-mix(in oklch, var(--foreground) 26%, transparent);
+}
+
+.board-paper[data-paper="dots"] {
   background-image: radial-gradient(
     circle,
     color-mix(in oklch, var(--foreground) 16%, transparent) 1.2px,
@@ -32,8 +39,37 @@
   background-position: 12px 12px;
 }
 
+/* Squares, with a brighter point where the lines cross. A point is drawn in
+   the middle of its own square, so that layer is moved back half a square. */
+.board-paper[data-paper="grid"] {
+  background-image:
+    radial-gradient(circle, var(--paper-knot) 1.2px, transparent 1.7px),
+    linear-gradient(to right, var(--paper-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--paper-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position:
+    -23.5px -23.5px,
+    0 0,
+    0 0;
+}
+
+.board-paper[data-paper="lines"] {
+  background-image: linear-gradient(
+    to bottom,
+    var(--paper-line) 1px,
+    transparent 1px
+  );
+  background-size: 100% 32px;
+}
+
 @media (prefers-color-scheme: dark) {
-  .board-dots {
+  /* Lime on black, as in the owner's reference. */
+  .board-paper {
+    --paper-line: color-mix(in oklch, var(--primary) 24%, transparent);
+    --paper-knot: color-mix(in oklch, var(--primary) 75%, transparent);
+  }
+
+  .board-paper[data-paper="dots"] {
     background-image: radial-gradient(
       circle,
       color-mix(in oklch, var(--foreground) 30%, transparent) 1.3px,
@@ -43,7 +79,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .board-dots {
+  .board-paper[data-paper="dots"] {
     background-position: 0 0;
   }
 }
