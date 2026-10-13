@@ -12,9 +12,11 @@ The full product requirements, data model and architecture are in `docs/PRD.md`.
 
 Phase 3 — Core business modules (PRD section 16)
 
-Accepted when PRD journeys 2–6 and 8 pass end to end on desktop and phone widths, and editing one workflow instance leaves its template and sibling instances unchanged.
+Accepted when PRD journeys 2–4 and 8 pass end to end on desktop and phone widths, and editing one workflow instance leaves its template and sibling instances unchanged. Journeys 5 (move a deal) and 6 (win and deliver) need Opportunities, which the owner deferred on 2026-10-13 (see "Deferred until after Phases 4 to 8" below); they are accepted with that work, not with this phase. The parts of journey 6 that do not need a deal (an engagement for a company, a delivery workflow, milestones, a payment schedule) are still built here.
 
 ## Active Work Items
+
+**Next: Step 5 (Workflow engine).** Step 4 (Opportunities) and saved views are deferred, not next.
 
 Each step is a vertical slice: migration, module (zod schema, service, queries, tests), screens and server actions, nav entry, Playwright coverage. A step is done when lint, typecheck, Vitest and Playwright pass and it is deployed.
 
@@ -45,20 +47,29 @@ Each step is a vertical slice: migration, module (zod schema, service, queries, 
     - [x] Part 1: the gear and the Fields panel (`&fields=companies|contacts`, in place of the open record, with a way back); fields are dragged into order by a handle or moved with the arrow keys, and shown or hidden with an eye; the order is kept in `field_layouts` (migration 0012) and both Details lists follow it. Uses dnd-kit, brought in ahead of Step 6
     - [x] Asked for on 2026-10-12 with reference screenshots, ahead of Part 2: the account menu moves from the top bar to the foot of the sidebar (it stays in the top bar on a phone, which has no sidebar), and the Fields panel takes the reference's look: a one-line subtitle, pill tabs, a "Standard fields" section that folds and gives its count, plain rows whose eye and handle show when pointed at, and a narrower panel. Not built: the reference's Deals tab (Step 4), its Suggested and custom sections (Part 2)
     - [x] Part 2: suggested fields in one click (five for companies: Segment, Territory, Lifecycle stage, Lead source, ICP fit score; the reference's Account type and BDR owner are left out, since Status and a single user cover them) and custom fields of four kinds, text, number, dropdown and date (`custom_field_defs`, a `custom` column on companies and contacts, migration 0013), with their values on the Edit forms and in Details; rename a custom field, add options to a dropdown, delete a field with its values. Not built: editing a value in place on Details, custom fields on the New forms, as list columns or in search, removing a dropdown's options, the Deals tab (Step 4)
-- [ ] Between steps 3 and 4: lists, loader, activities and tasks in the panel, and company statuses of the owner's own, asked for by the owner with reference screenshots on 2026-10-13 and approved as six steps shipped one at a time
+- [x] Between steps 3 and 4: lists, loader, activities and tasks in the panel, and company statuses of the owner's own, asked for by the owner with reference screenshots on 2026-10-13 and approved as six steps shipped one at a time. Five shipped; the sixth (saved views) is deferred
   - [x] Step 1: a bar across the top of the window while a page is on its way or a server action is running; pictures in the People list; a picture opens larger when clicked (People list, a company's Contacts table, the panel's header). Not built: a picture larger than the 256 px stored
   - [x] Step 2: the lists' look from the reference (each list's own title row with its primary button, search with an icon that runs on Enter, Filters and Sort as menus, Archived as a switch, the table in a card, "Showing a–b of n", sorting by domain and industry) and New company as a side panel asking for a name and a domain. Not built: the reference's Owner and Open deals columns (one user; deals arrive with Step 4); a starting number in the People list's count after its first page, since it pages by a cursor
   - [x] Step 3: company statuses of the owner's own, each with a colour (any colour, from the browser's picker; first shipped as a fixed list of nine and changed the same day at the owner's request, migration 0015, not additive and approved), shown in the companies table (a Status column, from tablet width up), the Filters menu and the status badge; "Edit statuses…" in a company's status menu adds, recolours, renames and deletes them, and deleting one moves its companies to Other (`company_statuses`, migration 0014, which also drops `organizations_status_check`, not additive and approved with the plan; the service checks the value instead). Not built: renaming, deleting or reordering the five built-in statuses (colour only), sorting the table by status, colours for a person's relationship, a count of companies beside each status
   - [x] Step 4: logging an activity, adding a task and opening an existing one all happen inside the panel (`&activity=new|<id>`, `&task=new|<id>`, in place of the record with a way back to its tab); a person opened inside a company comes back there after a save; the pages stay for Today, the Tasks area and Ctrl+K. Not built: the list's filters, sort and page kept after adding an entry or deleting an activity (the way back is built from ids; Back, Cancel and saving an existing entry do keep them); checking that an entry belongs to the record whose panel shows it (it only has to be the owner's)
   - [x] Step 5: a Columns menu on both lists that shows or hides every column but the name (kept in a cookie per list, `columns-companies` and `columns-contacts`), and a checkbox on each row with one in the heading for the whole page; a bar at the foot of the window archives, restores or, after a confirmation, deletes the ticked records. Not built: ticking across pages (a page holds 50); the menu leaving out, on a narrow screen, the columns that width already hides; changing the status or tags of several records at once; undo
-  - [ ] Step 6: saved views (`list_views`, migration 0016): a named set of filters and sort per list
-- [ ] Step 4: Opportunities — value, probability, contacts, won and lost; `src/lib/money.ts`
-- [ ] Step 5: Workflow engine — templates, list editor, instances, `transition()`, stage tasks, roadmap, starter templates
-- [ ] Step 6: Pipeline board (dnd-kit) and canvas template editor (React Flow)
-- [ ] Step 7: Engagements — from a won opportunity, milestones, deliverables, owed and waiting, payment schedule
+  - Step 6 (saved views): deferred by the owner on 2026-10-13, see below
+- Step 4 (Opportunities): deferred by the owner on 2026-10-13, see below
+- [ ] Step 5: Workflow engine — templates, list editor, instances, `transition()`, stage tasks, roadmap, starter templates. With Opportunities deferred, a workflow is started on a company or a person (the owner's choice, 2026-10-13). What an instance belongs to is modelled so that an opportunity and an engagement can be further kinds later without rewriting the engine. The parts of PRD section 9 that speak of a deal ("one pipeline per record", a `won` or `lost` stage setting the opportunity's status) wait for Opportunities; a terminal stage here just ends the workflow
+- [ ] Step 6: Pipeline board (dnd-kit) and canvas template editor (React Flow). The board shows the workflow instances of companies and people made from one template, not deals
+- [ ] Step 7: Engagements — created for a company directly; milestones, deliverables, owed and waiting, payment schedule. "From a won opportunity" is added with Opportunities
 - [ ] Step 8: Materials — library, versions as links, send logging, proposals
-- [ ] Step 9: Search, quick add, custom fields, merge duplicates
-- [ ] Step 10: Journey tests on desktop and phone; phase close-out
+- [ ] Step 9: Search, quick add, merge duplicates, and what is left of custom fields (they were pulled forward; the "Not built" list under Part 2 above says what remains)
+- [ ] Step 10: Journey tests on desktop and phone (journeys 2–4 and 8); phase close-out
+
+### Deferred until after Phases 4 to 8
+
+Put off by the owner on 2026-10-13, to be done once the other phases are complete. Not dropped. Do not offer either as the next step before then.
+
+- [ ] Saved views — a named set of filters and sort per list (`list_views`: `q`, `tag`, `status`, `archived`, `sort`, `dir`; 20 per list; a Views menu in each list's toolbar). It was planned as migration 0016; take whatever number is next when it is built, since Step 5 will use 0016 first. Outline approved with the six steps: `src/modules/views` (strict zod over those six parameters, create, rename, delete, audited), names unique per list without regard to case, each view a link whose address is built on the server from the stored, re-checked parameters, and "Save current view…"
+- [ ] Opportunities — value, probability, contacts, won and lost; `src/lib/money.ts`. Picking it up also means: an opportunity becomes a kind of record a workflow instance can belong to, and a `won` or `lost` stage sets its status; the Deals tab in the company and contact panels and the Open deals column in the companies table (both left out so far); the board showing deals; an engagement made from a won opportunity; "stalled opportunities" on the daily review (journey 3); journeys 5 and 6. Workflows already running on companies and people stay as they are; nothing is converted
+
+What waits with Opportunities in later phases: Phase 4's Pipeline and Weighted pipeline figures and the win-rate, lost-reasons and meetings-booked reports (PRD section 10) are left out until then, not shown as zero; the assistant's deal questions in Phase 6 likewise.
 
 Left out of Phase 3 on purpose: key-based enrichment providers and the enrichment review screen (the website reader arrives with the Companies workspace above), file uploads and the `files` table (no storage on Vercel), email and push reminder channels (email needs Gmail in Phase 5; push needs a service worker), dashboard filters, money, reports and data export (Phase 4).
 
@@ -73,6 +84,7 @@ Known gaps in Phase 2 work:
 ## Key Decisions & Constraints
 
 - **$0/month hard constraint.** Only free tiers; never make a paid service a requirement.
+- **Order of work departs from the PRD (owner's decision, 2026-10-13).** Opportunities and saved views are deferred until after Phases 4 to 8, and Phase 3 continues from Step 5. The PRD has workflows built on opportunities; until they exist, a workflow belongs to a company or a person.
 - Hosting: Vercel Hobby (web), Neon Free (Postgres), cron-job.org (scheduler, every 15 minutes), Vercel daily cron as backup.
 - The Docker path (web + worker + Postgres) must keep working for open-source users.
 - Stack: Next.js 16 App Router, TypeScript, Node 24, pnpm, Tailwind v4, shadcn/ui, Drizzle, Better Auth, zod, Vitest, Playwright.

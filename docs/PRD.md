@@ -92,7 +92,7 @@ It must answer five questions at any time:
 | Opportunity | A possible deal with a value and probability | One organization (optional), many contacts; has one workflow instance as its pipeline |
 | Engagement | Paid work in progress or completed | May originate from a won opportunity; has milestones, deliverables, invoices |
 | Workflow template | A reusable set of stages and paths | Copied when applied |
-| Workflow instance | One client's private copy of a workflow | Belongs to exactly one opportunity, engagement or contact |
+| Workflow instance | One client's private copy of a workflow | Belongs to exactly one opportunity, engagement, contact or organization |
 | Activity | Something that happened (note, call, email, meeting) | Links to contacts, organization, opportunity, engagement |
 | Task | Something to do | One row with optional links to any record; shown everywhere relevant, counted once |
 | Material | A thing that can be sent (proposal, deck, link) | Has versions; each send is its own record |
@@ -400,6 +400,8 @@ Logging an activity can create a follow-up task (origin `follow_up`) in the same
 
 Seed templates (editable, not hard-coded): Prospecting, Website Project.
 
+**Order of work (owner's decision, 2026-10-13).** The engine is built before opportunities exist, so an instance first belongs to a company or a person; an opportunity and an engagement are further kinds of record it can belong to, added with their modules without changing the engine. Until opportunities are built, "One pipeline per record" and the status half of "Terminal stages" have nothing to act on: a `won` or `lost` stage ends the workflow and sets nothing else, and the board shows the instances of companies and people.
+
 ---
 
 ## 10. Revenue and reporting definitions
@@ -594,6 +596,8 @@ Each phase gets a detailed implementation plan when it starts. Outline:
 | 8 Validation | Accessibility, responsive, error states, data integrity pass | No broken journeys; no dead buttons |
 
 Dependencies: workflows need opportunities and tasks; revenue reports need invoices and allocations; email matching needs contact emails; AI tools need every module's service layer.
+
+**Changed order (owner's decision, 2026-10-13).** Opportunities, and saved views for the two lists, are deferred until Phases 4 to 8 are done. Phase 3 goes on without them: workflows run on companies and people (section 9), the board shows those, and an engagement is made for a company directly. Phase 3 is accepted on journeys 2–4 and 8; journeys 5 and 6 are accepted with the deferred work. What waits with opportunities in later phases: the Pipeline and Weighted pipeline figures and the win rate, lost reasons and meetings booked reports of section 10 (left out until then, not shown as zero), "stalled opportunities" in journey 3, and the assistant's questions about deals.
 
 ---
 
