@@ -3,6 +3,7 @@ export * from "./auth";
 export * from "./core";
 export * from "./enrichment";
 export * from "./fields";
+export * from "./files";
 export * from "./people";
 export * from "./tasks";
 export * from "./workflows";

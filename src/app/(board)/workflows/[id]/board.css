@@ -148,6 +148,31 @@
   }
 }
 
+/* The paperclip above a box that carries links or files: a third layer under
+   the canvases, moved and scaled with the drawing as the glows are. A mark
+   stands with its foot at the box's corner and is scaled back about that point,
+   so it keeps its size at any zoom. */
+.box-marks {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.box-marks-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  --board-zoom: 1;
+}
+
+.box-mark {
+  position: absolute;
+  transform-origin: 0 0;
+  transform: scale(calc(1 / var(--board-zoom))) translate(-100%, calc(-100% - 4px));
+}
+
 /* The question about a shape just drawn. Its layer lies over the whiteboard in
    the drawing's own measures, moved and scaled with it as the glows are, so the
    question stays at its shape; the question itself is scaled back to keep its

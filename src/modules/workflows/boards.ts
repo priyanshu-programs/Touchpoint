@@ -7,6 +7,8 @@ import {
   type BoardScene,
 } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
+import { dropUnusedFiles } from "@/modules/files/service";
+import { copyAttachments } from "./attachments";
 import {
   MAX_BOARD_STAGES,
   MAX_RECORD_BOARDS,
@@ -174,6 +176,8 @@ export async function deleteBoard(ownerId: string, id: string) {
     const before = await lockBoard(tx, ownerId, id);
     if (!before) return false;
     await tx.delete(workflowBoards).where(owned(ownerId, id));
+    // What its boxes carried went with it; a file nothing else points at goes too.
+    await dropUnusedFiles(tx, ownerId);
     await audit(tx, {
       ownerId,
       actor: "user",
@@ -320,6 +324,13 @@ export async function startBoard(
         stages: stagesOf(values.scene.elements),
       })
       .returning({ id: workflowBoards.id });
+    if (values.sourceBoardId) {
+      await copyAttachments(tx, ownerId, {
+        from: values.sourceBoardId,
+        to: row.id,
+        boxes: new Set(values.scene.elements.map(({ id }) => String(id))),
+      });
+    }
     await audit(tx, {
       ownerId,
       actor: "user",

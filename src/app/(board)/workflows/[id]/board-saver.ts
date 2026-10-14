@@ -24,15 +24,22 @@ export function createBoardSaver<Element>({
   let timer: ReturnType<typeof setTimeout> | undefined;
   let busy = false;
   let stopped = false;
+  // How the save last begun ends: whether the drawing it sent is stored.
+  let last = Promise.resolve(true);
+
+  const start = (leaving: boolean) => {
+    if (!busy) last = send(leaving);
+    return last;
+  };
 
   const later = (ms: number) => {
     clearTimeout(timer);
-    timer = setTimeout(() => void send(false), ms);
+    timer = setTimeout(() => void start(false), ms);
   };
 
   async function send(leaving: boolean) {
     clearTimeout(timer);
-    if (busy || stopped || !waiting) return;
+    if (stopped || !waiting) return !stopped;
     const elements = waiting;
     waiting = null;
     busy = true;
@@ -45,13 +52,20 @@ export function createBoardSaver<Element>({
       body,
       keepalive: leaving && body.length < KEEPALIVE_BYTES,
     }).catch(() => null);
+    // The next save starts from the version this one gave back, so nothing
+    // may begin one until that is known.
+    const saved = response?.ok
+      ? ((await response.json()) as { version: number })
+      : null;
     busy = false;
 
-    if (response?.ok) {
-      ({ version } = (await response.json()) as { version: number });
+    if (saved) {
+      ({ version } = saved);
       report(waiting ? "unsaved" : "saved");
       if (waiting) later(QUIET_MS);
-    } else if (response?.status === 409) {
+      return true;
+    }
+    if (response?.status === 409) {
       // The drawing was saved from somewhere else since this one opened.
       // Saving over it would lose that, so this whiteboard stops saving.
       stopped = true;
@@ -61,6 +75,7 @@ export function createBoardSaver<Element>({
       report("error");
       later(RETRY_MS);
     }
+    return false;
   }
 
   return {
@@ -76,6 +91,12 @@ export function createBoardSaver<Element>({
       later(QUIET_MS);
     },
     // Saves at once what is waiting: the page is being hidden or left.
-    flush: () => void send(true),
+    flush: () => void start(true),
+    // Saves what is waiting and says whether the drawing on the screen is now
+    // the one stored: something that goes on a box needs the box stored first.
+    async stored() {
+      if (busy) await last;
+      return start(false);
+    },
   };
 }

@@ -141,6 +141,13 @@
       "when": 1791903361341,
       "tag": "0019_workflow_board_position",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791921980745,
+      "tag": "0020_workflow_attachments",
+      "breakpoints": true
     }
   ]
 }

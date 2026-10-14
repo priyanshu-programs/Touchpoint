@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,7 @@ import {
 } from "@/modules/workflows/drawing";
 
 const CARD =
-  "absolute inset-x-3 bottom-20 z-10 grid gap-2 rounded-xl bg-card p-4 text-sm text-card-foreground shadow-lg ring-1 ring-foreground/10 sm:inset-x-auto sm:top-16 sm:right-3 sm:bottom-auto sm:w-60";
+  "absolute inset-x-3 bottom-20 z-10 grid gap-2 rounded-xl bg-card p-4 text-sm text-card-foreground shadow-lg ring-1 ring-foreground/10 sm:inset-x-auto sm:top-16 sm:right-3 sm:bottom-auto sm:w-64";
 
 // What selected strokes of the pen can become: a stage, under a name typed
 // here, since nothing can read the handwriting. It floats where the box's card does.
@@ -49,6 +50,7 @@ export function BoxCard({
   name,
   tracked,
   onChange,
+  children,
 }: {
   // Nothing when the box is not a stage.
   status: StageStatus | null;
@@ -56,6 +58,8 @@ export function BoxCard({
   name?: string;
   tracked: boolean;
   onChange: (status: StageStatus | null) => void;
+  // What the box carries, under what it is to the workflow.
+  children: ReactNode;
 }) {
   return (
     <section
@@ -100,6 +104,7 @@ export function BoxCard({
       >
         {status ? "Not a stage" : "Make this a stage"}
       </Button>
+      {children}
     </section>
   );
 }

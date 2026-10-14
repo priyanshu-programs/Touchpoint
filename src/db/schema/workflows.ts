@@ -11,6 +11,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { citext, createdAt, id, ownerId, updatedAt } from "./columns";
+import { files } from "./files";
 import { contacts, organizations } from "./people";
 
 export const STAGE_STATUSES = [
@@ -68,5 +69,31 @@ export const workflowBoards = pgTable(
       .where(sql`${table.organizationId} is null and ${table.contactId} is null`),
     index("workflow_boards_organization_idx").on(table.organizationId),
     index("workflow_boards_contact_idx").on(table.contactId),
+  ],
+);
+
+// A link or a file kept on one box of a board: a link has an address, a file
+// points at its stored bytes. `elementId` is the whiteboard's own id for the box.
+export const workflowAttachments = pgTable(
+  "workflow_attachments",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    boardId: uuid("board_id")
+      .notNull()
+      .references(() => workflowBoards.id, { onDelete: "cascade" }),
+    elementId: text("element_id").notNull(),
+    title: text("title").notNull(),
+    url: text("url"),
+    fileId: uuid("file_id").references(() => files.id),
+    createdAt,
+  },
+  (table) => [
+    check(
+      "workflow_attachments_target_check",
+      sql`num_nonnulls(${table.url}, ${table.fileId}) = 1`,
+    ),
+    index("workflow_attachments_board_idx").on(table.boardId, table.elementId),
+    index("workflow_attachments_file_idx").on(table.fileId),
   ],
 );

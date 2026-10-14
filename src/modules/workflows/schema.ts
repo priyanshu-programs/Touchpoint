@@ -47,6 +47,31 @@ export const stageChange = z.strictObject({
 });
 export type StageChange = z.infer<typeof stageChange>;
 
+// What a box can carry: links and uploaded files.
+export const MAX_BOARD_ATTACHMENTS = 50;
+export const UPLOADS_PER_MINUTE = 30;
+export const MAX_ATTACHMENT_TITLE = 200;
+
+// The box of a board that a link or a file goes on.
+export const boxRef = z.strictObject({
+  boardId: z.uuid(),
+  elementId: z.string().min(1).max(100),
+});
+export type BoxRef = z.infer<typeof boxRef>;
+
+// A link left without a name goes by its site's.
+export const boxLink = z.strictObject({
+  title: blankToNull(text(MAX_ATTACHMENT_TITLE)),
+  url: httpUrl,
+});
+export type BoxLink = z.infer<typeof boxLink>;
+
+export const attachmentRef = z.strictObject({
+  boardId: z.uuid(),
+  attachmentId: z.uuid(),
+});
+export type AttachmentRef = z.infer<typeof attachmentRef>;
+
 // One element of the drawing. What the server reads or what could do harm is
 // checked; the rest (where it is, how it is drawn) is the whiteboard's own and
 // only ever goes back to it, so it is kept as it came.

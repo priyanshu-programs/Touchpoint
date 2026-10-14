@@ -6,6 +6,11 @@ import { z } from "zod";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import {
+  addLink,
+  openAttachments,
+  removeAttachment,
+} from "@/modules/workflows/attachments";
+import {
   addStarterBoard,
   createBoard,
   deleteBoard,
@@ -15,11 +20,15 @@ import {
   updateBoard,
   type BoardResult,
 } from "@/modules/workflows/boards";
+import type { BoxAttachment } from "@/modules/workflows/drawing";
 import { getBoard } from "@/modules/workflows/queries";
 import {
+  attachmentRef,
   boardInput,
   boardOrder,
   boardSubject,
+  boxLink,
+  boxRef,
   MAX_RECORD_BOARDS,
   MAX_TEMPLATES,
   stageChange,
@@ -27,6 +36,7 @@ import {
 import { STARTER_BOARDS } from "@/modules/workflows/starters";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
+import { ATTACH_REFUSALS } from "./attach-messages";
 
 function failure(
   result: Exclude<BoardResult, { ok: true }>,
@@ -164,6 +174,48 @@ export async function startBlankBoardAction(
   }
   revalidatePath("/people", "layout");
   redirect(`/workflows/${result.id}`);
+}
+
+// What the boxes of a board carry, asked for as its whiteboard opens.
+export async function openAttachmentsAction(boardId: string) {
+  const owner = await requireOwner();
+  return (await openAttachments(owner.id, z.uuid().parse(boardId))) ?? notFound();
+}
+
+export type AttachOutcome =
+  | { ok: true; attachments: BoxAttachment[] }
+  | { ok: false; message: string };
+
+export async function addBoxLinkAction(
+  box: unknown,
+  link: { title: string; url: string },
+): Promise<AttachOutcome> {
+  const owner = await requireOwner();
+  const address = String(link.url).trim();
+  const parsed = boxLink.safeParse({
+    title: link.title,
+    // An address typed without its start is taken as a web address, and as
+    // nothing else: with the start put on, no other kind of link can be read.
+    url: /^https?:\/\//i.test(address) ? address : `https://${address}`,
+  });
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+
+  const result = await addLink(owner.id, boxRef.parse(box), parsed.data);
+  if (result.ok) return result;
+  if (result.reason === "not_found") notFound();
+  return { ok: false, message: ATTACH_REFUSALS[result.reason] };
+}
+
+export async function removeAttachmentAction(boardId: string, attachmentId: string) {
+  const owner = await requireOwner();
+  return (
+    (await removeAttachment(
+      owner.id,
+      attachmentRef.parse({ boardId, attachmentId }),
+    )) ?? notFound()
+  );
 }
 
 export async function setStageStatusAction(

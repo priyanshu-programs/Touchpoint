@@ -789,6 +789,191 @@ test("closing the whiteboard with a change not yet saved asks first", async ({
   expect(asked).toEqual(["beforeunload"]);
 });
 
+test("a box carries links and files: added, opened, marked on the canvas and copied with the workflow", async ({
+  page,
+  baseURL,
+  browser,
+}) => {
+  // Two whiteboards, a company's panel and a four-megabyte file in one story.
+  test.setTimeout(120_000);
+  const seen = watch(page);
+  const marks = page.locator(".box-mark");
+  const carried = () => card(page).getByRole("listitem");
+  const contract = {
+    name: "Signed contract.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\nsigned\n%%EOF\n"),
+  };
+  const pick = (file: { name: string; mimeType: string; buffer: Buffer }) =>
+    card(page).getByLabel("File to add").setInputFiles(file);
+
+  await page.goto("/workflows/new");
+  await page.getByLabel("Name").fill("Paperwork");
+  await page.getByRole("button", { name: "Create workflow" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  const api = new URL(page.url()).pathname.replace("/workflows/", "/api/workflows/");
+
+  await page.keyboard.press("r");
+  await page.mouse.move(500, 300);
+  await page.mouse.down();
+  await page.mouse.move(700, 400, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Signed papers");
+  await page.keyboard.press("Escape");
+  await expect(card(page).getByText("Links and files")).toBeVisible();
+  await expect(marks).toHaveCount(0);
+
+  // A link goes on the box at once, though the box was drawn a moment ago: the
+  // drawing is saved first. An address typed without its start is a web address,
+  // and a link given no name goes by its site's.
+  await card(page).getByRole("button", { name: "Add link" }).click();
+  const linking = card(page).getByRole("form", { name: "Add a link" });
+  await linking.getByLabel("Address").fill("example.com/brief");
+  await linking.getByRole("button", { name: "Add", exact: true }).click();
+  const link = carried().getByRole("link", { name: "example.com" });
+  await expect(link).toHaveAttribute("href", "https://example.com/brief");
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(linking).toHaveCount(0);
+  await expect(marks).toHaveText("1");
+
+  // Nothing but a web address is kept, and what was typed stays to be corrected.
+  await card(page).getByRole("button", { name: "Add link" }).click();
+  await linking.getByLabel("Address").fill("javascript:alert(1)");
+  await linking.getByLabel("Name (optional)").fill("Brief");
+  await linking.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(card(page).getByRole("alert")).toHaveText(
+    "Enter a link that starts with http:// or https://",
+  );
+  await expect(linking.getByLabel("Name (optional)")).toHaveValue("Brief");
+  await linking.getByRole("button", { name: "Cancel" }).click();
+  await expect(carried()).toHaveCount(1);
+
+  // A file, listed with its size; the mark above the box's corner counts both.
+  await pick(contract);
+  const file = carried().getByRole("link", { name: "Signed contract.pdf" });
+  await expect(file).toBeVisible();
+  await expect(carried().nth(1)).toContainText("1 KB");
+  await expect(marks).toHaveText("2");
+  const mark = (await marks.boundingBox())!;
+  expect(Math.abs(mark.x + mark.width - 700)).toBeLessThan(3);
+  expect(Math.abs(mark.y + mark.height - 296)).toBeLessThan(3);
+  expect(seen.errors).toEqual([]);
+
+  // A file is what its bytes say it is, whatever it is called, and has a size
+  // it may not pass. Neither is kept.
+  await pick({ ...contract, name: "notes.pdf", buffer: Buffer.from("only text") });
+  await expect(card(page).getByRole("alert")).toContainText(
+    "Only PDFs, pictures and Word, Excel and PowerPoint files are kept.",
+  );
+  await pick({
+    ...contract,
+    buffer: Buffer.concat([contract.buffer, Buffer.alloc(4 * 1024 * 1024)]),
+  });
+  await expect(card(page).getByRole("alert")).toHaveText(
+    "That file is larger than 4 MB. Attach it as a link instead.",
+  );
+  await expect(carried()).toHaveCount(2);
+
+  // The file comes back as it went, to its owner only, as a PDF to be shown.
+  const address = (await file.getAttribute("href"))!;
+  expect(address).toMatch(new RegExp(`^${api}/attachments/${ID}$`));
+  const fetched = await page.request.get(address);
+  expect(fetched.status()).toBe(200);
+  expect(fetched.headers()["content-type"]).toBe("application/pdf");
+  expect(fetched.headers()["content-disposition"]).toBe(
+    "inline; filename*=UTF-8''Signed%20contract.pdf",
+  );
+  expect(fetched.headers()["x-content-type-options"]).toBe("nosniff");
+  expect((await fetched.body()).equals(contract.buffer)).toBe(true);
+  const stranger = await browser.newContext({ storageState: undefined });
+  expect((await stranger.request.get(`${baseURL}${address}`)).status()).toBe(401);
+  await stranger.close();
+
+  // A file is taken only from this app, and only for a box of the drawing.
+  const { elements } = (await (await page.request.get(`${api}/scene`)).json()) as {
+    elements: { id: string; type: string }[];
+  };
+  const box = elements.find(({ type }) => type === "rectangle")!;
+  const post = (elementId: string, headers: Record<string, string>) =>
+    page.request
+      .post(`${api}/attachments`, { multipart: { elementId, file: contract }, headers })
+      .then((response) => response.status());
+  expect(await post(box.id, {})).toBe(403);
+  expect(await post(box.id, { origin: "https://example.com" })).toBe(403);
+  expect(await post("not-a-box", { origin: baseURL! })).toBe(409);
+  expect(
+    await page.request
+      .post(`${api}/attachments`, {
+        multipart: { elementId: box.id, file: contract, title: "extra" },
+        headers: { origin: baseURL! },
+      })
+      .then((response) => response.status()),
+  ).toBe(400);
+
+  // It is all still there after a reload, the mark before the box is selected.
+  await page.reload();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect(marks).toHaveText("2");
+  const canvas = (await whiteboard(page).boundingBox())!;
+  await page.mouse.click(middle(canvas).x, middle(canvas).y);
+  await expect(carried()).toHaveCount(2);
+
+  // On a phone the card stands above the tools, with everything on it in reach.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(card(page).getByRole("button", { name: "Add file" })).toBeInViewport();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 720 });
+
+  // Taken off the box, the link is gone and the mark counts one.
+  await carried().getByRole("button", { name: "Remove example.com" }).click();
+  await expect(carried()).toHaveCount(1);
+  await expect(marks).toHaveText("1");
+
+  // Started on a company, the workflow's copy carries the file as well, under
+  // an address of its own.
+  await page.goto("/people/organizations");
+  await page.getByRole("link", { name: "Board Works", exact: true }).click();
+  await companyTabs(page).getByRole("link", { name: "Workflows" }).click();
+  await panel(page).getByRole("button", { name: "Start a workflow" }).click();
+  await page.getByRole("menuitem", { name: "Paperwork" }).click();
+  await board(page, "Paperwork").getByRole("link", { name: "Paperwork" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect(marks).toHaveText("1");
+  const copied = (await whiteboard(page).boundingBox())!;
+  await page.mouse.click(middle(copied).x, middle(copied).y);
+  const copy = carried().getByRole("link", { name: "Signed contract.pdf" });
+  await expect(copy).toBeVisible();
+  const copyAddress = (await copy.getAttribute("href"))!;
+  expect(copyAddress).not.toBe(address);
+  expect((await (await page.request.get(copyAddress)).body()).equals(contract.buffer)).toBe(
+    true,
+  );
+
+  // The company's board goes, then the workflow; the file went with the last of them.
+  for (const back of [new RegExp(`company=${ID}&tab=workflows$`), /\/workflows$/]) {
+    await page.getByRole("button", { name: "Workflow actions" }).click();
+    await page.getByRole("menuitem", { name: "Delete" }).click();
+    await page.getByRole("button", { name: "Delete workflow" }).click();
+    await expect(page).toHaveURL(back);
+    if (back.source.includes("company")) {
+      expect((await page.request.get(address)).status()).toBe(200);
+      await page.goto("/workflows");
+      await main(page).getByRole("link", { name: "Paperwork" }).click();
+      await expect(whiteboard(page)).toBeVisible();
+    }
+  }
+  expect((await page.request.get(address)).status()).toBe(404);
+  await expect(row(page, "Paperwork")).toHaveCount(0);
+
+  expect(seen.outside).toEqual([]);
+  // The one error is the browser's own note that the text file was turned away.
+  expect(seen.errors.filter((error) => !error.includes("415"))).toEqual([]);
+});
+
 test("an address that names no workflow of the owner's shows a not-found page", async ({
   page,
 }) => {

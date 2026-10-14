@@ -25,11 +25,15 @@ import {
   ELEMENT_TYPES,
   STAGE_COLORS,
   STAGE_SHAPES,
+  type BoxAttachment,
 } from "@/modules/workflows/drawing";
+import { openAttachmentsAction } from "@/app/(app)/workflows/actions";
 import "./board.css";
 import { createBoardSaver, type SaveState } from "./board-saver";
 import { closedShape } from "@/modules/workflows/sketch";
+import { BoxAttachments } from "./box-attachments";
 import { BoxCard, StrokesCard } from "./box-card";
+import { BoxMarks, type BoxMark } from "./box-marks";
 import { PAPER_COOKIE, PAPERS, type Paper } from "./paper";
 import { StageAsk } from "./stage-ask";
 import { StageHalos, type StageBox } from "./stage-halos";
@@ -185,7 +189,45 @@ const sameBoxes = (before: readonly StageBox[], now: readonly StageBox[]) =>
     (box, index) => box.id === now[index].id && box.version === now[index].version,
   );
 
-type Drawing = { version: number; elements: Record<string, unknown>[] };
+// Every box that carries links or files, with where its top right corner is
+// drawn: the corner goes round the box's middle when the box is turned.
+function boxMarks(
+  elements: readonly ExcalidrawElement[],
+  attachments: readonly BoxAttachment[],
+): BoxMark[] {
+  const counts = new Map<string, number>();
+  for (const { elementId } of attachments) {
+    counts.set(elementId, (counts.get(elementId) ?? 0) + 1);
+  }
+  return elements.flatMap((element) => {
+    const count = counts.get(element.id);
+    if (!count || element.isDeleted) return [];
+    const { id, version, x, y, width, height, angle } = element;
+    return {
+      id,
+      version,
+      count,
+      x: x + (width * (1 + Math.cos(angle)) + height * Math.sin(angle)) / 2,
+      y: y + (height * (1 - Math.cos(angle)) + width * Math.sin(angle)) / 2,
+    };
+  });
+}
+
+const sameMarks = (before: readonly BoxMark[], now: readonly BoxMark[]) =>
+  before.length === now.length &&
+  before.every(
+    (mark, index) =>
+      mark.id === now[index].id &&
+      mark.version === now[index].version &&
+      mark.count === now[index].count,
+  );
+
+type Drawing = {
+  version: number;
+  elements: Record<string, unknown>[];
+  // What the boxes carry, which is kept apart from the drawing.
+  attachments: BoxAttachment[];
+};
 
 // The drawing is fetched as the whiteboard opens, not handed down by the page,
 // so that it is always the stored one: a page the browser kept from before
@@ -208,8 +250,11 @@ export function BoardEditor({
   useEffect(() => {
     let wanted = true;
     const load = async (): Promise<Drawing | "failed"> => {
-      const response = await fetch(`/api/workflows/${boardId}/scene`);
-      return response.ok ? response.json() : "failed";
+      const [response, attachments] = await Promise.all([
+        fetch(`/api/workflows/${boardId}/scene`),
+        openAttachmentsAction(boardId),
+      ]);
+      return response.ok ? { ...(await response.json()), attachments } : "failed";
     };
     load()
       .catch(() => "failed" as const)
@@ -265,6 +310,7 @@ function Whiteboard({
   opensOn,
   version,
   elements,
+  attachments: carried,
 }: Drawing & {
   boardId: string;
   name: string;
@@ -272,6 +318,9 @@ function Whiteboard({
   opensOn: Paper;
 }) {
   const [paper, setPaper] = useState(opensOn);
+  const [attachments, setAttachments] = useState(carried);
+  const [marks, setMarks] = useState<BoxMark[]>([]);
+  const clips = useRef<HTMLDivElement>(null);
   const isDark = useSyncExternalStore(
     watchTheme,
     () => dark().matches,
@@ -321,6 +370,13 @@ function Whiteboard({
     window.addEventListener("beforeunload", ask);
     return () => window.removeEventListener("beforeunload", ask);
   }, [unstored]);
+
+  // What the boxes carry after a link or a file was added or taken off. That
+  // redraws nothing on the whiteboard, so the marks are worked out here too.
+  const carry = (next: BoxAttachment[]) => {
+    setAttachments(next);
+    if (api) setMarks(boxMarks(api.getSceneElements(), next));
+  };
 
   // Makes the selected box a stage with that status, or no stage at all.
   const setStage = (status: StageStatus | null) => {
@@ -406,6 +462,7 @@ function Whiteboard({
     <div className="board absolute inset-0">
       <div ref={page} aria-hidden className="board-paper" data-paper={paper} />
       <StageHalos layer={halos} stages={stages} tracked={tracked} />
+      <BoxMarks layer={clips} marks={marks} />
       <Excalidraw
         excalidrawAPI={setApi}
         name={name}
@@ -458,6 +515,10 @@ function Whiteboard({
           const zoom = appState.zoom.value;
           const placed = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
           if (halos.current) halos.current.style.transform = placed;
+          if (clips.current) {
+            clips.current.style.transform = placed;
+            clips.current.style.setProperty("--board-zoom", String(zoom));
+          }
           if (asks.current) {
             asks.current.style.transform = placed;
             asks.current.style.setProperty("--board-zoom", String(zoom));
@@ -508,6 +569,8 @@ function Whiteboard({
           }
           const boxes = stageBoxes(all);
           setStages((before) => (sameBoxes(before, boxes) ? before : boxes));
+          const carrying = boxMarks(all, attachments);
+          setMarks((before) => (sameMarks(before, carrying) ? before : carrying));
           // Only what the server keeps is sent, so nothing it would refuse can
           // stop the rest of the drawing saving.
           saver.changed(
@@ -574,7 +637,20 @@ function Whiteboard({
           name={selected.name}
           tracked={tracked}
           onChange={setStage}
-        />
+        >
+          <BoxAttachments
+            // A form of its own for each box, so nothing typed for one is
+            // left for the next.
+            key={selected.id}
+            boardId={boardId}
+            elementId={selected.id}
+            attachments={attachments.filter(
+              ({ elementId }) => elementId === selected.id,
+            )}
+            stored={saver.stored}
+            onChange={carry}
+          />
+        </BoxCard>
       )}
       {selected?.kind === "strokes" && (
         // A card of its own for each selection, so a name typed for one is

@@ -8,6 +8,7 @@ import {
 import { audit } from "@/modules/audit/service";
 import { markManual, requestEnrichment } from "@/modules/enrichment/service";
 import { ENRICHABLE_FIELDS } from "@/modules/enrichment/website/read";
+import { dropUnusedFiles } from "@/modules/files/service";
 import { statusOnOffer } from "@/modules/statuses/service";
 import { organizationTagNames } from "@/modules/tags/queries";
 import { setOrganizationTags } from "@/modules/tags/service";
@@ -175,6 +176,8 @@ export async function deleteOrganization(ownerId: string, id: string) {
         ),
       );
     await tx.delete(organizations).where(owned);
+    // Its workflow boards went with it, and with them what their boxes carried.
+    await dropUnusedFiles(tx, ownerId);
     await audit(tx, {
       ownerId,
       actor: "user",

@@ -10,6 +10,7 @@ import {
   type CustomValues,
 } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
+import { dropUnusedFiles } from "@/modules/files/service";
 import { contactTagNames } from "@/modules/tags/queries";
 import { setContactTags } from "@/modules/tags/service";
 import { companies, findSimilarContacts } from "./queries";
@@ -372,6 +373,8 @@ export async function deleteContact(ownerId: string, id: string) {
     await tx
       .delete(contacts)
       .where(and(eq(contacts.ownerId, ownerId), eq(contacts.id, id)));
+    // Their workflow boards went with them, and with them what the boxes carried.
+    await dropUnusedFiles(tx, ownerId);
     await audit(tx, {
       ownerId,
       actor: "user",
