@@ -72,30 +72,47 @@ export const attachmentRef = z.strictObject({
 });
 export type AttachmentRef = z.infer<typeof attachmentRef>;
 
+// Pictures drawn on a board, each kept once however many elements show it.
+export const MAX_BOARD_PICTURES = 100;
+export const PICTURES_PER_MINUTE = 60;
+
+// The whiteboard's own id for a picture: a hash of the file as it was added.
+const pictureKey = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+
+export const pictureRef = z.strictObject({ boardId: z.uuid(), key: pictureKey });
+export type PictureRef = z.infer<typeof pictureRef>;
+
 // One element of the drawing. What the server reads or what could do harm is
 // checked; the rest (where it is, how it is drawn) is the whiteboard's own and
 // only ever goes back to it, so it is kept as it came.
-const element = z.looseObject({
-  id: z.string().min(1).max(100),
-  type: z.enum(ELEMENT_TYPES),
-  // A link that is not a web address is dropped, not refused: the whiteboard
-  // lets one be typed, and it must not stop the rest of the drawing saving.
-  link: z
-    .unknown()
-    .transform((link) => (httpUrl.safeParse(link).success ? (link as string) : null))
-    .optional(),
-  customData: z
-    .strictObject({
-      stage: z
-        .strictObject({
-          status: z.enum(STAGE_STATUSES),
-          // What a stage made of handwriting is called: its box holds no text.
-          name: z.string().trim().min(1).max(MAX_STAGE_NAME).optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-});
+const element = z
+  .looseObject({
+    id: z.string().min(1).max(100),
+    type: z.enum(ELEMENT_TYPES),
+    // The picture an element shows, looked for among its board's own and nowhere else.
+    fileId: pictureKey.nullish(),
+    // A link that is not a web address is dropped, not refused: the whiteboard
+    // lets one be typed, and it must not stop the rest of the drawing saving.
+    link: z
+      .unknown()
+      .transform((link) =>
+        httpUrl.safeParse(link).success ? (link as string) : null,
+      )
+      .optional(),
+    customData: z
+      .strictObject({
+        stage: z
+          .strictObject({
+            status: z.enum(STAGE_STATUSES),
+            // What a stage made of handwriting is called: its box holds no text.
+            name: z.string().trim().min(1).max(MAX_STAGE_NAME).optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+  })
+  // The whiteboard sends a picture only once its bytes are stored under its id.
+  .refine(({ type, fileId }) => type !== "image" || Boolean(fileId));
 export type SceneElement = z.infer<typeof element>;
 
 export const sceneSave = z.strictObject({

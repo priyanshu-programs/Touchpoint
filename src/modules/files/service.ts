@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, eq, notExists, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
-import { files, workflowAttachments } from "@/db/schema";
+import { files, workflowAttachments, workflowPictures } from "@/db/schema";
 
 // The free database holds half a gigabyte for everything.
 export const MAX_STORED_BYTES = 200 * 1024 * 1024;
@@ -43,6 +43,7 @@ export async function storeFile(
 
 // Files nothing points at any more are deleted, wherever the last pointer went:
 // removed by hand, or with its board, or with the board's company or person.
+// A file is pointed at by what a box carries and by a picture on a board.
 export async function dropUnusedFiles(tx: Tx, ownerId: string) {
   await lockFiles(tx, ownerId);
   await tx.delete(files).where(
@@ -53,6 +54,12 @@ export async function dropUnusedFiles(tx: Tx, ownerId: string) {
           .select({ id: workflowAttachments.id })
           .from(workflowAttachments)
           .where(eq(workflowAttachments.fileId, files.id)),
+      ),
+      notExists(
+        tx
+          .select({ id: workflowPictures.id })
+          .from(workflowPictures)
+          .where(eq(workflowPictures.fileId, files.id)),
       ),
     ),
   );

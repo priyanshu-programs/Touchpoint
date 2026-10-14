@@ -21,6 +21,7 @@ import {
   type BoardResult,
 } from "@/modules/workflows/boards";
 import type { BoxAttachment } from "@/modules/workflows/drawing";
+import { openPictures } from "@/modules/workflows/pictures";
 import { getBoard } from "@/modules/workflows/queries";
 import {
   attachmentRef,
@@ -176,10 +177,15 @@ export async function startBlankBoardAction(
   redirect(`/workflows/${result.id}`);
 }
 
-// What the boxes of a board carry, asked for as its whiteboard opens.
-export async function openAttachmentsAction(boardId: string) {
+// What is kept apart from a board's drawing, asked for as its whiteboard opens:
+// what its boxes carry, and the ids of the pictures drawn on it.
+export async function openBoardAction(boardId: string) {
   const owner = await requireOwner();
-  return (await openAttachments(owner.id, z.uuid().parse(boardId))) ?? notFound();
+  const id = z.uuid().parse(boardId);
+  const attachments = await openAttachments(owner.id, id);
+  const pictures = attachments && (await openPictures(owner.id, id));
+  if (!attachments || !pictures) notFound();
+  return { attachments, pictures };
 }
 
 export type AttachOutcome =

@@ -9,6 +9,7 @@ import {
 import { audit } from "@/modules/audit/service";
 import { dropUnusedFiles } from "@/modules/files/service";
 import { copyAttachments } from "./attachments";
+import { copyPictures, picturesOf } from "./pictures";
 import {
   MAX_BOARD_STAGES,
   MAX_RECORD_BOARDS,
@@ -329,6 +330,11 @@ export async function startBoard(
         from: values.sourceBoardId,
         to: row.id,
         boxes: new Set(values.scene.elements.map(({ id }) => String(id))),
+      });
+      await copyPictures(tx, ownerId, {
+        from: values.sourceBoardId,
+        to: row.id,
+        shown: picturesOf(values.scene.elements),
       });
     }
     await audit(tx, {

@@ -3,7 +3,8 @@ import type { StageStatus } from "@/db/schema";
 // What the whiteboard in the browser and the server both need to know about a
 // drawing. Nothing here touches the database, so the browser can load it.
 
-// What may be drawn. Pictures arrive with their own storage; embedded pages never do.
+// What may be drawn. A picture's bytes are kept apart from the drawing, which
+// holds only the picture's id; embedded pages are never drawn.
 export const ELEMENT_TYPES = [
   "rectangle",
   "diamond",
@@ -13,7 +14,13 @@ export const ELEMENT_TYPES = [
   "freedraw",
   "text",
   "frame",
+  "image",
 ] as const;
+
+// The whiteboard shrinks a picture to this on its longer side before placing
+// it. What is stored is held to the same, so a picture is as large stored as
+// it is on the screen, and a part cut out of it stays the same part.
+export const MAX_PICTURE_SIDE = 1440;
 
 // The shapes that hold text, and so can be a named stage.
 export const STAGE_SHAPES = ["rectangle", "diamond", "ellipse"] as const;
@@ -29,8 +36,8 @@ export type BoxAttachment = {
   contentType: string | null;
 };
 
-// The largest file a box can carry: under the 4.5 MB a request may be on the
-// free hosting.
+// The largest file a box can carry, and the largest picture that can be sent:
+// under the 4.5 MB a request may be on the free hosting.
 export const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 // A stage's name is cut to this, wherever it comes from.

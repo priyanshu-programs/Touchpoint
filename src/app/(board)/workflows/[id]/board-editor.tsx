@@ -27,8 +27,9 @@ import {
   STAGE_SHAPES,
   type BoxAttachment,
 } from "@/modules/workflows/drawing";
-import { openAttachmentsAction } from "@/app/(app)/workflows/actions";
+import { openBoardAction } from "@/app/(app)/workflows/actions";
 import "./board.css";
+import { createBoardPictures } from "./board-pictures";
 import { createBoardSaver, type SaveState } from "./board-saver";
 import { closedShape } from "@/modules/workflows/sketch";
 import { BoxAttachments } from "./box-attachments";
@@ -227,6 +228,8 @@ type Drawing = {
   elements: Record<string, unknown>[];
   // What the boxes carry, which is kept apart from the drawing.
   attachments: BoxAttachment[];
+  // The ids of the pictures stored for the drawing, which holds only the ids.
+  pictures: string[];
 };
 
 // The drawing is fetched as the whiteboard opens, not handed down by the page,
@@ -250,11 +253,11 @@ export function BoardEditor({
   useEffect(() => {
     let wanted = true;
     const load = async (): Promise<Drawing | "failed"> => {
-      const [response, attachments] = await Promise.all([
+      const [response, apart] = await Promise.all([
         fetch(`/api/workflows/${boardId}/scene`),
-        openAttachmentsAction(boardId),
+        openBoardAction(boardId),
       ]);
-      return response.ok ? { ...(await response.json()), attachments } : "failed";
+      return response.ok ? { ...(await response.json()), ...apart } : "failed";
     };
     load()
       .catch(() => "failed" as const)
@@ -311,6 +314,7 @@ function Whiteboard({
   version,
   elements,
   attachments: carried,
+  pictures: held,
 }: Drawing & {
   boardId: string;
   name: string;
@@ -345,6 +349,17 @@ function Whiteboard({
     }),
   );
 
+  // Whether a picture put on the whiteboard is still on its way to the server.
+  const [sending, setSending] = useState(false);
+  const [pictures] = useState(() =>
+    createBoardPictures({ boardId, held, report: setSending }),
+  );
+  useEffect(() => {
+    if (!api) return;
+    pictures.attach(api);
+    return pictures.stop;
+  }, [api, pictures]);
+
   // The whole drawing is brought into view once, when it has been put on the
   // whiteboard, and made smaller if the window is. An empty whiteboard is left
   // alone, or the first box drawn on it would jump to the middle.
@@ -361,9 +376,12 @@ function Whiteboard({
 
   // While something drawn is not yet stored, the browser asks before the tab is
   // closed or reloaded: a save made as the page goes can be cut short. Not once
-  // saving has stopped for good, when a reload is the way on.
+  // saving has stopped for good, when a reload is the way on. A picture still
+  // on its way is not stored either, and the drawing that shows it not yet sent.
+  const shownState: SaveState =
+    sending && saveState === "saved" ? "saving" : saveState;
   const unstored =
-    saveState === "unsaved" || saveState === "saving" || saveState === "error";
+    shownState === "unsaved" || shownState === "saving" || shownState === "error";
   useEffect(() => {
     if (!unstored) return;
     const ask = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -491,9 +509,8 @@ function Whiteboard({
             saveToActiveFile: false,
             toggleTheme: false,
           },
-          tools: { image: false },
         }}
-        onChange={(all, appState) => {
+        onChange={(all, appState, files) => {
           if (unfitted.current && api && all.length > 0) {
             unfitted.current = false;
             // After this redraw, which the whiteboard is still in the middle of.
@@ -571,25 +588,39 @@ function Whiteboard({
           setStages((before) => (sameBoxes(before, boxes) ? before : boxes));
           const carrying = boxMarks(all, attachments);
           setMarks((before) => (sameMarks(before, carrying) ? before : carrying));
+          pictures.look(all, files);
           // Only what the server keeps is sent, so nothing it would refuse can
-          // stop the rest of the drawing saving.
+          // stop the rest of the drawing saving. A picture is sent with the
+          // drawing once its bytes are stored, and not before.
           saver.changed(
-            getNonDeletedElements(all).filter((element) =>
-              oneOf(ELEMENT_TYPES, element),
+            getNonDeletedElements(all).filter(
+              (element) =>
+                oneOf(ELEMENT_TYPES, element) &&
+                (element.type !== "image" || pictures.has(element.fileId)),
             ),
           );
         }}
         renderTopRightUI={() => (
-          // A plain word on a phone, where the pill pushes the tools off the screen.
+          // The dot alone on a phone, where the tools take the whole width and a
+          // word beside them pushes the first off the screen. Saving that has
+          // failed or stopped is said in words there too.
           <p
             role="status"
-            className="inline-flex items-center gap-1.5 self-center px-1 text-xs whitespace-nowrap sm:rounded-full sm:bg-card/90 sm:px-2.5 sm:py-1 sm:shadow-sm sm:ring-1 sm:ring-foreground/10 sm:backdrop-blur"
+            className="inline-flex items-center gap-1.5 self-center text-xs whitespace-nowrap sm:rounded-full sm:bg-card/90 sm:px-2.5 sm:py-1 sm:shadow-sm sm:ring-1 sm:ring-foreground/10 sm:backdrop-blur"
           >
             <span
               aria-hidden
-              className={`hidden size-1.5 rounded-full sm:block ${SAVE_DOTS[saveState]}`}
+              className={`size-2 rounded-full sm:size-1.5 ${SAVE_DOTS[shownState]}`}
             />
-            <span className="text-muted-foreground">{SAVE_LABELS[saveState]}</span>
+            <span
+              className={`text-muted-foreground ${
+                shownState === "error" || shownState === "conflict"
+                  ? ""
+                  : "sr-only sm:not-sr-only"
+              }`}
+            >
+              {SAVE_LABELS[shownState]}
+            </span>
           </p>
         )}
       >

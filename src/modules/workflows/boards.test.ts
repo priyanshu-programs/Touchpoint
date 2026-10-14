@@ -108,7 +108,11 @@ describe("sceneSave", () => {
   it.each([
     ["an embedded page", [{ id: "a", type: "embeddable" }]],
     ["an iframe", [{ id: "a", type: "iframe" }]],
-    ["a picture", [{ id: "a", type: "image" }]],
+    ["a picture that names no stored picture", [{ id: "a", type: "image" }]],
+    ["a picture whose id is nothing", [{ id: "a", type: "image", fileId: null }]],
+    ["a picture whose id is an address", [{ id: "a", type: "image", fileId: "../scene" }]],
+    ["a picture whose id is over 64 characters", [{ id: "a", type: "image", fileId: "a".repeat(65) }]],
+    ["an id for a picture that is not text", [box("a", { fileId: 7 })]],
     ["an element with no id", [{ type: "rectangle" }]],
     ["a status that is not one", [stage("a", { customData: { stage: { status: "late" } } })]],
     ["anything else kept on a box", [box("a", { customData: { note: "x" } })]],
@@ -118,6 +122,16 @@ describe("sceneSave", () => {
     ["a stage's name that is not text", [box("a", { customData: { stage: { status: "done", name: 7 } } })]],
   ])("refuses %s", (_label, elements) => {
     expect(sceneSave.safeParse({ version: 1, elements }).success).toBe(false);
+  });
+
+  it("keeps a picture by the id of its stored bytes", () => {
+    const fileId = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b";
+    const [kept] = save(1, [
+      { id: "a", type: "image", fileId, status: "saved", scale: [1, 1] },
+    ]).elements;
+    expect(kept).toMatchObject({ type: "image", fileId, scale: [1, 1] });
+    // Every other element says it shows no picture.
+    expect(save(1, [box("a", { fileId: null })]).elements[0].fileId).toBeNull();
   });
 
   it("keeps the name given with a stage's mark, trimmed", () => {

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import sharp from "sharp";
 import { OWNER_SESSION } from "./support";
 
 test.describe.configure({ mode: "serial" });
@@ -971,6 +972,240 @@ test("a box carries links and files: added, opened, marked on the canvas and cop
 
   expect(seen.outside).toEqual([]);
   // The one error is the browser's own note that the text file was turned away.
+  expect(seen.errors.filter((error) => !error.includes("415"))).toEqual([]);
+});
+
+test("pictures are drawn on a whiteboard: stored, fetched again, refused when not a picture and copied with the workflow", async ({
+  page,
+  baseURL,
+  browser,
+}) => {
+  // Two whiteboards and a company's panel in one story.
+  test.setTimeout(120_000);
+  const seen = watch(page);
+  const PICTURES = new RegExp(`/api/workflows/${ID}/pictures$`);
+  let sends = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && PICTURES.test(new URL(request.url()).pathname)) {
+      sends++;
+    }
+  });
+  const sent = () =>
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        PICTURES.test(new URL(response.url()).pathname),
+    );
+  type Sent = { name: string; mimeType: string; buffer: Buffer };
+  // A file let go of over the whiteboard, as one dragged from a folder is.
+  const drop = async ({ name, mimeType, buffer }: Sent, x: number, y: number) => {
+    const transfer = await page.evaluateHandle(
+      ({ name, mimeType, bytes }) => {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([new Uint8Array(bytes)], name, { type: mimeType }));
+        return transfer;
+      },
+      { name, mimeType, bytes: [...buffer] },
+    );
+    await page.dispatchEvent(".excalidraw", "drop", {
+      dataTransfer: transfer,
+      clientX: x,
+      clientY: y,
+    });
+  };
+  // The colour drawn at a point of the window.
+  const inked = (x: number, y: number) =>
+    page.evaluate(
+      ([x, y]) => {
+        const canvas = document.querySelector<HTMLCanvasElement>(
+          ".excalidraw canvas.static",
+        )!;
+        const box = canvas.getBoundingClientRect();
+        const scale = canvas.width / box.width;
+        const [red, green, blue] = canvas
+          .getContext("2d")!
+          .getImageData((x - box.left) * scale, (y - box.top) * scale, 1, 1).data;
+        return { red, green, blue };
+      },
+      [x, y],
+    );
+  const blue = async (x: number, y: number) => {
+    const { red, blue } = await inked(x, y);
+    return red < 110 && blue > 150;
+  };
+  // Twice as wide as the whiteboard keeps a picture.
+  const photo: Sent = {
+    name: "Site photo.png",
+    mimeType: "image/png",
+    buffer: await sharp({
+      create: { width: 2880, height: 1440, channels: 3, background: "#3366cc" },
+    })
+      .png()
+      .toBuffer(),
+  };
+  const vector: Sent = {
+    name: "Logo.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"><rect width="120" height="80" fill="#cc3333"/></svg>',
+    ),
+  };
+
+  // The last file a form was given is kept, to see what the whiteboard sends.
+  await page.addInitScript(() => {
+    const set = FormData.prototype.set as (this: FormData, ...given: unknown[]) => void;
+    FormData.prototype.set = function (this: FormData, ...given: unknown[]) {
+      if (given[1] instanceof Blob) Object.assign(window, { sentPicture: given[1] });
+      set.apply(this, given);
+    };
+  });
+
+  await page.goto("/workflows/new");
+  await page.getByLabel("Name").fill("Moodboard");
+  await page.getByRole("button", { name: "Create workflow" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  const api = new URL(page.url()).pathname.replace("/workflows/", "/api/workflows/");
+  // The picture tool is among the whiteboard's tools.
+  await expect(page.locator('[data-testid="toolbar-image"]')).toBeAttached();
+
+  // A picture dropped on the whiteboard is sent, and only then the drawing.
+  const [upload, save] = await Promise.all([sent(), saved(page), drop(photo, 640, 380)]);
+  expect(upload.status()).toBe(204);
+  expect(save.ok()).toBe(true);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect.poll(() => blue(640, 380)).toBe(true);
+  // The whiteboard made it smaller before it was sent.
+  expect(
+    await page.evaluate(async () => {
+      const { sentPicture } = window as unknown as { sentPicture: Blob };
+      const { width, height } = await createImageBitmap(sentPicture);
+      return { type: sentPicture.type, width, height };
+    }),
+  ).toEqual({ type: "image/png", width: 1440, height: 720 });
+  expect(seen.errors).toEqual([]);
+
+  // The drawing holds the picture's id, and the bytes are kept under it: as
+  // WebP, the size the whiteboard shows them, for their owner only.
+  const pictures = async (from = api) => {
+    const { elements } = (await (await page.request.get(`${from}/scene`)).json()) as {
+      elements: { type: string; fileId?: string }[];
+    };
+    return elements.filter(({ type }) => type === "image").map(({ fileId }) => fileId!);
+  };
+  const [key] = await pictures();
+  expect(key).toMatch(/^[0-9a-f]{40}$/);
+  const address = `${api}/pictures/${key}`;
+  const fetched = await page.request.get(address);
+  expect(fetched.status()).toBe(200);
+  expect(fetched.headers()["content-type"]).toBe("image/webp");
+  expect(fetched.headers()["cache-control"]).toBe("private, max-age=31536000, immutable");
+  expect(fetched.headers()["x-content-type-options"]).toBe("nosniff");
+  const stored = await fetched.body();
+  expect(await sharp(stored).metadata()).toMatchObject({
+    format: "webp",
+    width: 1440,
+    height: 720,
+  });
+  const stranger = await browser.newContext({ storageState: undefined });
+  expect((await stranger.request.get(`${baseURL}${address}`)).status()).toBe(401);
+  await stranger.close();
+  expect((await page.request.get(`${api}/pictures/${"0".repeat(40)}`)).status()).toBe(404);
+
+  // A picture is taken only from this app, under an id, and only if it is one.
+  const post = (multipart: Record<string, string | Sent>, origin?: string) =>
+    page.request
+      .post(`${api}/pictures`, { multipart, headers: origin ? { origin } : {} })
+      .then((response) => response.status());
+  expect(await post({ key: "other", file: photo })).toBe(403);
+  expect(await post({ key: "other", file: photo }, "https://example.com")).toBe(403);
+  expect(await post({ file: photo }, baseURL!)).toBe(400);
+  expect(await post({ key: "../scene", file: photo }, baseURL!)).toBe(400);
+  expect(await post({ key: "other", file: photo, title: "extra" }, baseURL!)).toBe(400);
+  expect(await post({ key: "other", file: vector }, baseURL!)).toBe(415);
+  expect(await post({ key: "other", file: { ...photo, buffer: Buffer.from("text") } }, baseURL!)).toBe(415);
+
+  // After a reload the picture is fetched by its id and drawn again, and is
+  // not sent a second time.
+  const before = sends;
+  const again = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === address && response.ok(),
+  );
+  await page.reload();
+  await expect(whiteboard(page)).toBeVisible();
+  await again;
+  const canvas = middle((await whiteboard(page).boundingBox())!);
+  await expect.poll(() => blue(canvas.x, canvas.y)).toBe(true);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(sends).toBe(before);
+
+  // A picture that cannot be kept is taken off the whiteboard again, with a
+  // sentence saying why, and nothing is left waiting to be saved.
+  const turnedAway = sent();
+  await drop(vector, 300, 250);
+  expect((await turnedAway).status()).toBe(415);
+  await expect(
+    page.getByText("Only PNG, JPEG, GIF and WebP pictures are kept.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(await pictures()).toEqual([key]);
+  await page.reload();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect.poll(() => blue(canvas.x, canvas.y)).toBe(true);
+  expect(await pictures()).toEqual([key]);
+
+  // On a phone the tools, now with the picture tool among them, and the save
+  // state beside them are all on the screen.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(whiteboard(page)).toBeVisible();
+  for (const tool of ["selection", "image", "eraser"]) {
+    await expect(page.locator(`[data-testid="toolbar-${tool}"]`)).toBeInViewport({
+      ratio: 1,
+    });
+  }
+  await expect(page.getByRole("status")).toBeInViewport({ ratio: 1 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 720 });
+
+  // Started on a company, the workflow's copy shows the picture as well, under
+  // an address of its own.
+  await page.goto("/people/organizations");
+  await page.getByRole("link", { name: "Board Works", exact: true }).click();
+  await companyTabs(page).getByRole("link", { name: "Workflows" }).click();
+  await panel(page).getByRole("button", { name: "Start a workflow" }).click();
+  await page.getByRole("menuitem", { name: "Moodboard" }).click();
+  await board(page, "Moodboard").getByRole("link", { name: "Moodboard" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  const copyApi = new URL(page.url()).pathname.replace("/workflows/", "/api/workflows/");
+  expect(copyApi).not.toBe(api);
+  const copied = middle((await whiteboard(page).boundingBox())!);
+  await expect.poll(() => blue(copied.x, copied.y)).toBe(true);
+  expect(await pictures(copyApi)).toEqual([key]);
+  expect(
+    (await (await page.request.get(`${copyApi}/pictures/${key}`)).body()).equals(stored),
+  ).toBe(true);
+
+  // The company's board goes, then the workflow; the picture went with them.
+  for (const back of [new RegExp(`company=${ID}&tab=workflows$`), /\/workflows$/]) {
+    await page.getByRole("button", { name: "Workflow actions" }).click();
+    await page.getByRole("menuitem", { name: "Delete" }).click();
+    await page.getByRole("button", { name: "Delete workflow" }).click();
+    await expect(page).toHaveURL(back);
+    if (back.source.includes("company")) {
+      expect((await page.request.get(`${copyApi}/pictures/${key}`)).status()).toBe(404);
+      expect((await page.request.get(address)).status()).toBe(200);
+      await page.goto("/workflows");
+      await main(page).getByRole("link", { name: "Moodboard" }).click();
+      await expect(whiteboard(page)).toBeVisible();
+    }
+  }
+  expect((await page.request.get(address)).status()).toBe(404);
+  await expect(row(page, "Moodboard")).toHaveCount(0);
+
+  expect(seen.outside).toEqual([]);
+  // The one error is the browser's own note that the drawing was turned away.
   expect(seen.errors.filter((error) => !error.includes("415"))).toEqual([]);
 });
 

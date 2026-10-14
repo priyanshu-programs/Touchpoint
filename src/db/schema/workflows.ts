@@ -97,3 +97,25 @@ export const workflowAttachments = pgTable(
     index("workflow_attachments_file_idx").on(table.fileId),
   ],
 );
+
+// A picture drawn on a board. `fileKey` is the whiteboard's own id for it, which
+// every element showing that picture names, so a board keeps each picture once.
+export const workflowPictures = pgTable(
+  "workflow_pictures",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    boardId: uuid("board_id")
+      .notNull()
+      .references(() => workflowBoards.id, { onDelete: "cascade" }),
+    fileKey: text("file_key").notNull(),
+    fileId: uuid("file_id")
+      .notNull()
+      .references(() => files.id),
+    createdAt,
+  },
+  (table) => [
+    uniqueIndex("workflow_pictures_board_key_idx").on(table.boardId, table.fileKey),
+    index("workflow_pictures_file_idx").on(table.fileId),
+  ],
+);
