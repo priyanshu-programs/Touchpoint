@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import sharp from "sharp";
+import { docx, pdf } from "../src/test/files";
 import { OWNER_SESSION } from "./support";
 
 test.describe.configure({ mode: "serial" });
@@ -33,6 +34,13 @@ const middle = (box: { x: number; y: number; width: number; height: number }) =>
 });
 const heading = (page: Page, name: string) =>
   page.getByRole("heading", { name, exact: true });
+// What the marks above the boxes show: each kind, with its count where there are several.
+const markKinds = (page: Page) =>
+  page
+    .locator(".box-mark > [data-kind]")
+    .evaluateAll((parts) =>
+      parts.map((part) => `${(part as HTMLElement).dataset.kind}${part.textContent}`),
+    );
 
 // One stroke of the pen through those points, and a ring of points for a circle
 // drawn by hand, ending a little short of where it began.
@@ -837,7 +845,7 @@ test("a box carries links and files: added, opened, marked on the canvas and cop
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(link).toHaveAttribute("rel", "noopener noreferrer");
   await expect(linking).toHaveCount(0);
-  await expect(marks).toHaveText("1");
+  await expect.poll(() => markKinds(page)).toEqual(["link"]);
 
   // Nothing but a web address is kept, and what was typed stays to be corrected.
   await card(page).getByRole("button", { name: "Add link" }).click();
@@ -851,12 +859,12 @@ test("a box carries links and files: added, opened, marked on the canvas and cop
   await linking.getByRole("button", { name: "Cancel" }).click();
   await expect(carried()).toHaveCount(1);
 
-  // A file, listed with its size; the mark above the box's corner counts both.
+  // A file, listed with its size; the mark above the box's corner shows both.
   await pick(contract);
   const file = carried().getByRole("link", { name: "Signed contract.pdf" });
   await expect(file).toBeVisible();
   await expect(carried().nth(1)).toContainText("1 KB");
-  await expect(marks).toHaveText("2");
+  await expect.poll(() => markKinds(page)).toEqual(["pdf", "link"]);
   const mark = (await marks.boundingBox())!;
   expect(Math.abs(mark.x + mark.width - 700)).toBeLessThan(3);
   expect(Math.abs(mark.y + mark.height - 296)).toBeLessThan(3);
@@ -916,7 +924,7 @@ test("a box carries links and files: added, opened, marked on the canvas and cop
   // It is all still there after a reload, the mark before the box is selected.
   await page.reload();
   await expect(whiteboard(page)).toBeVisible();
-  await expect(marks).toHaveText("2");
+  await expect.poll(() => markKinds(page)).toEqual(["pdf", "link"]);
   const canvas = (await whiteboard(page).boundingBox())!;
   await page.mouse.click(middle(canvas).x, middle(canvas).y);
   await expect(carried()).toHaveCount(2);
@@ -929,10 +937,10 @@ test("a box carries links and files: added, opened, marked on the canvas and cop
   ).toBe(true);
   await page.setViewportSize({ width: 1280, height: 720 });
 
-  // Taken off the box, the link is gone and the mark counts one.
+  // Taken off the box, the link is gone from the mark too.
   await carried().getByRole("button", { name: "Remove example.com" }).click();
   await expect(carried()).toHaveCount(1);
-  await expect(marks).toHaveText("1");
+  await expect.poll(() => markKinds(page)).toEqual(["pdf"]);
 
   // Started on a company, the workflow's copy carries the file as well, under
   // an address of its own.
@@ -943,7 +951,7 @@ test("a box carries links and files: added, opened, marked on the canvas and cop
   await page.getByRole("menuitem", { name: "Paperwork" }).click();
   await board(page, "Paperwork").getByRole("link", { name: "Paperwork" }).click();
   await expect(whiteboard(page)).toBeVisible();
-  await expect(marks).toHaveText("1");
+  await expect.poll(() => markKinds(page)).toEqual(["pdf"]);
   const copied = (await whiteboard(page).boundingBox())!;
   await page.mouse.click(middle(copied).x, middle(copied).y);
   const copy = carried().getByRole("link", { name: "Signed contract.pdf" });
@@ -973,6 +981,138 @@ test("a box carries links and files: added, opened, marked on the canvas and cop
   expect(seen.outside).toEqual([]);
   // The one error is the browser's own note that the text file was turned away.
   expect(seen.errors.filter((error) => !error.includes("415"))).toEqual([]);
+});
+
+test("a box shows each kind it carries on its mark, and carries dated notes copied with the workflow", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const seen = watch(page);
+  const carried = () => card(page).getByRole("listitem");
+  const notes = () => card(page).getByRole("listitem").filter({ has: page.locator("time") });
+  const pick = (name: string, mimeType: string, buffer: Buffer) =>
+    card(page).getByLabel("File to add").setInputFiles({ name, mimeType, buffer });
+  const write = async (body: string) => {
+    await card(page).getByRole("button", { name: "Add note" }).click();
+    const form = card(page).getByRole("form", { name: "Add a note" });
+    await form.getByLabel("Note").fill(body);
+    await form.getByRole("button", { name: "Add", exact: true }).click();
+  };
+  const selectBox = async () => {
+    const canvas = (await whiteboard(page).boundingBox())!;
+    await page.mouse.click(middle(canvas).x, middle(canvas).y);
+    await expect(card(page)).toBeVisible();
+  };
+
+  await page.goto("/workflows/new");
+  await page.getByLabel("Name").fill("Dossier");
+  await page.getByRole("button", { name: "Create workflow" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+
+  await page.keyboard.press("r");
+  await page.mouse.move(500, 300);
+  await page.mouse.down();
+  await page.mouse.move(700, 400, { steps: 6 });
+  await page.mouse.up();
+  // Named, so a click in its middle selects it: an empty box is picked by its edge.
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Client file");
+  await page.keyboard.press("Escape");
+  await expect(card(page).getByText("Notes", { exact: true })).toBeVisible();
+
+  // A PDF, a Word file and a link, each with an icon of its own in the card.
+  await pick("Brief.pdf", "application/pdf", pdf("brief"));
+  await expect(carried()).toHaveCount(1);
+  await pick(
+    "Scope.docx",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    docx(),
+  );
+  await expect(carried()).toHaveCount(2);
+  await card(page).getByRole("button", { name: "Add link" }).click();
+  const linking = card(page).getByRole("form", { name: "Add a link" });
+  await linking.getByLabel("Address").fill("example.com");
+  await linking.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(carried()).toHaveCount(3);
+  expect(
+    await carried()
+      .locator("svg[data-kind]")
+      .evaluateAll((icons) => icons.map((icon) => icon.getAttribute("data-kind"))),
+  ).toEqual(["pdf", "word", "link"]);
+
+  // Two notes, each under the time it was written, and kept as plain text.
+  await write("Kickoff call booked");
+  await expect(notes()).toHaveCount(1);
+  await write("<b>Quote</b> sent\nwaiting on the signature");
+  await expect(notes()).toHaveCount(2);
+  await expect(notes().nth(1)).toContainText("<b>Quote</b> sent");
+  await expect(card(page).locator("b")).toHaveCount(0);
+  await expect(notes().locator("time")).toHaveCount(2);
+  expect(await notes().first().locator("time").getAttribute("datetime")).toMatch(
+    /^\d{4}-\d\d-\d\dT/,
+  );
+  await expect.poll(() => markKinds(page)).toEqual(["pdf", "word", "link", "note2"]);
+
+  // A note of nothing but spaces is not kept, and the form stays to be corrected.
+  await write("   ");
+  await expect(card(page).getByRole("alert")).toHaveText(
+    "Write something in the note first.",
+  );
+  await card(page).getByRole("button", { name: "Cancel" }).click();
+  await expect(notes()).toHaveCount(2);
+
+  // All of it is still there after a reload, the mark before the box is selected.
+  await page.reload();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect.poll(() => markKinds(page)).toEqual(["pdf", "word", "link", "note2"]);
+  await selectBox();
+  await expect(notes()).toHaveCount(2);
+
+  // On a phone the card's notes and buttons are within reach.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(card(page).getByRole("button", { name: "Add note" })).toBeInViewport();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 720 });
+
+  // A note taken off, and the mark counts one.
+  await notes()
+    .first()
+    .getByRole("button", { name: /^Remove the note from / })
+    .click();
+  await expect(notes()).toHaveCount(1);
+  await expect.poll(() => markKinds(page)).toEqual(["pdf", "word", "link", "note"]);
+
+  // Started on a company, the copy carries the note and the rest.
+  await page.goto("/people/organizations");
+  await page.getByRole("link", { name: "Board Works", exact: true }).click();
+  await companyTabs(page).getByRole("link", { name: "Workflows" }).click();
+  await panel(page).getByRole("button", { name: "Start a workflow" }).click();
+  await page.getByRole("menuitem", { name: "Dossier" }).click();
+  await board(page, "Dossier").getByRole("link", { name: "Dossier" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect.poll(() => markKinds(page)).toEqual(["pdf", "word", "link", "note"]);
+  await selectBox();
+  await expect(notes()).toHaveCount(1);
+  await expect(notes()).toContainText("waiting on the signature");
+
+  // The company's board goes, then the workflow.
+  for (const back of [new RegExp(`company=${ID}&tab=workflows$`), /\/workflows$/]) {
+    await page.getByRole("button", { name: "Workflow actions" }).click();
+    await page.getByRole("menuitem", { name: "Delete" }).click();
+    await page.getByRole("button", { name: "Delete workflow" }).click();
+    await expect(page).toHaveURL(back);
+    if (back.source.includes("company")) {
+      await page.goto("/workflows");
+      await main(page).getByRole("link", { name: "Dossier" }).click();
+      await expect(whiteboard(page)).toBeVisible();
+    }
+  }
+  await expect(row(page, "Dossier")).toHaveCount(0);
+
+  expect(seen.outside).toEqual([]);
+  expect(seen.errors).toEqual([]);
 });
 
 test("pictures are drawn on a whiteboard: stored, fetched again, refused when not a picture and copied with the workflow", async ({

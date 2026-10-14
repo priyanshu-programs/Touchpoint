@@ -9,6 +9,7 @@ import {
 import { audit } from "@/modules/audit/service";
 import { dropUnusedFiles } from "@/modules/files/service";
 import { copyAttachments } from "./attachments";
+import { copyNotes } from "./notes";
 import { copyPictures, picturesOf } from "./pictures";
 import {
   MAX_BOARD_STAGES,
@@ -326,11 +327,9 @@ export async function startBoard(
       })
       .returning({ id: workflowBoards.id });
     if (values.sourceBoardId) {
-      await copyAttachments(tx, ownerId, {
-        from: values.sourceBoardId,
-        to: row.id,
-        boxes: new Set(values.scene.elements.map(({ id }) => String(id))),
-      });
+      const boxes = new Set(values.scene.elements.map(({ id }) => String(id)));
+      await copyAttachments(tx, ownerId, { from: values.sourceBoardId, to: row.id, boxes });
+      await copyNotes(tx, ownerId, { from: values.sourceBoardId, to: row.id, boxes });
       await copyPictures(tx, ownerId, {
         from: values.sourceBoardId,
         to: row.id,

@@ -22,10 +22,14 @@ import { Grid3x3, Grip, Loader2, Rows3, Square } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { StageStatus } from "@/db/schema";
 import {
+  attachmentKind,
+  BOX_KINDS,
   ELEMENT_TYPES,
   STAGE_COLORS,
   STAGE_SHAPES,
   type BoxAttachment,
+  type BoxKind,
+  type BoxNote,
 } from "@/modules/workflows/drawing";
 import { openBoardAction } from "@/app/(app)/workflows/actions";
 import "./board.css";
@@ -35,6 +39,7 @@ import { closedShape } from "@/modules/workflows/sketch";
 import { BoxAttachments } from "./box-attachments";
 import { BoxCard, StrokesCard } from "./box-card";
 import { BoxMarks, type BoxMark } from "./box-marks";
+import { BoxNotes } from "./box-notes";
 import { PAPER_COOKIE, PAPERS, type Paper } from "./paper";
 import { StageAsk } from "./stage-ask";
 import { StageHalos, type StageBox } from "./stage-halos";
@@ -190,29 +195,44 @@ const sameBoxes = (before: readonly StageBox[], now: readonly StageBox[]) =>
     (box, index) => box.id === now[index].id && box.version === now[index].version,
   );
 
-// Every box that carries links or files, with where its top right corner is
-// drawn: the corner goes round the box's middle when the box is turned.
+// What the boxes carry, kept apart from the drawing.
+type Carried = { attachments: BoxAttachment[]; notes: BoxNote[] };
+
+// Every box that carries links, files or notes, with how many of each kind and
+// where its top right corner is drawn: the corner goes round the box's middle
+// when the box is turned.
 function boxMarks(
   elements: readonly ExcalidrawElement[],
-  attachments: readonly BoxAttachment[],
+  { attachments, notes }: Carried,
 ): BoxMark[] {
-  const counts = new Map<string, number>();
-  for (const { elementId } of attachments) {
-    counts.set(elementId, (counts.get(elementId) ?? 0) + 1);
+  const counts = new Map<string, Map<BoxKind, number>>();
+  const add = (elementId: string, kind: BoxKind) => {
+    const kinds = counts.get(elementId) ?? new Map<BoxKind, number>();
+    counts.set(elementId, kinds.set(kind, (kinds.get(kind) ?? 0) + 1));
+  };
+  for (const attachment of attachments) {
+    add(attachment.elementId, attachmentKind(attachment));
   }
+  for (const { elementId } of notes) add(elementId, "note");
   return elements.flatMap((element) => {
-    const count = counts.get(element.id);
-    if (!count || element.isDeleted) return [];
+    const kinds = counts.get(element.id);
+    if (!kinds || element.isDeleted) return [];
     const { id, version, x, y, width, height, angle } = element;
     return {
       id,
       version,
-      count,
+      kinds: BOX_KINDS.flatMap((kind) => {
+        const count = kinds.get(kind);
+        return count ? { kind, count } : [];
+      }),
       x: x + (width * (1 + Math.cos(angle)) + height * Math.sin(angle)) / 2,
       y: y + (height * (1 - Math.cos(angle)) + width * Math.sin(angle)) / 2,
     };
   });
 }
+
+const kindsOf = ({ kinds }: BoxMark) =>
+  kinds.map(({ kind, count }) => `${kind}${count}`).join();
 
 const sameMarks = (before: readonly BoxMark[], now: readonly BoxMark[]) =>
   before.length === now.length &&
@@ -220,14 +240,12 @@ const sameMarks = (before: readonly BoxMark[], now: readonly BoxMark[]) =>
     (mark, index) =>
       mark.id === now[index].id &&
       mark.version === now[index].version &&
-      mark.count === now[index].count,
+      kindsOf(mark) === kindsOf(now[index]),
   );
 
-type Drawing = {
+type Drawing = Carried & {
   version: number;
   elements: Record<string, unknown>[];
-  // What the boxes carry, which is kept apart from the drawing.
-  attachments: BoxAttachment[];
   // The ids of the pictures stored for the drawing, which holds only the ids.
   pictures: string[];
 };
@@ -313,7 +331,8 @@ function Whiteboard({
   opensOn,
   version,
   elements,
-  attachments: carried,
+  attachments: attached,
+  notes: noted,
   pictures: held,
 }: Drawing & {
   boardId: string;
@@ -322,7 +341,10 @@ function Whiteboard({
   opensOn: Paper;
 }) {
   const [paper, setPaper] = useState(opensOn);
-  const [attachments, setAttachments] = useState(carried);
+  const [carried, setCarried] = useState<Carried>({
+    attachments: attached,
+    notes: noted,
+  });
   const [marks, setMarks] = useState<BoxMark[]>([]);
   const clips = useRef<HTMLDivElement>(null);
   const isDark = useSyncExternalStore(
@@ -389,11 +411,14 @@ function Whiteboard({
     return () => window.removeEventListener("beforeunload", ask);
   }, [unstored]);
 
-  // What the boxes carry after a link or a file was added or taken off. That
-  // redraws nothing on the whiteboard, so the marks are worked out here too.
-  const carry = (next: BoxAttachment[]) => {
-    setAttachments(next);
-    if (api) setMarks(boxMarks(api.getSceneElements(), next));
+  // What the boxes carry after a link, a file or a note was added or taken off,
+  // from what they carried just then: an upload may end after a note was added.
+  // That redraws nothing on the whiteboard, so the marks are worked out here too.
+  const latest = useRef(carried);
+  const carry = (change: Partial<Carried>) => {
+    latest.current = { ...latest.current, ...change };
+    setCarried(latest.current);
+    if (api) setMarks(boxMarks(api.getSceneElements(), latest.current));
   };
 
   // Makes the selected box a stage with that status, or no stage at all.
@@ -586,7 +611,7 @@ function Whiteboard({
           }
           const boxes = stageBoxes(all);
           setStages((before) => (sameBoxes(before, boxes) ? before : boxes));
-          const carrying = boxMarks(all, attachments);
+          const carrying = boxMarks(all, carried);
           setMarks((before) => (sameMarks(before, carrying) ? before : carrying));
           pictures.look(all, files);
           // Only what the server keeps is sent, so nothing it would refuse can
@@ -675,11 +700,19 @@ function Whiteboard({
             key={selected.id}
             boardId={boardId}
             elementId={selected.id}
-            attachments={attachments.filter(
+            attachments={carried.attachments.filter(
               ({ elementId }) => elementId === selected.id,
             )}
             stored={saver.stored}
-            onChange={carry}
+            onChange={(attachments) => carry({ attachments })}
+          />
+          <BoxNotes
+            key={`${selected.id}-notes`}
+            boardId={boardId}
+            elementId={selected.id}
+            notes={carried.notes.filter(({ elementId }) => elementId === selected.id)}
+            stored={saver.stored}
+            onChange={(notes) => carry({ notes })}
           />
         </BoxCard>
       )}

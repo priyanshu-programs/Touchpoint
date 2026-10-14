@@ -56,10 +56,15 @@ const list = (
 
 const count = sql<number>`count(*)::int`;
 
-// Why nothing more can go on that box, or nothing. The board is held for the
-// length of the change, so its limit cannot be passed by two at once, and the
-// box is looked for in the drawing as stored, without loading the drawing.
-async function refusal(tx: Tx, ownerId: string, { boardId, elementId }: BoxRef) {
+// Why nothing can go on that box, or nothing: the board is not the owner's, or
+// the box is not in the drawing as stored, which is looked in without loading
+// the drawing. The board is held for the length of the change, so a limit on
+// what it carries cannot be passed by two changes at once.
+export async function boxRefusal(
+  tx: Tx,
+  ownerId: string,
+  { boardId, elementId }: BoxRef,
+) {
   const shapes = sql.join(
     STAGE_SHAPES.map((shape) => sql`${shape}`),
     sql`, `,
@@ -76,12 +81,18 @@ async function refusal(tx: Tx, ownerId: string, { boardId, elementId }: BoxRef) 
     .where(and(eq(workflowBoards.ownerId, ownerId), eq(workflowBoards.id, boardId)))
     .for("update");
   if (!board) return "not_found";
-  if (!board.isBox) return "no_box";
+  return board.isBox ? null : "no_box";
+}
+
+// Why nothing more can go on that box, or nothing.
+async function refusal(tx: Tx, ownerId: string, box: BoxRef) {
+  const reason = await boxRefusal(tx, ownerId, box);
+  if (reason) return reason;
 
   const [{ carried }] = await tx
     .select({ carried: count })
     .from(workflowAttachments)
-    .where(onBoard(ownerId, boardId));
+    .where(onBoard(ownerId, box.boardId));
   return carried >= MAX_BOARD_ATTACHMENTS ? "limit" : null;
 }
 

@@ -36,6 +36,46 @@ export type BoxAttachment = {
   contentType: string | null;
 };
 
+export const MAX_NOTE_LENGTH = 2000;
+
+// A note left on a box, as the board's whiteboard shows it.
+export type BoxNote = {
+  id: string;
+  elementId: string;
+  body: string;
+  createdAt: string;
+};
+
+// What a box can carry, in the order its mark shows them.
+export const BOX_KINDS = [
+  "pdf",
+  "word",
+  "excel",
+  "powerpoint",
+  "picture",
+  "file",
+  "link",
+  "note",
+] as const;
+export type BoxKind = (typeof BOX_KINDS)[number];
+
+const FILE_KINDS: Record<string, BoxKind> = {
+  "application/pdf": "pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "word",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "excel",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    "powerpoint",
+};
+
+// A file's kind is the one read from its bytes when it was stored. `file` is
+// for a kind kept that has no mark of its own.
+export const attachmentKind = ({ url, contentType }: BoxAttachment): BoxKind =>
+  url
+    ? "link"
+    : contentType?.startsWith("image/")
+      ? "picture"
+      : (FILE_KINDS[contentType ?? ""] ?? "file");
+
 // The largest file a box can carry, and the largest picture that can be sent:
 // under the 4.5 MB a request may be on the free hosting.
 export const MAX_FILE_BYTES = 4 * 1024 * 1024;

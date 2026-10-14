@@ -1,9 +1,10 @@
-import { FileText, Link2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  attachmentKind,
   MAX_FILE_BYTES,
   type BoxAttachment,
 } from "@/modules/workflows/drawing";
@@ -13,6 +14,7 @@ import {
   type AttachOutcome,
 } from "@/app/(app)/workflows/actions";
 import { ATTACH_REFUSALS } from "@/app/(app)/workflows/attach-messages";
+import { KindIcon } from "./kind-icons";
 
 const FAILED = "That did not go through. Try again.";
 const UNSAVED =
@@ -96,38 +98,37 @@ export function BoxAttachments({
       <h2 className="font-medium">Links and files</h2>
       {attachments.length > 0 && (
         <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto">
-          {attachments.map(({ id, title, url, size }) => (
-            <li key={id} className="flex items-center gap-1.5">
-              {url ? (
-                <Link2 aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-              ) : (
-                <FileText
-                  aria-hidden
-                  className="size-3.5 shrink-0 text-muted-foreground"
-                />
-              )}
+          {attachments.map((attachment) => (
+            <li key={attachment.id} className="flex items-center gap-1.5">
+              <KindIcon
+                kind={attachmentKind(attachment)}
+                className="size-3.5 shrink-0 text-muted-foreground"
+              />
               <a
-                href={url ?? `/api/workflows/${boardId}/attachments/${id}`}
+                href={
+                  attachment.url ??
+                  `/api/workflows/${boardId}/attachments/${attachment.id}`
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 className="min-w-0 flex-1 truncate underline-offset-2 hover:underline"
               >
-                {title}
+                {attachment.title}
               </a>
-              {size !== null && (
+              {attachment.size !== null && (
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  {sizeOf(size)}
+                  {sizeOf(attachment.size)}
                 </span>
               )}
               <button
                 type="button"
-                aria-label={`Remove ${title}`}
+                aria-label={`Remove ${attachment.title}`}
                 disabled={busy}
                 className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                 onClick={() =>
                   run(async () => ({
                     ok: true,
-                    attachments: await removeAttachmentAction(boardId, id),
+                    attachments: await removeAttachmentAction(boardId, attachment.id),
                   }))
                 }
               >

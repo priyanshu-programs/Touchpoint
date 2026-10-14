@@ -98,6 +98,23 @@ export const workflowAttachments = pgTable(
   ],
 );
 
+// A note left on one box of a board, kept apart from the drawing as what a box
+// carries is. `elementId` is the whiteboard's own id for the box.
+export const workflowNotes = pgTable(
+  "workflow_notes",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    boardId: uuid("board_id")
+      .notNull()
+      .references(() => workflowBoards.id, { onDelete: "cascade" }),
+    elementId: text("element_id").notNull(),
+    body: text("body").notNull(),
+    createdAt,
+  },
+  (table) => [index("workflow_notes_board_idx").on(table.boardId, table.elementId)],
+);
+
 // A picture drawn on a board. `fileKey` is the whiteboard's own id for it, which
 // every element showing that picture names, so a board keeps each picture once.
 export const workflowPictures = pgTable(

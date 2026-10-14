@@ -20,7 +20,8 @@ import {
   updateBoard,
   type BoardResult,
 } from "@/modules/workflows/boards";
-import type { BoxAttachment } from "@/modules/workflows/drawing";
+import type { BoxAttachment, BoxNote } from "@/modules/workflows/drawing";
+import { addNote, openNotes, removeNote } from "@/modules/workflows/notes";
 import { openPictures } from "@/modules/workflows/pictures";
 import { getBoard } from "@/modules/workflows/queries";
 import {
@@ -32,12 +33,14 @@ import {
   boxRef,
   MAX_RECORD_BOARDS,
   MAX_TEMPLATES,
+  noteBody,
+  noteRef,
   stageChange,
 } from "@/modules/workflows/schema";
 import { STARTER_BOARDS } from "@/modules/workflows/starters";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
-import { ATTACH_REFUSALS } from "./attach-messages";
+import { ATTACH_REFUSALS, NOTE_REFUSALS } from "./attach-messages";
 
 function failure(
   result: Exclude<BoardResult, { ok: true }>,
@@ -184,8 +187,29 @@ export async function openBoardAction(boardId: string) {
   const id = z.uuid().parse(boardId);
   const attachments = await openAttachments(owner.id, id);
   const pictures = attachments && (await openPictures(owner.id, id));
-  if (!attachments || !pictures) notFound();
-  return { attachments, pictures };
+  const notes = pictures && (await openNotes(owner.id, id));
+  if (!attachments || !pictures || !notes) notFound();
+  return { attachments, pictures, notes };
+}
+
+export type NoteOutcome =
+  | { ok: true; notes: BoxNote[] }
+  | { ok: false; message: string };
+
+export async function addNoteAction(box: unknown, body: string): Promise<NoteOutcome> {
+  const owner = await requireOwner();
+  const parsed = noteBody.safeParse(body);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
+
+  const result = await addNote(owner.id, boxRef.parse(box), parsed.data);
+  if (result.ok) return result;
+  if (result.reason === "not_found") notFound();
+  return { ok: false, message: NOTE_REFUSALS[result.reason] };
+}
+
+export async function removeNoteAction(boardId: string, noteId: string) {
+  const owner = await requireOwner();
+  return (await removeNote(owner.id, noteRef.parse({ boardId, noteId }))) ?? notFound();
 }
 
 export type AttachOutcome =

@@ -155,6 +155,13 @@
       "when": 1791940581823,
       "tag": "0021_workflow_pictures",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791956120980,
+      "tag": "0022_workflow_notes",
+      "breakpoints": true
     }
   ]
 }

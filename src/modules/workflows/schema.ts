@@ -2,7 +2,7 @@ import { z } from "zod";
 import { STAGE_STATUSES } from "@/db/schema";
 import { blankToNull, text } from "@/lib/form";
 import { httpUrl } from "@/lib/url";
-import { ELEMENT_TYPES, MAX_STAGE_NAME } from "./drawing";
+import { ELEMENT_TYPES, MAX_NOTE_LENGTH, MAX_STAGE_NAME } from "./drawing";
 
 export { STAGE_STATUSES };
 
@@ -71,6 +71,21 @@ export const attachmentRef = z.strictObject({
   attachmentId: z.uuid(),
 });
 export type AttachmentRef = z.infer<typeof attachmentRef>;
+
+// Notes left on the boxes of a board, as plain text.
+export const MAX_BOARD_NOTES = 200;
+
+export const noteBody = z
+  .string()
+  .trim()
+  .min(1, "Write something in the note first.")
+  .max(MAX_NOTE_LENGTH, `A note can be at most ${MAX_NOTE_LENGTH} characters.`);
+
+export const noteRef = z.strictObject({
+  boardId: z.uuid(),
+  noteId: z.uuid(),
+});
+export type NoteRef = z.infer<typeof noteRef>;
 
 // Pictures drawn on a board, each kept once however many elements show it.
 export const MAX_BOARD_PICTURES = 100;
