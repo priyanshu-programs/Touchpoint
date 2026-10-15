@@ -265,6 +265,18 @@ export function AppShell({
               "transition-[width] duration-150 ease-out motion-reduce:transition-none",
           )}
         >
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            title={collapsed ? "Go to… (Ctrl K)" : undefined}
+            className={cn(railItem, "mb-2 border text-muted-foreground")}
+          >
+            <Search className="size-4 shrink-0" aria-hidden />
+            <span className={railLabel}>Go to…</span>
+            {!collapsed && (
+              <kbd className="ml-auto font-mono text-xs">Ctrl K</kbd>
+            )}
+          </button>
           <nav aria-label="Main" className="grid gap-1">
             {NAV.map((item) => (
               <Link
@@ -282,18 +294,6 @@ export function AppShell({
               </Link>
             ))}
           </nav>
-          <button
-            type="button"
-            onClick={() => setPaletteOpen(true)}
-            title={collapsed ? "Go to… (Ctrl K)" : undefined}
-            className={cn(railItem, "mt-2 border text-muted-foreground")}
-          >
-            <Search className="size-4 shrink-0" aria-hidden />
-            <span className={railLabel}>Go to…</span>
-            {!collapsed && (
-              <kbd className="ml-auto font-mono text-xs">Ctrl K</kbd>
-            )}
-          </button>
           <AccountMenu
             ownerName={ownerName}
             placement="sidebar"
