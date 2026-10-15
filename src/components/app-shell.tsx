@@ -39,6 +39,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Greeting } from "@/components/greeting";
 import { cn } from "@/lib/utils";
 
 // Only screens that exist are listed; each module adds its entry when it ships.
@@ -128,11 +129,15 @@ function AccountMenu({
 
 export function AppShell({
   ownerName,
+  timezone,
+  greeting,
   defaultCollapsed,
   defaultWidth,
   children,
 }: {
   ownerName: string;
+  timezone: string;
+  greeting: string;
   defaultCollapsed: boolean;
   defaultWidth?: number;
   children: ReactNode;
@@ -246,7 +251,7 @@ export function AppShell({
           T
         </span>
         <p className="min-w-0 flex-1 truncate font-semibold tracking-tight">
-          {ownerName} CRM
+          <Greeting name={ownerName} timezone={timezone} initial={greeting} />
         </p>
         <AccountMenu
           ownerName={ownerName}
