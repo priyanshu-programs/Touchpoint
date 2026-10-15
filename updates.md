@@ -598,3 +598,4 @@
 - [2026-10-16] src/components/greeting.tsx: client component that starts from the server's line and checks the clock every minute, since the layout is not rendered again on navigation
 - [2026-10-16] app-shell.tsx and (app)/layout.tsx: the top bar shows the greeting in place of '<name> CRM'; the layout passes the owner's time zone and the first line
 - [2026-10-16] Tests: greeting.test.ts covers each hour boundary, one instant in two zones, the day-specific lines, a line held all day and changing between days, and an empty name (18 tests, passing); lint and typecheck clean
+- [2026-10-16] The greeting is live (8d50a72; GitHub lists a successful production deployment). Not looked at on the live site: the top bar there has not been opened since
