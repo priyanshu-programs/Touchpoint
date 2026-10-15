@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   integer,
@@ -46,6 +47,11 @@ export const workflowBoards = pgTable(
     position: integer("position").notNull().default(0),
     // The starter it was added from, which is then no longer offered.
     starterKey: text("starter_key"),
+    // One of the keys in src/modules/workflows/icons.ts; the shape alone is
+    // checked here so an icon added later needs no migration.
+    icon: text("icon"),
+    // The one board a company or a person has put first.
+    starred: boolean("starred").notNull().default(false),
     sourceBoardId: uuid("source_board_id").references(
       (): AnyPgColumn => workflowBoards.id,
       { onDelete: "set null" },
@@ -64,9 +70,20 @@ export const workflowBoards = pgTable(
       "workflow_boards_subject_check",
       sql`num_nonnulls(${table.organizationId}, ${table.contactId}) <= 1`,
     ),
+    check("workflow_boards_icon_check", sql`${table.icon} ~ '^[a-z0-9-]{1,32}$'`),
+    check(
+      "workflow_boards_starred_check",
+      sql`not ${table.starred} or num_nonnulls(${table.organizationId}, ${table.contactId}) = 1`,
+    ),
     uniqueIndex("workflow_boards_template_name_idx")
       .on(table.ownerId, table.name)
       .where(sql`${table.organizationId} is null and ${table.contactId} is null`),
+    uniqueIndex("workflow_boards_organization_star_idx")
+      .on(table.organizationId)
+      .where(sql`${table.starred} and ${table.organizationId} is not null`),
+    uniqueIndex("workflow_boards_contact_star_idx")
+      .on(table.contactId)
+      .where(sql`${table.starred} and ${table.contactId} is not null`),
     index("workflow_boards_organization_idx").on(table.organizationId),
     index("workflow_boards_contact_idx").on(table.contactId),
   ],

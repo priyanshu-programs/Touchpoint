@@ -109,18 +109,3 @@ export function stagesOf(elements: readonly Drawn[]): BoardStage[] {
     status: box.status,
   }));
 }
-
-// Where a board stands, for a line in a list: how much is done, the stage it is
-// at now (the first under way, else the first not begun) and what is held up.
-export function progressOf(stages: readonly BoardStage[]) {
-  const first = (status: StageStatus) =>
-    stages.find((stage) => stage.status === status);
-  return {
-    done: stages.filter(({ status }) => status === "done").length,
-    total: stages.length,
-    current: (first("in_progress") ?? first("not_started"))?.name ?? null,
-    blocked: stages
-      .filter(({ status }) => status === "blocked")
-      .map(({ name }) => name),
-  };
-}

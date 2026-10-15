@@ -3,6 +3,7 @@ import { STAGE_STATUSES } from "@/db/schema";
 import { blankToNull, text } from "@/lib/form";
 import { httpUrl } from "@/lib/url";
 import { ELEMENT_TYPES, MAX_NOTE_LENGTH, MAX_STAGE_NAME } from "./drawing";
+import { workflowIcon } from "./icons";
 
 export { STAGE_STATUSES };
 
@@ -46,6 +47,17 @@ export const stageChange = z.strictObject({
   status: z.enum(STAGE_STATUSES),
 });
 export type StageChange = z.infer<typeof stageChange>;
+
+export const boardIcon = z.strictObject({
+  boardId: z.uuid(),
+  icon: workflowIcon.nullable(),
+});
+export type BoardIcon = z.infer<typeof boardIcon>;
+
+export const boardStar = z.strictObject({
+  id: z.uuid(),
+  starred: z.enum(["0", "1"]),
+});
 
 // What a box can carry: links and uploaded files.
 export const MAX_BOARD_ATTACHMENTS = 50;

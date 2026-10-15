@@ -18,9 +18,15 @@ const companyTabs = (page: Page) =>
   page.getByRole("navigation", { name: "Company", exact: true });
 const contactTabs = (page: Page) =>
   page.getByRole("navigation", { name: "Contact", exact: true });
-// One board in a record's Workflows tab.
+// The boards in a record's Workflows tab, and one of them by its name.
+const boards = (page: Page) =>
+  panel(page)
+    .getByRole("list", { name: "Workflows started here" })
+    .getByRole("listitem");
 const board = (page: Page, name: string) =>
-  panel(page).getByRole("region", { name, exact: true });
+  boards(page).filter({
+    has: page.getByRole("link", { name, exact: true }),
+  });
 const ID = "[0-9a-f-]{36}";
 const whiteboard = (page: Page) => page.locator(".excalidraw canvas.interactive");
 const card = (page: Page) => page.getByRole("region", { name: "Selected box" });
@@ -460,10 +466,25 @@ test("workflows are put in an order of the owner's own, by keyboard and by mouse
   await expect(names(page)).toHaveText(["Prospecting", "Website Project"]);
 });
 
-test("a workflow is started on a company, followed from its panel and opened as its own board", async ({
+test("a workflow is started on a company, starred in its panel and opened as its own board", async ({
   page,
 }) => {
   const seen = watch(page);
+
+  // A workflow is marked with an icon from a grid beside its name.
+  await page.goto("/workflows");
+  await row(page, "Prospecting")
+    .getByRole("button", { name: "Choose an icon for Prospecting" })
+    .click();
+  let save = acted(page);
+  await page.getByRole("menuitem", { name: "Rocket" }).click();
+  await save;
+  await page.reload();
+  const rocket = row(page, "Prospecting").getByRole("button", {
+    name: "Icon of Prospecting: Rocket",
+  });
+  await expect(rocket).toBeVisible();
+  await expect(rocket.locator('[data-icon="rocket"]')).toBeVisible();
 
   // A company of this file's own.
   await page.goto("/people/organizations");
@@ -480,24 +501,46 @@ test("a workflow is started on a company, followed from its panel and opened as 
   await panel(page).getByRole("button", { name: "Start a workflow" }).click();
   await page.getByRole("menuitem", { name: "Prospecting" }).click();
   const prospecting = board(page, "Prospecting");
-  await expect(prospecting).toContainText("0 of 6 done · Now: Identified");
-  await expect(prospecting.getByRole("listitem")).toHaveCount(6);
+  // A row as on the Workflows page: its icon, its name and what it is for, and no stages.
+  await expect(prospecting).toContainText("From a first look");
+  await expect(
+    prospecting.getByRole("button", { name: "Icon of Prospecting: Rocket" }),
+  ).toBeVisible();
+  await expect(panel(page)).not.toContainText("Identified");
+  await expect(panel(page).getByRole("button", { name: /^Status of/ })).toHaveCount(0);
 
-  // A stage's status is changed where it is read, and the line above follows.
-  const setStatus = async (stage: string, from: string, to: string) => {
-    await prospecting
-      .getByRole("button", { name: `Status of ${stage}: ${from}` })
-      .click();
-    await page.getByRole("menuitemradio", { name: to }).click();
-    await expect(
-      prospecting.getByRole("button", { name: `Status of ${stage}: ${to}` }),
-    ).toBeVisible();
-  };
-  await setStatus("Identified", "Not started", "Done");
-  await expect(prospecting).toContainText("1 of 6 done · Now: Contacted");
-  await setStatus("Contacted", "Not started", "Blocked");
-  await expect(prospecting).toContainText("1 of 6 done · Now: In conversation");
-  await expect(prospecting).toContainText("Blocked: Contacted");
+  // The newest is listed first, and the starred one above it.
+  await panel(page).getByRole("button", { name: "Start a workflow" }).click();
+  await page.getByRole("menuitem", { name: "Website Project" }).click();
+  await expect(boards(page)).toHaveCount(2);
+  const listed = () => boards(page).getByRole("link");
+  await expect(listed()).toHaveText(["Website Project", "Prospecting"]);
+  const star = (name: string) =>
+    board(page, name).getByRole("button", { name: `Star ${name}` });
+  await expect(star("Prospecting")).toHaveAttribute("aria-pressed", "false");
+  await star("Prospecting").click();
+  await expect(star("Prospecting")).toHaveAttribute("aria-pressed", "true");
+  await expect(listed()).toHaveText(["Prospecting", "Website Project"]);
+  // One star a company: starring another moves it.
+  await star("Website Project").click();
+  await expect(star("Website Project")).toHaveAttribute("aria-pressed", "true");
+  await expect(star("Prospecting")).toHaveAttribute("aria-pressed", "false");
+  await expect(listed()).toHaveText(["Website Project", "Prospecting"]);
+  await page.reload();
+  await expect(listed()).toHaveText(["Website Project", "Prospecting"]);
+
+  // A copy's icon is its own: changed here, the workflow keeps its rocket.
+  await board(page, "Website Project")
+    .getByRole("button", { name: "Choose an icon for Website Project" })
+    .click();
+  save = acted(page);
+  await page.getByRole("menuitem", { name: "Palette" }).click();
+  await save;
+  await expect(
+    board(page, "Website Project").getByRole("button", {
+      name: "Icon of Website Project: Palette",
+    }),
+  ).toBeVisible();
 
   // The board is the company's own: it says whose it is and leads back there.
   await prospecting.getByRole("link", { name: "Prospecting" }).click();
@@ -507,30 +550,29 @@ test("a workflow is started on a company, followed from its panel and opened as 
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Board Works" }).click();
   await expect(page).toHaveURL(new RegExp(`company=${ID}&tab=workflows$`));
-  await expect(board(page, "Prospecting")).toContainText("Blocked: Contacted");
+  await expect(boards(page)).toHaveCount(2);
   const company = page.url();
 
-  // The owner's workflow is as it was: its copy's statuses are the copy's alone.
   await page.goto("/workflows");
-  await main(page).getByRole("link", { name: "Prospecting" }).click();
-  await expect(whiteboard(page)).toBeVisible();
-  await expect(page.getByRole("link", { name: "Workflows" })).toBeVisible();
-  const template = `${new URL(page.url()).pathname.replace("/workflows/", "/api/workflows/")}/scene`;
-  const { elements } = (await (await page.request.get(template)).json()) as {
-    elements: { customData?: { stage?: { status: string } } }[];
-  };
-  expect(
-    elements.flatMap((element) => element.customData?.stage?.status ?? []),
-  ).toEqual(Array(6).fill("not_started"));
+  await expect(
+    row(page, "Prospecting").getByRole("button", { name: "Icon of Prospecting: Rocket" }),
+  ).toBeVisible();
+  await expect(
+    row(page, "Website Project").getByRole("button", {
+      name: "Choose an icon for Website Project",
+    }),
+  ).toBeVisible();
 
-  // Deleting the company's board leads back to the company, and leaves the workflow.
+  // Deleting the company's boards leads back to the company, and leaves the workflows.
   await page.goto(company);
-  await board(page, "Prospecting").getByRole("link", { name: "Prospecting" }).click();
-  await expect(whiteboard(page)).toBeVisible();
-  await page.getByRole("button", { name: "Workflow actions" }).click();
-  await page.getByRole("menuitem", { name: "Delete" }).click();
-  await page.getByRole("button", { name: "Delete workflow" }).click();
-  await expect(page).toHaveURL(new RegExp(`company=${ID}&tab=workflows$`));
+  for (const name of ["Website Project", "Prospecting"]) {
+    await board(page, name).getByRole("link", { name }).click();
+    await expect(whiteboard(page)).toBeVisible();
+    await page.getByRole("button", { name: "Workflow actions" }).click();
+    await page.getByRole("menuitem", { name: "Delete" }).click();
+    await page.getByRole("button", { name: "Delete workflow" }).click();
+    await expect(page).toHaveURL(new RegExp(`company=${ID}&tab=workflows$`));
+  }
   await expect(panel(page).getByText(/^No workflow started yet\./)).toBeVisible();
   await page.goto("/workflows");
   await expect(row(page, "Prospecting")).toBeVisible();
@@ -539,7 +581,7 @@ test("a workflow is started on a company, followed from its panel and opened as 
   expect(seen.errors).toEqual([]);
 });
 
-test("a blank board on a person: a stage's status is set on the board and in the panel", async ({
+test("a blank board on a person: a stage's status is set on the board", async ({
   page,
 }) => {
   await page.goto("/people/contacts/new");
@@ -581,14 +623,16 @@ test("a blank board on a person: a stage's status is set on the board and in the
   expect((await save).status()).toBe(200);
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
-  // The panel shows what the board says, and changes it without opening the board.
+  // The panel lists the board as a row, with no stages; a person has a star too.
   await page.getByRole("link", { name: "Bea Boarder" }).click();
   await expect(page).toHaveURL(new RegExp(`contact=${ID}&tab=workflows$`));
   const plan = board(page, "Custom plan");
-  await expect(plan).toContainText("1 of 1 done");
-  await plan.getByRole("button", { name: "Status of Draft: Done" }).click();
-  await page.getByRole("menuitemradio", { name: "In progress" }).click();
-  await expect(plan).toContainText("0 of 1 done · Now: Draft");
+  await expect(plan).toBeVisible();
+  await expect(plan).not.toContainText("Draft");
+  await plan.getByRole("button", { name: "Star Custom plan" }).click();
+  await expect(
+    plan.getByRole("button", { name: "Star Custom plan" }),
+  ).toHaveAttribute("aria-pressed", "true");
 
   // Opened again, the box is in the middle of the whiteboard and has that status.
   await plan.getByRole("link", { name: "Custom plan" }).click();
@@ -596,7 +640,7 @@ test("a blank board on a person: a stage's status is set on the board and in the
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   const canvas = (await whiteboard(page).boundingBox())!;
   await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
-  await expect(status("In progress")).toHaveAttribute("aria-pressed", "true");
+  await expect(status("Done")).toHaveAttribute("aria-pressed", "true");
 });
 
 test("a shape drawn with the pen is offered as a stage, and becomes a real box or circle", async ({
@@ -750,11 +794,13 @@ test("handwriting is made a stage by selecting it and giving it a name", async (
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
   await page.getByRole("link", { name: "Hana Writer" }).click();
-  const notes = board(page, "Notes");
-  await expect(notes).toContainText("1 of 1 done");
-  await expect(
-    notes.getByRole("button", { name: "Status of Signed off: Done" }),
-  ).toBeVisible();
+  await expect(board(page, "Notes")).toBeVisible();
+  const stored = (await (await page.request.get(scene)).json()) as {
+    elements: { customData?: { stage?: { status: string; name?: string } } }[];
+  };
+  expect(stored.elements[0].customData).toEqual({
+    stage: { status: "done", name: "Signed off" },
+  });
 });
 
 test("closing the whiteboard with a change not yet saved asks first", async ({
@@ -1392,7 +1438,11 @@ test.describe("on a phone", () => {
     await page.goto("/people/contacts");
     await page.getByRole("link", { name: "Bea Boarder", exact: true }).click();
     await contactTabs(page).getByRole("link", { name: "Workflows" }).click();
-    await expect(board(page, "Custom plan")).toContainText("0 of 1 done");
+    const plan = board(page, "Custom plan");
+    await expect(plan.getByRole("button", { name: "Star Custom plan" })).toBeVisible();
+    await expect(
+      plan.getByRole("button", { name: "Choose an icon for Custom plan" }),
+    ).toBeVisible();
     await expect
       .poll(() =>
         page

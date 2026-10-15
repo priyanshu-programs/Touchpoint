@@ -15,7 +15,8 @@ import {
   createBoard,
   deleteBoard,
   reorderTemplates,
-  setStageStatus,
+  setBoardIcon,
+  starBoard,
   startBoard,
   updateBoard,
   type BoardResult,
@@ -26,8 +27,10 @@ import { openPictures } from "@/modules/workflows/pictures";
 import { getBoard } from "@/modules/workflows/queries";
 import {
   attachmentRef,
+  boardIcon,
   boardInput,
   boardOrder,
+  boardStar,
   boardSubject,
   boxLink,
   boxRef,
@@ -35,7 +38,6 @@ import {
   MAX_TEMPLATES,
   noteBody,
   noteRef,
-  stageChange,
 } from "@/modules/workflows/schema";
 import { STARTER_BOARDS } from "@/modules/workflows/starters";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
@@ -248,16 +250,17 @@ export async function removeAttachmentAction(boardId: string, attachmentId: stri
   );
 }
 
-export async function setStageStatusAction(
-  boardId: string,
-  elementId: string,
-  status: string,
-) {
+export async function setBoardIconAction(boardId: string, icon: string | null) {
   const owner = await requireOwner();
-  const changed = await setStageStatus(
-    owner.id,
-    stageChange.parse({ boardId, elementId, status }),
-  );
-  if (!changed) notFound();
+  if (!(await setBoardIcon(owner.id, boardIcon.parse({ boardId, icon })))) {
+    notFound();
+  }
+  revalidateBoards();
+}
+
+export async function setBoardStarAction(formData: FormData) {
+  const owner = await requireOwner();
+  const { id, starred } = boardStar.parse(readFields(formData, ["id", "starred"]));
+  if (!(await starBoard(owner.id, id, starred === "1"))) notFound();
   revalidatePath("/people", "layout");
 }

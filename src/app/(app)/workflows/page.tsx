@@ -49,10 +49,11 @@ export default async function WorkflowsPage() {
               .map(({ id }) => id)
               .sort()
               .join(" ")}
-            workflows={templates.map(({ id, name, description }) => ({
+            workflows={templates.map(({ id, name, description, icon }) => ({
               id,
               name,
               description,
+              icon,
             }))}
             action={reorderBoardsAction}
           />

@@ -1,26 +1,17 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Star } from "lucide-react";
 import Link from "next/link";
 import { SECTION_HEADING } from "@/components/detail-rows";
-import {
-  STAGE_LABELS,
-  STAGE_MARKS,
-  STAGE_ORDER,
-} from "@/modules/workflows/drawing";
+import { cn } from "@/lib/utils";
 import { listRecordBoards, listTemplates } from "@/modules/workflows/queries";
 import type { BoardSubject } from "@/modules/workflows/schema";
-import { progressOf } from "@/modules/workflows/stages";
-import { StatusMenu } from "../people/(lists)/status-menu";
-import { setStageStatusAction } from "./actions";
+import { ListCard } from "../people/(lists)/list-card";
+import { setBoardIconAction, setBoardStarAction } from "./actions";
+import { IconPicker } from "./icon-picker";
 import { StartWorkflow } from "./start-workflow";
 
-const STATUS_OPTIONS = STAGE_ORDER.map((status) => ({
-  value: status,
-  label: STAGE_LABELS[status],
-  color: STAGE_MARKS[status],
-}));
-
-// The Workflows tab of a record: the boards started on it, where each stands,
-// and every stage with a status that can be changed without opening the board.
+// The Workflows tab of a record: the boards started on it, as the Workflows
+// list shows workflows. Where a board stands is read on the board itself, since
+// a drawing that branches has no one place it is at.
 export async function RecordWorkflows({
   ownerId,
   subject,
@@ -43,72 +34,64 @@ export async function RecordWorkflows({
         />
       </div>
 
-      {boards.length === 0 && (
+      {boards.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No workflow started yet. Start one of yours, or a blank board.
         </p>
-      )}
-
-      {boards.map((board) => {
-        const { done, total, current, blocked } = progressOf(board.stages);
-        return (
-          <section
-            key={board.id}
-            aria-label={board.name}
-            className="grid gap-3 rounded-xl border bg-card p-4 text-sm"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="grid min-w-0 gap-0.5">
-                <Link
-                  href={`/workflows/${board.id}`}
-                  className="inline-flex items-center gap-1 justify-self-start font-medium underline-offset-4 hover:underline"
-                >
-                  <span className="break-words">{board.name}</span>
-                  <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
-                </Link>
-                {total === 0 ? (
-                  <p className="text-muted-foreground">
-                    No stages yet. Open the board and make a box a stage.
-                  </p>
-                ) : (
-                  <p className="text-muted-foreground">
-                    {done} of {total} done
-                    {current && ` · Now: ${current}`}
-                  </p>
-                )}
-                {blocked.length > 0 && (
-                  <p className="text-destructive">
-                    Blocked: {blocked.join(", ")}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {total > 0 && (
-              <ol className="grid gap-1">
-                {board.stages.map((stage) => (
-                  <li
-                    key={stage.elementId}
-                    className="flex items-center justify-between gap-2"
+      ) : (
+        <ListCard>
+          <ul aria-label="Workflows started here">
+            {boards.map((board) => (
+              <li
+                key={board.id}
+                className="flex items-start gap-2 border-b px-3 py-3 text-sm last:border-b-0"
+              >
+                <form action={setBoardStarAction}>
+                  <input type="hidden" name="id" value={board.id} />
+                  <input
+                    type="hidden"
+                    name="starred"
+                    value={board.starred ? "0" : "1"}
+                  />
+                  <button
+                    type="submit"
+                    aria-pressed={board.starred}
+                    aria-label={`Star ${board.name}`}
+                    className="rounded-md p-1 text-muted-foreground hover:text-foreground"
                   >
-                    <span className="min-w-0 break-words">{stage.name}</span>
-                    <StatusMenu
-                      label={`Status of ${stage.name}`}
-                      value={stage.status}
-                      options={STATUS_OPTIONS}
-                      action={setStageStatusAction.bind(
-                        null,
-                        board.id,
-                        stage.elementId,
+                    <Star
+                      aria-hidden
+                      className={cn(
+                        "size-4",
+                        board.starred && "fill-primary text-primary",
                       )}
                     />
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-        );
-      })}
+                  </button>
+                </form>
+                <IconPicker
+                  name={board.name}
+                  icon={board.icon}
+                  action={setBoardIconAction.bind(null, board.id)}
+                />
+                <div className="grid min-w-0 flex-1 gap-0.5 py-0.5">
+                  <Link
+                    href={`/workflows/${board.id}`}
+                    className="inline-flex items-center gap-1 justify-self-start font-medium underline-offset-4 hover:underline"
+                  >
+                    <span className="break-words">{board.name}</span>
+                    <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
+                  </Link>
+                  {board.description && (
+                    <p className="break-words text-muted-foreground">
+                      {board.description}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </ListCard>
+      )}
     </div>
   );
 }

@@ -19,8 +19,15 @@ import Link from "next/link";
 import { startTransition, useId, useState } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "@/lib/utils";
+import { setBoardIconAction } from "./actions";
+import { IconPicker } from "./icon-picker";
 
-type Workflow = { id: string; name: string; description: string | null };
+type Workflow = {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+};
 
 function WorkflowRow({
   workflow,
@@ -67,6 +74,11 @@ function WorkflowRow({
       >
         <GripVertical aria-hidden className="size-4" />
       </button>
+      <IconPicker
+        name={workflow.name}
+        icon={workflow.icon}
+        action={setBoardIconAction.bind(null, workflow.id)}
+      />
       <div className="grid min-w-0 flex-1 gap-0.5 py-0.5">
         <Link
           href={`/workflows/${workflow.id}`}

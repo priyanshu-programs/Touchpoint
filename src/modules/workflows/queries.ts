@@ -15,6 +15,7 @@ export async function listTemplates(ownerId: string) {
       id: workflowBoards.id,
       name: workflowBoards.name,
       description: workflowBoards.description,
+      icon: workflowBoards.icon,
       starterKey: workflowBoards.starterKey,
     })
     .from(workflowBoards)
@@ -29,13 +30,16 @@ export async function listTemplates(ownerId: string) {
     .limit(MAX_TEMPLATES);
 }
 
-// The boards started on one company or one person, the newest first.
+// The boards started on one company or one person: the starred one, then the
+// newest first.
 export async function listRecordBoards(ownerId: string, subject: BoardSubject) {
   return db
     .select({
       id: workflowBoards.id,
       name: workflowBoards.name,
-      stages: workflowBoards.stages,
+      description: workflowBoards.description,
+      icon: workflowBoards.icon,
+      starred: workflowBoards.starred,
     })
     .from(workflowBoards)
     .where(
@@ -46,7 +50,11 @@ export async function listRecordBoards(ownerId: string, subject: BoardSubject) {
           : eq(workflowBoards.contactId, subject.contactId),
       ),
     )
-    .orderBy(desc(workflowBoards.createdAt), asc(workflowBoards.id))
+    .orderBy(
+      desc(workflowBoards.starred),
+      desc(workflowBoards.createdAt),
+      asc(workflowBoards.id),
+    )
     .limit(MAX_RECORD_BOARDS);
 }
 

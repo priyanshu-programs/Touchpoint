@@ -15,6 +15,7 @@ import {
   MAX_BOARD_STAGES,
   MAX_RECORD_BOARDS,
   MAX_TEMPLATES,
+  type BoardIcon,
   type BoardInput,
   type BoardStart,
   type BoardSubject,
@@ -268,6 +269,83 @@ async function lockSubject(tx: Tx, ownerId: string, subject: BoardSubject) {
   return row;
 }
 
+// The icon a workflow or a record's board is marked with, or none.
+export async function setBoardIcon(ownerId: string, { boardId, icon }: BoardIcon) {
+  return db.transaction(async (tx) => {
+    const [before] = await tx
+      .select({ icon: workflowBoards.icon })
+      .from(workflowBoards)
+      .where(owned(ownerId, boardId))
+      .for("update");
+    if (!before) return false;
+    if (before.icon === icon) return true;
+    await tx
+      .update(workflowBoards)
+      .set({ icon })
+      .where(owned(ownerId, boardId));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "workflow.icon",
+      entityType: "workflow",
+      entityId: boardId,
+      before: { icon: before.icon },
+      after: { icon },
+    });
+    return true;
+  });
+}
+
+// The one board a company or a person puts first. A template has no star.
+export async function starBoard(ownerId: string, id: string, starred: boolean) {
+  return db.transaction(async (tx) => {
+    const [board] = await tx
+      .select({
+        starred: workflowBoards.starred,
+        organizationId: workflowBoards.organizationId,
+        contactId: workflowBoards.contactId,
+      })
+      .from(workflowBoards)
+      .where(owned(ownerId, id))
+      .for("update");
+    if (!board || (!board.organizationId && !board.contactId)) return false;
+
+    // Clear first: the one-star-per-record index rejects two even briefly.
+    // Unstarring touches this board alone, so a stale page cannot take the
+    // star off another.
+    await tx
+      .update(workflowBoards)
+      .set({ starred: false })
+      .where(
+        starred
+          ? and(
+              eq(workflowBoards.ownerId, ownerId),
+              board.organizationId
+                ? eq(workflowBoards.organizationId, board.organizationId)
+                : eq(workflowBoards.contactId, board.contactId!),
+              eq(workflowBoards.starred, true),
+            )
+          : owned(ownerId, id),
+      );
+    if (starred) {
+      await tx
+        .update(workflowBoards)
+        .set({ starred: true })
+        .where(owned(ownerId, id));
+    }
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "workflow.star",
+      entityType: "workflow",
+      entityId: id,
+      before: { starred: board.starred },
+      after: { starred },
+    });
+    return true;
+  });
+}
+
 // A record's own board: a copy of one of the owner's workflows with every stage
 // not started, or an empty one. The copy keeps the workflow's element ids, so
 // its stages can be lined up with the workflow's, and is its own drawing from
@@ -290,6 +368,7 @@ export async function startBoard(
     let values: {
       name: string;
       description: string | null;
+      icon: string | null;
       scene: BoardScene;
       sourceBoardId: string | null;
     };
@@ -298,6 +377,7 @@ export async function startBoard(
         .select({
           name: workflowBoards.name,
           description: workflowBoards.description,
+          icon: workflowBoards.icon,
           scene: workflowBoards.scene,
         })
         .from(workflowBoards)
@@ -306,6 +386,7 @@ export async function startBoard(
       values = {
         name: template.name,
         description: template.description,
+        icon: template.icon,
         scene: {
           elements: template.scene.elements.map((element) =>
             isStage(element) ? atStatus(element, "not_started") : element,
@@ -314,7 +395,7 @@ export async function startBoard(
         sourceBoardId: from.templateId,
       };
     } else {
-      values = { ...from, scene: { elements: [] }, sourceBoardId: null };
+      values = { ...from, icon: null, scene: { elements: [] }, sourceBoardId: null };
     }
 
     const [row] = await tx

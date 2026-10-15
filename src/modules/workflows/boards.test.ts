@@ -10,7 +10,9 @@ import {
   deleteBoard,
   reorderTemplates,
   saveScene,
+  setBoardIcon,
   setStageStatus,
+  starBoard,
   startBoard,
   updateBoard,
 } from "./boards";
@@ -22,8 +24,10 @@ import {
   listTemplates,
 } from "./queries";
 import {
+  boardIcon,
   boardInput,
   boardOrder,
+  boardStar,
   boardStart,
   boardSubject,
   MAX_BOARD_STAGES,
@@ -33,7 +37,7 @@ import {
   sceneSave,
   stageChange,
 } from "./schema";
-import { progressOf, stagesOf, UNNAMED_STAGE } from "./stages";
+import { stagesOf, UNNAMED_STAGE } from "./stages";
 import { STARTER_BOARDS, starterScene } from "./starters";
 
 const board = (name: string, description = "") =>
@@ -255,41 +259,6 @@ describe("stagesOf", () => {
   });
 });
 
-describe("progressOf", () => {
-  const at = (...statuses: string[]) =>
-    progressOf(
-      stagesOf(
-        statuses.flatMap((status, index) => [
-          stage(`s${index}`, { x: index * 200, customData: { stage: { status } } }),
-          label(`s${index}`, `Stage ${index + 1}`),
-        ]),
-      ),
-    );
-
-  it("counts what is done and names the stage under way", () => {
-    expect(at("done", "in_progress", "not_started")).toEqual({
-      done: 1,
-      total: 3,
-      current: "Stage 2",
-      blocked: [],
-    });
-  });
-
-  it("names the first stage not begun when none is under way", () => {
-    expect(at("done", "not_started", "not_started").current).toBe("Stage 2");
-  });
-
-  it("lists what is blocked, and names no stage once nothing is left to begin", () => {
-    expect(at("done", "blocked", "done")).toEqual({
-      done: 2,
-      total: 3,
-      current: null,
-      blocked: ["Stage 2"],
-    });
-    expect(at()).toEqual({ done: 0, total: 0, current: null, blocked: [] });
-  });
-});
-
 describe("what a record's board is asked for", () => {
   const id = "0b0f1f0e-6a3c-4d1e-9a51-2f3f5c1f0a11";
 
@@ -314,6 +283,31 @@ describe("what a record's board is asked for", () => {
     });
     expect(boardStart.safeParse({ templateId: id, name: "Audit" }).success).toBe(false);
     expect(boardStart.safeParse({ name: " ", description: "" }).success).toBe(false);
+  });
+
+  it("takes an icon only from the list, or none", () => {
+    expect(boardIcon.safeParse({ boardId: id, icon: "rocket" }).success).toBe(true);
+    expect(boardIcon.safeParse({ boardId: id, icon: null }).success).toBe(true);
+    for (const value of [
+      { boardId: id, icon: "skull" },
+      { boardId: id, icon: "<svg onload=alert(1)>" },
+      { boardId: id, icon: "" },
+      { boardId: "not-a-uuid", icon: "rocket" },
+      { boardId: id, icon: "rocket", color: "red" },
+    ]) {
+      expect(boardIcon.safeParse(value).success).toBe(false);
+    }
+  });
+
+  it("stars a board by its id with a yes or a no", () => {
+    expect(boardStar.safeParse({ id, starred: "1" }).success).toBe(true);
+    for (const value of [
+      { id, starred: "true" },
+      { id: "x", starred: "1" },
+      { id, starred: "1", organizationId: id },
+    ]) {
+      expect(boardStar.safeParse(value).success).toBe(false);
+    }
   });
 
   it("changes a stage only to one of the four statuses", () => {
@@ -704,6 +698,72 @@ describe("workflows", () => {
       const boards = await listRecordBoards(ownerId, { organizationId });
       expect(boards.map(({ id }) => id).sort()).toEqual([first, second].sort());
       expect(await listRecordBoards(ownerId, { contactId })).toHaveLength(1);
+    });
+
+    it("marks a workflow with an icon its copies take, and changes or clears it", async () => {
+      expect(await setBoardIcon(ownerId, { boardId: templateId, icon: "rocket" })).toBe(true);
+      const id = await start({ organizationId });
+      expect(await stored(id)).toMatchObject({ icon: "rocket" });
+      expect((await listTemplates(ownerId))[0].icon).toBe("rocket");
+
+      // A copy's icon is its own from then on.
+      expect(await setBoardIcon(ownerId, { boardId: id, icon: "handshake" })).toBe(true);
+      expect(await setBoardIcon(ownerId, { boardId: templateId, icon: null })).toBe(true);
+      expect(await stored(templateId)).toMatchObject({ icon: null });
+      expect((await listRecordBoards(ownerId, { organizationId }))[0].icon).toBe(
+        "handshake",
+      );
+      expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+        action: "workflow.icon",
+        entityId: templateId,
+        before: { icon: "rocket" },
+        after: { icon: null },
+      });
+
+      const stranger = await createTestOwner("stranger@example.com");
+      expect(await setBoardIcon(stranger, { boardId: id, icon: "zap" })).toBe(false);
+      expect(await stored(id)).toMatchObject({ icon: "handshake" });
+    });
+
+    it("stars one board of a record, which is listed first", async () => {
+      const first = await start({ organizationId });
+      const second = await start({ organizationId });
+      const theirs = await start({ contactId });
+      const order = async () =>
+        (await listRecordBoards(ownerId, { organizationId })).map(({ id }) => id);
+      expect(await order()).toEqual([second, first]);
+
+      expect(await starBoard(ownerId, first, true)).toBe(true);
+      expect(await starBoard(ownerId, theirs, true)).toBe(true);
+      expect(await order()).toEqual([first, second]);
+
+      // Starring another moves the star; the person's stays where it is.
+      expect(await starBoard(ownerId, second, true)).toBe(true);
+      expect(await stored(first)).toMatchObject({ starred: false });
+      expect(await order()).toEqual([second, first]);
+      expect(await stored(theirs)).toMatchObject({ starred: true });
+      expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+        action: "workflow.star",
+        entityId: second,
+        after: { starred: true },
+      });
+
+      // Unstarring a board that has no star leaves the record's star alone.
+      expect(await starBoard(ownerId, first, false)).toBe(true);
+      expect(await stored(second)).toMatchObject({ starred: true });
+
+      expect(await starBoard(ownerId, second, false)).toBe(true);
+      expect(await stored(second)).toMatchObject({ starred: false });
+    });
+
+    it("stars no workflow, and nothing of another owner's", async () => {
+      const id = await start({ organizationId });
+      const stranger = await createTestOwner("stranger@example.com");
+
+      expect(await starBoard(ownerId, templateId, true)).toBe(false);
+      expect(await starBoard(stranger, id, true)).toBe(false);
+      expect(await stored(templateId)).toMatchObject({ starred: false });
+      expect(await stored(id)).toMatchObject({ starred: false });
     });
 
     it("starts nothing on a record or from a workflow that is not the owner's", async () => {
