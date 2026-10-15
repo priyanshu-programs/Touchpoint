@@ -8,10 +8,10 @@ import {
   addStarterBoard,
   createBoard,
   deleteBoard,
+  moveToStage,
   reorderTemplates,
   saveScene,
   setBoardIcon,
-  setStageStatus,
   starBoard,
   startBoard,
   updateBoard,
@@ -20,6 +20,7 @@ import { STAGE_COLORS } from "./drawing";
 import {
   boardSubjectOf,
   getBoard,
+  listPipeline,
   listRecordBoards,
   listTemplates,
 } from "./queries";
@@ -34,8 +35,9 @@ import {
   MAX_ELEMENTS,
   MAX_RECORD_BOARDS,
   MAX_TEMPLATES,
+  pipelineParams,
   sceneSave,
-  stageChange,
+  stageMove,
 } from "./schema";
 import { stagesOf, UNNAMED_STAGE } from "./stages";
 import { STARTER_BOARDS, starterScene } from "./starters";
@@ -310,17 +312,27 @@ describe("what a record's board is asked for", () => {
     }
   });
 
-  it("changes a stage only to one of the four statuses", () => {
-    const change = { boardId: id, elementId: "box-1", status: "done" };
-    expect(stageChange.safeParse(change).success).toBe(true);
-    for (const value of [
-      { ...change, status: "won" },
-      { ...change, elementId: "" },
-      { ...change, elementId: "x".repeat(101) },
-      { ...change, backgroundColor: "#000000" },
-    ]) {
-      expect(stageChange.safeParse(value).success).toBe(false);
+  it("moves a card to a stage by its element, or to done or not started", () => {
+    for (const target of ["done", "not_started", { elementId: "box-1" }]) {
+      expect(stageMove.safeParse({ boardId: id, target }).success).toBe(true);
     }
+    for (const value of [
+      { boardId: id, target: "won" },
+      { boardId: id, target: "box-1" },
+      { boardId: id, target: { elementId: "" } },
+      { boardId: id, target: { elementId: "x".repeat(101) } },
+      { boardId: id, target: { elementId: "a", status: "done" } },
+      { boardId: id, target: "done", backgroundColor: "#000000" },
+      { boardId: "x", target: "done" },
+    ]) {
+      expect(stageMove.safeParse(value).success).toBe(false);
+    }
+  });
+
+  it("reads the pipeline's workflow as a uuid or not at all", () => {
+    expect(pipelineParams.parse({ workflow: id })).toEqual({ workflow: id });
+    expect(pipelineParams.parse({ workflow: "../x" })).toEqual({});
+    expect(pipelineParams.parse({})).toEqual({});
   });
 
   it("takes an order as ids, each once", () => {
@@ -804,44 +816,126 @@ describe("workflows", () => {
       expect((await startBoard(ownerId, { contactId }, { templateId })).ok).toBe(true);
     });
 
-    it("changes one stage's status, colour and nothing else", async () => {
+    const statuses = async (id: string) =>
+      Object.fromEntries(
+        (await stored(id)).stages.map(({ elementId, status }) => [elementId, status]),
+      );
+
+    it("moves a copy to a stage: the way there done, that stage begun, nothing else drawn changed", async () => {
       const id = await start({ organizationId });
       const before = await stored(id);
-      const change = { boardId: id, elementId: "b", status: "done" } as const;
+      const move = { boardId: id, target: { elementId: "b" } };
 
-      expect(await setStageStatus(ownerId, change)).toBe(true);
+      expect(await moveToStage(ownerId, move)).toBe(true);
       const after = await stored(id);
       expect(after.version).toBe(2);
       expect(after.stages).toEqual([
-        { elementId: "a", name: "Kickoff", status: "not_started" },
-        { elementId: "b", name: "Build", status: "done" },
+        { elementId: "a", name: "Kickoff", status: "done" },
+        { elementId: "b", name: "Build", status: "in_progress" },
       ]);
       expect(after.scene.elements.find((element) => element.id === "b")).toMatchObject({
         x: 200,
-        customData: { stage: { status: "done" } },
-        backgroundColor: STAGE_COLORS.done,
+        customData: { stage: { status: "in_progress" } },
+        backgroundColor: STAGE_COLORS.in_progress,
       });
-      expect(after.scene.elements.filter((element) => element.id !== "b")).toEqual(
-        before.scene.elements.filter((element) => element.id !== "b"),
-      );
+      const untouched = (elements: Record<string, unknown>[]) =>
+        elements.filter(({ id }) => id !== "a" && id !== "b");
+      expect(untouched(after.scene.elements)).toEqual(untouched(before.scene.elements));
       expect((await listAudit(ownerId)).rows[0]).toMatchObject({
-        action: "workflow.stage_status",
+        action: "workflow.stage_move",
         entityId: id,
-        before: { stage: "Build", status: "not_started" },
-        after: { status: "done" },
+        before: {
+          stages: [
+            { name: "Kickoff", status: "not_started" },
+            { name: "Build", status: "not_started" },
+          ],
+        },
+        after: {
+          to: "Build",
+          stages: [
+            { name: "Kickoff", status: "done" },
+            { name: "Build", status: "in_progress" },
+          ],
+        },
       });
 
-      // The same status again changes nothing, the version included.
-      expect(await setStageStatus(ownerId, change)).toBe(true);
+      // The same move again changes nothing, the version included.
+      expect(await moveToStage(ownerId, move)).toBe(true);
       expect((await stored(id)).version).toBe(2);
-      // A whiteboard that opened the board before the change cannot save over it.
+      // A whiteboard that opened the board before the move cannot save over it.
       expect(await saveScene(ownerId, id, save(1, []))).toEqual({
         ok: false,
         reason: "conflict",
       });
+
+      // Moved back, what came after is begun again.
+      expect(await moveToStage(ownerId, { boardId: id, target: { elementId: "a" } })).toBe(
+        true,
+      );
+      expect(await statuses(id)).toEqual({ a: "in_progress", b: "not_started" });
     });
 
-    it("keeps the name given to a stage of handwriting through a copy and a status", async () => {
+    it("moves along one branch, leaving the other and keeping a stage held up", async () => {
+      // Brief leads to Design and to Copy, which both lead to Review, then Launch.
+      const branching = await create("Campaign");
+      const at = (id: string, x: number, y: number) => [
+        stage(id, { x, y }),
+        label(id, id),
+      ];
+      await saveScene(
+        ownerId,
+        branching,
+        save(1, [
+          ...at("brief", 0, 100),
+          ...at("design", 200, 0),
+          ...at("copy", 200, 200),
+          ...at("review", 400, 100),
+          ...at("launch", 600, 100),
+          arrow("brief", "design"),
+          arrow("brief", "copy"),
+          arrow("design", "review"),
+          arrow("copy", "review"),
+          arrow("review", "launch"),
+        ]),
+      );
+      const id = await start({ organizationId }, { templateId: branching });
+      // Worked on the whiteboard: Copy held up, Review and Launch ahead of time.
+      const worked: Record<string, string> = {
+        copy: "blocked",
+        review: "done",
+        launch: "blocked",
+      };
+      const drawing = (await stored(id)).scene.elements.map((element) => {
+        const status = worked[String(element.id)];
+        return status ? { ...element, customData: { stage: { status } } } : element;
+      });
+      await saveScene(ownerId, id, save(1, drawing));
+
+      expect(
+        await moveToStage(ownerId, { boardId: id, target: { elementId: "design" } }),
+      ).toBe(true);
+      expect(await statuses(id)).toEqual({
+        brief: "done",
+        design: "in_progress",
+        copy: "blocked",
+        review: "not_started",
+        launch: "blocked",
+      });
+
+      expect(await moveToStage(ownerId, { boardId: id, target: "done" })).toBe(true);
+      expect(new Set(Object.values(await statuses(id)))).toEqual(new Set(["done"]));
+      expect(await moveToStage(ownerId, { boardId: id, target: "not_started" })).toBe(
+        true,
+      );
+      expect(new Set(Object.values(await statuses(id)))).toEqual(
+        new Set(["not_started"]),
+      );
+      expect((await stored(id)).scene.elements.find(({ id }) => id === "copy")).toMatchObject(
+        { backgroundColor: STAGE_COLORS.not_started },
+      );
+    });
+
+    it("keeps the name given to a stage of handwriting through a copy and a move", async () => {
       const sketched = await create("Sketched");
       const named = { stage: { status: "done", name: "Signed off" } };
       await saveScene(ownerId, sketched, save(1, [box("s", { customData: named })]));
@@ -850,34 +944,70 @@ describe("workflows", () => {
       expect((await stored(id)).stages).toEqual([
         { elementId: "s", name: "Signed off", status: "not_started" },
       ]);
-      const change = { boardId: id, elementId: "s", status: "blocked" } as const;
-      expect(await setStageStatus(ownerId, change)).toBe(true);
+      expect(await moveToStage(ownerId, { boardId: id, target: { elementId: "s" } })).toBe(
+        true,
+      );
       const after = await stored(id);
       expect(after.stages).toEqual([
-        { elementId: "s", name: "Signed off", status: "blocked" },
+        { elementId: "s", name: "Signed off", status: "in_progress" },
       ]);
       expect(after.scene.elements[0].customData).toEqual({
-        stage: { status: "blocked", name: "Signed off" },
+        stage: { status: "in_progress", name: "Signed off" },
       });
     });
 
-    it("refuses a status on a workflow, a box that is no stage, or another owner's board", async () => {
+    it("refuses a move on a workflow, to a box that is no stage, or on another owner's board", async () => {
       const id = await start({ organizationId });
       const stranger = await createTestOwner("stranger@example.com");
-      const done = { status: "done" } as const;
 
-      expect(
-        await setStageStatus(ownerId, { boardId: templateId, elementId: "a", ...done }),
-      ).toBe(false);
+      expect(await moveToStage(ownerId, { boardId: templateId, target: "done" })).toBe(
+        false,
+      );
       for (const elementId of ["note", "a-text", "nowhere"]) {
-        expect(await setStageStatus(ownerId, { boardId: id, elementId, ...done })).toBe(
+        expect(await moveToStage(ownerId, { boardId: id, target: { elementId } })).toBe(
           false,
         );
       }
+      expect(await moveToStage(stranger, { boardId: id, target: "done" })).toBe(false);
       expect(
-        await setStageStatus(stranger, { boardId: id, elementId: "a", ...done }),
+        await moveToStage(ownerId, {
+          boardId: "0b0f1f0e-6a3c-4d1e-9a51-2f3f5c1f0a11",
+          target: "done",
+        }),
       ).toBe(false);
       expect((await stored(id)).version).toBe(1);
+    });
+
+    it("lists a workflow's copies on the owner's records for its pipeline", async () => {
+      const onCompany = await start({ organizationId });
+      const onPerson = await start({ contactId });
+      // A blank board and another workflow's copy are not on this pipeline.
+      await start({ organizationId }, board("Loose"));
+      const other = await create("Other");
+      await start({ contactId }, { templateId: other });
+      const stranger = await createTestOwner("stranger@example.com");
+
+      const pipeline = await listPipeline(ownerId, templateId);
+      expect(pipeline?.stages.map(({ name }) => name)).toEqual(["Kickoff", "Build"]);
+      expect(pipeline?.more).toBe(false);
+      expect(pipeline?.boards.map(({ id }) => id)).toEqual([onPerson, onCompany]);
+      expect(pipeline?.boards[1]).toMatchObject({
+        record: { kind: "organization", id: organizationId, name: "Acme", pictureVersion: null },
+        // Of the drawing, only its arrows.
+        arrows: [{ id: "a-b", type: "arrow" }],
+      });
+      expect(pipeline?.boards[0].record).toMatchObject({
+        kind: "contact",
+        id: contactId,
+        name: "Priya Sharma",
+      });
+
+      // Not a workflow, or not the owner's: no pipeline at all.
+      expect(await listPipeline(ownerId, onCompany)).toBeNull();
+      expect(await listPipeline(stranger, templateId)).toBeNull();
+      // A deleted workflow's copies forget it, and its pipeline goes with it.
+      await deleteBoard(ownerId, templateId);
+      expect(await listPipeline(ownerId, templateId)).toBeNull();
     });
 
     it("keeps a copy, its workflow and its sibling copies apart", async () => {
@@ -886,8 +1016,8 @@ describe("workflows", () => {
       const template = await stored(templateId);
       const untouched = await stored(sibling);
 
-      // The copy changes: a status, a new drawing, a new name.
-      await setStageStatus(ownerId, { boardId: copy, elementId: "a", status: "done" });
+      // The copy changes: a move, a new drawing, a new name.
+      await moveToStage(ownerId, { boardId: copy, target: { elementId: "b" } });
       await saveScene(ownerId, copy, save(2, [stage("z"), label("z", "Handover")]));
       await updateBoard(ownerId, copy, board("Acme onboarding"));
       expect(await stored(templateId)).toEqual(template);

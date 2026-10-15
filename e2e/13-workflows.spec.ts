@@ -11,7 +11,8 @@ const main = (page: Page) => page.getByRole("main");
 const workflows = (page: Page) =>
   main(page).getByRole("list", { name: "Your workflows" }).getByRole("listitem");
 const row = (page: Page, name: string) => workflows(page).filter({ hasText: name });
-const names = (page: Page) => workflows(page).getByRole("link");
+const names = (page: Page) =>
+  workflows(page).getByRole("link").filter({ hasNotText: /^Pipeline$/ });
 const panel = (page: Page) => page.getByRole("dialog");
 // The sidebar also has a link named Workflows, so a tab is looked for in the record's own bar.
 const companyTabs = (page: Page) =>

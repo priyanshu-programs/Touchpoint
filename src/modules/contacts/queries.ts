@@ -21,7 +21,7 @@ import { likePrefix, prefixTsQuery } from "@/lib/text-search";
 import { contactTagNames } from "@/modules/tags/queries";
 
 // Changes whenever the picture does, so its address can be cached for good.
-const photoVersion = sql<string | null>`(
+export const photoVersion = sql<string | null>`(
   select left(contact_photos.sha256, 12) from contact_photos
   where contact_photos.contact_id = contacts.id
 )`;

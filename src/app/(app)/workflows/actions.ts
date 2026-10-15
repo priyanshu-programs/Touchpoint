@@ -14,6 +14,7 @@ import {
   addStarterBoard,
   createBoard,
   deleteBoard,
+  moveToStage,
   reorderTemplates,
   setBoardIcon,
   starBoard,
@@ -38,6 +39,7 @@ import {
   MAX_TEMPLATES,
   noteBody,
   noteRef,
+  stageMove,
 } from "@/modules/workflows/schema";
 import { STARTER_BOARDS } from "@/modules/workflows/starters";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
@@ -256,6 +258,24 @@ export async function setBoardIconAction(boardId: string, icon: string | null) {
     notFound();
   }
   revalidateBoards();
+}
+
+// A card moved on the pipeline. A board that is gone, or a stage no longer on
+// it, is said in a sentence so the card can go back where it was.
+export async function moveToStageAction(
+  boardId: string,
+  target: unknown,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const owner = await requireOwner();
+  if (!(await moveToStage(owner.id, stageMove.parse({ boardId, target })))) {
+    return {
+      ok: false,
+      message:
+        "That workflow has changed since this page was opened. Reload the page to see it as it is now.",
+    };
+  }
+  revalidateBoards();
+  return { ok: true };
 }
 
 export async function setBoardStarAction(formData: FormData) {

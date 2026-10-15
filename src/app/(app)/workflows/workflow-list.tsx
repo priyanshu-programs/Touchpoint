@@ -14,7 +14,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { GripVertical } from "lucide-react";
+import { GripVertical, SquareKanban } from "lucide-react";
 import Link from "next/link";
 import { startTransition, useId, useState } from "react";
 import { flushSync } from "react-dom";
@@ -92,6 +92,13 @@ function WorkflowRow({
           </p>
         )}
       </div>
+      <Link
+        href={`/workflows/pipeline?workflow=${workflow.id}`}
+        className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+      >
+        <SquareKanban aria-hidden className="size-3.5" />
+        <span className="sr-only sm:not-sr-only">Pipeline</span>
+      </Link>
     </li>
   );
 }

@@ -34,7 +34,7 @@ const lastActivityAt = sql`(
 )`.mapWith(activities.occurredAt) as SQL<Date | null>;
 
 // Changes whenever the logo does, so its address can be cached for good.
-const logoVersion = sql<string | null>`(
+export const logoVersion = sql<string | null>`(
   select left(organization_logos.sha256, 12) from organization_logos
   where organization_logos.organization_id = organizations.id
 )`;

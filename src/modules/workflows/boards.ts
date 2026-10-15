@@ -5,6 +5,8 @@ import {
   organizations,
   workflowBoards,
   type BoardScene,
+  type BoardStage,
+  type StageStatus,
 } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { dropUnusedFiles } from "@/modules/files/service";
@@ -20,9 +22,16 @@ import {
   type BoardStart,
   type BoardSubject,
   type SceneSave,
-  type StageChange,
+  type StageMove,
 } from "./schema";
-import { atStatus, isStage, stagesOf } from "./stages";
+import {
+  atStatus,
+  downstreamOf,
+  isStage,
+  stageLinks,
+  stagesOf,
+  upstreamOf,
+} from "./stages";
 import { STARTER_BOARDS, starterScene } from "./starters";
 
 export type BoardResult =
@@ -433,14 +442,14 @@ export async function startBoard(
   });
 }
 
-// One stage of a record's board, changed without opening the drawing: that box
-// takes the status and its colour, and nothing else of the drawing is touched.
-// The version moves on, so a whiteboard that has this board open stops saving
-// over the change and says so.
-export async function setStageStatus(
-  ownerId: string,
-  { boardId, elementId, status }: StageChange,
-) {
+// A record's board moved on the pipeline, without opening the drawing. Moved to
+// a stage: every stage on the way there is done, that one is in progress, and
+// what comes after it is begun again, except a stage held up, which stays so;
+// another branch of the drawing is left as it is. Moved to done or to not
+// started: every stage is. Only the stages' statuses and colours change. The
+// version moves on, so a whiteboard that has this board open stops saving over
+// the move and says so.
+export async function moveToStage(ownerId: string, { boardId, target }: StageMove) {
   return db.transaction(async (tx) => {
     const [board] = await tx
       .select({
@@ -455,15 +464,38 @@ export async function setStageStatus(
       .for("update");
     // A status means something only on a record's own board.
     if (!board || (!board.organizationId && !board.contactId)) return false;
-    const before = board.stages.find((stage) => stage.elementId === elementId);
-    if (!before) return false;
-    if (before.status === status) return true;
 
-    const elements = board.scene.elements.map((element) =>
-      element.id === elementId && isStage(element)
-        ? atStatus(element, status)
-        : element,
-    );
+    const order = board.stages.map(({ elementId }) => elementId);
+    let next: (stage: BoardStage) => StageStatus;
+    if (typeof target === "string") {
+      next = () => target;
+    } else {
+      const to = target.elementId;
+      if (!order.includes(to)) return false;
+      const links = stageLinks(board.scene.elements, new Set(order));
+      const upstream = upstreamOf(links, order, to);
+      const downstream = downstreamOf(links, order, to);
+      next = ({ elementId, status }) => {
+        if (elementId === to) return "in_progress";
+        if (upstream.has(elementId)) return "done";
+        if (downstream.has(elementId)) {
+          return status === "blocked" ? "blocked" : "not_started";
+        }
+        return status;
+      };
+    }
+
+    const changed = board.stages.flatMap((stage) => {
+      const status = next(stage);
+      return status === stage.status ? [] : [{ ...stage, after: status }];
+    });
+    if (changed.length === 0) return true;
+    const statusOf = new Map(changed.map(({ elementId, after }) => [elementId, after]));
+
+    const elements = board.scene.elements.map((element) => {
+      const status = statusOf.get(String(element.id));
+      return status && isStage(element) ? atStatus(element, status) : element;
+    });
     await tx
       .update(workflowBoards)
       .set({
@@ -475,11 +507,19 @@ export async function setStageStatus(
     await audit(tx, {
       ownerId,
       actor: "user",
-      action: "workflow.stage_status",
+      action: "workflow.stage_move",
       entityType: "workflow",
       entityId: boardId,
-      before: { stage: before.name, status: before.status },
-      after: { status },
+      before: {
+        stages: changed.map(({ name, status }) => ({ name, status })),
+      },
+      after: {
+        to:
+          typeof target === "string"
+            ? target
+            : board.stages.find(({ elementId }) => elementId === target.elementId)!.name,
+        stages: changed.map(({ name, after }) => ({ name, status: after })),
+      },
     });
     return true;
   });
