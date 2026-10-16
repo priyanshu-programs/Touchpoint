@@ -1,6 +1,6 @@
 import { addFile } from "@/modules/workflows/attachments";
 import { boxRef } from "@/modules/workflows/schema";
-import { refused, upload } from "../upload";
+import { refused, upload } from "@/lib/upload";
 
 // A file put on a box of a whiteboard.
 export async function POST(

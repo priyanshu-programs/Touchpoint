@@ -69,7 +69,10 @@ const FILE_KINDS: Record<string, BoxKind> = {
 
 // A file's kind is the one read from its bytes when it was stored. `file` is
 // for a kind kept that has no mark of its own.
-export const attachmentKind = ({ url, contentType }: BoxAttachment): BoxKind =>
+export const attachmentKind = ({
+  url,
+  contentType,
+}: Pick<BoxAttachment, "url" | "contentType">): BoxKind =>
   url
     ? "link"
     : contentType?.startsWith("image/")

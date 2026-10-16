@@ -2,6 +2,8 @@
 
 import {
   Building2,
+  FilePlus2,
+  Files,
   ListChecks,
   LogOut,
   NotebookPen,
@@ -60,6 +62,12 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
       prefix: "/workflows",
     },
     {
+      href: "/materials",
+      label: "Materials",
+      icon: Files,
+      prefix: "/materials",
+    },
+    {
       href: "/settings/profile",
       label: "Settings",
       icon: Settings,
@@ -67,7 +75,9 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
     },
   ];
 // The phone bar has room for four destinations; the rest are reached through "Go to".
-const MOBILE_NAV = NAV.filter((item) => item.href !== "/workflows");
+const MOBILE_NAV = NAV.filter(
+  (item) => item.href !== "/workflows" && item.href !== "/materials",
+);
 
 const COLLAPSED_WIDTH = 56;
 const DEFAULT_WIDTH = 224;
@@ -434,6 +444,15 @@ export function AppShell({
               >
                 <NotebookPen aria-hidden />
                 Log activity
+              </CommandItem>
+              <CommandItem
+                onSelect={() => {
+                  setPaletteOpen(false);
+                  router.push("/materials/new");
+                }}
+              >
+                <FilePlus2 aria-hidden />
+                New material
               </CommandItem>
             </CommandGroup>
             <CommandGroup heading="Account">

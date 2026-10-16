@@ -1,14 +1,26 @@
 import { env } from "@/lib/env";
 import { getOwner } from "@/lib/session";
+import { SHOWN_INLINE } from "@/modules/files/sniff";
 import { MAX_FILE_BYTES } from "@/modules/workflows/drawing";
 
 // A form's own lines around the file it carries.
 const MAX_BODY_BYTES = MAX_FILE_BYTES + 100_000;
 
+// How a stored file is handed over: a PDF or a picture opens in the tab, the
+// rest is saved, under its title in the one form that carries any character
+// safely in a header.
+export const disposition = (contentType: string, title: string) =>
+  `${SHOWN_INLINE.has(contentType) ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(
+    title,
+  ).replace(
+    /['()*]/g,
+    (mark) => `%${mark.charCodeAt(0).toString(16).toUpperCase()}`,
+  )}`;
+
 export const refused = (status: number, reason?: string) =>
   reason ? Response.json({ reason }, { status }) : new Response(null, { status });
 
-// What an upload to a whiteboard brings: the signed-in owner, the file, and
+// What an upload brings: the signed-in owner, the file, and
 // the one other field its form may have. The answer to give instead when the
 // request is turned away. An upload is a route and not a server action because
 // a server action takes a megabyte at most.

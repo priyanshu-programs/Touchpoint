@@ -41,7 +41,7 @@ describe("attachmentKind", () => {
 
   it("reads anything with an address as a link", () => {
     expect(
-      attachmentKind({ ...file("application/pdf"), url: "https://a.test", size: null }),
+      attachmentKind({ ...file("application/pdf"), url: "https://a.test" }),
     ).toBe("link");
   });
 });

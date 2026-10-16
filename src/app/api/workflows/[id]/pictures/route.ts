@@ -1,6 +1,6 @@
 import { addPicture } from "@/modules/workflows/pictures";
 import { pictureRef } from "@/modules/workflows/schema";
-import { refused, upload } from "../upload";
+import { refused, upload } from "@/lib/upload";
 
 // A picture drawn on a whiteboard, sent under the whiteboard's own id for it.
 export async function POST(
