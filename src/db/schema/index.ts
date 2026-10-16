@@ -1,6 +1,7 @@
 export * from "./activities";
 export * from "./auth";
 export * from "./core";
+export * from "./engagements";
 export * from "./enrichment";
 export * from "./fields";
 export * from "./files";

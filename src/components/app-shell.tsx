@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  Briefcase,
+  BriefcaseBusiness,
   Building2,
   ListChecks,
   LogOut,
@@ -52,6 +54,7 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
       icon: Building2,
       prefix: "/people",
     },
+    { href: "/work", label: "Work", icon: Briefcase, prefix: "/work" },
     { href: "/tasks", label: "Tasks", icon: ListChecks, prefix: "/tasks" },
     {
       href: "/workflows",
@@ -67,7 +70,9 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
     },
   ];
 // The phone bar has room for four destinations; the rest are reached through "Go to".
-const MOBILE_NAV = NAV.filter((item) => item.href !== "/workflows");
+const MOBILE_NAV = NAV.filter(
+  (item) => item.href !== "/workflows" && item.href !== "/work",
+);
 
 const COLLAPSED_WIDTH = 56;
 const DEFAULT_WIDTH = 224;
@@ -434,6 +439,15 @@ export function AppShell({
               >
                 <NotebookPen aria-hidden />
                 Log activity
+              </CommandItem>
+              <CommandItem
+                onSelect={() => {
+                  setPaletteOpen(false);
+                  router.push("/work/new");
+                }}
+              >
+                <BriefcaseBusiness aria-hidden />
+                New engagement
               </CommandItem>
             </CommandGroup>
             <CommandGroup heading="Account">

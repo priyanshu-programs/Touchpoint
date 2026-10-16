@@ -276,7 +276,7 @@ export default async function OrganizationsPage({
             archived={params.archived === "1"}
             archiveAction={archiveOrganizationsAction}
             deleteAction={deleteOrganizationsAction}
-            deleteNote="The companies, their tags, logos and website details are removed for good. Their contacts, tasks and logged activity are kept, no longer linked to a company. To hide them instead, use Archive."
+            deleteNote="The companies, their tags, logos, website details and engagements are removed for good. Their contacts, tasks and logged activity are kept, no longer linked to a company. To hide them instead, use Archive."
           >
             <ListCard>
               <Table>
@@ -474,8 +474,12 @@ export default async function OrganizationsPage({
                   label: `Back to ${open.name}`,
                 },
               }}
-              // A company's own "contacts" tab means nothing for one person.
-              tab={params.tab === "contacts" ? undefined : params.tab}
+              // A company's own "contacts" and "engagements" tabs mean nothing for one person.
+              tab={
+                params.tab === "contacts" || params.tab === "engagements"
+                  ? undefined
+                  : params.tab
+              }
               after={params.after}
               hrefFor={({ tab, after }) => companiesHref(params, { tab, after })}
               entryHref={(change) => companiesHref(params, change)}
