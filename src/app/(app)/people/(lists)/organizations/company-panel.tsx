@@ -23,10 +23,6 @@ import { cn } from "@/lib/utils";
 import { listTimeline } from "@/modules/activities/queries";
 import { listContacts } from "@/modules/contacts/queries";
 import {
-  countCompanyEngagements,
-  listCompanyEngagements,
-} from "@/modules/engagements/queries";
-import {
   latestRun,
   suggestedPeople,
   websiteFields,
@@ -39,7 +35,6 @@ import { listTasks } from "@/modules/tasks/queries";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
 import { RecordWorkflows } from "@/app/(app)/workflows/record-workflows";
-import { CompanyEngagements } from "@/app/(app)/work/company-engagements";
 import {
   addCompanyContactAction,
   addExistingContactAction,
@@ -105,7 +100,6 @@ const TABS = [
   { tab: "activity", label: "Activity" },
   { tab: "tasks", label: "Tasks" },
   { tab: "workflows", label: "Workflows" },
-  { tab: "engagements", label: "Engagements" },
 ] as const;
 
 // Counts come from one capped page, so a full page is shown as "100+".
@@ -134,8 +128,6 @@ export async function CompanyPanel({
     run,
     sourced,
     suggested,
-    engagementCount,
-    engagements,
   ] = await Promise.all([
     getSettings(ownerId),
     getLayout(ownerId, "organization"),
@@ -146,10 +138,6 @@ export async function CompanyPanel({
     latestRun(ownerId, organization.id),
     websiteFields(ownerId, organization.id),
     params.tab === "contacts" ? suggestedPeople(ownerId, organization.id) : [],
-    countCompanyEngagements(ownerId, organization.id),
-    params.tab === "engagements"
-      ? listCompanyEngagements(ownerId, organization.id)
-      : [],
   ]);
   const timezone = settings?.timezone ?? "UTC";
   const lastActivity = latest.rows[0]?.occurredAt;
@@ -255,11 +243,7 @@ export async function CompanyPanel({
           archiveAction={setOrganizationArchivedAction}
           remove={{
             title: `Delete ${organization.name}?`,
-            description: `The company, its tags, logo and website details${
-              engagementCount === 0
-                ? ""
-                : ` and its ${engagementCount === 1 ? "engagement" : `${engagementCount} engagements`}`
-            } are removed for good. ${
+            description: `The company, its tags, logo and website details are removed for good. ${
               contacts.rows.length === 0
                 ? "Its tasks and logged activity"
                 : `Its contacts (${upTo(contacts)}), tasks and logged activity`
@@ -480,13 +464,6 @@ export async function CompanyPanel({
 
           {params.tab === "workflows" && (
             <RecordWorkflows ownerId={ownerId} subject={filter} />
-          )}
-
-          {params.tab === "engagements" && (
-            <CompanyEngagements
-              organizationId={organization.id}
-              engagements={engagements}
-            />
           )}
         </div>
       )}

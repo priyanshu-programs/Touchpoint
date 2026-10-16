@@ -29,19 +29,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// The three-dots menu of a record: edit, archive where it can be, and delete behind a confirmation.
+// The three-dots menu of a company or a person: edit, archive, and delete behind a confirmation.
 export function RecordActions({
   id,
   editHref,
-  archived = false,
+  archived,
   archiveAction,
   removePhotoAction,
   remove,
 }: {
   id: string;
   editHref: string;
-  archived?: boolean;
-  archiveAction?: (formData: FormData) => Promise<void>;
+  archived: boolean;
+  archiveAction: (formData: FormData) => Promise<void>;
   // Given when the record has a picture read from a website, which may be the wrong one.
   removePhotoAction?: (formData: FormData) => Promise<void>;
   remove: {
@@ -60,7 +60,7 @@ export function RecordActions({
     const formData = new FormData();
     formData.set("id", id);
     formData.set("archived", archived ? "0" : "1");
-    void archiveAction?.(formData);
+    void archiveAction(formData);
   }
 
   function removePhoto() {
@@ -83,12 +83,10 @@ export function RecordActions({
             <Pencil aria-hidden />
             Edit
           </DropdownMenuItem>
-          {archiveAction && (
-            <DropdownMenuItem onClick={toggleArchived}>
-              {archived ? <ArchiveRestore aria-hidden /> : <Archive aria-hidden />}
-              {archived ? "Restore" : "Archive"}
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem onClick={toggleArchived}>
+            {archived ? <ArchiveRestore aria-hidden /> : <Archive aria-hidden />}
+            {archived ? "Restore" : "Archive"}
+          </DropdownMenuItem>
           {removePhotoAction && (
             <DropdownMenuItem onClick={removePhoto}>
               <ImageOff aria-hidden />

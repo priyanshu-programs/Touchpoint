@@ -34,9 +34,7 @@ export const companyListParams = listParams.extend({
   page: optional(z.coerce.number().int().min(1).max(1000)),
   company: optional(z.uuid()),
   contact: optional(z.uuid()),
-  tab: optional(
-    z.enum(["contacts", "activity", "tasks", "workflows", "engagements"]),
-  ),
+  tab: optional(z.enum(["contacts", "activity", "tasks", "workflows"])),
   ...entryParams,
 });
 export type CompanyListParams = z.infer<typeof companyListParams>;

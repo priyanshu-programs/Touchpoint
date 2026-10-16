@@ -14,7 +14,7 @@ export function labelFor(value: string) {
 // A company opens as a panel over the companies list, so its address is a query string.
 export const companyHref = (
   id: string,
-  tab?: "contacts" | "activity" | "tasks" | "workflows" | "engagements",
+  tab?: "contacts" | "activity" | "tasks" | "workflows",
 ) => `/people/organizations?company=${id}${tab ? `&tab=${tab}` : ""}`;
 
 // A person opens as a panel over the people list.

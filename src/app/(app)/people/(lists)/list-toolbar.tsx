@@ -121,8 +121,8 @@ export function ListToolbar({
   keep: Record<string, string | undefined>;
   filters: ToolbarFilter[];
   sorts?: ToolbarSort[];
-  columns?: ToolbarColumns;
-  archived?: { on: boolean; href: string };
+  columns: ToolbarColumns;
+  archived: { on: boolean; href: string };
 }) {
   const router = useRouter();
   const narrowed = filters.filter((filter) => filter.value !== "").length;
@@ -219,19 +219,17 @@ export function ListToolbar({
           </DropdownMenu>
         )}
 
-        {columns && <ColumnsMenu {...columns} />}
+        <ColumnsMenu {...columns} />
 
-        {archived && (
-          <Button
-            variant="outline"
-            aria-pressed={archived.on}
-            className="aria-pressed:border-foreground/40 aria-pressed:bg-muted"
-            onClick={() => router.push(archived.href)}
-          >
-            <Archive aria-hidden />
-            Archived
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          aria-pressed={archived.on}
+          className="aria-pressed:border-foreground/40 aria-pressed:bg-muted"
+          onClick={() => router.push(archived.href)}
+        >
+          <Archive aria-hidden />
+          Archived
+        </Button>
       </div>
     </div>
   );
