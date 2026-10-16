@@ -635,6 +635,4 @@
 - [2026-10-16] security.md: the three engagement rules removed (restored as before d0e29bd)
 - [2026-10-16] docs/PRD.md: the Work row back to its outline with a note that it is deferred and why, the 8.3 "Built so far" note for 0024 removed, and section 16 says engagements wait with Opportunities
 - [2026-10-16] plan.md: Step 7 moved to "Deferred until after Phases 4 to 8" with what slice 1 had and what was planned; next is Step 8 (Materials)
-- [2026-10-16] Engagements removed and Step 7 deferred: owner decided a separate Work area is premature before won opportunities; slice 1 removed (src/app/(app)/work, src/modules/engagements, src/lib/money, e2e/15-engagements.spec.ts), nav and company panel reverted
-- [2026-10-16] migration 0025_drop_engagements: drops engagements and engagement_contacts tables (approved by owner)
-- [2026-10-16] plan.md, docs/PRD.md, security.md: Step 7 deferred until after Phases 4 to 8; Next is Step 8 (Materials)
+- [2026-10-16] Engagements removal runs: lint and typecheck clean; Vitest passed (639 tests in 30 files); the first full e2e run lost its session in 02 while Neon was slow (14 failed in its wake, 59 not run) and the second passed (84 tests, 12.8 minutes), behind the keep-awake call. Three lines repeating this change, added by a commit made outside this session (81d9a2c), removed
