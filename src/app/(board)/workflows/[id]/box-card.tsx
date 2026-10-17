@@ -50,6 +50,7 @@ export function BoxCard({
   name,
   tracked,
   onChange,
+  moveHere,
   children,
 }: {
   // Nothing when the box is not a stage.
@@ -58,6 +59,8 @@ export function BoxCard({
   name?: string;
   tracked: boolean;
   onChange: (status: StageStatus | null) => void;
+  // On a record's own board, the record moved to this stage.
+  moveHere?: { name: string; onMove: () => void };
   // What the box carries, under what it is to the workflow.
   children: ReactNode;
 }) {
@@ -95,6 +98,11 @@ export function BoxCard({
             </button>
           ))}
         </div>
+      )}
+      {moveHere && (
+        <Button size="sm" className="justify-self-start" onClick={moveHere.onMove}>
+          Move {moveHere.name} here
+        </Button>
       )}
       <Button
         variant={status ? "outline" : "default"}

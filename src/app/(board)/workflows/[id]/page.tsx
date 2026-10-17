@@ -65,7 +65,7 @@ export default async function BoardPage({
           key={board.id}
           boardId={board.id}
           name={board.name}
-          tracked={subject !== null}
+          record={subject}
           paper={paperOf((await cookies()).get(PAPER_COOKIE)?.value)}
         />
       </main>

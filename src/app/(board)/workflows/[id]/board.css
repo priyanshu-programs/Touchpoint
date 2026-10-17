@@ -201,6 +201,93 @@
   transform: translate(-50%, 0) scale(calc(1 / var(--board-zoom)));
 }
 
+/* The record on its own board. Its chips stand on stage boxes in a layer over
+   the canvases, moved and scaled with the drawing as the glows are; each chip
+   stands with its foot at the middle of a box's top edge and is scaled back
+   about that point, so it keeps its size at any zoom. The trays sit at the foot
+   of the board and do not move. Only the chips and trays take the pointer. */
+.record-chips {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.record-chips-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  --board-zoom: 1;
+}
+
+.record-chip {
+  position: absolute;
+  padding-bottom: 8px;
+  pointer-events: auto;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) scale(calc(1 / var(--board-zoom)));
+}
+
+/* The box a chip being dragged would be put on. */
+.record-drop {
+  position: absolute;
+  border-radius: 12px;
+  outline: 2px dashed var(--primary);
+  outline-offset: calc(6px / var(--board-zoom));
+}
+
+.record-drop[data-shape="ellipse"] {
+  border-radius: 50%;
+}
+
+/* Clear of the whiteboard's own controls: between its zoom and help buttons on
+   a wide screen, above its row of tools on a phone. */
+.record-trays {
+  position: absolute;
+  bottom: 4.75rem;
+  left: 50%;
+  display: flex;
+  gap: 0.5rem;
+  max-width: calc(100% - 2rem);
+  transform: translateX(-50%);
+}
+
+@media (min-width: 40rem) {
+  .record-trays {
+    bottom: 1rem;
+  }
+}
+
+.record-tray {
+  display: flex;
+  min-width: 0;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px dashed color-mix(in oklch, var(--foreground) 25%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--card) 85%, transparent);
+  backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+
+.record-tray[data-over] {
+  border-style: solid;
+  border-color: var(--primary);
+  background: color-mix(in oklch, var(--primary) 15%, var(--card));
+}
+
+/* The chip under the pointer while it is dragged. */
+.record-ghost {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
 /* The whiteboard's own chrome, mapped onto this app's tokens. The app's
    --card/--popover/--primary already follow the system theme through
    prefers-color-scheme in globals.css, so these follow too. */

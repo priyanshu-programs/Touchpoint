@@ -1,4 +1,6 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
+import { ButtonLink } from "@/components/button-link";
 import { requireOwner } from "@/lib/session";
 import { listTemplates } from "@/modules/workflows/queries";
 import { STARTER_BOARDS } from "@/modules/workflows/starters";
@@ -6,7 +8,6 @@ import { ListCard } from "../people/(lists)/list-card";
 import { reorderBoardsAction } from "./actions";
 import { StarterTemplates } from "./starter-templates";
 import { WorkflowList } from "./workflow-list";
-import { WorkflowsHeader } from "./workflows-header";
 
 export const metadata: Metadata = { title: "Workflows" };
 
@@ -19,7 +20,19 @@ export default async function WorkflowsPage() {
 
   return (
     <div className="grid gap-6">
-      <WorkflowsHeader />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Workflows</h1>
+          <p className="text-muted-foreground">
+            The stages you take a client through, drawn once on a whiteboard and
+            reused.
+          </p>
+        </div>
+        <ButtonLink href="/workflows/new">
+          <Plus aria-hidden />
+          New workflow
+        </ButtonLink>
+      </div>
 
       {templates.length === 0 ? (
         <p className="text-sm text-muted-foreground">

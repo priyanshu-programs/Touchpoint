@@ -11,6 +11,7 @@ import {
   MainMenu,
   newElementWith,
   ROUNDNESS,
+  viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import type {
@@ -20,7 +21,7 @@ import type {
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { Grid3x3, Grip, Loader2, Rows3, Square } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import type { StageStatus } from "@/db/schema";
+import type { BoardStage, StageStatus } from "@/db/schema";
 import {
   attachmentKind,
   BOX_KINDS,
@@ -36,11 +37,20 @@ import "./board.css";
 import { createBoardPictures } from "./board-pictures";
 import { createBoardSaver, type SaveState } from "./board-saver";
 import { closedShape } from "@/modules/workflows/sketch";
+import {
+  placeOf,
+  stageLinks,
+  stagesOf,
+  statusesAfterMove,
+  type MoveTarget,
+  type StageLinks,
+} from "@/modules/workflows/stages";
 import { BoxAttachments } from "./box-attachments";
 import { BoxCard, StrokesCard } from "./box-card";
 import { BoxMarks, type BoxMark } from "./box-marks";
 import { BoxNotes } from "./box-notes";
 import { PAPER_COOKIE, PAPERS, type Paper } from "./paper";
+import { RecordChips, type BoardRecord, type ChipSpot } from "./record-chip";
 import { StageAsk } from "./stage-ask";
 import { StageHalos, type StageBox } from "./stage-halos";
 
@@ -195,6 +205,46 @@ const sameBoxes = (before: readonly StageBox[], now: readonly StageBox[]) =>
     (box, index) => box.id === now[index].id && box.version === now[index].version,
   );
 
+// Whether a point of the drawing is inside a box, turned as the box is.
+function within({ x, y, width, height, angle }: StageBox, pointX: number, pointY: number) {
+  const dx = pointX - (x + width / 2);
+  const dy = pointY - (y + height / 2);
+  const across = dx * Math.cos(angle) + dy * Math.sin(angle);
+  const down = -dx * Math.sin(angle) + dy * Math.cos(angle);
+  return Math.abs(across) <= width / 2 && Math.abs(down) <= height / 2;
+}
+
+// The middle of a box's top edge, which goes round the box's middle when the
+// box is turned.
+const topOf = ({ x, y, width, height, angle }: StageBox) => ({
+  x: x + width / 2 + (height / 2) * Math.sin(angle),
+  y: y + height / 2 - (height / 2) * Math.cos(angle),
+});
+
+// The stages in order, with their names and statuses, and the arrows between
+// them, as the server reads them from a saved drawing.
+type Flow = { stages: BoardStage[]; links: StageLinks; key: string };
+
+function flowOf(elements: readonly ExcalidrawElement[]): Flow {
+  const drawn = getNonDeletedElements(elements) as unknown as Record<string, unknown>[];
+  const stages = stagesOf(drawn);
+  const links = stageLinks(drawn, new Set(stages.map(({ elementId }) => elementId)));
+  return {
+    stages,
+    links,
+    key: JSON.stringify([stages, [...links].map(([from, to]) => [from, [...to]])]),
+  };
+}
+
+// A stage's box at that status and in its colour. A name given with the mark
+// stays with it.
+const restaged = (element: ExcalidrawElement, status: StageStatus) =>
+  newElementWith(element, {
+    customData: { stage: { ...element.customData?.stage, status } },
+    backgroundColor: STAGE_COLORS[status],
+    fillStyle: "solid",
+  });
+
 // What the boxes carry, kept apart from the drawing.
 type Carried = { attachments: BoxAttachment[]; notes: BoxNote[] };
 
@@ -256,13 +306,14 @@ type Drawing = Carried & {
 export function BoardEditor({
   boardId,
   name,
-  tracked,
+  record,
   paper,
 }: {
   boardId: string;
   name: string;
-  // A company's or a person's own board, whose stages have a status.
-  tracked: boolean;
+  // The company or the person whose own board this is, whose stages have a
+  // status; nothing on a workflow that is only drawn.
+  record: BoardRecord | null;
   // The page the owner last chose to draw on.
   paper: Paper;
 }) {
@@ -317,7 +368,7 @@ export function BoardEditor({
     <Whiteboard
       boardId={boardId}
       name={name}
-      tracked={tracked}
+      record={record}
       opensOn={paper}
       {...drawing}
     />
@@ -327,7 +378,7 @@ export function BoardEditor({
 function Whiteboard({
   boardId,
   name,
-  tracked,
+  record,
   opensOn,
   version,
   elements,
@@ -337,9 +388,10 @@ function Whiteboard({
 }: Drawing & {
   boardId: string;
   name: string;
-  tracked: boolean;
+  record: BoardRecord | null;
   opensOn: Paper;
 }) {
+  const tracked = record !== null;
   const [paper, setPaper] = useState(opensOn);
   const [carried, setCarried] = useState<Carried>({
     attachments: attached,
@@ -355,7 +407,17 @@ function Whiteboard({
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [selected, setSelected] = useState<Selected | null>(null);
   const [stages, setStages] = useState<StageBox[]>([]);
+  const [flow, setFlow] = useState<Flow>(() => flowOf([]));
   const halos = useRef<HTMLDivElement>(null);
+  const chips = useRef<HTMLDivElement | null>(null);
+  // Where the drawing is moved to and how large it is drawn, for a layer that
+  // first shows between two changes, as the chips do once there is a stage.
+  const view = useRef({ placed: "", zoom: 1 });
+  const follow = (layer: HTMLDivElement | null) => {
+    if (!layer) return;
+    layer.style.transform = view.current.placed;
+    layer.style.setProperty("--board-zoom", String(view.current.zoom));
+  };
   const page = useRef<HTMLDivElement>(null);
   const [ask, setAsk] = useState<Ask | null>(null);
   const asks = useRef<HTMLDivElement>(null);
@@ -426,25 +488,53 @@ function Whiteboard({
     if (!api || selected?.kind !== "box") return;
     api.updateScene({
       elements: api.getSceneElements().map((element) =>
-        element.id === selected.id
-          ? newElementWith(
-              element,
-              status
-                ? {
-                    // A name given with the mark stays with it.
-                    customData: { stage: { ...element.customData?.stage, status } },
-                    backgroundColor: STAGE_COLORS[status],
-                    fillStyle: "solid",
-                  }
-                : // Emptied, not removed: the whiteboard skips an update that
-                  // sets a field to nothing.
-                  { customData: {} },
-            )
-          : element,
+        element.id !== selected.id
+          ? element
+          : status
+            ? restaged(element, status)
+            : // Emptied, not removed: the whiteboard skips an update that sets
+              // a field to nothing.
+              newElementWith(element, { customData: {} }),
       ),
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
   };
+
+  // Moves the record to a stage, or sets every stage done or not started, by
+  // the same rule as the stages' order and arrows give. It is a change to the
+  // drawing like any other: one undo takes it back, and it is saved with it.
+  const moveTo = (target: MoveTarget) => {
+    if (!api) return;
+    const all = api.getSceneElements();
+    const { stages: order, links } = flowOf(all);
+    const changed = statusesAfterMove(order, links, target);
+    if (changed.size === 0) return;
+    api.updateScene({
+      elements: all.map((element) => {
+        const status = changed.get(element.id);
+        return status ? restaged(element, status) : element;
+      }),
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+  };
+
+  // The stage whose box is under a point of the window, the one drawn last
+  // where boxes overlap.
+  const stageAt = (clientX: number, clientY: number) => {
+    if (!api) return null;
+    const { x, y } = viewportCoordsToSceneCoords({ clientX, clientY }, api.getAppState());
+    return stages.findLast((box) => within(box, x, y))?.id ?? null;
+  };
+
+  // Where the record's chip stands: on each stage box it is at, or in a tray.
+  const place = record && flow.stages.length > 0 ? placeOf(flow.stages, flow.links) : null;
+  const spots: ChipSpot[] =
+    place && typeof place === "object"
+      ? place.stages.flatMap((id) => {
+          const box = stages.find((stage) => stage.id === id);
+          return box ? { id, ...topOf(box) } : [];
+        })
+      : [];
 
   // Swaps the shape asked about for a real box or circle where it was drawn,
   // which arrows attach to and text goes inside. One undo brings the stroke back.
@@ -561,10 +651,9 @@ function Whiteboard({
             clips.current.style.transform = placed;
             clips.current.style.setProperty("--board-zoom", String(zoom));
           }
-          if (asks.current) {
-            asks.current.style.transform = placed;
-            asks.current.style.setProperty("--board-zoom", String(zoom));
-          }
+          view.current = { placed, zoom };
+          follow(asks.current);
+          follow(chips.current);
 
           // The pen has been lifted when the stroke it was drawing is no longer
           // the one under way. A stroke that closes into a shape is asked about.
@@ -611,6 +700,10 @@ function Whiteboard({
           }
           const boxes = stageBoxes(all);
           setStages((before) => (sameBoxes(before, boxes) ? before : boxes));
+          if (tracked) {
+            const drawn = flowOf(all);
+            setFlow((before) => (before.key === drawn.key ? before : drawn));
+          }
           const carrying = boxMarks(all, carried);
           setMarks((before) => (sameMarks(before, carrying) ? before : carrying));
           pictures.look(all, files);
@@ -687,12 +780,35 @@ function Whiteboard({
           />
         )}
       </div>
+      {record && place && (
+        <RecordChips
+          layer={(layer) => {
+            chips.current = layer;
+            follow(layer);
+          }}
+          record={record}
+          spots={spots}
+          at={typeof place === "string" ? place : null}
+          stages={flow.stages}
+          boxes={stages}
+          stageAt={stageAt}
+          onMove={moveTo}
+        />
+      )}
       {selected?.kind === "box" && (
         <BoxCard
           status={selected.status}
           name={selected.name}
           tracked={tracked}
           onChange={setStage}
+          moveHere={
+            record && selected.status
+              ? {
+                  name: record.name,
+                  onMove: () => moveTo({ elementId: selected.id }),
+                }
+              : undefined
+          }
         >
           <BoxAttachments
             // A form of its own for each box, so nothing typed for one is

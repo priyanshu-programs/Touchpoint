@@ -41,24 +41,6 @@ export const boardStart = z.union([
 ]);
 export type BoardStart = z.infer<typeof boardStart>;
 
-// Where a card on the pipeline is moved to: one of the board's stages, or all
-// of them done, or none begun.
-export const stageMove = z.strictObject({
-  boardId: z.uuid(),
-  target: z.union([
-    z.enum(["done", "not_started"]),
-    z.strictObject({ elementId: z.string().min(1).max(100) }),
-  ]),
-});
-export type StageMove = z.infer<typeof stageMove>;
-
-// The copies on one pipeline, most recently started first.
-export const MAX_PIPELINE_CARDS = 500;
-
-export const pipelineParams = z.object({
-  workflow: z.uuid().optional().catch(undefined),
-});
-
 export const boardIcon = z.strictObject({
   boardId: z.uuid(),
   icon: workflowIcon.nullable(),

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { BoardStage, StageStatus } from "@/db/schema";
-import { downstreamOf, placeOf, stageLinks, upstreamOf } from "./stages";
+import {
+  downstreamOf,
+  placeOf,
+  stageLinks,
+  statusesAfterMove,
+  upstreamOf,
+} from "./stages";
 
 const arrow = (from: string, to: string) => ({
   id: `${from}-${to}`,
@@ -83,6 +89,81 @@ describe("upstreamOf and downstreamOf", () => {
     );
     expect(sorted(upstreamOf(links, order, "do"))).toEqual(["plan"]);
     expect(sorted(downstreamOf(links, order, "do"))).toEqual(["review"]);
+  });
+});
+
+describe("statusesAfterMove", () => {
+  const moved = (
+    statuses: Record<string, StageStatus>,
+    target: Parameters<typeof statusesAfterMove>[2],
+  ) => Object.fromEntries(statusesAfterMove(stagesAt(statuses), branching, target));
+
+  it("marks the way to a stage done and begins it on a straight line", () => {
+    const order = ["a", "b", "c"];
+    const line = stageLinks([arrow("a", "b"), arrow("b", "c")], new Set(order));
+    const stages = order.map((elementId) => ({
+      elementId,
+      name: elementId,
+      status: "not_started" as const,
+    }));
+    expect(
+      Object.fromEntries(statusesAfterMove(stages, line, { elementId: "b" })),
+    ).toEqual({ a: "done", b: "in_progress" });
+  });
+
+  it("gives back only what changes", () => {
+    expect(moved({ brief: "done", design: "in_progress" }, { elementId: "design" })).toEqual(
+      {},
+    );
+  });
+
+  it("moves along one branch, leaving the other", () => {
+    expect(moved({ copy: "in_progress" }, { elementId: "design" })).toEqual({
+      brief: "done",
+      design: "in_progress",
+    });
+  });
+
+  it("begins again what comes after, keeping a stage held up", () => {
+    expect(
+      moved(
+        { brief: "done", design: "done", copy: "done", review: "done", launch: "blocked" },
+        { elementId: "design" },
+      ),
+    ).toEqual({ design: "in_progress", review: "not_started" });
+  });
+
+  it("sets every stage done, or every stage not started", () => {
+    expect(moved({ brief: "done", design: "blocked" }, "done")).toEqual({
+      design: "done",
+      copy: "done",
+      review: "done",
+      launch: "done",
+    });
+    expect(moved({ brief: "done", design: "blocked" }, "not_started")).toEqual({
+      brief: "not_started",
+      design: "not_started",
+    });
+  });
+
+  it("does not follow an arrow drawn back to an earlier stage", () => {
+    const order = ["plan", "do", "review"];
+    const loop = stageLinks(
+      [arrow("plan", "do"), arrow("do", "review"), arrow("review", "plan")],
+      new Set(order),
+    );
+    const stages = order.map((elementId) => ({
+      elementId,
+      name: elementId,
+      status: "done" as const,
+    }));
+    expect(
+      Object.fromEntries(statusesAfterMove(stages, loop, { elementId: "do" })),
+    ).toEqual({ do: "in_progress", review: "not_started" });
+  });
+
+  it("changes nothing for a stage the drawing does not have", () => {
+    expect(moved({}, { elementId: "nowhere" })).toEqual({});
   });
 });
 

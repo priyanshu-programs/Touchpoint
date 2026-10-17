@@ -120,9 +120,48 @@ export const upstreamOf = (links: StageLinks, order: readonly string[], id: stri
 export const downstreamOf = (links: StageLinks, order: readonly string[], id: string) =>
   reached(links, order, id, false);
 
-// Where a record's copy stands on the pipeline: finished, not begun, or at each
-// stage being worked on or held up. With none of those, at each stage that can
-// begin, its way there all done. A drawing that branches can be at several.
+// Where a record's board is moved to: a stage, or every stage done or not begun.
+export type MoveTarget = "done" | "not_started" | { elementId: string };
+
+// The statuses a move changes, by stage. Moved to a stage: every stage on the
+// way there is done, that one in progress, and what comes after it begun again,
+// except a stage held up, which stays so; another branch is left as it is.
+// Moved to done or to not started: every stage is. A stage not among them
+// changes nothing.
+export function statusesAfterMove(
+  stages: readonly BoardStage[],
+  links: StageLinks,
+  target: MoveTarget,
+): Map<string, StageStatus> {
+  let next: (stage: BoardStage) => StageStatus;
+  if (typeof target === "string") {
+    next = () => target;
+  } else {
+    const order = stages.map(({ elementId }) => elementId);
+    const to = target.elementId;
+    if (!order.includes(to)) return new Map();
+    const upstream = upstreamOf(links, order, to);
+    const downstream = downstreamOf(links, order, to);
+    next = ({ elementId, status }) => {
+      if (elementId === to) return "in_progress";
+      if (upstream.has(elementId)) return "done";
+      if (downstream.has(elementId)) {
+        return status === "blocked" ? "blocked" : "not_started";
+      }
+      return status;
+    };
+  }
+  return new Map(
+    stages.flatMap((stage) => {
+      const status = next(stage);
+      return status === stage.status ? [] : [[stage.elementId, status] as const];
+    }),
+  );
+}
+
+// Where a record's board stands: finished, not begun, or at each stage being
+// worked on or held up. With none of those, at each stage that can begin, its
+// way there all done. A drawing that branches can be at several.
 export type Place = "done" | "not_started" | { stages: string[] };
 
 export function placeOf(stages: readonly BoardStage[], links: StageLinks): Place {
