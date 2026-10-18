@@ -77,12 +77,13 @@ export const activityContacts = pgTable(
   ],
 );
 
-// One row per thing that happened to a record. Only activities feed it so far; stage
-// transitions, material sends and payments join the union when their tables exist, so
-// system events are never copied into the activities table.
+// One row per thing that happened to a record: activities, and materials sent (whose
+// kind is the channel, title the material and version, and body the note). Payments
+// join the union when their table exists, so system events are never copied into the
+// activities table.
 export const timeline = pgView("timeline", {
   ownerId: uuid("owner_id").notNull(),
-  eventType: text("event_type").notNull(),
+  eventType: text("event_type").$type<"activity" | "material_send">().notNull(),
   eventId: uuid("event_id").notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   kind: text("kind").notNull(),
@@ -92,6 +93,9 @@ export const timeline = pgView("timeline", {
   outcome: text("outcome"),
   organizationId: uuid("organization_id"),
   contactIds: uuid("contact_ids").array().notNull(),
+  // A send's own: where its material is, and how it was received.
+  materialId: uuid("material_id"),
+  status: text("status"),
 }).as(sql`
   select
     a.owner_id,
@@ -106,6 +110,28 @@ export const timeline = pgView("timeline", {
     a.organization_id,
     array(
       select ac.contact_id from activity_contacts ac where ac.activity_id = a.id
-    ) as contact_ids
+    ) as contact_ids,
+    null::uuid as material_id,
+    null::text as status
   from activities a
+  union all
+  select
+    s.owner_id,
+    'material_send'::text as event_type,
+    s.id as event_id,
+    s.sent_at as occurred_at,
+    s.channel as kind,
+    null::text as direction,
+    m.name::text || ' · ' || v.label as title,
+    s.note as body,
+    null::text as outcome,
+    s.organization_id,
+    array(
+      select r.contact_id from material_send_recipients r where r.send_id = s.id
+    ) as contact_ids,
+    m.id as material_id,
+    s.status
+  from material_sends s
+  join material_versions v on v.id = s.version_id
+  join materials m on m.id = v.material_id
 `);

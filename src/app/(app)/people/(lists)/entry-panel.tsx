@@ -6,6 +6,7 @@ import { getSettings } from "@/modules/settings/service";
 import { getTask } from "@/modules/tasks/queries";
 import { ActivityEditor } from "@/app/(app)/activities/activity-editor";
 import { NewActivity } from "@/app/(app)/activities/new-activity";
+import { NewSend } from "@/app/(app)/materials/new-send";
 import { NewTask } from "@/app/(app)/tasks/new-task";
 import { TaskEditor } from "@/app/(app)/tasks/task-editor";
 import type { EntryParam } from "./list-controls";
@@ -14,8 +15,9 @@ import type { EntryParam } from "./list-controls";
 // theirs, or is gone, is no entry, and the record is shown as if it had not been asked for.
 export async function findEntry(
   ownerId: string,
-  params: { activity?: EntryParam; task?: EntryParam },
+  params: { activity?: EntryParam; task?: EntryParam; send?: "new" },
 ) {
+  if (params.send === "new") return { kind: "send" } as const;
   if (params.task === "new") return { kind: "task", task: null } as const;
   if (params.task) {
     const task = await getTask(ownerId, params.task);
@@ -33,9 +35,11 @@ export async function findEntry(
 export type Entry = NonNullable<Awaited<ReturnType<typeof findEntry>>>;
 
 export const entryKey = (entry: Entry) =>
-  entry.kind === "task"
-    ? `task:${entry.task?.id ?? "new"}`
-    : `activity:${entry.activity?.id ?? "new"}`;
+  entry.kind === "send"
+    ? "send:new"
+    : entry.kind === "task"
+      ? `task:${entry.task?.id ?? "new"}`
+      : `activity:${entry.activity?.id ?? "new"}`;
 
 // The tab of the record that an entry of this kind is listed on, and goes back to.
 export const entryTab = (entry: Entry) =>
@@ -65,9 +69,11 @@ export async function EntryPanel({
   const from = contact ? "contact" : "organization";
   const inside = contact ? organization?.id : undefined;
   const title =
-    entry.kind === "task"
-      ? (entry.task?.title ?? "Add task")
-      : (entry.activity?.title ?? "Log activity");
+    entry.kind === "send"
+      ? "Log a send"
+      : entry.kind === "task"
+        ? (entry.task?.title ?? "Add task")
+        : (entry.activity?.title ?? "Log activity");
 
   return (
     <>
@@ -89,7 +95,16 @@ export async function EntryPanel({
       </header>
 
       <div className="p-4">
-        {entry.kind === "task" ? (
+        {entry.kind === "send" ? (
+          <NewSend
+            ownerId={ownerId}
+            contact={contact}
+            organization={organization}
+            timezone={timezone}
+            inside={inside}
+            cancelHref={back.href}
+          />
+        ) : entry.kind === "task" ? (
           entry.task ? (
             <TaskEditor
               task={entry.task}

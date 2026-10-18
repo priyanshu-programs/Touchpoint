@@ -279,10 +279,12 @@ describe("materials", () => {
     expect(await stored()).toHaveLength(1);
     if (!first.ok) throw new Error("not added");
 
-    expect(await removeVersion(ownerId, { materialId: other, versionId: first.id })).toBe(
-      false,
+    expect(await removeVersion(ownerId, { materialId: other, versionId: first.id })).toEqual(
+      refused("not_found"),
     );
-    expect(await removeVersion(ownerId, { materialId, versionId: first.id })).toBe(true);
+    expect(await removeVersion(ownerId, { materialId, versionId: first.id })).toEqual({
+      ok: true,
+    });
     expect(await stored()).toHaveLength(1);
     expect(await deleteMaterial(ownerId, other)).toBe(true);
     expect(await stored()).toHaveLength(0);

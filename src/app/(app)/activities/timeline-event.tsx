@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import type { TimelineRow } from "@/modules/activities/queries";
+import { SEND_CHANNEL_LABELS, type SEND_CHANNELS } from "@/modules/materials/schema";
+import { materialHref, sendStatusOptions } from "../materials/labels";
+import { setSendStatusAction } from "../materials/send-actions";
+import { StatusMenu } from "../people/(lists)/status-menu";
 import { contactHref, labelFor } from "../people/labels";
 
 // The heading lines of one timeline entry, as shown on both a record's Timeline tab and Today.
@@ -14,22 +18,43 @@ export function TimelineEvent({
   // Where an entry opens: its own page, unless the panel showing it says otherwise.
   hrefFor?: (id: string) => string;
 }) {
+  // A send opens its material, whose page lists every send of it.
+  const send = event.eventType === "material_send" && event.materialId;
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{labelFor(event.kind)}</Badge>
+        <Badge variant="secondary">{send ? "Sent material" : labelFor(event.kind)}</Badge>
         <Link
-          href={hrefFor?.(event.eventId) ?? `/activities/${event.eventId}`}
+          href={
+            send
+              ? materialHref(send)
+              : (hrefFor?.(event.eventId) ?? `/activities/${event.eventId}`)
+          }
           // A panel changes in place; a page of its own starts at its top.
-          scroll={!hrefFor}
+          scroll={Boolean(send) || !hrefFor}
           className="min-w-0 font-medium break-words underline-offset-4 hover:underline"
         >
           {event.title}
         </Link>
+        {send && event.status && (
+          <StatusMenu
+            label="Status"
+            value={event.status}
+            options={sendStatusOptions}
+            action={setSendStatusAction.bind(null, event.eventId)}
+          />
+        )}
       </div>
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
         <span>{when}</span>
-        {event.direction && <span>{labelFor(event.direction)}</span>}
+        {send ? (
+          <span>
+            {SEND_CHANNEL_LABELS[event.kind as (typeof SEND_CHANNELS)[number]] ?? event.kind}
+          </span>
+        ) : (
+          event.direction && <span>{labelFor(event.direction)}</span>
+        )}
         {event.contacts.map((contact) => (
           <Link
             key={contact.id}

@@ -6,11 +6,12 @@ import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { requireOwner } from "@/lib/session";
 import { dateIn, formatDate } from "@/lib/time";
-import { getMaterial } from "@/modules/materials/queries";
+import { getMaterial, listMaterialSends } from "@/modules/materials/queries";
 import { MATERIAL_TYPE_LABELS } from "@/modules/materials/schema";
 import { getSettings } from "@/modules/settings/service";
 import { RecordActions } from "../../people/(lists)/record-actions";
 import { deleteMaterialAction } from "../actions";
+import { SendsCard } from "./sends-card";
 import { VersionsCard } from "./versions-card";
 
 const parseId = async (params: PageProps<"/materials/[id]">["params"]) =>
@@ -29,8 +30,9 @@ export default async function MaterialPage({ params }: PageProps<"/materials/[id
   const owner = await requireOwner();
   const id = await parseId(params);
   if (!id.success) notFound();
-  const [material, settings] = await Promise.all([
+  const [material, sends, settings] = await Promise.all([
     getMaterial(owner.id, id.data),
+    listMaterialSends(owner.id, id.data),
     getSettings(owner.id),
   ]);
   if (!material) notFound();
@@ -68,7 +70,7 @@ export default async function MaterialPage({ params }: PageProps<"/materials/[id
           remove={{
             title: `Delete ${material.name}?`,
             description:
-              "The material and every version of it are removed for good, with any file uploaded for it that nothing else uses.",
+              "The material and every version of it are removed for good, with any file uploaded for it that nothing else uses. Its sends go with it, from this page and from every Activity tab they show on.",
             confirmLabel: "Delete material",
             action: deleteMaterialAction,
           }}
@@ -81,6 +83,13 @@ export default async function MaterialPage({ params }: PageProps<"/materials/[id
           ...version,
           added: formatDate(dateIn(timezone, createdAt)),
         }))}
+      />
+
+      <SendsCard
+        materialId={material.id}
+        sends={sends}
+        timezone={timezone}
+        canSend={material.versions.length > 0}
       />
     </div>
   );

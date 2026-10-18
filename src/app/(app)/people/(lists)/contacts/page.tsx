@@ -39,7 +39,7 @@ import { RowCheckbox, SelectAll, Selection } from "../selection";
 export const metadata: Metadata = { title: "Contacts" };
 
 const PATH = "/people/contacts";
-const NO_ENTRY = { activity: undefined, task: undefined };
+const NO_ENTRY = { activity: undefined, task: undefined, send: undefined };
 const NO_PANEL = {
   ...NO_ENTRY,
   contact: undefined,

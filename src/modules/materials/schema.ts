@@ -1,14 +1,39 @@
 import { z } from "zod";
-import { MATERIAL_TYPES, type MaterialType } from "@/db/schema";
+import {
+  MATERIAL_TYPES,
+  SEND_CHANNELS,
+  SEND_STATUSES,
+  type MaterialType,
+  type SendChannel,
+  type SendStatus,
+} from "@/db/schema";
 import { blankToNull, text } from "@/lib/form";
 import { httpUrl } from "@/lib/url";
 
-export { MATERIAL_TYPES };
+export { MATERIAL_TYPES, SEND_CHANNELS, SEND_STATUSES };
 
 export const MAX_MATERIALS = 500;
 export const MAX_MATERIAL_VERSIONS = 50;
 export const MATERIAL_UPLOADS_PER_MINUTE = 30;
 export const MAX_VERSION_TITLE = 200;
+export const MAX_SEND_RECIPIENTS = 20;
+export const SENDS_PER_MINUTE = 30;
+
+export const SEND_CHANNEL_LABELS: Record<SendChannel, string> = {
+  email: "Email",
+  whatsapp: "WhatsApp",
+  linkedin: "LinkedIn",
+  in_person: "In person",
+  other: "Other",
+};
+
+export const SEND_STATUS_LABELS: Record<SendStatus, string> = {
+  sent: "Sent",
+  viewed: "Viewed",
+  accepted: "Accepted",
+  rejected: "Rejected",
+  superseded: "Superseded",
+};
 
 export const MATERIAL_TYPE_LABELS: Record<MaterialType, string> = {
   proposal: "Proposal",
@@ -56,6 +81,23 @@ export const versionRef = z.strictObject({
   versionId: z.uuid(),
 });
 export type VersionRef = z.infer<typeof versionRef>;
+
+export const sendInput = z.strictObject({
+  versionId: z.uuid("Choose a material and a version"),
+  // As the owner typed it; the service turns it into an instant in the owner's time zone.
+  sentAt: z.iso.datetime({ local: true, precision: -1, error: "Enter when it was sent" }),
+  channel: z.enum(SEND_CHANNELS, "Choose how it was sent"),
+  contactIds: z
+    .array(z.uuid())
+    .min(1, "Choose who it went to")
+    .max(MAX_SEND_RECIPIENTS, `A send can go to at most ${MAX_SEND_RECIPIENTS} people`)
+    .transform((ids) => [...new Set(ids)]),
+  organizationId: blankToNull(z.uuid()),
+  note: blankToNull(text(2000)),
+});
+export type SendInput = z.infer<typeof sendInput>;
+
+export const sendStatus = z.enum(SEND_STATUSES);
 
 const optional = <T extends z.ZodType>(schema: T) =>
   schema.optional().catch(undefined);

@@ -18,10 +18,11 @@ export const listParams = z.object({
 });
 
 // `activity` and `task` put one entry in place of the open record: a new one, or the
-// one with that id. They come last, so an address reads record, tab, entry.
+// one with that id; `send` only a new one, since a send opens its material. They come
+// last, so an address reads record, tab, entry.
 const entry = optional(z.union([z.literal("new"), z.uuid()]));
 export type EntryParam = z.infer<typeof entry>;
-const entryParams = { activity: entry, task: entry };
+const entryParams = { activity: entry, task: entry, send: optional(z.literal("new")) };
 type ListParams = z.infer<typeof listParams>;
 
 // `company` and `tab` say which company panel is open over the list; `after` pages its timeline.

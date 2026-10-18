@@ -1,7 +1,17 @@
 import { sql } from "drizzle-orm";
-import { check, index, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { citext, createdAt, id, oneOf, ownerId, updatedAt } from "./columns";
 import { files } from "./files";
+import { contacts, organizations } from "./people";
 
 export const MATERIAL_TYPES = [
   "proposal",
@@ -58,5 +68,57 @@ export const materialVersions = pgTable(
     ),
     index("material_versions_material_idx").on(table.materialId, table.createdAt),
     index("material_versions_file_idx").on(table.fileId),
+  ],
+);
+
+export const SEND_CHANNELS = ["email", "whatsapp", "linkedin", "in_person", "other"] as const;
+export type SendChannel = (typeof SEND_CHANNELS)[number];
+export const SEND_STATUSES = ["sent", "viewed", "accepted", "rejected", "superseded"] as const;
+export type SendStatus = (typeof SEND_STATUSES)[number];
+
+// One version of a material going to one or more people. It shows on their and the
+// company's timeline. A version that has been sent is kept; deleting the material
+// takes its sends with it.
+export const materialSends = pgTable(
+  "material_sends",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    versionId: uuid("version_id")
+      .notNull()
+      .references(() => materialVersions.id, { onDelete: "cascade" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+    channel: text("channel").$type<SendChannel>().notNull(),
+    status: text("status").$type<SendStatus>().notNull().default("sent"),
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    note: text("note"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    check("material_sends_channel_check", oneOf(table.channel, SEND_CHANNELS)),
+    check("material_sends_status_check", oneOf(table.status, SEND_STATUSES)),
+    index("material_sends_version_idx").on(table.versionId),
+    index("material_sends_owner_sent_idx").on(table.ownerId, table.sentAt, table.id),
+    index("material_sends_organization_idx").on(table.organizationId),
+  ],
+);
+
+export const materialSendRecipients = pgTable(
+  "material_send_recipients",
+  {
+    sendId: uuid("send_id")
+      .notNull()
+      .references(() => materialSends.id, { onDelete: "cascade" }),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    ownerId: ownerId(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sendId, table.contactId] }),
+    index("material_send_recipients_contact_idx").on(table.contactId),
   ],
 );

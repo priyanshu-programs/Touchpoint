@@ -18,6 +18,7 @@ export async function RecordTimeline({
   filter,
   moreHref,
   newHref,
+  sendHref,
   openHref,
   after,
 }: {
@@ -25,6 +26,8 @@ export async function RecordTimeline({
   filter: { contactId: string } | { organizationId: string };
   moreHref: (after: string) => string;
   newHref: string;
+  // Logs that a material went to this record.
+  sendHref: string;
   openHref: (id: string) => string;
   after?: string;
 }) {
@@ -44,7 +47,10 @@ export async function RecordTimeline({
     <Card>
       <CardHeader>
         <CardTitle>Timeline</CardTitle>
-        <CardAction>
+        <CardAction className="flex flex-wrap justify-end gap-2">
+          <ButtonLink href={sendHref} scroll={false} variant="outline" size="sm">
+            Log a send
+          </ButtonLink>
           <ButtonLink href={newHref} scroll={false} variant="outline" size="sm">
             Log activity
           </ButtonLink>

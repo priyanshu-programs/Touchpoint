@@ -1,17 +1,29 @@
-import { and, eq, gt, isNotNull, ne, sql } from "drizzle-orm";
+import { and, eq, exists, gt, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
-import { materials, materialVersions } from "@/db/schema";
+import {
+  contacts,
+  materials,
+  materialSendRecipients,
+  materialSends,
+  materialVersions,
+  organizations,
+  type SendStatus,
+} from "@/db/schema";
+import { fromLocalInput } from "@/lib/time";
 import { audit } from "@/modules/audit/service";
 import { dropUnusedFiles, storeFile } from "@/modules/files/service";
 import { fileType } from "@/modules/files/sniff";
+import { ownerTimezone } from "@/modules/settings/service";
 import { MAX_FILE_BYTES } from "@/modules/workflows/drawing";
 import {
   MATERIAL_UPLOADS_PER_MINUTE,
   MAX_MATERIAL_VERSIONS,
   MAX_MATERIALS,
   MAX_VERSION_TITLE,
+  SENDS_PER_MINUTE,
   type MaterialInput,
   type NewMaterialInput,
+  type SendInput,
   type VersionLink,
   type VersionRef,
 } from "./schema";
@@ -243,12 +255,17 @@ export async function addVersionFile(
   });
 }
 
+// A version that has been sent is kept, so its sends still say what went out.
 export async function removeVersion(
   ownerId: string,
   { materialId, versionId }: VersionRef,
-) {
+): Promise<{ ok: true } | { ok: false; reason: "not_found" | "sent" }> {
   return db.transaction(async (tx) => {
-    if (!(await lockMaterial(tx, ownerId, materialId))) return false;
+    if (!(await lockMaterial(tx, ownerId, materialId))) {
+      return { ok: false, reason: "not_found" };
+    }
+    const sends = await tx.$count(materialSends, eq(materialSends.versionId, versionId));
+    if (sends > 0) return { ok: false, reason: "sent" };
     const [gone] = await tx
       .delete(materialVersions)
       .where(
@@ -263,7 +280,7 @@ export async function removeVersion(
         title: materialVersions.title,
         fileId: materialVersions.fileId,
       });
-    if (!gone) return false;
+    if (!gone) return { ok: false, reason: "not_found" };
     if (gone.fileId) await dropUnusedFiles(tx, ownerId);
     await audit(tx, {
       ownerId,
@@ -273,6 +290,199 @@ export async function removeVersion(
       entityId: materialId,
       before: { label: gone.label, url: gone.url, title: gone.title },
     });
+    return { ok: true };
+  });
+}
+
+export type SendResult =
+  | { ok: true; id: string; materialId: string }
+  | {
+      ok: false;
+      reason: "unknown_version" | "unknown_contact" | "unknown_organization" | "rate";
+    };
+
+async function unknownRecipient(tx: Tx, ownerId: string, input: SendInput) {
+  const found = await tx.$count(
+    contacts,
+    and(eq(contacts.ownerId, ownerId), inArray(contacts.id, input.contactIds)),
+  );
+  if (found !== input.contactIds.length) return "unknown_contact" as const;
+  if (input.organizationId) {
+    const found = await tx.$count(
+      organizations,
+      and(
+        eq(organizations.ownerId, ownerId),
+        eq(organizations.id, input.organizationId),
+      ),
+    );
+    if (!found) return "unknown_organization" as const;
+  }
+  return null;
+}
+
+// Sending a newer version of a material means the older one is no longer what its
+// readers are looking at: an earlier send of it that is still open (sent or viewed)
+// becomes superseded once everyone it went to has had a newer one. The material is
+// held, so a version cannot be added or removed under the send.
+export async function logSend(ownerId: string, input: SendInput): Promise<SendResult> {
+  return db.transaction(async (tx) => {
+    const [version] = await tx
+      .select({
+        id: materialVersions.id,
+        materialId: materialVersions.materialId,
+        label: materialVersions.label,
+      })
+      .from(materialVersions)
+      .where(
+        and(eq(materialVersions.ownerId, ownerId), eq(materialVersions.id, input.versionId)),
+      );
+    if (!version || !(await lockMaterial(tx, ownerId, version.materialId))) {
+      return { ok: false, reason: "unknown_version" };
+    }
+    const problem = await unknownRecipient(tx, ownerId, input);
+    if (problem) return { ok: false, reason: problem };
+
+    const recent = await tx.$count(
+      materialSends,
+      and(
+        eq(materialSends.ownerId, ownerId),
+        gt(materialSends.createdAt, sql`now() - interval '1 minute'`),
+      ),
+    );
+    if (recent >= SENDS_PER_MINUTE) return { ok: false, reason: "rate" };
+
+    const timezone = await ownerTimezone(tx, ownerId);
+    const [row] = await tx
+      .insert(materialSends)
+      .values({
+        ownerId,
+        versionId: version.id,
+        sentAt: fromLocalInput(input.sentAt, timezone),
+        channel: input.channel,
+        organizationId: input.organizationId,
+        note: input.note,
+      })
+      .returning({ id: materialSends.id });
+    await tx
+      .insert(materialSendRecipients)
+      .values(input.contactIds.map((contactId) => ({ sendId: row.id, contactId, ownerId })));
+
+    // Older in the order the Versions card shows, compared against the stored row,
+    // which keeps microsecond precision that a JS Date would lose.
+    const olderVersions = tx
+      .select({ id: materialVersions.id })
+      .from(materialVersions)
+      .where(
+        and(
+          eq(materialVersions.materialId, version.materialId),
+          sql`(${materialVersions.createdAt}, ${materialVersions.id}) < (
+            select created_at, id from material_versions where id = ${version.id}
+          )`,
+        ),
+      );
+    const toThesePeople = tx
+      .select({ one: sql`1` })
+      .from(materialSendRecipients)
+      .where(
+        and(
+          eq(materialSendRecipients.sendId, materialSends.id),
+          inArray(materialSendRecipients.contactId, input.contactIds),
+        ),
+      );
+    // A send stays open while anyone it went to has had no newer version, by this
+    // send or an earlier one.
+    const someoneWaiting = sql`select 1 from material_send_recipients r
+      join material_versions v on v.id = ${materialSends.versionId}
+      where r.send_id = ${materialSends.id}
+        and not exists (
+          select 1 from material_send_recipients later_r
+          join material_sends later on later.id = later_r.send_id
+          join material_versions later_v on later_v.id = later.version_id
+          where later_r.contact_id = r.contact_id
+            and later_v.material_id = v.material_id
+            and (later_v.created_at, later_v.id) > (v.created_at, v.id)
+        )`;
+    const superseded = await tx
+      .update(materialSends)
+      .set({ status: "superseded" })
+      .where(
+        and(
+          eq(materialSends.ownerId, ownerId),
+          inArray(materialSends.status, ["sent", "viewed"]),
+          inArray(materialSends.versionId, olderVersions),
+          exists(toThesePeople),
+          sql`not exists (${someoneWaiting})`,
+        ),
+      )
+      .returning({ id: materialSends.id });
+
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "material.send",
+      entityType: "material",
+      entityId: version.materialId,
+      after: {
+        sendId: row.id,
+        version: version.label,
+        sentAt: input.sentAt,
+        channel: input.channel,
+        contactIds: input.contactIds,
+        organizationId: input.organizationId,
+        note: input.note,
+        superseded: superseded.map(({ id }) => id),
+      },
+    });
+    return { ok: true, id: row.id, materialId: version.materialId };
+  });
+}
+
+async function lockSend(tx: Tx, ownerId: string, id: string) {
+  const [row] = await tx
+    .select({
+      status: materialSends.status,
+      materialId: materialVersions.materialId,
+    })
+    .from(materialSends)
+    .innerJoin(materialVersions, eq(materialVersions.id, materialSends.versionId))
+    .where(and(eq(materialSends.ownerId, ownerId), eq(materialSends.id, id)))
+    .for("update", { of: materialSends });
+  return row;
+}
+
+export async function setSendStatus(ownerId: string, id: string, status: SendStatus) {
+  return db.transaction(async (tx) => {
+    const before = await lockSend(tx, ownerId, id);
+    if (!before) return false;
+    if (before.status === status) return true;
+    await tx.update(materialSends).set({ status }).where(eq(materialSends.id, id));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "material.send_status",
+      entityType: "material",
+      entityId: before.materialId,
+      before: { sendId: id, status: before.status },
+      after: { sendId: id, status },
+    });
     return true;
+  });
+}
+
+// A send logged by mistake is removed outright; the audit row keeps that it was.
+export async function removeSend(ownerId: string, id: string) {
+  return db.transaction(async (tx) => {
+    const before = await lockSend(tx, ownerId, id);
+    if (!before) return null;
+    await tx.delete(materialSends).where(eq(materialSends.id, id));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "material.send_remove",
+      entityType: "material",
+      entityId: before.materialId,
+      before: { sendId: id, status: before.status },
+    });
+    return { materialId: before.materialId };
   });
 }

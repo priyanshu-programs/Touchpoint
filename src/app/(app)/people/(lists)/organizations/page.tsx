@@ -64,7 +64,7 @@ const FIRST_DIRECTION = {
   contacts: "desc",
   activity: "desc",
 } as const;
-const NO_ENTRY = { activity: undefined, task: undefined };
+const NO_ENTRY = { activity: undefined, task: undefined, send: undefined };
 const NO_CONTACT = {
   ...NO_ENTRY,
   contact: undefined,

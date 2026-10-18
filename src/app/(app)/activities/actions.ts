@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { companyHref, contactTabHref } from "@/app/(app)/people/labels";
 import { readFields, readOrigin } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import {
@@ -17,6 +16,7 @@ import {
   updateActivity,
   type ActivityResult,
 } from "@/modules/activities/service";
+import { timelineOf } from "./timeline-href";
 
 const FIELDS = [
   "kind",
@@ -83,20 +83,6 @@ function read<const Name extends string>(
 }
 
 const BAD_CONTACTS = "Choose contacts from the list.";
-
-// Back to the record the form was opened from: the company when it says so, else the
-// first person on the activity, inside the company's panel when that is where they were.
-const timelineOf = (
-  links: { contactIds: string[]; organizationId: string | null },
-  origin: ReturnType<typeof readOrigin>,
-) =>
-  origin.from === "organization" && links.organizationId
-    ? companyHref(links.organizationId, "activity")
-    : links.contactIds[0]
-      ? contactTabHref(links.contactIds[0], "activity", origin.inside)
-      : links.organizationId
-        ? companyHref(links.organizationId, "activity")
-        : "/people/contacts";
 
 export async function logActivityAction(
   _previous: RecordFormState,

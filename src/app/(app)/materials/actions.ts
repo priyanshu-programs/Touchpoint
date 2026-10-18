@@ -120,6 +120,8 @@ export async function addVersionLinkAction(
 export async function removeVersionAction(formData: FormData) {
   const owner = await requireOwner();
   const ref = versionRef.parse(readFields(formData, ["materialId", "versionId"]));
-  if (!(await removeVersion(owner.id, ref))) notFound();
+  // A sent version offers no remove, so a refusal here was not asked for from the page.
+  const result = await removeVersion(owner.id, ref);
+  if (!result.ok && result.reason === "not_found") notFound();
   refresh();
 }

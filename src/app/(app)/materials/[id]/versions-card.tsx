@@ -39,6 +39,8 @@ export type VersionRow = {
   contentType: string | null;
   // Worked out on the server, in the owner's time zone.
   added: string;
+  // How many times it was sent; a version that was is kept.
+  sends: number;
 };
 
 // The versions of a material, the newest first and marked current. A version
@@ -245,24 +247,28 @@ export function VersionsCard({
                       version.title ?? (version.url && new URL(version.url).hostname),
                       version.size !== null && sizeOf(version.size),
                       version.added,
+                      version.sends > 0 &&
+                        `sent ${version.sends === 1 ? "once" : `${version.sends} times`}`,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
                   </span>
                 </div>
-                <form action={removeVersionAction}>
-                  <input type="hidden" name="materialId" value={materialId} />
-                  <input type="hidden" name="versionId" value={version.id} />
-                  <Button
-                    type="submit"
-                    variant="ghost"
-                    size="icon"
-                    className="size-7"
-                    aria-label={`Remove ${version.label}`}
-                  >
-                    <X aria-hidden />
-                  </Button>
-                </form>
+                {version.sends === 0 && (
+                  <form action={removeVersionAction}>
+                    <input type="hidden" name="materialId" value={materialId} />
+                    <input type="hidden" name="versionId" value={version.id} />
+                    <Button
+                      type="submit"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      aria-label={`Remove ${version.label}`}
+                    >
+                      <X aria-hidden />
+                    </Button>
+                  </form>
+                )}
               </li>
             ))}
           </ul>
