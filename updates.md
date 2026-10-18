@@ -700,3 +700,4 @@
 - [2026-10-18] Found while testing: a send to several people was first marked superseded when a newer version went to only one of them; changed so it waits until each of them has had a newer one
 - [2026-10-18] Found while testing: two sends logged in the same minute listed in a random order on the Sends card; ties now go by when each was logged
 - [2026-10-18] Step 8 slice 2 runs: lint and typecheck clean; the full e2e run passed (97 tests, 13.6 minutes) and Vitest passed (679 tests in 32 files), behind the keep-awake call
+- [2026-10-18] Step 8 slice 2 is live (7c9a437, CI green; GitHub lists a successful production deployment). Neon main has 28 migrations, with material_sends and material_send_recipients present and empty and the timeline view answering; /materials/<id>/send on the live site sends a visitor to sign in. Not looked at signed in on the live site
