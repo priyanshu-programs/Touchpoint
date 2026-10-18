@@ -41,6 +41,7 @@ const WORKFLOW = "Launch plan";
 const BRIEF = 0;
 const DESIGN = 1;
 const COPY = 2;
+const REVIEW = 3;
 const box = (id: string, name: string, x: number, y: number) => [
   {
     id,
@@ -184,13 +185,15 @@ test("the record's chip is moved over its own board", async ({ page, baseURL }) 
   await page.reload();
   await expect(atDesign).toBeVisible();
 
-  // Dragged onto Copy, the other branch: a chip stands on both.
+  // Dragged onto Copy, the other branch: the chip leaves Design, which comes
+  // first and so is done, though no arrow joins the two.
   save = saved(page);
   await drag(page, atDesign, await onStage(page, COPY));
   await save;
-  await expect(chips(page, "Chipworks")).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "Chipworks is at Copy" })).toBeVisible();
-  await expect(atDesign).toBeVisible();
+  const atCopy = page.getByRole("button", { name: "Chipworks is at Copy" });
+  await expect(atCopy).toBeVisible();
+  await expect(chips(page, "Chipworks")).toHaveCount(1);
+  expect(await statuses(page)).toMatchObject({ design: "done", copy: "in_progress" });
 
   // One undo takes the move back.
   save = saved(page);
@@ -200,14 +203,46 @@ test("the record's chip is moved over its own board", async ({ page, baseURL }) 
   await expect(atDesign).toBeVisible();
   expect(await statuses(page)).toMatchObject({ design: "in_progress", copy: "not_started" });
 
+  // Both branches at once are set on a stage's card: a chip stands on each.
+  const copy = await onStage(page, COPY);
+  await page.mouse.click(copy.x, copy.y);
+  save = saved(page);
+  await card(page)
+    .getByRole("group", { name: "Status" })
+    .getByRole("button", { name: "In progress" })
+    .click();
+  await save;
+  // Bare canvas under Brief, as far below Copy as Copy is below Brief, clears
+  // the selection; the card stands at the right.
+  const first = await onStage(page, BRIEF);
+  await page.mouse.click(first.x, 2 * copy.y - first.y);
+  await expect(card(page)).toHaveCount(0);
+  await expect(chips(page, "Chipworks")).toHaveCount(2);
+  await expect(atDesign).toBeVisible();
+
+  // The chip on Copy dragged onto Review, where both branches lead: one chip,
+  // both branches done.
+  save = saved(page);
+  await drag(page, atCopy, await onStage(page, REVIEW));
+  await save;
+  const atReview = page.getByRole("button", { name: "Chipworks is at Review" });
+  await expect(atReview).toBeVisible();
+  await expect(chips(page, "Chipworks")).toHaveCount(1);
+  expect(await statuses(page)).toEqual({
+    brief: "done",
+    design: "done",
+    copy: "done",
+    review: "in_progress",
+  });
+
   // Let go over no box: it stays where it was, and nothing is saved.
   const canvas = (await whiteboard(page).boundingBox())!;
-  await drag(page, atDesign, { x: canvas.x + canvas.width - 120, y: canvas.y + 200 });
-  await expect(atDesign).toBeVisible();
+  await drag(page, atReview, { x: canvas.x + canvas.width - 120, y: canvas.y + 200 });
+  await expect(atReview).toBeVisible();
   await expect(chips(page, "Chipworks")).toHaveCount(1);
 
   // From the keyboard: its menu lists every place in order, and Done is last.
-  await atDesign.focus();
+  await atReview.focus();
   await page.keyboard.press("Enter");
   const menu = page.getByRole("menu");
   await expect(menu.getByRole("menuitem")).toHaveText([
@@ -291,6 +326,28 @@ test("a person's chip shows their picture, and a workflow has none", async ({ pa
   await expect(halo(page, BRIEF)).toBeAttached();
   await expect(tray(page, "Not started")).toHaveCount(0);
   await expect(page.locator(".record-chips")).toHaveCount(0);
+});
+
+test("a blank board has the record's chip waiting in Not started", async ({ page }) => {
+  await page.goto("/people/organizations");
+  await page.getByRole("link", { name: "Chipworks", exact: true }).click();
+  await expect(panel(page).getByRole("heading", { name: "Chipworks" })).toBeVisible();
+  await companyTabs(page).getByRole("link", { name: "Workflows" }).click();
+  await panel(page).getByRole("button", { name: "Start a workflow" }).click();
+  await page.getByRole("menuitem", { name: "Blank board…" }).click();
+  const blank = page.getByRole("dialog", { name: "Blank board" });
+  await blank.getByLabel("Name").fill("Sketch");
+  await blank.getByRole("button", { name: "Create board" }).click();
+  await expect(whiteboard(page)).toBeVisible();
+
+  const chip = tray(page, "Not started").getByRole("button");
+  await expect(chip).toHaveAccessibleName("Chipworks has not started");
+  // With no stage drawn yet, its menu says how to give it somewhere to go.
+  await chip.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu");
+  await expect(menu).toContainText("Make a box a stage to move Chipworks along it.");
+  await expect(menu.getByRole("menuitem")).toHaveText(["Not started", "Done"]);
 });
 
 test("on a phone the trays sit inside the window", async ({ page }) => {

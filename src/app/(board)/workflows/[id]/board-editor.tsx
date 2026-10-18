@@ -503,11 +503,12 @@ function Whiteboard({
   // Moves the record to a stage, or sets every stage done or not started, by
   // the same rule as the stages' order and arrows give. It is a change to the
   // drawing like any other: one undo takes it back, and it is saved with it.
-  const moveTo = (target: MoveTarget) => {
+  // The stages it is moved from are left behind.
+  const moveTo = (target: MoveTarget, from: readonly string[]) => {
     if (!api) return;
     const all = api.getSceneElements();
     const { stages: order, links } = flowOf(all);
-    const changed = statusesAfterMove(order, links, target);
+    const changed = statusesAfterMove(order, links, target, from);
     if (changed.size === 0) return;
     api.updateScene({
       elements: all.map((element) => {
@@ -526,8 +527,9 @@ function Whiteboard({
     return stages.findLast((box) => within(box, x, y))?.id ?? null;
   };
 
-  // Where the record's chip stands: on each stage box it is at, or in a tray.
-  const place = record && flow.stages.length > 0 ? placeOf(flow.stages, flow.links) : null;
+  // Where the record's chip stands: on each stage box it is at, or in a tray,
+  // which on a board with no stages yet is Not started.
+  const place = record ? placeOf(flow.stages, flow.links) : null;
   const spots: ChipSpot[] =
     place && typeof place === "object"
       ? place.stages.flatMap((id) => {
@@ -805,7 +807,11 @@ function Whiteboard({
             record && selected.status
               ? {
                   name: record.name,
-                  onMove: () => moveTo({ elementId: selected.id }),
+                  onMove: () =>
+                    moveTo(
+                      { elementId: selected.id },
+                      spots.map(({ id }) => id),
+                    ),
                 }
               : undefined
           }

@@ -165,6 +165,59 @@ describe("statusesAfterMove", () => {
   it("changes nothing for a stage the drawing does not have", () => {
     expect(moved({}, { elementId: "nowhere" })).toEqual({});
   });
+
+  describe("from a stage", () => {
+    const from = (
+      statuses: Record<string, StageStatus>,
+      target: Parameters<typeof statusesAfterMove>[2],
+      left: string[],
+    ) =>
+      Object.fromEntries(statusesAfterMove(stagesAt(statuses), branching, target, left));
+
+    it("leaves the other branch it was taken from behind, done when it comes first", () => {
+      expect(from({ brief: "done", design: "in_progress" }, { elementId: "copy" }, ["design"]))
+        .toEqual({ design: "done", copy: "in_progress" });
+      expect(from({ brief: "done", copy: "in_progress" }, { elementId: "design" }, ["copy"]))
+        .toEqual({ design: "in_progress", copy: "not_started" });
+    });
+
+    it("leaves a stage behind that no arrow joins to the one moved to", () => {
+      // a leads to b; c and d are drawn with arrows that end loose.
+      const order = ["a", "b", "c", "d"];
+      const loose = stageLinks([arrow("a", "b")], new Set(order));
+      const stages = (statuses: Record<string, StageStatus>) =>
+        order.map((elementId) => ({
+          elementId,
+          name: elementId,
+          status: statuses[elementId] ?? ("not_started" as const),
+        }));
+      expect(
+        Object.fromEntries(
+          statusesAfterMove(stages({ a: "done", b: "in_progress" }), loose, { elementId: "c" }, [
+            "b",
+          ]),
+        ),
+      ).toEqual({ b: "done", c: "in_progress" });
+      expect(
+        Object.fromEntries(
+          statusesAfterMove(stages({ a: "done", d: "blocked" }), loose, { elementId: "c" }, [
+            "d",
+          ]),
+        ),
+      ).toEqual({ c: "in_progress", d: "not_started" });
+    });
+
+    it("is the same move when taken from the stage it is put back on, or from the way there", () => {
+      expect(from({ design: "blocked" }, { elementId: "design" }, ["design"])).toEqual({
+        brief: "done",
+        design: "in_progress",
+      });
+      expect(from({ brief: "in_progress" }, { elementId: "design" }, ["brief"])).toEqual({
+        brief: "done",
+        design: "in_progress",
+      });
+    });
+  });
 });
 
 describe("placeOf", () => {

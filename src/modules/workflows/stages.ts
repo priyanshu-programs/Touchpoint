@@ -126,12 +126,14 @@ export type MoveTarget = "done" | "not_started" | { elementId: string };
 // The statuses a move changes, by stage. Moved to a stage: every stage on the
 // way there is done, that one in progress, and what comes after it begun again,
 // except a stage held up, which stays so; another branch is left as it is.
-// Moved to done or to not started: every stage is. A stage not among them
-// changes nothing.
+// The stages the record is moved from are left behind even when no arrow joins
+// them to it: done when they come before it, otherwise not begun. Moved to done
+// or to not started: every stage is. A stage not among them changes nothing.
 export function statusesAfterMove(
   stages: readonly BoardStage[],
   links: StageLinks,
   target: MoveTarget,
+  from: readonly string[] = [],
 ): Map<string, StageStatus> {
   let next: (stage: BoardStage) => StageStatus;
   if (typeof target === "string") {
@@ -142,9 +144,13 @@ export function statusesAfterMove(
     if (!order.includes(to)) return new Map();
     const upstream = upstreamOf(links, order, to);
     const downstream = downstreamOf(links, order, to);
+    const left = new Set(from);
     next = ({ elementId, status }) => {
       if (elementId === to) return "in_progress";
       if (upstream.has(elementId)) return "done";
+      if (left.has(elementId)) {
+        return order.indexOf(elementId) < order.indexOf(to) ? "done" : "not_started";
+      }
       if (downstream.has(elementId)) {
         return status === "blocked" ? "blocked" : "not_started";
       }

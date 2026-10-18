@@ -35,6 +35,8 @@ const DRAG = 4;
 
 type Drag = {
   pointerId: number;
+  // The stage the chip is taken from, or none for a chip in a tray.
+  from: string | null;
   fromX: number;
   fromY: number;
   x: number;
@@ -80,7 +82,8 @@ function ChipFace({ record, className }: { record: BoardRecord; className?: stri
 // none, not started or done. The chips stand in a layer over the canvases that
 // the whiteboard moves and scales with the drawing through `layer`, each kept
 // at its own size (board.css). A chip is dragged onto another box or a tray to
-// move the record there, or pressed for a menu of every place it can go.
+// move the record there, or pressed for a menu of every place it can go; the
+// box it leaves is left behind.
 export function RecordChips({
   layer,
   record,
@@ -101,7 +104,8 @@ export function RecordChips({
   boxes: readonly StageBox[];
   // The stage whose box is under a point of the window.
   stageAt: (clientX: number, clientY: number) => string | null;
-  onMove: (target: MoveTarget) => void;
+  // `from` holds the stage the chip was taken from, if any.
+  onMove: (target: MoveTarget, from: readonly string[]) => void;
 }) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const dragging = useRef<Drag | null>(null);
@@ -136,13 +140,14 @@ export function RecordChips({
     return id ? { elementId: id } : null;
   };
 
-  const press = (event: PointerEvent<HTMLButtonElement>) => {
+  const press = (from: string | null) => (event: PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
     // No mouse events follow, so the menu does not open on the press itself.
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     follow({
       pointerId: event.pointerId,
+      from,
       fromX: event.clientX,
       fromY: event.clientY,
       x: event.clientX,
@@ -166,7 +171,7 @@ export function RecordChips({
     if (!now || now.pointerId !== event.pointerId) return false;
     follow(null);
     if (!now.moving) return true;
-    if (now.over) onMove(now.over);
+    if (now.over) onMove(now.over, now.from ? [now.from] : []);
     return false;
   };
 
@@ -177,19 +182,22 @@ export function RecordChips({
         ? `${record.name} has not started`
         : `${record.name} is at ${nameOf.get(target.elementId)}`;
 
-  const chip = (target: MoveTarget) => (
-    <Chip
-      record={record}
-      label={where(target)}
-      stages={stages}
-      faded={drag?.moving ?? false}
-      onPress={press}
-      onCarry={carry}
-      onRelease={release}
-      onCancel={() => follow(null)}
-      onMove={onMove}
-    />
-  );
+  const chip = (target: MoveTarget) => {
+    const from = typeof target === "object" ? target.elementId : null;
+    return (
+      <Chip
+        record={record}
+        label={where(target)}
+        stages={stages}
+        faded={drag?.moving ?? false}
+        onPress={press(from)}
+        onCarry={carry}
+        onRelease={release}
+        onCancel={() => follow(null)}
+        onMove={(to) => onMove(to, from ? [from] : [])}
+      />
+    );
+  };
 
   const over = drag?.over;
   const outlined =
@@ -297,6 +305,11 @@ function Chip({
       <DropdownMenuContent align="center" className="w-auto min-w-44">
         <DropdownMenuGroup>
           <DropdownMenuLabel>Move {record.name} to</DropdownMenuLabel>
+          {stages.length === 0 && (
+            <p className="max-w-56 px-1.5 pb-1 text-xs text-muted-foreground">
+              Make a box a stage to move {record.name} along it.
+            </p>
+          )}
           {targets.map(({ key, name, target }) => (
             <DropdownMenuItem key={key} onClick={() => onMove(target)}>
               {name}
