@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { type SQL, sql } from "drizzle-orm";
 import {
   check,
   date,
@@ -8,7 +8,14 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import { createdAt, id, oneOf, ownerId, updatedAt } from "./columns";
+import {
+  createdAt,
+  id,
+  oneOf,
+  ownerId,
+  tsvector,
+  updatedAt,
+} from "./columns";
 import { contacts, organizations } from "./people";
 
 export const TASK_STATUSES = ["open", "done", "cancelled"] as const;
@@ -46,6 +53,10 @@ export const tasks = pgTable(
     organizationId: uuid("organization_id").references(() => organizations.id, {
       onDelete: "set null",
     }),
+    search: tsvector("search").generatedAlwaysAs(
+      (): SQL =>
+        sql`to_tsvector('simple', ${tasks.title} || ' ' || coalesce(${tasks.notes}, ''))`,
+    ),
     createdAt,
     updatedAt,
   },
@@ -64,6 +75,7 @@ export const tasks = pgTable(
     ),
     index("tasks_contact_idx").on(table.contactId),
     index("tasks_organization_idx").on(table.organizationId),
+    index("tasks_search_idx").using("gin", table.search),
   ],
 );
 

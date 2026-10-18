@@ -11,7 +11,7 @@ test.describe("signed in", () => {
     page,
   }) => {
     await page.goto("/");
-    const filter = page.getByPlaceholder("Type to filter…");
+    const filter = page.getByPlaceholder("Search or jump to…");
     // The shortcut is bound after hydration, so an early key press can be missed.
     await expect(async () => {
       await page.keyboard.press("Control+k");

@@ -120,7 +120,7 @@ Opportunity, engagement and client relationship are separate on purpose: one org
 
 ## 6. Navigation and screen inventory
 
-Left sidebar on desktop, bottom bar on mobile. The account menu (the owner's name, Sign out) is at the foot of the sidebar, and in the top bar on a phone, which has no sidebar. Global: command palette (Ctrl/Cmd+K), search, quick add, assistant panel. While a page is on its way or a server action is running, a thin bar moves across the top of the window; it waits 120 ms before showing, so quick ones never flash it.
+Left sidebar on desktop, bottom bar on mobile. The account menu (the owner's name, Sign out) is at the foot of the sidebar, and in the top bar on a phone, which has no sidebar. Global: command palette (Ctrl/Cmd+K), search, quick add, assistant panel. Search lives in the command palette ("Go to" on a phone), "Search or jump to…": the screens and actions whose names hold the typed text, and from two characters on the owner's companies, people, materials, workflows (theirs first, then the copies on records, "On <record>"), activities and tasks that match, up to five of each under their own heading with a hint (domain, companies, type, date, due date or Done); a choice opens the record where it already lives (a company's or person's panel, a material's page, the whiteboard, an activity's or task's page). Companies and people are found by name, domain or email, title and tag, and by a name typed with a small slip from four characters on; archived ones and cancelled tasks are left out (2026-10-18). While a page is on its way or a server action is running, a thin bar moves across the top of the window; it waits 120 ms before showing, so quick ones never flash it.
 
 | Area | Screens |
 |---|---|
@@ -238,7 +238,7 @@ Every table carries `owner_id`, and every query filters on it, so adding users l
 
 ### 7.6 Search
 
-Generated `tsvector` columns with GIN indexes on contacts, organizations, opportunities, activities, materials, email messages. `pg_trgm` handles fuzzy names and duplicate detection. Embedding-based search is added later and only when an embedding provider is configured.
+Generated `tsvector` columns with GIN indexes on contacts, organizations, opportunities, activities, materials, email messages. `pg_trgm` handles fuzzy names and duplicate detection. Embedding-based search is added later and only when an embedding provider is configured. Built so far: the columns on contacts and organizations (Phase 3 Step 1) and on activities (title, body, outcome) and tasks (title, notes), migration 0028; materials and workflows are matched by name with `ilike` and `word_similarity`, since a library and a list of workflows stay small. One query per kind runs in `src/modules/search`, for the command palette.
 
 ### 7.7 Files
 
@@ -334,7 +334,7 @@ Migration 0021 added `workflow_pictures`. The whiteboard gives each picture an i
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `tasks` | title, notes, status (open/done/cancelled), priority (low/normal/high), due_on (the owner's calendar date, set for every task with a due date), due_at (the instant, set as well when the task has a time), snoozed_until, completed_at, recurrence_rule (RRULE: FREQ, INTERVAL, BYMONTHDAY), origin (manual/follow_up/workflow/ai/meeting), optional contact_id, organization_id, opportunity_id, engagement_id, instance_stage_id, milestone_id | One row, many optional links: appears everywhere, counted once. A CHECK requires due_on whenever due_at is set; due_on of open timed tasks is recomputed if the owner changes time zone. Link columns are added in the phase step that builds their target |
+| `tasks` | title, notes, search (generated tsvector of title and notes), status (open/done/cancelled), priority (low/normal/high), due_on (the owner's calendar date, set for every task with a due date), due_at (the instant, set as well when the task has a time), snoozed_until, completed_at, recurrence_rule (RRULE: FREQ, INTERVAL, BYMONTHDAY), origin (manual/follow_up/workflow/ai/meeting), optional contact_id, organization_id, opportunity_id, engagement_id, instance_stage_id, milestone_id | One row, many optional links: appears everywhere, counted once. A CHECK requires due_on whenever due_at is set; due_on of open timed tasks is recomputed if the owner changes time zone. Link columns are added in the phase step that builds their target |
 | `reminders` | task_id (calendar_event_id comes with the calendar), remind_at, channel (in_app; push and email are added when they can deliver), status (scheduled/sent/cancelled), sent_at, dismissed_at | Status reflects what actually happened. The job is found by its dedupe key `reminder:<id>` |
 | `calendar_events` | connection_id, external_id, title, starts_at, ends_at, timezone, location, meeting_url, attendees, optional organization/opportunity/engagement links | Unique (connection, external_id) |
 | `calendar_event_contacts` | | |
@@ -345,7 +345,7 @@ All instants are stored in UTC and displayed in the owner's time zone; all-day i
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `activities` | kind (note/call/meeting/email/linkedin/message/decision/objection/commitment), direction (inbound/outbound, optional), occurred_at, title, body, outcome, source (manual/gmail/calendar/ai), optional organization/opportunity/engagement/email_message/calendar_event links | The manual and communication log. An activity has at least one contact or an organization. Link columns other than organization are added in the phase step that builds their target. A mistaken entry is deleted outright and kept in the audit log |
+| `activities` | kind (note/call/meeting/email/linkedin/message/decision/objection/commitment), direction (inbound/outbound, optional), occurred_at, title, body, outcome, search (generated tsvector of title, body and outcome), source (manual/gmail/calendar/ai), optional organization/opportunity/engagement/email_message/calendar_event links | The manual and communication log. An activity has at least one contact or an organization. Link columns other than organization are added in the phase step that builds their target. A mistaken entry is deleted outright and kept in the audit log |
 | `activity_contacts` | activity_id, contact_id | An activity can involve several contacts |
 | `email_threads` | connection_id, external_thread_id, subject, last_message_at, optional opportunity/engagement links | |
 | `email_messages` | thread_id, external_message_id, from, to, cc, sent_at, direction, snippet, body_text (size-capped), has_attachments | Only threads involving a known contact are stored |

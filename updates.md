@@ -701,3 +701,15 @@
 - [2026-10-18] Found while testing: two sends logged in the same minute listed in a random order on the Sends card; ties now go by when each was logged
 - [2026-10-18] Step 8 slice 2 runs: lint and typecheck clean; the full e2e run passed (97 tests, 13.6 minutes) and Vitest passed (679 tests in 32 files), behind the keep-awake call
 - [2026-10-18] Step 8 slice 2 is live (7c9a437, CI green; GitHub lists a successful production deployment). Neon main has 28 migrations, with material_sends and material_send_recipients present and empty and the timeline view answering; /materials/<id>/send on the live site sends a visitor to sign in. Not looked at signed in on the live site
+- [2026-10-18] The owner said "start working" and approved Step 9 as four slices (search, quick add, merge duplicates, the rest of custom fields), choosing search over companies, people, materials, workflows, activities and tasks, all of journey 2 for quick add and a choice per field for merging (C:\Users\USER\.claude\plans\start-working-wiggly-breeze.md)
+- [2026-10-18] src/db/schema/activities.ts and tasks.ts: a generated search tsvector with a GIN index on each (activities: title, body, outcome; tasks: title, notes)
+- [2026-10-18] Migration 0028_search_activities_tasks (additive): the two search columns and their indexes; applied to Neon dev
+- [2026-10-18] Added src/modules/search/queries.ts: searchEverything, one owner-filtered query per kind (companies, people, materials, workflows, activities, tasks), five each; companies and people also match a mistyped name by word_similarity from four characters, and by tag
+- [2026-10-18] Added src/app/(app)/search/actions.ts: searchEverythingAction, which checks the owner and the text and builds each result's hint and address on the server
+- [2026-10-18] Added src/components/command-palette.tsx and moved the palette out of app-shell.tsx: "Search or jump to…", screens and actions filtered by the typed text, records found by the server under their own headings
+- [2026-10-18] security.md: the rule for search in the command palette
+- [2026-10-18] docs/PRD.md: search in the palette (section 6), what is built of 7.6, and the search columns on tasks and activities (section 8)
+- [2026-10-18] plan.md: Step 9 split into four slices with slice 1 ticked and its Not built list; slice 2 (quick add) is next
+- [2026-10-18] Tests: new src/modules/search/queries.test.ts (12 tests, passing); new e2e/17-search.spec.ts (a company by the start of its name with Enter, a person by name and a mistyped name, an activity by a word in its notes, screens still filtered, nothing found, a phone); 99-sign-out reads the new placeholder; 01, 02, 17 and 99 passed together (23 tests)
+- [2026-10-18] Looked at the palette in screenshots from a throwaway spec (light, dark, phone); a hint first sat mid-row because the item's hidden check icon shared the spare room, so the label now takes it; the spec was deleted
+- [2026-10-18] Search slice runs: lint and typecheck clean; the full e2e run passed (102 tests, 13.4 minutes) and Vitest passed (691 tests in 33 files), behind the keep-awake call

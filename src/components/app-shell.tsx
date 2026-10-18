@@ -2,11 +2,9 @@
 
 import {
   Building2,
-  FilePlus2,
   Files,
   ListChecks,
   LogOut,
-  NotebookPen,
   Search,
   Settings,
   Sun,
@@ -14,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -24,15 +22,7 @@ import {
   type ReactNode,
 } from "react";
 import { signOutAction } from "@/app/(app)/settings/actions";
-import {
-  Command,
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { CommandPalette } from "@/components/command-palette";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,7 +143,6 @@ export function AppShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [width, setWidth] = useState(() =>
     defaultWidth !== undefined
@@ -411,59 +400,11 @@ export function AppShell({
         </button>
       </nav>
 
-      <CommandDialog
+      <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
-        title="Go to"
-        description="Jump to a screen or run an action"
-      >
-        <Command>
-          <CommandInput placeholder="Type to filter…" />
-          <CommandList>
-            <CommandEmpty>Nothing matches.</CommandEmpty>
-            <CommandGroup heading="Screens">
-              {NAV.map((item) => (
-                <CommandItem
-                  key={item.href}
-                  onSelect={() => {
-                    setPaletteOpen(false);
-                    router.push(item.href);
-                  }}
-                >
-                  <item.icon aria-hidden />
-                  {item.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            <CommandGroup heading="Actions">
-              <CommandItem
-                onSelect={() => {
-                  setPaletteOpen(false);
-                  router.push("/activities/new");
-                }}
-              >
-                <NotebookPen aria-hidden />
-                Log activity
-              </CommandItem>
-              <CommandItem
-                onSelect={() => {
-                  setPaletteOpen(false);
-                  router.push("/materials/new");
-                }}
-              >
-                <FilePlus2 aria-hidden />
-                New material
-              </CommandItem>
-            </CommandGroup>
-            <CommandGroup heading="Account">
-              <CommandItem onSelect={() => void signOutAction()}>
-                <LogOut aria-hidden />
-                Sign out
-              </CommandItem>
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </CommandDialog>
+        screens={NAV}
+      />
     </div>
   );
 }

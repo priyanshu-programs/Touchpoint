@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { type SQL, sql } from "drizzle-orm";
 import {
   check,
   index,
@@ -9,7 +9,14 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import { createdAt, id, oneOf, ownerId, updatedAt } from "./columns";
+import {
+  createdAt,
+  id,
+  oneOf,
+  ownerId,
+  tsvector,
+  updatedAt,
+} from "./columns";
 import { contacts, organizations } from "./people";
 
 export const ACTIVITY_KINDS = [
@@ -41,6 +48,10 @@ export const activities = pgTable(
     organizationId: uuid("organization_id").references(() => organizations.id, {
       onDelete: "set null",
     }),
+    search: tsvector("search").generatedAlwaysAs(
+      (): SQL =>
+        sql`to_tsvector('simple', ${activities.title} || ' ' || coalesce(${activities.body}, '') || ' ' || coalesce(${activities.outcome}, ''))`,
+    ),
     createdAt,
     updatedAt,
   },
@@ -57,6 +68,7 @@ export const activities = pgTable(
       table.id,
     ),
     index("activities_organization_idx").on(table.organizationId),
+    index("activities_search_idx").using("gin", table.search),
   ],
 );
 
