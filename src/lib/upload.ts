@@ -20,11 +20,11 @@ export const disposition = (contentType: string, title: string) =>
 export const refused = (status: number, reason?: string) =>
   reason ? Response.json({ reason }, { status }) : new Response(null, { status });
 
-// What an upload brings: the signed-in owner, the file, and
-// the one other field its form may have. The answer to give instead when the
-// request is turned away. An upload is a route and not a server action because
-// a server action takes a megabyte at most.
-export async function upload(request: Request, field: string) {
+// What an upload brings: the signed-in owner, the file, and the other fields
+// its form may have, each as text (a field left out is ""). The answer to give
+// instead when the request is turned away. An upload is a route and not a
+// server action because a server action takes a megabyte at most.
+export async function upload<const F extends string>(request: Request, fields: readonly F[]) {
   const owner = await getOwner();
   if (!owner) return refused(401);
   // A server action checks where a request came from by itself; a route has to.
@@ -44,11 +44,16 @@ export async function upload(request: Request, field: string) {
     return refused(400);
   }
   const file = form.get("file");
+  const allowed = new Set<string>(["file", ...fields]);
   if (
     !(file instanceof File) ||
-    [...form.keys()].some((key) => key !== "file" && key !== field)
+    [...form.keys()].some((key) => !allowed.has(key)) ||
+    fields.some((field) => form.getAll(field).length > 1 || form.get(field) instanceof File)
   ) {
     return refused(400);
   }
-  return { ownerId: owner.id, file, value: form.get(field) };
+  const values = Object.fromEntries(
+    fields.map((field) => [field, String(form.get(field) ?? "")]),
+  ) as Record<F, string>;
+  return { ownerId: owner.id, file, values };
 }

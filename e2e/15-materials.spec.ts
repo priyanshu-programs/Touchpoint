@@ -74,6 +74,46 @@ test("a material is made from the sidebar with a link as its first version", asy
   ).toBeVisible();
 });
 
+test("a material is made with an uploaded file as its first version", async ({ page }) => {
+  await page.goto("/materials/new");
+  await page.getByLabel("Name").fill("Brochure");
+  await page.getByLabel("Type").selectOption("portfolio");
+
+  // A file is what its bytes say it is; a refused one makes no material and
+  // leaves the form as it was typed.
+  await page
+    .getByLabel("File to upload")
+    .setInputFiles({ ...proposal, name: "notes.pdf", buffer: Buffer.from("only text") });
+  await expect(main(page).getByText("notes.pdf")).toBeVisible();
+  await expect(page.getByLabel("Link (optional)")).toHaveCount(0);
+  await page.getByRole("button", { name: "Create material" }).click();
+  await expect(main(page).getByRole("alert")).toContainText(
+    "Only PDFs, pictures and Word, Excel and PowerPoint files are kept.",
+  );
+  await expect(page).toHaveURL(/\/materials\/new$/);
+  await expect(page.getByLabel("Name")).toHaveValue("Brochure");
+  await page.getByRole("button", { name: "Remove notes.pdf" }).click();
+  await expect(page.getByLabel("Link (optional)")).toBeVisible();
+
+  await page.getByLabel("File to upload").setInputFiles({ ...proposal, name: "Brochure.pdf" });
+  await page.getByLabel("Version").fill("2026");
+  await page.getByRole("button", { name: "Create material" }).click();
+  await expect(page).toHaveURL(new RegExp(`/materials/${ID}$`));
+  await expect(main(page).getByRole("heading", { name: "Brochure", level: 1 })).toBeVisible();
+  await expect(versions(page)).toHaveCount(1);
+  await expect(versions(page).first()).toContainText("Brochure.pdf");
+  await expect(versions(page).getByRole("link", { name: "2026" })).toHaveAttribute(
+    "href",
+    new RegExp(`^/api/materials/${ID}/versions/${ID}$`),
+  );
+
+  // Gone again, so the list below holds what the other tests made.
+  await main(page).getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete material" }).click();
+  await expect(page).toHaveURL(/\/materials$/);
+});
+
 test("a file is uploaded as a new version and served to its owner only", async ({
   page,
   baseURL,
@@ -165,6 +205,41 @@ test("a material is edited and a version removed", async ({ page }) => {
   await expect(versions(page).first()).toContainText("Jan prices");
 });
 
+test("a version's label, link and file are changed in place", async ({ page }) => {
+  await page.goto(materialUrl);
+  await versions(page).getByRole("button", { name: "Edit Jan prices" }).click();
+  const editing = page.getByRole("form", { name: "Edit Jan prices" });
+  await expect(editing.getByLabel("Link")).toHaveValue("https://drive.example.com/rates-jan");
+  await editing.getByLabel("Label").fill("Feb prices");
+  await editing.getByLabel("Link").fill("drive.example.com/rates-feb");
+  await editing.getByRole("button", { name: "Save" }).click();
+  await expect(editing).toHaveCount(0);
+  await expect(versions(page).getByRole("link", { name: "Feb prices" })).toHaveAttribute(
+    "href",
+    "https://drive.example.com/rates-feb",
+  );
+  // An edit leaves a version where it was.
+  await expect(versions(page).first()).toContainText("Current");
+  await expect(versions(page).first()).toContainText("Feb prices");
+
+  // A file in place of the link.
+  await versions(page).getByRole("button", { name: "Edit Feb prices" }).click();
+  const again = page.getByRole("form", { name: "Edit Feb prices" });
+  await again.getByLabel("File to upload").setInputFiles({ ...proposal, name: "Feb rates.pdf" });
+  await expect(again).toHaveCount(0);
+  await expect(versions(page)).toHaveCount(2);
+  await expect(versions(page).first()).toContainText("Feb rates.pdf");
+  await expect(versions(page).getByRole("link", { name: "Feb prices" })).toHaveAttribute(
+    "href",
+    new RegExp(`^/api/materials/${ID}/versions/${ID}$`),
+  );
+  await versions(page).getByRole("button", { name: "Edit Feb prices" }).click();
+  await expect(page.getByRole("form", { name: "Edit Feb prices" })).toContainText(
+    "Holds Feb rates.pdf.",
+  );
+  await page.getByRole("form", { name: "Edit Feb prices" }).getByRole("button", { name: "Cancel" }).click();
+});
+
 test("the list is searched, narrowed by type and opened from a row", async ({ page }) => {
   await page.goto("/materials/new");
   await page.getByLabel("Name").fill("Agency deck");
@@ -178,7 +253,7 @@ test("the list is searched, narrowed by type and opened from a row", async ({ pa
   const names = table.locator("tbody").getByRole("link");
   await expect(names).toHaveText(["Agency deck", "Rate card 2027"]);
   await expect(table.getByRole("row", { name: /Rate card 2027/ })).toContainText(
-    "Jan prices",
+    "Feb prices",
   );
   await expect(page.getByText("Showing 1–2 of 2")).toBeVisible();
 

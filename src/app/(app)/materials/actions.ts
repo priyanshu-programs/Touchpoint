@@ -6,9 +6,9 @@ import { z } from "zod";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import {
-  MAX_MATERIALS,
   materialInput,
   newMaterialInput,
+  versionEdit,
   versionLink,
   versionRef,
 } from "@/modules/materials/schema";
@@ -18,10 +18,12 @@ import {
   deleteMaterial,
   removeVersion,
   updateMaterial,
+  updateVersion,
+  type CreateResult,
   type MaterialResult,
 } from "@/modules/materials/service";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { materialHref, VERSION_REFUSALS } from "./labels";
+import { CREATE_REFUSALS, materialHref, VERSION_REFUSALS } from "./labels";
 
 const FIELDS = ["name", "type", "description"] as const;
 
@@ -37,18 +39,11 @@ const withScheme = (address: string) => {
 };
 
 function failure(
-  result: Exclude<MaterialResult, { ok: true }>,
+  result: Exclude<MaterialResult | CreateResult, { ok: true }>,
   values: Record<string, string>,
 ): RecordFormState {
   if (result.reason === "not_found") notFound();
-  return {
-    ok: false,
-    message:
-      result.reason === "limit"
-        ? `You have ${MAX_MATERIALS} materials, the most there can be. Delete one you no longer need first.`
-        : "You already have a material with that name. Choose another.",
-    values,
-  };
+  return { ok: false, message: CREATE_REFUSALS[result.reason], values };
 }
 
 export async function createMaterialAction(
@@ -109,6 +104,29 @@ export async function addVersionLinkAction(
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
 
   const result = await addVersionLink(owner.id, materialId, parsed.data);
+  if (!result.ok) {
+    if (result.reason === "not_found") notFound();
+    return { ok: false, message: VERSION_REFUSALS[result.reason] };
+  }
+  refresh();
+  return { ok: true };
+}
+
+export async function updateVersionAction(
+  materialId: string,
+  versionId: string,
+  edit: { label: string; url: string },
+): Promise<VersionOutcome> {
+  const owner = await requireOwner();
+  const ref = versionRef.parse({ materialId, versionId });
+  // Whatever else the browser sent along is kept, so the strict check refuses it.
+  const parsed = versionEdit.safeParse({
+    ...edit,
+    url: typeof edit?.url === "string" ? withScheme(edit.url) : edit?.url,
+  });
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
+
+  const result = await updateVersion(owner.id, ref, parsed.data);
   if (!result.ok) {
     if (result.reason === "not_found") notFound();
     return { ok: false, message: VERSION_REFUSALS[result.reason] };

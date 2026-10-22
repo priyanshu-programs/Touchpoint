@@ -2,10 +2,9 @@ import { toLocalInput } from "@/lib/time";
 import { listSendable } from "@/modules/materials/queries";
 import { SendForm } from "./send-form";
 
-// The form that logs a send, on a material's page or in the panel of the record it went to.
+// The form that logs a send, in the panel of the record it went to.
 export async function NewSend({
   ownerId,
-  materialId,
   contact,
   organization,
   timezone,
@@ -13,7 +12,6 @@ export async function NewSend({
   cancelHref,
 }: {
   ownerId: string;
-  materialId?: string;
   contact: {
     id: string;
     fullName: string;
@@ -31,7 +29,7 @@ export async function NewSend({
   return (
     <SendForm
       initial={{
-        materialId: materialId ?? "",
+        materialId: "",
         versionId: "",
         sentAt: toLocalInput(new Date(), timezone),
         channel: "email",
@@ -46,7 +44,6 @@ export async function NewSend({
       timezone={timezone}
       from={contact ? "contact" : organization ? "organization" : undefined}
       inside={inside}
-      back={materialId ? "material" : undefined}
       cancelHref={cancelHref}
     />
   );

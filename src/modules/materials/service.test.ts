@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
-import { files, materials, materialVersions } from "@/db/schema";
+import { auditLog, files, materials, materialSends, materialVersions } from "@/db/schema";
 import { listAudit } from "@/modules/audit/service";
 import { MAX_STORED_BYTES } from "@/modules/files/service";
 import { addFile, removeAttachment } from "@/modules/workflows/attachments";
@@ -17,6 +17,7 @@ import {
   MAX_MATERIAL_VERSIONS,
   MAX_MATERIALS,
   newMaterialInput,
+  versionEdit,
   versionLink,
   versionRef,
 } from "./schema";
@@ -26,7 +27,9 @@ import {
   createMaterial,
   deleteMaterial,
   removeVersion,
+  replaceVersionFile,
   updateMaterial,
+  updateVersion,
 } from "./service";
 
 const form = { name: "Rate card", type: "quote", description: "", url: "", label: "" };
@@ -223,31 +226,146 @@ describe("materials", () => {
     await db.delete(files).where(eq(files.sha256, "filler"));
 
     // Links do not count towards the rate, only files.
-    await db.insert(materialVersions).values(
-      Array.from({ length: MATERIAL_UPLOADS_PER_MINUTE }, (_, index) => ({
-        ownerId,
-        materialId,
-        label: `link ${index}`,
-        url: "https://a.test",
-      })),
-    );
-    const first = await upload("one.pdf", pdf("one"));
-    expect(first.ok).toBe(true);
+    const recorded = (after: object) =>
+      db.insert(auditLog).values(
+        Array.from({ length: MATERIAL_UPLOADS_PER_MINUTE - 1 }, () => ({
+          ownerId,
+          actor: "user",
+          action: "material.version_add",
+          entityType: "material",
+          entityId: materialId,
+          after,
+        })),
+      );
+    await recorded({ label: "v1", url: "https://a.test" });
+    expect((await upload("one.pdf", pdf("one"))).ok).toBe(true);
 
-    const [{ fileId }] = await db
-      .select({ fileId: materialVersions.fileId })
-      .from(materialVersions)
-      .where(eq(materialVersions.label, "v1"));
-    await db.delete(materialVersions).where(eq(materialVersions.materialId, materialId));
-    await db.insert(materialVersions).values(
-      Array.from({ length: MATERIAL_UPLOADS_PER_MINUTE }, (_, index) => ({
-        ownerId,
-        materialId,
-        label: `file ${index}`,
-        fileId,
-      })),
-    );
+    // A file put in place of another counts as much as one added, and so does
+    // one a material is made with: the upload above makes thirty.
+    await recorded({ label: "v1", title: "a.pdf", contentType: "application/pdf", size: 1 });
     expect(await upload("two.pdf", pdf("two"))).toEqual(refused("rate"));
+    const ref = { materialId, versionId: (await versions())[0].id };
+    expect(
+      await replaceVersionFile(ownerId, ref, { label: "v1", name: "b.pdf", bytes: pdf("b") }),
+    ).toEqual(refused("rate"));
+    expect(
+      await createMaterial(ownerId, newInput({ name: "Deck" }), { name: "c.pdf", bytes: pdf("c") }),
+    ).toEqual(refused("rate"));
+  });
+
+  it("is created with an uploaded file as its first version, or not at all", async () => {
+    const created = await createMaterial(ownerId, newInput({ name: "Deck" }), {
+      name: "Deck 2026.pdf",
+      bytes: pdf("deck"),
+    });
+    if (!created.ok) throw new Error(created.reason);
+    expect(await versions(created.id)).toMatchObject([
+      { label: "v1", url: null, title: "Deck 2026.pdf", contentType: "application/pdf" },
+    ]);
+    const [entry] = (await listAudit(ownerId, { limit: 1 })).rows;
+    expect(entry).toMatchObject({
+      action: "material.create",
+      after: { name: "Deck", version: { label: "v1", title: "Deck 2026.pdf" } },
+    });
+
+    expect(
+      await createMaterial(ownerId, newInput({ name: "Notes" }), {
+        name: "notes.txt",
+        bytes: Buffer.from("plain text"),
+      }),
+    ).toEqual(refused("kind"));
+    await db.insert(files).values({
+      ownerId,
+      contentType: "application/pdf",
+      size: MAX_STORED_BYTES,
+      sha256: "filler",
+      bytes: Buffer.alloc(1),
+    });
+    expect(
+      await createMaterial(ownerId, newInput({ name: "Portfolio" }), {
+        name: "portfolio.pdf",
+        bytes: pdf("portfolio"),
+      }),
+    ).toEqual(refused("full"));
+    const names = (await listMaterials(ownerId)).rows.map(({ name }) => name);
+    expect(names.sort()).toEqual(["Deck", "Rate card"]);
+  });
+
+  it("has its label edited even once sent, and what it holds only until then", async () => {
+    const link = await addVersionLink(ownerId, materialId, { label: "v1", url: "https://a.test/1" });
+    if (!link.ok) throw new Error(link.reason);
+    const ref = { materialId, versionId: link.id };
+
+    expect(await updateVersion(ownerId, ref, { label: "First", url: null })).toEqual({ ok: true });
+    expect(await versions()).toMatchObject([{ label: "First", url: "https://a.test/1" }]);
+
+    // A link becomes a file, and the file a link again, which frees it.
+    expect(
+      await replaceVersionFile(ownerId, ref, { label: "First", name: "one.pdf", bytes: pdf("one") }),
+    ).toEqual({ ok: true });
+    expect(await versions()).toMatchObject([{ url: null, title: "one.pdf" }]);
+    expect(await stored()).toHaveLength(1);
+    expect(
+      await replaceVersionFile(ownerId, ref, { label: "First", name: "two.pdf", bytes: pdf("two") }),
+    ).toEqual({ ok: true });
+    expect(await stored()).toHaveLength(1);
+    expect(
+      await updateVersion(ownerId, ref, { label: "First", url: "https://a.test/2" }),
+    ).toEqual({ ok: true });
+    expect(await versions()).toMatchObject([{ url: "https://a.test/2", title: null, size: null }]);
+    expect(await stored()).toHaveLength(0);
+    const [entry] = (await listAudit(ownerId, { limit: 1 })).rows;
+    expect(entry).toMatchObject({
+      action: "material.version_update",
+      before: { label: "First", url: null, title: "two.pdf" },
+      after: { label: "First", url: "https://a.test/2" },
+    });
+
+    await db.insert(materialSends).values({
+      ownerId,
+      versionId: link.id,
+      sentAt: new Date(),
+      channel: "email",
+    });
+    expect(await updateVersion(ownerId, ref, { label: "Sent one", url: null })).toEqual({
+      ok: true,
+    });
+    expect(
+      await updateVersion(ownerId, ref, { label: "Sent one", url: "https://a.test/3" }),
+    ).toEqual(refused("sent"));
+    expect(
+      await replaceVersionFile(ownerId, ref, { label: "Sent one", name: "c.pdf", bytes: pdf("c") }),
+    ).toEqual(refused("sent"));
+    // The link it already holds, given again, is no change.
+    expect(
+      await updateVersion(ownerId, ref, { label: "Sent one", url: "https://a.test/2" }),
+    ).toEqual({ ok: true });
+    expect(await versions()).toMatchObject([{ label: "Sent one", url: "https://a.test/2" }]);
+  });
+
+  it("has a version edited only under its own material and owner", async () => {
+    const link = await addVersionLink(ownerId, materialId, { label: "v1", url: "https://a.test/1" });
+    if (!link.ok) throw new Error(link.reason);
+    const other = await make({ name: "Deck" });
+    const stranger = await createTestOwner("stranger@example.com");
+    const edit = { label: "Taken", url: "https://evil.test" };
+    const file = { label: "Taken", name: "x.pdf", bytes: pdf("x") };
+
+    for (const [owner, ref] of [
+      [stranger, { materialId, versionId: link.id }],
+      [ownerId, { materialId: other, versionId: link.id }],
+    ] as const) {
+      expect(await updateVersion(owner, ref, edit)).toEqual(refused("not_found"));
+      expect(await replaceVersionFile(owner, ref, file)).toEqual(refused("not_found"));
+    }
+    expect(await versions()).toMatchObject([{ label: "v1", url: "https://a.test/1" }]);
+  });
+
+  it("takes an edit as a label and an optional web address, and nothing else", () => {
+    expect(versionEdit.parse({ label: " v2 ", url: "" })).toEqual({ label: "v2", url: null });
+    expect(versionEdit.safeParse({ label: "v2", url: "javascript:alert(1)" }).success).toBe(false);
+    expect(versionEdit.safeParse({ label: "", url: "" }).success).toBe(false);
+    expect(versionEdit.safeParse({ label: "v2", url: "", fileId: "x" }).success).toBe(false);
   });
 
   it(`holds at most ${MAX_MATERIAL_VERSIONS} versions, and only on the owner's material`, async () => {

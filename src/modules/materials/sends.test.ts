@@ -10,7 +10,7 @@ import { organizationInput } from "@/modules/organizations/schema";
 import { createOrganization } from "@/modules/organizations/service";
 import { saveSettings } from "@/modules/settings/service";
 import { createTestOwner, resetDatabase } from "@/test/owner";
-import { getMaterial, listMaterialSends, listSendable } from "./queries";
+import { getMaterial, listSendable } from "./queries";
 import { newMaterialInput, sendInput, SENDS_PER_MINUTE } from "./schema";
 import {
   addVersionLink,
@@ -199,7 +199,7 @@ describe("sends", () => {
     expect(await logSend(ownerId, parse({ organizationId: theirCompany }))).toEqual(
       refused("unknown_organization"),
     );
-    expect(await listMaterialSends(ownerId, materialId)).toEqual([]);
+    expect(await db.$count(materialSends)).toBe(0);
   });
 
   it("marks the older version a person had as superseded when a newer one goes to them", async () => {
@@ -285,22 +285,8 @@ describe("sends", () => {
     ).toEqual(refused("rate"));
   });
 
-  it("lists a material's sends with who they went to, and what can be sent", async () => {
+  it("lists what can be sent, the current version first", async () => {
     const v2 = await addVersion("v2");
-    await send({ contactIds: [priya, arjun], organizationId: acme, sentAt: "2026-10-17T09:00" });
-    await send({ versionId: v2, contactIds: [arjun], sentAt: "2026-10-18T09:00" });
-
-    expect(await listMaterialSends(ownerId, materialId)).toMatchObject([
-      { versionLabel: "v2", contacts: [{ name: "Arjun" }], organizationName: null },
-      {
-        versionLabel: "v1",
-        status: "sent",
-        contacts: [{ name: "Arjun" }, { name: "Priya" }],
-        organizationName: "Acme Design",
-      },
-    ]);
-    const stranger = await createTestOwner("stranger@example.com");
-    expect(await listMaterialSends(stranger, materialId)).toEqual([]);
 
     // A material without a version has nothing to send.
     await createMaterial(

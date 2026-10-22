@@ -714,3 +714,24 @@
 - [2026-10-18] Looked at the palette in screenshots from a throwaway spec (light, dark, phone); a hint first sat mid-row because the item's hidden check icon shared the spare room, so the label now takes it; the spec was deleted
 - [2026-10-18] Search slice runs: lint and typecheck clean; the full e2e run passed (102 tests, 13.4 minutes) and Vitest passed (691 tests in 33 files), behind the keep-awake call
 - [2026-10-18] Search slice is live (8d28aca, CI green; GitHub lists a successful production deployment). Neon main has 29 migrations, with the search columns and their indexes on activities and tasks. Not looked at signed in on the live site
+- [2026-10-22] Plan approved for the owner's Materials fixes (C:\Users\USER\.claude\plans\whqat-dow-e-have-iterative-codd.md): a file on New material, versions edited in place (a sent version's label only), sends only in Activity tabs
+- [2026-10-22] Removed the Sends card (materials/[id]/sends-card.tsx) and the Log a send page (materials/[id]/send/page.tsx) from a material's page; sends are logged and read only on a company's and a person's Activity tab
+- [2026-10-22] send-form.tsx, new-send.tsx and send-actions.ts: the back=material way back is gone; a send always returns to the timeline it was logged from
+- [2026-10-22] src/modules/materials/queries.ts: listMaterialSends and MAX_LISTED_SENDS removed with the card; sends.test.ts checks the same things without them
+- [2026-10-22] activities/timeline-event.tsx: a send on a timeline has a remove button (removeSendAction), since the Sends card held the only one
+- [2026-10-22] src/lib/upload.ts: upload() takes a list of form fields and returns their values; the attachments, pictures and material version routes moved to it
+- [2026-10-22] src/modules/materials/service.ts: createMaterial takes an optional uploaded file and writes the material and its file version in one transaction; the file checks shared by sniff, storeVersionFile and fileAudit
+- [2026-10-22] src/modules/materials/service.ts: updateVersion (label always, a link in place of what an unsent version held) and replaceVersionFile (a file in place of an unsent version's link or file), audited as material.version_update
+- [2026-10-22] src/modules/materials/service.ts: material uploads per minute are counted from the audit log (entries carrying a file's kind), so a replaced file counts as one added
+- [2026-10-22] src/modules/materials/schema.ts: versionEdit (strict: a label and an optional http(s) link)
+- [2026-10-22] Added src/app/api/materials/route.ts: POST makes a material with an uploaded file as its first version
+- [2026-10-22] api/materials/[id]/versions/[versionId]/route.ts: PUT puts a new file in place of what an unsent version held
+- [2026-10-22] materials/actions.ts and labels.ts: updateVersionAction, CREATE_REFUSALS, VERSION_REFUSALS.sent, FILE_ACCEPT and FILE_KINDS_HINT shared by both pickers
+- [2026-10-22] materials/material-form.tsx: New material offers "Upload a file" beside the link; a chosen file shows with a remove, replaces the link, and the form goes to POST /api/materials
+- [2026-10-22] materials/[id]/versions-card.tsx: an Edit on each version opens it in place (label, link, Replace the file); a sent version shows its label only, with a line saying why
+- [2026-10-22] security.md: rules for making a material with a file, editing a version, the upload rate from the audit log, six routes instead of four, sends only on timelines; the back=material sentence removed
+- [2026-10-22] docs/PRD.md (Materials): a file on New material, Edit on a version, sends logged and read only on records
+- [2026-10-22] plan.md: a ticked entry under Step 8 for the owner's fixes with its Not built list; Step 9 slice 2 is still next
+- [2026-10-22] Tests: service.test.ts gains create with a file (and nothing made when it is refused), version edits before and after a send, edits only under the owner's own material, versionEdit, and the rate test now writes audit rows; e2e/15 gains a material made with a file and a version edited in place; e2e/16 logs both sends from Activity tabs, removes one from the timeline and checks a sent version is label-only
+- [2026-10-22] Runs: typecheck and lint clean; materials Vitest 39 of 40 (the "last change" sort test, which fails locally only from this machine's clock skew against Neon); e2e 01, 02, 15, 16 and 99 passed (31 tests). Next.js 16.4.0 stopped the first build to recommend a security upgrade; the retry built
+- [2026-10-22] Full runs: e2e passed (104 tests, 14.1 minutes) and Vitest 694 of 695 (the clock-skew sort test only), behind the keep-awake call; two detached e2e runs were stopped by the Next.js upgrade notice before building and do not count

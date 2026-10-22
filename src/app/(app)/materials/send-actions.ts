@@ -9,7 +9,7 @@ import { readFields, readOrigin } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import { sendInput, sendStatus } from "@/modules/materials/schema";
 import { logSend, removeSend, setSendStatus } from "@/modules/materials/service";
-import { materialHref, SEND_REFUSALS } from "./labels";
+import { SEND_REFUSALS } from "./labels";
 
 const FIELDS = ["versionId", "sentAt", "channel", "organizationId", "note"] as const;
 
@@ -17,7 +17,7 @@ const pickedContacts = z
   .array(z.strictObject({ id: z.uuid(), label: z.string().max(300) }))
   .max(20);
 
-// A send shows on the material's page and on every linked record's timeline.
+// A send shows on every linked record's timeline and in its version's count.
 const refresh = () => revalidatePath("/", "layout");
 
 function parseJson(value: string): unknown {
@@ -28,9 +28,6 @@ function parseJson(value: string): unknown {
   }
 }
 
-// From a material's own page the form goes back there; from a record's panel, to its timeline.
-const backTo = z.enum(["", "material"]);
-
 export async function logSendAction(
   _previous: RecordFormState,
   formData: FormData,
@@ -40,8 +37,7 @@ export async function logSendAction(
   const fields = readFields(formData, FIELDS);
   // The pickers' labels and the chosen material ride along only so a rejected form
   // can show the choices again.
-  const extra = readFields(formData, ["organizationName", "contacts", "materialId", "back"]);
-  const back = backTo.parse(extra.back);
+  const extra = readFields(formData, ["organizationName", "contacts", "materialId"]);
   const contacts = pickedContacts.safeParse(parseJson(extra.contacts));
   const values = {
     ...fields,
@@ -61,7 +57,7 @@ export async function logSendAction(
   if (!result.ok) return { ok: false, message: SEND_REFUSALS[result.reason], values };
 
   refresh();
-  redirect(back === "material" ? materialHref(result.materialId) : timelineOf(parsed.data, origin));
+  redirect(timelineOf(parsed.data, origin));
 }
 
 export async function setSendStatusAction(id: string, status: string) {

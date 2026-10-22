@@ -76,6 +76,13 @@ export const versionLink = z.strictObject({
 });
 export type VersionLink = z.infer<typeof versionLink>;
 
+// A version's new label, and a link in place of what it held; no link keeps it.
+export const versionEdit = z.strictObject({
+  label: versionLabel,
+  url: blankToNull(httpUrl),
+});
+export type VersionEdit = z.infer<typeof versionEdit>;
+
 export const versionRef = z.strictObject({
   materialId: z.uuid(),
   versionId: z.uuid(),

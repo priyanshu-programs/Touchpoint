@@ -1,15 +1,6 @@
-import { and, asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import {
-  contacts,
-  files,
-  materials,
-  materialSendRecipients,
-  materialSends,
-  materialVersions,
-  organizations,
-  type MaterialType,
-} from "@/db/schema";
+import { files, materials, materialVersions, type MaterialType } from "@/db/schema";
 import type { MATERIAL_SORTS, VersionRef } from "./schema";
 
 const ownedBy = (ownerId: string) => eq(materials.ownerId, ownerId);
@@ -111,63 +102,6 @@ export async function getMaterial(ownerId: string, id: string) {
 
   return { ...row, versions };
 }
-
-export const MAX_LISTED_SENDS = 100;
-
-// The latest sends of a material, newest first, with who each went to.
-export async function listMaterialSends(ownerId: string, materialId: string) {
-  const sends = await db
-    .select({
-      id: materialSends.id,
-      sentAt: materialSends.sentAt,
-      channel: materialSends.channel,
-      status: materialSends.status,
-      note: materialSends.note,
-      versionLabel: materialVersions.label,
-      organizationId: materialSends.organizationId,
-      organizationName: organizations.name,
-    })
-    .from(materialSends)
-    .innerJoin(materialVersions, eq(materialVersions.id, materialSends.versionId))
-    .leftJoin(organizations, eq(organizations.id, materialSends.organizationId))
-    .where(
-      and(eq(materialSends.ownerId, ownerId), eq(materialVersions.materialId, materialId)),
-    )
-    // A time is typed to the minute, so sends in one minute go by when they were logged.
-    .orderBy(desc(materialSends.sentAt), desc(materialSends.createdAt), desc(materialSends.id))
-    .limit(MAX_LISTED_SENDS);
-
-  const recipients =
-    sends.length === 0
-      ? []
-      : await db
-          .select({
-            sendId: materialSendRecipients.sendId,
-            id: contacts.id,
-            name: contacts.fullName,
-          })
-          .from(materialSendRecipients)
-          .innerJoin(contacts, eq(contacts.id, materialSendRecipients.contactId))
-          .where(
-            and(
-              eq(materialSendRecipients.ownerId, ownerId),
-              inArray(
-                materialSendRecipients.sendId,
-                sends.map(({ id }) => id),
-              ),
-            ),
-          )
-          .orderBy(asc(contacts.fullName));
-
-  return sends.map((send) => ({
-    ...send,
-    contacts: recipients
-      .filter(({ sendId }) => sendId === send.id)
-      .map(({ id, name }) => ({ id, name })),
-  }));
-}
-
-export type MaterialSendRow = Awaited<ReturnType<typeof listMaterialSends>>[number];
 
 // What a send can be of: each material that has a version, by name, with its
 // versions newest first so the first is the current one.

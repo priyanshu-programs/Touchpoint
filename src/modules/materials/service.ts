@@ -1,6 +1,7 @@
 import { and, eq, exists, gt, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
 import {
+  auditLog,
   contacts,
   materials,
   materialSendRecipients,
@@ -24,6 +25,7 @@ import {
   type MaterialInput,
   type NewMaterialInput,
   type SendInput,
+  type VersionEdit,
   type VersionLink,
   type VersionRef,
 } from "./schema";
@@ -31,6 +33,13 @@ import {
 export type MaterialResult =
   | { ok: true; id: string }
   | { ok: false; reason: "not_found" | "name_taken" | "limit" };
+
+export type CreateResult =
+  | { ok: true; id: string }
+  | {
+      ok: false;
+      reason: "name_taken" | "limit" | "too_large" | "kind" | "full" | "rate";
+    };
 
 export type VersionResult =
   | { ok: true; id: string }
@@ -76,10 +85,73 @@ const snapshot = (row: MaterialInput) => ({
   description: row.description,
 });
 
+export type UploadedFile = { name: string; bytes: Buffer };
+
+// The kind is read from the bytes alone, before any change is begun.
+function sniff(
+  bytes: Buffer,
+): { ok: true; contentType: string } | { ok: false; reason: "too_large" | "kind" } {
+  if (bytes.length > MAX_FILE_BYTES) return { ok: false, reason: "too_large" };
+  const contentType = fileType(bytes);
+  return contentType ? { ok: true, contentType } : { ok: false, reason: "kind" };
+}
+
+// A file goes by the name it was uploaded under, without what a name cannot hold.
+const fileTitle = (name: string) =>
+  name
+    .replace(/[\p{Cc}\\/]+/gu, " ")
+    .trim()
+    .slice(0, MAX_VERSION_TITLE) || "Untitled file";
+
+// Uploads are counted from the audit log, where each stored file is recorded
+// with its kind: a file put in place of another leaves no new version to count.
+async function uploadsInLastMinute(tx: Tx, ownerId: string) {
+  const [{ recent }] = await tx
+    .select({ recent: count })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.ownerId, ownerId),
+        eq(auditLog.entityType, "material"),
+        gt(auditLog.createdAt, sql`now() - interval '1 minute'`),
+        sql`jsonb_path_exists(${auditLog.after}, '$.**.contentType')`,
+      ),
+    );
+  return recent;
+}
+
+async function storeVersionFile(
+  tx: Tx,
+  ownerId: string,
+  { name, bytes }: UploadedFile,
+  contentType: string,
+): Promise<{ ok: true; fileId: string; title: string } | { ok: false; reason: "rate" | "full" }> {
+  if ((await uploadsInLastMinute(tx, ownerId)) >= MATERIAL_UPLOADS_PER_MINUTE) {
+    return { ok: false, reason: "rate" };
+  }
+  const fileId = await storeFile(tx, ownerId, bytes, contentType);
+  if (!fileId) return { ok: false, reason: "full" };
+  return { ok: true, fileId, title: fileTitle(name) };
+}
+
+const fileAudit = (
+  label: string,
+  { title }: { title: string },
+  { contentType }: { contentType: string },
+  { bytes }: UploadedFile,
+) => ({ label, title, contentType, size: bytes.length });
+
+// A new material may start with a link or an uploaded file as its first version.
+// With a file, the material is made only if the file is kept.
 export async function createMaterial(
   ownerId: string,
   { url, label, ...input }: NewMaterialInput,
-): Promise<MaterialResult> {
+  file?: UploadedFile,
+): Promise<CreateResult> {
+  const sniffed = file ? sniff(file.bytes) : null;
+  if (sniffed && !sniffed.ok) return sniffed;
+  const versionLabel = label ?? "v1";
+
   return db.transaction(async (tx) => {
     await lockMaterials(tx, ownerId);
     const owned = await tx.$count(materials, eq(materials.ownerId, ownerId));
@@ -88,11 +160,20 @@ export async function createMaterial(
       return { ok: false, reason: "name_taken" };
     }
 
+    // Nothing is written before this, so a refusal leaves no material behind.
+    const stored =
+      file && sniffed ? await storeVersionFile(tx, ownerId, file, sniffed.contentType) : null;
+    if (stored && !stored.ok) return stored;
+
     const [row] = await tx
       .insert(materials)
       .values({ ownerId, ...input })
       .returning({ id: materials.id });
-    const first = url ? { label: label ?? "v1", url } : null;
+    const first = stored
+      ? { label: versionLabel, fileId: stored.fileId, title: stored.title }
+      : url
+        ? { label: versionLabel, url }
+        : null;
     if (first) {
       await tx
         .insert(materialVersions)
@@ -104,7 +185,13 @@ export async function createMaterial(
       action: "material.create",
       entityType: "material",
       entityId: row.id,
-      after: { ...snapshot(input), version: first },
+      after: {
+        ...snapshot(input),
+        version:
+          stored && file && sniffed
+            ? fileAudit(versionLabel, stored, sniffed, file)
+            : (first ?? null),
+      },
     });
     return { ok: true, id: row.id };
   });
@@ -201,46 +288,24 @@ export async function addVersionLink(
   });
 }
 
-// A file goes by the name it was uploaded under, without what a name cannot hold.
-const fileTitle = (name: string) =>
-  name
-    .replace(/[\p{Cc}\\/]+/gu, " ")
-    .trim()
-    .slice(0, MAX_VERSION_TITLE) || "Untitled file";
-
 // The kind of file is read from its bytes; the name is only what it is called.
 export async function addVersionFile(
   ownerId: string,
   materialId: string,
-  { label, name, bytes }: { label: string; name: string; bytes: Buffer },
+  { label, ...file }: UploadedFile & { label: string },
 ): Promise<VersionResult> {
-  if (bytes.length > MAX_FILE_BYTES) return { ok: false, reason: "too_large" };
-  const contentType = fileType(bytes);
-  if (!contentType) return { ok: false, reason: "kind" };
+  const sniffed = sniff(file.bytes);
+  if (!sniffed.ok) return sniffed;
 
   return db.transaction(async (tx) => {
     const reason = await versionRefusal(tx, ownerId, materialId);
     if (reason) return { ok: false, reason };
+    const stored = await storeVersionFile(tx, ownerId, file, sniffed.contentType);
+    if (!stored.ok) return stored;
 
-    const [{ recent }] = await tx
-      .select({ recent: count })
-      .from(materialVersions)
-      .where(
-        and(
-          eq(materialVersions.ownerId, ownerId),
-          isNotNull(materialVersions.fileId),
-          gt(materialVersions.createdAt, sql`now() - interval '1 minute'`),
-        ),
-      );
-    if (recent >= MATERIAL_UPLOADS_PER_MINUTE) return { ok: false, reason: "rate" };
-
-    const fileId = await storeFile(tx, ownerId, bytes, contentType);
-    if (!fileId) return { ok: false, reason: "full" };
-
-    const title = fileTitle(name);
     const [row] = await tx
       .insert(materialVersions)
-      .values({ ownerId, materialId, label, fileId, title })
+      .values({ ownerId, materialId, label, fileId: stored.fileId, title: stored.title })
       .returning({ id: materialVersions.id });
     await touch(tx, materialId);
     await audit(tx, {
@@ -249,9 +314,103 @@ export async function addVersionFile(
       action: "material.version_add",
       entityType: "material",
       entityId: materialId,
-      after: { label, title, contentType, size: bytes.length },
+      after: fileAudit(label, stored, sniffed, file),
     });
     return { ok: true, id: row.id };
+  });
+}
+
+export type VersionEditResult =
+  | { ok: true }
+  | { ok: false; reason: "not_found" | "sent" | "too_large" | "kind" | "full" | "rate" };
+
+// The version under its material, held for the change, and whether it was sent.
+async function lockVersion(tx: Tx, ownerId: string, { materialId, versionId }: VersionRef) {
+  if (!(await lockMaterial(tx, ownerId, materialId))) return null;
+  const [row] = await tx
+    .select({
+      label: materialVersions.label,
+      url: materialVersions.url,
+      title: materialVersions.title,
+      fileId: materialVersions.fileId,
+    })
+    .from(materialVersions)
+    .where(and(eq(materialVersions.materialId, materialId), eq(materialVersions.id, versionId)));
+  if (!row) return null;
+  const sends = await tx.$count(materialSends, eq(materialSends.versionId, versionId));
+  return { ...row, sent: sends > 0 };
+}
+
+const versionSnapshot = ({ label, url, title }: { label: string; url: string | null; title: string | null }) => ({
+  label,
+  url,
+  title,
+});
+
+// A sent version keeps what it holds, so its sends still say what went out; its
+// label can always change. A link given in place of a file lets the file go.
+export async function updateVersion(
+  ownerId: string,
+  ref: VersionRef,
+  { label, url }: VersionEdit,
+): Promise<VersionEditResult> {
+  return db.transaction(async (tx) => {
+    const before = await lockVersion(tx, ownerId, ref);
+    if (!before) return { ok: false, reason: "not_found" };
+    const relink = url !== null && url !== before.url;
+    if (relink && before.sent) return { ok: false, reason: "sent" };
+
+    await tx
+      .update(materialVersions)
+      .set(relink ? { label, url, fileId: null, title: null } : { label })
+      .where(eq(materialVersions.id, ref.versionId));
+    if (relink && before.fileId) await dropUnusedFiles(tx, ownerId);
+    await touch(tx, ref.materialId);
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "material.version_update",
+      entityType: "material",
+      entityId: ref.materialId,
+      before: versionSnapshot(before),
+      after: relink ? { label, url } : { label },
+    });
+    return { ok: true };
+  });
+}
+
+// A new file in place of what an unsent version held, a link or another file.
+export async function replaceVersionFile(
+  ownerId: string,
+  ref: VersionRef,
+  { label, ...file }: UploadedFile & { label: string },
+): Promise<VersionEditResult> {
+  const sniffed = sniff(file.bytes);
+  if (!sniffed.ok) return sniffed;
+
+  return db.transaction(async (tx) => {
+    const before = await lockVersion(tx, ownerId, ref);
+    if (!before) return { ok: false, reason: "not_found" };
+    if (before.sent) return { ok: false, reason: "sent" };
+    const stored = await storeVersionFile(tx, ownerId, file, sniffed.contentType);
+    if (!stored.ok) return stored;
+
+    await tx
+      .update(materialVersions)
+      .set({ label, url: null, fileId: stored.fileId, title: stored.title })
+      .where(eq(materialVersions.id, ref.versionId));
+    if (before.fileId && before.fileId !== stored.fileId) await dropUnusedFiles(tx, ownerId);
+    await touch(tx, ref.materialId);
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "material.version_update",
+      entityType: "material",
+      entityId: ref.materialId,
+      before: versionSnapshot(before),
+      after: fileAudit(label, stored, sniffed, file),
+    });
+    return { ok: true };
   });
 }
 

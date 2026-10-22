@@ -1,9 +1,11 @@
+import { X } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { TimelineRow } from "@/modules/activities/queries";
 import { SEND_CHANNEL_LABELS, type SEND_CHANNELS } from "@/modules/materials/schema";
 import { materialHref, sendStatusOptions } from "../materials/labels";
-import { setSendStatusAction } from "../materials/send-actions";
+import { removeSendAction, setSendStatusAction } from "../materials/send-actions";
 import { StatusMenu } from "../people/(lists)/status-menu";
 import { contactHref, labelFor } from "../people/labels";
 
@@ -18,7 +20,7 @@ export function TimelineEvent({
   // Where an entry opens: its own page, unless the panel showing it says otherwise.
   hrefFor?: (id: string) => string;
 }) {
-  // A send opens its material, whose page lists every send of it.
+  // A send opens its material, and is removed here if it was logged by mistake.
   const send = event.eventType === "material_send" && event.materialId;
 
   return (
@@ -44,6 +46,20 @@ export function TimelineEvent({
             options={sendStatusOptions}
             action={setSendStatusAction.bind(null, event.eventId)}
           />
+        )}
+        {send && (
+          <form action={removeSendAction} className="ml-auto">
+            <input type="hidden" name="id" value={event.eventId} />
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label={`Remove the send of ${event.title} on ${when}`}
+            >
+              <X aria-hidden />
+            </Button>
+          </form>
         )}
       </div>
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">

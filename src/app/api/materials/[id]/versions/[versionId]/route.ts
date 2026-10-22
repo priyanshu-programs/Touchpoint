@@ -1,7 +1,9 @@
+import { z } from "zod";
 import { getOwner } from "@/lib/session";
-import { disposition } from "@/lib/upload";
+import { disposition, refused, upload } from "@/lib/upload";
 import { getVersionFile } from "@/modules/materials/queries";
-import { versionRef } from "@/modules/materials/schema";
+import { versionLabel, versionRef } from "@/modules/materials/schema";
+import { replaceVersionFile } from "@/modules/materials/service";
 
 export async function GET(
   _request: Request,
@@ -24,4 +26,39 @@ export async function GET(
       "Cache-Control": "private, no-store",
     },
   });
+}
+
+const replacement = z.strictObject({ ref: versionRef, label: versionLabel });
+
+// A file put in place of what a version that was never sent held.
+export async function PUT(
+  request: Request,
+  { params }: RouteContext<"/api/materials/[id]/versions/[versionId]">,
+) {
+  const sent = await upload(request, ["label"]);
+  if (sent instanceof Response) return sent;
+  const { id, versionId } = await params;
+  const parsed = replacement.safeParse({
+    ref: { materialId: id, versionId },
+    label: sent.values.label,
+  });
+  if (!parsed.success) return refused(400, "label");
+
+  const result = await replaceVersionFile(sent.ownerId, parsed.data.ref, {
+    label: parsed.data.label,
+    name: sent.file.name,
+    bytes: Buffer.from(await sent.file.arrayBuffer()),
+  });
+  if (result.ok) return new Response(null, { status: 204 });
+  return refused(
+    {
+      not_found: 404,
+      sent: 409,
+      too_large: 413,
+      kind: 415,
+      full: 507,
+      rate: 429,
+    }[result.reason],
+    result.reason,
+  );
 }

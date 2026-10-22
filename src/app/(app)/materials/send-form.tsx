@@ -14,15 +14,14 @@ import { searchOrganizationsAction } from "../people/organizations/actions";
 import { sendChannelOptions } from "./labels";
 import { logSendAction } from "./send-actions";
 
-// Logs that a version of a material went to people, from the material's page or
-// from the Activity tab of a company or a person.
+// Logs that a version of a material went to people, from the Activity tab of a
+// company or a person.
 export function SendForm({
   initial,
   sendable,
   timezone,
   from,
   inside,
-  back,
   cancelHref,
 }: {
   initial: Record<string, string>;
@@ -30,7 +29,6 @@ export function SendForm({
   timezone: string;
   from?: "contact" | "organization";
   inside?: string;
-  back?: "material";
   cancelHref: string;
 }) {
   const [state, formAction, pending] = useActionState(logSendAction, null);
@@ -41,7 +39,6 @@ export function SendForm({
     <form key={JSON.stringify(values)} action={formAction} className="grid gap-4">
       {from && <input type="hidden" name="from" value={from} />}
       {inside && <input type="hidden" name="inside" value={inside} />}
-      {back && <input type="hidden" name="back" value={back} />}
       {sendable.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No material has a version yet. Add one under Materials first.

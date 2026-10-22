@@ -10,11 +10,11 @@ export async function POST(
   request: Request,
   { params }: RouteContext<"/api/materials/[id]/versions">,
 ) {
-  const sent = await upload(request, "label");
+  const sent = await upload(request, ["label"]);
   if (sent instanceof Response) return sent;
   const version = versionFile.safeParse({
     materialId: (await params).id,
-    label: sent.value,
+    label: sent.values.label,
   });
   if (!version.success) return refused(400, "label");
 

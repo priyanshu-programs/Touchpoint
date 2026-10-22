@@ -1,6 +1,7 @@
 import {
   MATERIAL_TYPE_LABELS,
   MATERIAL_TYPES,
+  MAX_MATERIALS,
   SEND_CHANNEL_LABELS,
   SEND_CHANNELS,
   SEND_STATUS_LABELS,
@@ -27,6 +28,11 @@ export function materialsHref(
   return `/materials${query ? `?${query}` : ""}`;
 }
 
+// What the file pickers offer; a convenience, since the server reads the kind
+// from the file itself.
+export const FILE_ACCEPT = ".pdf,.png,.jpg,.jpeg,.gif,.webp,.docx,.xlsx,.pptx";
+export const FILE_KINDS_HINT = "PDF, picture, Word, Excel or PowerPoint, up to 4 MB";
+
 // Why a version was not added, as the Versions card says it.
 export const VERSION_REFUSALS = {
   limit: "A material holds at most 50 versions. Remove one you no longer need first.",
@@ -35,6 +41,14 @@ export const VERSION_REFUSALS = {
   full: "Your 200 MB of file storage is used up. Remove a file, or add this one as a link.",
   rate: "Too many uploads in a minute. Try again shortly.",
   label: "Give the version a label of up to 100 characters, such as v1.",
+  sent: "This version has been sent, so what it holds stays. Add a new version to change it.",
+} as const;
+
+// Why a material was not made, as the New material form says it.
+export const CREATE_REFUSALS = {
+  ...VERSION_REFUSALS,
+  limit: `You have ${MAX_MATERIALS} materials, the most there can be. Delete one you no longer need first.`,
+  name_taken: "You already have a material with that name. Choose another.",
 } as const;
 
 // Why a send was not logged, as its form says it.

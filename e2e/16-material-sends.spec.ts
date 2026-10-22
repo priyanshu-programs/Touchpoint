@@ -10,8 +10,6 @@ const companyTabs = (page: Page) =>
   page.getByRole("navigation", { name: "Company", exact: true });
 const contactTabs = (page: Page) =>
   page.getByRole("navigation", { name: "Contact", exact: true });
-const sends = (page: Page) =>
-  main(page).getByRole("region", { name: "Sends" }).getByRole("listitem");
 const versions = (page: Page) =>
   main(page).getByRole("region", { name: "Versions" }).getByRole("listitem");
 const ID = "[0-9a-f-]{36}";
@@ -40,8 +38,9 @@ test("a send is logged from a person's Activity tab and shows on the person and 
   await page.getByRole("button", { name: "Create material" }).click();
   await expect(page).toHaveURL(new RegExp(`/materials/${ID}$`));
   materialUrl = page.url();
-  await expect(sends(page)).toHaveCount(0);
-  await expect(main(page).getByText("Not sent to anyone yet.")).toBeVisible();
+  // Sends are logged and read on the records they went to, not on the material.
+  await expect(main(page).getByRole("region", { name: "Sends" })).toHaveCount(0);
+  await expect(main(page).getByRole("link", { name: "Log a send" })).toHaveCount(0);
 
   await page.goto("/people/organizations");
   await page.getByRole("button", { name: "New company" }).click();
@@ -98,22 +97,23 @@ test("a send is logged from a person's Activity tab and shows on the person and 
   await expect(onCompany.getByRole("button", { name: "Status: Viewed" })).toBeVisible();
   await expect(onCompany.getByRole("link", { name: "Tara Sender" })).toBeVisible();
 
-  // And the material's page lists it, and keeps the version that went out.
+  // The material keeps the version that went out: its label can change, what it holds cannot.
   await onCompany.getByRole("link", { name: "Studio deck · v1" }).click();
   await expect(page).toHaveURL(materialUrl);
-  await expect(sends(page)).toHaveCount(1);
-  await expect(sends(page).first()).toContainText("v1");
-  await expect(sends(page).first()).toContainText("WhatsApp");
-  await expect(sends(page).first().getByRole("link", { name: "Tara Sender" })).toBeVisible();
-  await expect(sends(page).first().getByRole("link", { name: "Sendwell Studio" })).toBeVisible();
-  await expect(sends(page).first().getByRole("button", { name: "Status: Viewed" })).toBeVisible();
   await expect(versions(page).first()).toContainText("sent once");
   await expect(versions(page).getByRole("button", { name: "Remove v1" })).toHaveCount(0);
+  await versions(page).getByRole("button", { name: "Edit v1" }).click();
+  const editing = page.getByRole("form", { name: "Edit v1" });
+  await expect(editing).toContainText("Sent, so what it holds stays.");
+  await expect(editing.getByLabel("Link")).toHaveCount(0);
+  await expect(editing.getByLabel("File to upload")).toHaveCount(0);
+  await editing.getByRole("button", { name: "Cancel" }).click();
 });
 
-test("a newer version sent from the material's page supersedes the older one", async ({
+test("a newer version sent to someone supersedes the older one, and a send is removed from the timeline", async ({
   page,
 }) => {
+  expect((await page.goto(`${materialUrl}/send`))?.status()).toBe(404);
   await page.goto(materialUrl);
   await main(page).getByRole("button", { name: "Add version" }).click();
   const adding = page.getByRole("form", { name: "Add a version" });
@@ -121,29 +121,30 @@ test("a newer version sent from the material's page supersedes the older one", a
   await adding.getByRole("button", { name: "Add link" }).click();
   await expect(versions(page)).toHaveCount(2);
 
-  await main(page).getByRole("link", { name: "Log a send" }).click();
-  await expect(page).toHaveURL(new RegExp(`/materials/${ID}/send$`));
-  await expect(page.getByLabel("Material", { exact: true })).toHaveValue(
-    materialUrl.split("/").at(-1)!,
+  await page.goto(companyUrl);
+  await companyTabs(page).getByRole("link", { name: "Activity" }).click();
+  await panel(page).getByRole("link", { name: "Log a send" }).click();
+  await panel(page).getByLabel("Material", { exact: true }).selectOption({ label: "Studio deck" });
+  await expect(panel(page).getByLabel("Version").locator("option:checked")).toHaveText(
+    "v2 (current)",
   );
-  await expect(page.getByLabel("Version").locator("option:checked")).toHaveText("v2 (current)");
-  await page.getByRole("button", { name: "Add contact" }).click();
+  await panel(page).getByRole("button", { name: "Add contact" }).click();
   await page.getByPlaceholder("Search contacts…").fill("Tara Sender");
   await page.getByRole("option", { name: /Tara Sender/ }).click();
-  await page.getByLabel("How").selectOption("email");
-  await page.getByRole("button", { name: "Log send" }).click();
+  await panel(page).getByLabel("How").selectOption("email");
+  await panel(page).getByRole("button", { name: "Log send" }).click();
 
-  await expect(page).toHaveURL(materialUrl);
-  await expect(sends(page)).toHaveCount(2);
-  await expect(sends(page).first()).toContainText("v2");
-  await expect(sends(page).first().getByRole("button", { name: "Status: Sent" })).toBeVisible();
-  await expect(
-    sends(page).nth(1).getByRole("button", { name: "Status: Superseded" }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`company=${ID}&tab=activity$`));
+  const newer = panel(page).getByRole("listitem").filter({ hasText: "Studio deck · v2" });
+  const older = panel(page).getByRole("listitem").filter({ hasText: "Studio deck · v1" });
+  await expect(newer.getByRole("button", { name: "Status: Sent" })).toBeVisible();
+  await expect(older.getByRole("button", { name: "Status: Superseded" })).toBeVisible();
 
-  // A send logged by mistake is removed, and its version can go again.
-  await sends(page).first().getByRole("button", { name: /^Remove the send of v2/ }).click();
-  await expect(sends(page)).toHaveCount(1);
+  // A send logged by mistake is removed where it shows, and its version can go again.
+  await newer.getByRole("button", { name: /^Remove the send of Studio deck · v2/ }).click();
+  await expect(newer).toHaveCount(0);
+  await expect(older).toHaveCount(1);
+  await page.goto(materialUrl);
   await expect(versions(page).getByRole("button", { name: "Remove v2" })).toBeVisible();
   await expect(versions(page).getByRole("button", { name: "Remove v1" })).toHaveCount(0);
 });
@@ -165,11 +166,9 @@ test("a send with no one to go to is refused and keeps what was typed", async ({
 
 test("sending fits a phone", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of [materialUrl, `${materialUrl}/send`]) {
-    await page.goto(path);
-    await expect(main(page)).toBeVisible();
-    expect(await fits(page), path).toBe(true);
-  }
+  await page.goto(materialUrl);
+  await expect(main(page)).toBeVisible();
+  expect(await fits(page), "the material's page").toBe(true);
   await page.goto(`${companyUrl}&tab=activity&send=new`);
   await expect(panel(page).getByRole("button", { name: "Log send" })).toBeVisible();
   expect(await fits(page), "the send form in the panel").toBe(true);

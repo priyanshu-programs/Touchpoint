@@ -7,11 +7,11 @@ export async function POST(
   request: Request,
   { params }: RouteContext<"/api/workflows/[id]/pictures">,
 ) {
-  const sent = await upload(request, "key");
+  const sent = await upload(request, ["key"]);
   if (sent instanceof Response) return sent;
   const picture = pictureRef.safeParse({
     boardId: (await params).id,
-    key: sent.value,
+    key: sent.values.key,
   });
   if (!picture.success) return refused(400);
 
