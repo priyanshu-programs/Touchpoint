@@ -8,6 +8,7 @@ import {
   LogOut,
   NotebookPen,
   User,
+  UserPlus,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/command";
 
 const ACTIONS = [
+  { href: "/quick-add", label: "Quick add", icon: UserPlus },
   { href: "/activities/new", label: "Log activity", icon: NotebookPen },
   { href: "/materials/new", label: "New material", icon: FilePlus2 },
 ];

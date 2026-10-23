@@ -358,78 +358,106 @@ export async function startBoard(
     if (!(await lockSubject(tx, ownerId, subject))) {
       return { ok: false, reason: "not_found" };
     }
-    const running = await tx
-      .select({ id: workflowBoards.id })
-      .from(workflowBoards)
-      .where(and(eq(workflowBoards.ownerId, ownerId), ofSubject(subject)));
-    if (running.length >= MAX_RECORD_BOARDS) return { ok: false, reason: "limit" };
-
-    let values: {
-      name: string;
-      description: string | null;
-      icon: string | null;
-      scene: BoardScene;
-      sourceBoardId: string | null;
-    };
-    if ("templateId" in from) {
-      const [template] = await tx
-        .select({
-          name: workflowBoards.name,
-          description: workflowBoards.description,
-          icon: workflowBoards.icon,
-          scene: workflowBoards.scene,
-        })
-        .from(workflowBoards)
-        .where(and(owned(ownerId, from.templateId), isTemplate));
-      if (!template) return { ok: false, reason: "not_found" };
-      values = {
-        name: template.name,
-        description: template.description,
-        icon: template.icon,
-        scene: {
-          elements: template.scene.elements.map((element) =>
-            isStage(element) ? atStatus(element, "not_started") : element,
-          ),
-        },
-        sourceBoardId: from.templateId,
-      };
-    } else {
-      values = { ...from, icon: null, scene: { elements: [] }, sourceBoardId: null };
-    }
-
-    const [row] = await tx
-      .insert(workflowBoards)
-      .values({
-        ownerId,
-        ...subject,
-        ...values,
-        stages: stagesOf(values.scene.elements),
-      })
-      .returning({ id: workflowBoards.id });
-    if (values.sourceBoardId) {
-      const boxes = new Set(values.scene.elements.map(({ id }) => String(id)));
-      await copyAttachments(tx, ownerId, { from: values.sourceBoardId, to: row.id, boxes });
-      await copyNotes(tx, ownerId, { from: values.sourceBoardId, to: row.id, boxes });
-      await copyPictures(tx, ownerId, {
-        from: values.sourceBoardId,
-        to: row.id,
-        shown: picturesOf(values.scene.elements),
-      });
-    }
-    await audit(tx, {
-      ownerId,
-      actor: "user",
-      action: "workflow.start",
-      entityType: "workflow",
-      entityId: row.id,
-      after: {
-        name: values.name,
-        sourceBoardId: values.sourceBoardId,
-        ...subject,
-      },
-    });
-    return { ok: true, id: row.id };
+    return insertBoard(tx, ownerId, subject, from);
   });
+}
+
+export async function ownsTemplate(tx: Tx, ownerId: string, id: string) {
+  const [row] = await tx
+    .select({ id: workflowBoards.id })
+    .from(workflowBoards)
+    .where(and(owned(ownerId, id), isTemplate));
+  return Boolean(row);
+}
+
+// Locks the record and says whether another board fits on it.
+export async function roomForBoard(tx: Tx, ownerId: string, subject: BoardSubject) {
+  if (!(await lockSubject(tx, ownerId, subject))) return false;
+  const running = await tx
+    .select({ id: workflowBoards.id })
+    .from(workflowBoards)
+    .where(and(eq(workflowBoards.ownerId, ownerId), ofSubject(subject)));
+  return running.length < MAX_RECORD_BOARDS;
+}
+
+// The caller holds the record's lock (lockSubject, or a row it has just inserted).
+export async function insertBoard(
+  tx: Tx,
+  ownerId: string,
+  subject: BoardSubject,
+  from: BoardStart,
+): Promise<StartResult> {
+  const running = await tx
+    .select({ id: workflowBoards.id })
+    .from(workflowBoards)
+    .where(and(eq(workflowBoards.ownerId, ownerId), ofSubject(subject)));
+  if (running.length >= MAX_RECORD_BOARDS) return { ok: false, reason: "limit" };
+
+  let values: {
+    name: string;
+    description: string | null;
+    icon: string | null;
+    scene: BoardScene;
+    sourceBoardId: string | null;
+  };
+  if ("templateId" in from) {
+    const [template] = await tx
+      .select({
+        name: workflowBoards.name,
+        description: workflowBoards.description,
+        icon: workflowBoards.icon,
+        scene: workflowBoards.scene,
+      })
+      .from(workflowBoards)
+      .where(and(owned(ownerId, from.templateId), isTemplate));
+    if (!template) return { ok: false, reason: "not_found" };
+    values = {
+      name: template.name,
+      description: template.description,
+      icon: template.icon,
+      scene: {
+        elements: template.scene.elements.map((element) =>
+          isStage(element) ? atStatus(element, "not_started") : element,
+        ),
+      },
+      sourceBoardId: from.templateId,
+    };
+  } else {
+    values = { ...from, icon: null, scene: { elements: [] }, sourceBoardId: null };
+  }
+
+  const [row] = await tx
+    .insert(workflowBoards)
+    .values({
+      ownerId,
+      ...subject,
+      ...values,
+      stages: stagesOf(values.scene.elements),
+    })
+    .returning({ id: workflowBoards.id });
+  if (values.sourceBoardId) {
+    const boxes = new Set(values.scene.elements.map(({ id }) => String(id)));
+    await copyAttachments(tx, ownerId, { from: values.sourceBoardId, to: row.id, boxes });
+    await copyNotes(tx, ownerId, { from: values.sourceBoardId, to: row.id, boxes });
+    await copyPictures(tx, ownerId, {
+      from: values.sourceBoardId,
+      to: row.id,
+      shown: picturesOf(values.scene.elements),
+    });
+  }
+  await audit(tx, {
+    ownerId,
+    actor: "user",
+    action: "workflow.start",
+    entityType: "workflow",
+    entityId: row.id,
+    after: {
+      name: values.name,
+      sourceBoardId: values.sourceBoardId,
+      ...subject,
+    },
+  });
+  return { ok: true, id: row.id };
 }
 
 export type SaveResult =

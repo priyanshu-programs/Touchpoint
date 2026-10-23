@@ -5,6 +5,7 @@ import {
   Files,
   ListChecks,
   LogOut,
+  Plus,
   Search,
   Settings,
   Sun,
@@ -22,6 +23,7 @@ import {
   type ReactNode,
 } from "react";
 import { signOutAction } from "@/app/(app)/settings/actions";
+import { ButtonLink } from "@/components/button-link";
 import { CommandPalette } from "@/components/command-palette";
 import {
   DropdownMenu,
@@ -252,6 +254,14 @@ export function AppShell({
         <p className="min-w-0 flex-1 truncate font-semibold tracking-tight">
           <Greeting name={ownerName} timezone={timezone} initial={greeting} />
         </p>
+        <ButtonLink
+          href="/quick-add"
+          size="icon"
+          aria-label="Quick add"
+          title="Quick add"
+        >
+          <Plus aria-hidden />
+        </ButtonLink>
         <AccountMenu
           ownerName={ownerName}
           placement="top-bar"

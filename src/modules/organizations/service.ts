@@ -39,7 +39,7 @@ const snapshot = (row: typeof organizations.$inferSelect, tags: string[]) => ({
   tags,
 });
 
-async function domainOwner(
+export async function domainOwner(
   tx: Tx,
   ownerId: string,
   domain: string,
@@ -77,25 +77,33 @@ export async function createOrganization(
         return { ok: false, reason: "similar", candidates };
       }
     }
-
-    const { tags, ...fields } = input;
-    const [row] = await tx
-      .insert(organizations)
-      .values({ ownerId, ...fields })
-      .returning();
-    await setOrganizationTags(tx, ownerId, row.id, tags);
-    await audit(tx, {
-      ownerId,
-      actor: "user",
-      action: "organization.create",
-      entityType: "organization",
-      entityId: row.id,
-      after: snapshot(row, tags),
-    });
-    // A refusal (the hourly limit) only means the details are not read now; the company is still saved.
-    if (row.domain || row.website) await requestEnrichment(ownerId, row.id, tx);
-    return { ok: true, id: row.id };
+    return { ok: true, id: await insertOrganization(tx, ownerId, input) };
   });
+}
+
+// The caller has checked the status, the domain and similar names.
+export async function insertOrganization(
+  tx: Tx,
+  ownerId: string,
+  input: OrganizationInput,
+) {
+  const { tags, ...fields } = input;
+  const [row] = await tx
+    .insert(organizations)
+    .values({ ownerId, ...fields })
+    .returning();
+  await setOrganizationTags(tx, ownerId, row.id, tags);
+  await audit(tx, {
+    ownerId,
+    actor: "user",
+    action: "organization.create",
+    entityType: "organization",
+    entityId: row.id,
+    after: snapshot(row, tags),
+  });
+  // A refusal (the hourly limit) only means the details are not read now; the company is still saved.
+  if (row.domain || row.website) await requestEnrichment(ownerId, row.id, tx);
+  return row.id;
 }
 
 // `custom` holds the values of the owner's own fields, already checked against

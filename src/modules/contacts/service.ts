@@ -96,7 +96,7 @@ async function insertLink(
   });
 }
 
-async function ownsOrganization(tx: Tx, ownerId: string, id: string) {
+export async function ownsOrganization(tx: Tx, ownerId: string, id: string) {
   const [row] = await tx
     .select({ id: organizations.id })
     .from(organizations)
@@ -104,7 +104,7 @@ async function ownsOrganization(tx: Tx, ownerId: string, id: string) {
   return Boolean(row);
 }
 
-async function emailHolder(tx: Tx, ownerId: string, email: string) {
+export async function emailHolder(tx: Tx, ownerId: string, email: string) {
   const [row] = await tx
     .select({ id: contacts.id, name: contacts.fullName, companies })
     .from(contactEmails)
@@ -130,7 +130,7 @@ export async function createContact(
   options: { confirmSimilar?: boolean } = {},
 ): Promise<ContactResult> {
   return db.transaction(async (tx) => {
-    const { email, tags, organizationId, ...fields } = input;
+    const { email, organizationId, firstName, lastName } = input;
     if (
       organizationId &&
       !(await ownsOrganization(tx, ownerId, organizationId))
@@ -142,7 +142,7 @@ export async function createContact(
       if (existing) return { ok: false, reason: "duplicate", existing };
     }
     if (!options.confirmSimilar) {
-      const name = [fields.firstName, fields.lastName].filter(Boolean).join(" ");
+      const name = [firstName, lastName].filter(Boolean).join(" ");
       const candidates = await findSimilarContacts(
         tx,
         ownerId,
@@ -153,28 +153,37 @@ export async function createContact(
         return { ok: false, reason: "similar", candidates };
       }
     }
-
-    const [row] = await tx
-      .insert(contacts)
-      .values({ ownerId, ...fields })
-      .returning();
-    if (organizationId) await insertLink(tx, ownerId, row, organizationId);
-    if (email) {
-      await tx
-        .insert(contactEmails)
-        .values({ ownerId, contactId: row.id, email, isPrimary: true });
-    }
-    await setContactTags(tx, ownerId, row.id, tags);
-    await audit(tx, {
-      ownerId,
-      actor: "user",
-      action: "contact.create",
-      entityType: "contact",
-      entityId: row.id,
-      after: { ...snapshot(row, tags), email, organizationId },
-    });
-    return { ok: true, id: row.id };
+    return { ok: true, id: await insertContact(tx, ownerId, input) };
   });
+}
+
+// The caller has checked the company, the email and similar names.
+export async function insertContact(
+  tx: Tx,
+  ownerId: string,
+  input: NewContactInput,
+) {
+  const { email, tags, organizationId, ...fields } = input;
+  const [row] = await tx
+    .insert(contacts)
+    .values({ ownerId, ...fields })
+    .returning();
+  if (organizationId) await insertLink(tx, ownerId, row, organizationId);
+  if (email) {
+    await tx
+      .insert(contactEmails)
+      .values({ ownerId, contactId: row.id, email, isPrimary: true });
+  }
+  await setContactTags(tx, ownerId, row.id, tags);
+  await audit(tx, {
+    ownerId,
+    actor: "user",
+    action: "contact.create",
+    entityType: "contact",
+    entityId: row.id,
+    after: { ...snapshot(row, tags), email, organizationId },
+  });
+  return row.id;
 }
 
 // Puts someone already known at another company too. `listedAs` is the name that
