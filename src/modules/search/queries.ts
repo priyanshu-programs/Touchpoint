@@ -12,6 +12,7 @@ import {
 import { db } from "@/db/client";
 import {
   activities,
+  brainstormBoards,
   contacts,
   materials,
   organizations,
@@ -42,8 +43,15 @@ export async function searchEverything(ownerId: string, input: string) {
   const close = (name: AnyColumn) =>
     fuzzy ? sql`${closeness(name, q)} >= ${FUZZY_SCORE}` : undefined;
 
-  const [companyRows, personRows, materialRows, workflowRows, activityRows, taskRows] =
-    await Promise.all([
+  const [
+    companyRows,
+    personRows,
+    materialRows,
+    workflowRows,
+    brainstormRows,
+    activityRows,
+    taskRows,
+  ] = await Promise.all([
       db
         .select({
           id: organizations.id,
@@ -137,6 +145,23 @@ export async function searchEverything(ownerId: string, input: string) {
         )
         .limit(PER_KIND),
       db
+        .select({ id: brainstormBoards.id, name: brainstormBoards.name })
+        .from(brainstormBoards)
+        .where(
+          and(
+            eq(brainstormBoards.ownerId, ownerId),
+            or(
+              sql`${brainstormBoards.name} ilike ${contains(q)}`,
+              close(brainstormBoards.name),
+            ),
+          ),
+        )
+        .orderBy(
+          desc(closeness(brainstormBoards.name, q)),
+          asc(sql`lower(${brainstormBoards.name})`),
+        )
+        .limit(PER_KIND),
+      db
         .select({
           id: activities.id,
           title: activities.title,
@@ -175,6 +200,7 @@ export async function searchEverything(ownerId: string, input: string) {
     people: personRows,
     materials: materialRows,
     workflows: workflowRows,
+    brainstorms: brainstormRows,
     activities: activityRows,
     tasks: taskRows,
   };

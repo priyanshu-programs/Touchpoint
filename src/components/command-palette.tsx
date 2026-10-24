@@ -4,6 +4,7 @@ import {
   Building2,
   FilePlus2,
   Files,
+  Lightbulb,
   ListChecks,
   LogOut,
   NotebookPen,
@@ -33,6 +34,7 @@ const ACTIONS = [
   { href: "/quick-add", label: "Quick add", icon: UserPlus },
   { href: "/activities/new", label: "Log activity", icon: NotebookPen },
   { href: "/materials/new", label: "New material", icon: FilePlus2 },
+  { href: "/brainstorm/new", label: "New brainstorm board", icon: Lightbulb },
 ];
 
 const GROUPS: { key: keyof SearchGroups; heading: string; icon: LucideIcon }[] = [
@@ -40,6 +42,7 @@ const GROUPS: { key: keyof SearchGroups; heading: string; icon: LucideIcon }[] =
   { key: "people", heading: "People", icon: User },
   { key: "materials", heading: "Materials", icon: Files },
   { key: "workflows", heading: "Workflows", icon: Workflow },
+  { key: "brainstorms", heading: "Brainstorm boards", icon: Lightbulb },
   { key: "activities", heading: "Activities", icon: NotebookPen },
   { key: "tasks", heading: "Tasks", icon: ListChecks },
 ];

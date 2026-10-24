@@ -30,24 +30,30 @@ function keepFontsHere() {
   };
 }
 
+// Called before the whiteboard is first loaded, on any page that has one.
+export function prepareWhiteboard() {
+  keepFontsHere();
+  // Its fonts are served by this app (scripts/copy-board-fonts.mjs).
+  (window as Window & { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH =
+    "/excalidraw/";
+}
+
+export function WhiteboardLoading() {
+  return (
+    <div className="absolute inset-0 grid place-items-center bg-background p-4">
+      <p className="rounded-xl bg-card px-4 py-3 text-sm text-muted-foreground shadow-lg ring-1 ring-foreground/10">
+        Opening the whiteboard…
+      </p>
+    </div>
+  );
+}
+
 // The whiteboard reads the window as it loads, so it is never rendered on the
 // server, and only this page ever downloads it.
 export const BoardCanvas = dynamic(
   async () => {
-    keepFontsHere();
-    // Its fonts are served by this app (scripts/copy-board-fonts.mjs).
-    (window as Window & { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH =
-      "/excalidraw/";
+    prepareWhiteboard();
     return (await import("./board-editor")).BoardEditor;
   },
-  {
-    ssr: false,
-    loading: () => (
-      <div className="absolute inset-0 grid place-items-center bg-background p-4">
-        <p className="rounded-xl bg-card px-4 py-3 text-sm text-muted-foreground shadow-lg ring-1 ring-foreground/10">
-          Opening the whiteboard…
-        </p>
-      </div>
-    ),
-  },
+  { ssr: false, loading: WhiteboardLoading },
 );

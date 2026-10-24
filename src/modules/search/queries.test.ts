@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import {
   activities,
   activityContacts,
+  brainstormBoards,
   contactEmails,
   contactOrganizations,
   contacts,
@@ -126,6 +127,16 @@ describe("searchEverything", () => {
     ]);
   });
 
+  it("finds brainstorm boards by any part of their name", async () => {
+    await db.insert(brainstormBoards).values([
+      { ownerId, name: "Website ideas" },
+      { ownerId, name: "Garden" },
+    ]);
+    expect(names((await searchEverything(ownerId, "ideas"))!.brainstorms)).toEqual([
+      "Website ideas",
+    ]);
+  });
+
   it("finds activities by their notes and tasks by their title, leaving cancelled tasks out", async () => {
     const found = (await searchEverything(ownerId, "rebrand"))!;
     expect(titles(found.activities)).toEqual(["Intro call"]);
@@ -150,6 +161,7 @@ describe("searchEverything", () => {
       people: [],
       materials: [],
       workflows: [],
+      brainstorms: [],
       activities: [],
       tasks: [],
     });

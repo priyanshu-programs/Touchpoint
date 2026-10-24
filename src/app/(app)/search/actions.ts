@@ -20,6 +20,7 @@ export type SearchGroups = {
   people: SearchHit[];
   materials: SearchHit[];
   workflows: SearchHit[];
+  brainstorms: SearchHit[];
   activities: SearchHit[];
   tasks: SearchHit[];
 };
@@ -65,6 +66,12 @@ export async function searchEverythingAction(
         href: `/workflows/${row.id}`,
       };
     }),
+    brainstorms: found.brainstorms.map((row) => ({
+      id: row.id,
+      label: row.name,
+      hint: "Brainstorm board",
+      href: `/brainstorm/${row.id}`,
+    })),
     activities: found.activities.map((row) => ({
       id: row.id,
       label: row.title,

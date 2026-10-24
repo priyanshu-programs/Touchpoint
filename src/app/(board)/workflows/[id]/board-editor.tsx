@@ -19,8 +19,8 @@ import type {
   NonDeletedExcalidrawElement,
 } from "@excalidraw/excalidraw/element/types";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { Grid3x3, Grip, Loader2, Rows3, Square } from "lucide-react";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { BoardStage, StageStatus } from "@/db/schema";
 import {
   attachmentKind,
@@ -34,6 +34,7 @@ import {
 } from "@/modules/workflows/drawing";
 import { openBoardAction } from "@/app/(app)/workflows/actions";
 import "./board.css";
+import { followPaper, PaperChoices, SaveStatus, useDarkTheme } from "./board-chrome";
 import { createBoardPictures } from "./board-pictures";
 import { createBoardSaver, type SaveState } from "./board-saver";
 import { closedShape } from "@/modules/workflows/sketch";
@@ -49,47 +50,10 @@ import { BoxAttachments } from "./box-attachments";
 import { BoxCard, StrokesCard } from "./box-card";
 import { BoxMarks, type BoxMark } from "./box-marks";
 import { BoxNotes } from "./box-notes";
-import { PAPER_COOKIE, PAPERS, type Paper } from "./paper";
+import type { Paper } from "./paper";
 import { RecordChips, type BoardRecord, type ChipSpot } from "./record-chip";
 import { StageAsk } from "./stage-ask";
 import { StageHalos, type StageBox } from "./stage-halos";
-
-const SAVE_LABELS: Record<SaveState, string> = {
-  saved: "Saved",
-  unsaved: "Unsaved changes",
-  saving: "Saving…",
-  error: "Could not save. Trying again…",
-  conflict: "Changed somewhere else. Reload to go on.",
-};
-
-// The dot beside the save label: green at rest, amber while work is pending,
-// red when saving stopped or failed.
-const SAVE_DOTS: Record<SaveState, string> = {
-  saved: "bg-emerald-500",
-  unsaved: "bg-amber-500",
-  saving: "animate-pulse bg-amber-500",
-  error: "bg-destructive",
-  conflict: "bg-destructive",
-};
-
-const PAPER_ICONS: Record<Paper, typeof Grip> = {
-  dots: Grip,
-  grid: Grid3x3,
-  lines: Rows3,
-  plain: Square,
-};
-
-// The page is how the owner likes every whiteboard, so it is kept in a cookie
-// the board's page reads, and the next whiteboard opens on it at once.
-function keepPaper(paper: Paper) {
-  document.cookie = `${PAPER_COOKIE}=${paper}; path=/; max-age=31536000; samesite=lax`;
-}
-
-const dark = () => window.matchMedia("(prefers-color-scheme: dark)");
-const watchTheme = (changed: () => void) => {
-  dark().addEventListener("change", changed);
-  return () => dark().removeEventListener("change", changed);
-};
 
 const oneOf = (types: readonly string[], element: ExcalidrawElement) =>
   types.includes(element.type);
@@ -399,11 +363,7 @@ function Whiteboard({
   });
   const [marks, setMarks] = useState<BoxMark[]>([]);
   const clips = useRef<HTMLDivElement>(null);
-  const isDark = useSyncExternalStore(
-    watchTheme,
-    () => dark().matches,
-    () => false,
-  );
+  const isDark = useDarkTheme();
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [selected, setSelected] = useState<Selected | null>(null);
   const [stages, setStages] = useState<StageBox[]>([]);
@@ -426,7 +386,7 @@ function Whiteboard({
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [saver] = useState(() =>
     createBoardSaver<NonDeletedExcalidrawElement>({
-      boardId,
+      endpoint: `/api/workflows/${boardId}/scene`,
       version,
       hash: hashElementsVersion,
       report: setSaveState,
@@ -690,16 +650,7 @@ function Whiteboard({
               setAsk(null);
             }
           }
-          // The page moves and grows with the drawing too. Zoomed far out, its
-          // marks would run together, so every other one is left out, and again,
-          // until they stand apart; those kept stay where they were.
-          if (page.current) {
-            let scale: number = zoom;
-            while (scale < 0.5) scale *= 2;
-            page.current.style.setProperty("--paper-scale", String(scale));
-            page.current.style.setProperty("--paper-x", `${appState.scrollX * zoom}px`);
-            page.current.style.setProperty("--paper-y", `${appState.scrollY * zoom}px`);
-          }
+          followPaper(page.current, { ...appState, zoom });
           const boxes = stageBoxes(all);
           setStages((before) => (sameBoxes(before, boxes) ? before : boxes));
           if (tracked) {
@@ -720,29 +671,7 @@ function Whiteboard({
             ),
           );
         }}
-        renderTopRightUI={() => (
-          // The dot alone on a phone, where the tools take the whole width and a
-          // word beside them pushes the first off the screen. Saving that has
-          // failed or stopped is said in words there too.
-          <p
-            role="status"
-            className="inline-flex items-center gap-1.5 self-center text-xs whitespace-nowrap sm:rounded-full sm:bg-card/90 sm:px-2.5 sm:py-1 sm:shadow-sm sm:ring-1 sm:ring-foreground/10 sm:backdrop-blur"
-          >
-            <span
-              aria-hidden
-              className={`size-2 rounded-full sm:size-1.5 ${SAVE_DOTS[shownState]}`}
-            />
-            <span
-              className={`text-muted-foreground ${
-                shownState === "error" || shownState === "conflict"
-                  ? ""
-                  : "sr-only sm:not-sr-only"
-              }`}
-            >
-              {SAVE_LABELS[shownState]}
-            </span>
-          </p>
-        )}
+        renderTopRightUI={() => <SaveStatus state={shownState} />}
       >
         <MainMenu>
           <MainMenu.DefaultItems.SaveAsImage />
@@ -750,25 +679,7 @@ function Whiteboard({
           <MainMenu.DefaultItems.Help />
           <MainMenu.DefaultItems.ClearCanvas />
           <MainMenu.Separator />
-          <MainMenu.Group title="Page">
-            {PAPERS.map(({ key, label }) => {
-              const Icon = PAPER_ICONS[key];
-              return (
-                <MainMenu.Item
-                  key={key}
-                  icon={<Icon aria-hidden />}
-                  selected={paper === key}
-                  aria-pressed={paper === key}
-                  onSelect={() => {
-                    setPaper(key);
-                    keepPaper(key);
-                  }}
-                >
-                  {label}
-                </MainMenu.Item>
-              );
-            })}
-          </MainMenu.Group>
+          <PaperChoices paper={paper} onChange={setPaper} />
         </MainMenu>
       </Excalidraw>
       <div ref={asks} className="stage-asks">

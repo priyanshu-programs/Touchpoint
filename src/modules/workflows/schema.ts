@@ -102,23 +102,35 @@ const pictureKey = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 export const pictureRef = z.strictObject({ boardId: z.uuid(), key: pictureKey });
 export type PictureRef = z.infer<typeof pictureRef>;
 
-// One element of the drawing. What the server reads or what could do harm is
+// One element of a drawing. What the server reads or what could do harm is
 // checked; the rest (where it is, how it is drawn) is the whiteboard's own and
 // only ever goes back to it, so it is kept as it came.
-const element = z
-  .looseObject({
-    id: z.string().min(1).max(100),
-    type: z.enum(ELEMENT_TYPES),
-    // The picture an element shows, looked for among its board's own and nowhere else.
-    fileId: pictureKey.nullish(),
-    // A link that is not a web address is dropped, not refused: the whiteboard
-    // lets one be typed, and it must not stop the rest of the drawing saving.
-    link: z
-      .unknown()
-      .transform((link) =>
-        httpUrl.safeParse(link).success ? (link as string) : null,
-      )
-      .optional(),
+export const drawnElement = z.looseObject({
+  id: z.string().min(1).max(100),
+  type: z.enum(ELEMENT_TYPES),
+  // The picture an element shows, looked for among its board's own and nowhere else.
+  fileId: pictureKey.nullish(),
+  // A link that is not a web address is dropped, not refused: the whiteboard
+  // lets one be typed, and it must not stop the rest of the drawing saving.
+  link: z
+    .unknown()
+    .transform((link) =>
+      httpUrl.safeParse(link).success ? (link as string) : null,
+    )
+    .optional(),
+});
+
+// The whiteboard sends a picture only once its bytes are stored under its id.
+export const showsStoredPicture = ({
+  type,
+  fileId,
+}: {
+  type: string;
+  fileId?: string | null;
+}) => type !== "image" || Boolean(fileId);
+
+const element = drawnElement
+  .extend({
     customData: z
       .strictObject({
         stage: z
@@ -131,8 +143,7 @@ const element = z
       })
       .optional(),
   })
-  // The whiteboard sends a picture only once its bytes are stored under its id.
-  .refine(({ type, fileId }) => type !== "image" || Boolean(fileId));
+  .refine(showsStoredPicture);
 export type SceneElement = z.infer<typeof element>;
 
 export const sceneSave = z.strictObject({

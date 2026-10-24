@@ -3,6 +3,7 @@
 import {
   Building2,
   Files,
+  Lightbulb,
   ListChecks,
   LogOut,
   Plus,
@@ -60,6 +61,12 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
       prefix: "/materials",
     },
     {
+      href: "/brainstorm",
+      label: "Brainstorming",
+      icon: Lightbulb,
+      prefix: "/brainstorm",
+    },
+    {
       href: "/settings/profile",
       label: "Settings",
       icon: Settings,
@@ -68,7 +75,7 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
   ];
 // The phone bar has room for four destinations; the rest are reached through "Go to".
 const MOBILE_NAV = NAV.filter(
-  (item) => item.href !== "/workflows" && item.href !== "/materials",
+  (item) => !["/workflows", "/materials", "/brainstorm"].includes(item.href),
 );
 
 const COLLAPSED_WIDTH = 56;

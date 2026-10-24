@@ -9,12 +9,13 @@ const KEEPALIVE_BYTES = 60_000;
 // from the version the one before gave back. `hash` tells one state of the
 // drawing from another without comparing every element.
 export function createBoardSaver<Element>({
-  boardId,
+  endpoint,
   version,
   hash,
   report,
 }: {
-  boardId: string;
+  // Where the drawing is put: a workflow's or a brainstorm board's scene route.
+  endpoint: string;
   version: number;
   hash: (elements: readonly Element[]) => number;
   report: (state: SaveState) => void;
@@ -46,7 +47,7 @@ export function createBoardSaver<Element>({
     report("saving");
 
     const body = JSON.stringify({ version, elements });
-    const response = await fetch(`/api/workflows/${boardId}/scene`, {
+    const response = await fetch(endpoint, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body,
