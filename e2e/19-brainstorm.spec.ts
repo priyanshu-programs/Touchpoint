@@ -308,9 +308,12 @@ test("pictures are kept on a brainstorm board: stored, fetched again and refused
   ).toBe(403);
 
   // After a reload the picture is fetched again and still on the board.
+  const again = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === address && response.ok(),
+  );
   await page.reload();
   await expect(whiteboard(page)).toBeVisible();
-  await page.waitForResponse((response) => new URL(response.url()).pathname === address);
+  await again;
   expect(await pictures()).toEqual([key]);
 
   // A drawing that could carry script is taken off the board, and says why.
