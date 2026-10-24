@@ -773,3 +773,4 @@
 - [2026-10-24] plan.md: the Now line names Brainstorming slice 2 or Step 9 slice 3 as next, on the owner's word
 - [2026-10-24] Brainstorming slice 1 runs: lint and typecheck clean; full e2e passed (114 tests, 14.5 minutes) and Vitest 722 of 723 (the known clock-skew materials sort test only), behind the keep-awake call
 - [2026-10-24] package.json: zod 4.6.5 to 4.6.6 (pinned), fixing GHSA-mrhx-c7xc-m3w5 (memory exhaustion on oversized constrained collections), a high advisory published since quick add that failed CI's pnpm audit --prod on e663b77; pnpm audit --prod is clean again
+- [2026-10-24] Brainstorming slice 1 is live (e663b77, then aeb20c7 for the zod audit fix, CI green in 8 minutes with the whole unit and e2e suites and the audit). Neon main has 30 migrations, with brainstorm_boards present and empty; /api/brainstorm/<id>/scene on the live site answers 401 without a session. Not looked at signed in on the live site
