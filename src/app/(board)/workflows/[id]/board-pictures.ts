@@ -41,14 +41,14 @@ const dataURLOf = (blob: Blob) =>
 // Keeps the pictures of a whiteboard on the server. The drawing holds only a
 // picture's id, so a picture is fetched by its id as the whiteboard opens, and
 // one put on the whiteboard is sent under its id before the drawing that shows
-// it is. `held` is what the server has; `report` is told whether a picture is
-// still on its way.
+// it is. `address` is where the board's pictures are sent and fetched; `held`
+// is what the server has; `report` is told whether a picture is still on its way.
 export function createBoardPictures({
-  boardId,
+  address,
   held,
   report,
 }: {
-  boardId: string;
+  address: string;
   held: readonly string[];
   report: (sending: boolean) => void;
 }) {
@@ -59,8 +59,6 @@ export function createBoardPictures({
   let api: ExcalidrawImperativeAPI | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let busy = false;
-
-  const address = `/api/workflows/${boardId}/pictures`;
 
   async function send(key: string, dataURL: string): Promise<"kept" | "later" | Refusal> {
     let picture: Blob;

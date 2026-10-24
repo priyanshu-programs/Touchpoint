@@ -33,7 +33,9 @@ import {
   SaveStatus,
   useDarkTheme,
 } from "../../workflows/[id]/board-chrome";
+import { createBoardPictures } from "../../workflows/[id]/board-pictures";
 import { createBoardSaver, type SaveState } from "../../workflows/[id]/board-saver";
+import { openBrainstormAction } from "@/app/(app)/brainstorm/actions";
 import type { Paper } from "../../workflows/[id]/paper";
 
 // The colours a sticky note comes in, as on a wall of paper notes.
@@ -176,7 +178,11 @@ function StickyButton({
   );
 }
 
-type Drawing = { version: number; elements: Record<string, unknown>[] };
+type Drawing = {
+  version: number;
+  elements: Record<string, unknown>[];
+  pictures: string[];
+};
 
 function Notice({ paper, children }: { paper: Paper; children: React.ReactNode }) {
   return (
@@ -187,8 +193,8 @@ function Notice({ paper, children }: { paper: Paper; children: React.ReactNode }
   );
 }
 
-// The drawing is fetched as the whiteboard opens, so it is always the stored
-// one, as on a workflow's board.
+// The drawing and the ids of its pictures are fetched as the whiteboard opens,
+// so they are always the stored ones, as on a workflow's board.
 export function BrainstormEditor({
   boardId,
   name,
@@ -202,10 +208,14 @@ export function BrainstormEditor({
 
   useEffect(() => {
     let wanted = true;
-    fetch(`/api/brainstorm/${boardId}/scene`)
-      .then(async (response) =>
-        response.ok ? ((await response.json()) as Drawing) : ("failed" as const),
-      )
+    const load = async (): Promise<Drawing | "failed"> => {
+      const [response, apart] = await Promise.all([
+        fetch(`/api/brainstorm/${boardId}/scene`),
+        openBrainstormAction(boardId),
+      ]);
+      return response.ok ? { ...(await response.json()), ...apart } : "failed";
+    };
+    load()
       .catch(() => "failed" as const)
       .then((loaded) => wanted && setDrawing(loaded));
     return () => {
@@ -247,6 +257,7 @@ function Whiteboard({
   opensOn,
   version,
   elements,
+  pictures: held,
 }: Drawing & { boardId: string; name: string; opensOn: Paper }) {
   const [paper, setPaper] = useState(opensOn);
   const isDark = useDarkTheme();
@@ -264,6 +275,21 @@ function Whiteboard({
   );
   const unfitted = useRef(elements.length > 0);
 
+  // Whether a picture put on the whiteboard is still on its way to the server.
+  const [sending, setSending] = useState(false);
+  const [pictures] = useState(() =>
+    createBoardPictures({
+      address: `/api/brainstorm/${boardId}/pictures`,
+      held,
+      report: setSending,
+    }),
+  );
+  useEffect(() => {
+    if (!api) return;
+    pictures.attach(api);
+    return pictures.stop;
+  }, [api, pictures]);
+
   useEffect(() => {
     const hidden = () => document.visibilityState === "hidden" && saver.flush();
     document.addEventListener("visibilitychange", hidden);
@@ -273,8 +299,11 @@ function Whiteboard({
     };
   }, [saver]);
 
+  // A picture still on its way is not stored, nor the drawing that shows it.
+  const shownState: SaveState =
+    sending && saveState === "saved" ? "saving" : saveState;
   const unstored =
-    saveState === "unsaved" || saveState === "saving" || saveState === "error";
+    shownState === "unsaved" || shownState === "saving" || shownState === "error";
   useEffect(() => {
     if (!unstored) return;
     const ask = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -310,10 +339,8 @@ function Whiteboard({
             saveToActiveFile: false,
             toggleTheme: false,
           },
-          // Pictures on a brainstorm board come with the next slice.
-          tools: { image: false },
         }}
-        onChange={(all, appState) => {
+        onChange={(all, appState, files) => {
           if (unfitted.current && api && all.length > 0) {
             unfitted.current = false;
             requestAnimationFrame(() =>
@@ -326,9 +353,13 @@ function Whiteboard({
             );
           }
           followPaper(page.current, { ...appState, zoom: appState.zoom.value });
+          pictures.look(all, files);
+          // A picture is sent with the drawing once its bytes are stored.
           saver.changed(
             getNonDeletedElements(all).filter(
-              (element) => oneOf(ELEMENT_TYPES, element) && element.type !== "image",
+              (element) =>
+                oneOf(ELEMENT_TYPES, element) &&
+                (element.type !== "image" || pictures.has(element.fileId)),
             ),
           );
         }}
@@ -340,7 +371,7 @@ function Whiteboard({
               onColor={setColor}
               className="hidden sm:inline-flex"
             />
-            <SaveStatus state={saveState} />
+            <SaveStatus state={shownState} />
           </div>
         )}
       >

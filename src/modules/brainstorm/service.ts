@@ -2,6 +2,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
 import { brainstormBoards } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
+import { dropUnusedFiles } from "@/modules/files/service";
 import {
   MAX_BRAINSTORM_BOARDS,
   type BrainstormIcon,
@@ -131,6 +132,8 @@ export async function deleteBrainstorm(ownerId: string, id: string) {
       .where(owned(ownerId, id))
       .returning({ name: brainstormBoards.name });
     if (!before) return false;
+    // Its pictures went with it; a file nothing else points at goes too.
+    await dropUnusedFiles(tx, ownerId);
     await audit(tx, {
       ownerId,
       actor: "user",

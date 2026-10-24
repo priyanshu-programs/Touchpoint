@@ -774,3 +774,18 @@
 - [2026-10-24] Brainstorming slice 1 runs: lint and typecheck clean; full e2e passed (114 tests, 14.5 minutes) and Vitest 722 of 723 (the known clock-skew materials sort test only), behind the keep-awake call
 - [2026-10-24] package.json: zod 4.6.5 to 4.6.6 (pinned), fixing GHSA-mrhx-c7xc-m3w5 (memory exhaustion on oversized constrained collections), a high advisory published since quick add that failed CI's pnpm audit --prod on e663b77; pnpm audit --prod is clean again
 - [2026-10-24] Brainstorming slice 1 is live (e663b77, then aeb20c7 for the zod audit fix, CI green in 8 minutes with the whole unit and e2e suites and the audit). Neon main has 30 migrations, with brainstorm_boards present and empty; /api/brainstorm/<id>/scene on the live site answers 401 without a session. Not looked at signed in on the live site
+- [2026-10-24] Owner asked for Brainstorming slice 2 (pictures); plan approved (C:\Users\USER\.claude\plans\pasted-content-id-f965-brainstorming-is-snoopy-feather.md)
+- [2026-10-24] src/db/schema/brainstorm.ts: brainstorm_pictures (owner, board with cascade, file_key unique per board, file), as workflow_pictures
+- [2026-10-24] Migration 0030_brainstorm_pictures (additive): the brainstorm_pictures table and its two indexes
+- [2026-10-24] src/modules/workflows/pictures.ts: addPicture, openPictures and getPicture made by boardPictures from a board table, a picture table and the audit names; the workflow exports are unchanged
+- [2026-10-24] Added src/modules/brainstorm/pictures.ts: the same picture functions for brainstorm boards, audited as brainstorm.picture_add and brainstorm.pictures_dropped
+- [2026-10-24] src/modules/files/service.ts: dropUnusedFiles keeps a file a brainstorm picture points at
+- [2026-10-24] src/modules/brainstorm/service.ts: deleteBrainstorm frees the files nothing else points at once its pictures are gone
+- [2026-10-24] Added src/app/api/brainstorm/[id]/pictures (POST) and [key] (GET), with the workflow picture routes' guards and headers
+- [2026-10-24] src/app/(app)/brainstorm/actions.ts: openBrainstormAction gives a board's picture ids as it opens and drops the ones nothing shows
+- [2026-10-24] board-pictures.ts: createBoardPictures takes the address it sends to instead of a workflow id; board-editor.tsx passes the workflow one
+- [2026-10-24] brainstorm-editor.tsx: the picture tool, paste and drop are on; pictures are sent before the drawing that shows them, fetched again on opening, and the save pill shows Saving while one is on its way
+- [2026-10-24] Tests: new src/modules/brainstorm/pictures.test.ts (8 tests, among them a file shared by a workflow and a brainstorm board kept until neither shows it); e2e 19 gets a pictures test and the phone test checks the tools fit; 01, 19 and 99 passed (18 tests)
+- [2026-10-24] security.md: pictures on brainstorm boards in the Brainstorm boards rule, eight session routes that are not server actions, dropUnusedFiles counting brainstorm pictures
+- [2026-10-24] docs/PRD.md: pictures on a brainstorm board in section 6, brainstorm_pictures in section 8.4
+- [2026-10-24] plan.md: Brainstorming slice 2 ticked; the owner's ask for a Miro-style colour grid on both kinds of board and a sticky note that looks like one added as next, then Step 9 slice 3

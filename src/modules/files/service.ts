@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, notExists, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
+  brainstormPictures,
   files,
   materialVersions,
   workflowAttachments,
@@ -66,6 +67,12 @@ export async function dropUnusedFiles(tx: Tx, ownerId: string) {
           .select({ id: workflowPictures.id })
           .from(workflowPictures)
           .where(eq(workflowPictures.fileId, files.id)),
+      ),
+      notExists(
+        tx
+          .select({ id: brainstormPictures.id })
+          .from(brainstormPictures)
+          .where(eq(brainstormPictures.fileId, files.id)),
       ),
       notExists(
         tx

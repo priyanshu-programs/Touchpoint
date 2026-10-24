@@ -1,6 +1,16 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { citext, createdAt, id, ownerId, updatedAt } from "./columns";
+import { files } from "./files";
 import type { BoardScene } from "./workflows";
 
 // A whiteboard of the owner's own for thinking things through: no stages, and
@@ -23,5 +33,26 @@ export const brainstormBoards = pgTable(
     check("brainstorm_boards_icon_check", sql`${table.icon} ~ '^[a-z0-9-]{1,32}$'`),
     uniqueIndex("brainstorm_boards_owner_name_idx").on(table.ownerId, table.name),
     index("brainstorm_boards_owner_updated_idx").on(table.ownerId, table.updatedAt),
+  ],
+);
+
+// A picture drawn on a brainstorm board, kept as a workflow board's is.
+export const brainstormPictures = pgTable(
+  "brainstorm_pictures",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    boardId: uuid("board_id")
+      .notNull()
+      .references(() => brainstormBoards.id, { onDelete: "cascade" }),
+    fileKey: text("file_key").notNull(),
+    fileId: uuid("file_id")
+      .notNull()
+      .references(() => files.id),
+    createdAt,
+  },
+  (table) => [
+    uniqueIndex("brainstorm_pictures_board_key_idx").on(table.boardId, table.fileKey),
+    index("brainstorm_pictures_file_idx").on(table.fileId),
   ],
 );

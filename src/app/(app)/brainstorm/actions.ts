@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
+import { openPictures } from "@/modules/brainstorm/pictures";
 import {
   brainstormIcon,
   brainstormName,
@@ -70,6 +71,14 @@ export async function setBrainstormIconAction(boardId: string, icon: string | nu
     notFound();
   }
   revalidatePath("/brainstorm", "layout");
+}
+
+// The ids of the pictures drawn on a board, asked for as its whiteboard opens.
+export async function openBrainstormAction(boardId: string) {
+  const owner = await requireOwner();
+  const pictures = await openPictures(owner.id, z.uuid().parse(boardId));
+  if (!pictures) notFound();
+  return { pictures };
 }
 
 export async function deleteBrainstormAction(formData: FormData) {

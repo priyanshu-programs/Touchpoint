@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import sharp from "sharp";
 import { OWNER_SESSION } from "./support";
 
 test.describe.configure({ mode: "serial" });
@@ -26,6 +27,7 @@ type Element = {
   text?: string;
   containerId?: string | null;
   customData?: unknown;
+  fileId?: string;
 };
 
 const stored = async (page: Page, id: string) =>
@@ -211,6 +213,119 @@ test("a board is renamed, found from Ctrl+K and deleted", async ({ page }) => {
   expect((await page.request.get(`/api/brainstorm/${boardId}/scene`)).status()).toBe(404);
 });
 
+test("pictures are kept on a brainstorm board: stored, fetched again and refused when not a picture", async ({
+  page,
+  baseURL,
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const seen = watch(page);
+  const PICTURES = /\/api\/brainstorm\/[0-9a-f-]{36}\/pictures$/;
+  const sent = () =>
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        PICTURES.test(new URL(response.url()).pathname),
+    );
+  type Sent = { name: string; mimeType: string; buffer: Buffer };
+  // A file let go of over the whiteboard, as one dragged from a folder is.
+  const drop = async ({ name, mimeType, buffer }: Sent, x: number, y: number) => {
+    const transfer = await page.evaluateHandle(
+      ({ name, mimeType, bytes }) => {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([new Uint8Array(bytes)], name, { type: mimeType }));
+        return transfer;
+      },
+      { name, mimeType, bytes: [...buffer] },
+    );
+    await page.dispatchEvent(".excalidraw", "drop", {
+      dataTransfer: transfer,
+      clientX: x,
+      clientY: y,
+    });
+  };
+  const photo: Sent = {
+    name: "Moodboard.png",
+    mimeType: "image/png",
+    buffer: await sharp({
+      create: { width: 400, height: 300, channels: 3, background: "#3366cc" },
+    })
+      .png()
+      .toBuffer(),
+  };
+  const vector: Sent = {
+    name: "Logo.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"><rect width="120" height="80" fill="#cc3333"/></svg>',
+    ),
+  };
+
+  await page.goto("/brainstorm/new");
+  await page.getByLabel("Name").fill("Moodboard");
+  await page.getByRole("button", { name: "Create board" }).click();
+  await expect(page).toHaveURL(BOARD);
+  const id = BOARD.exec(page.url())![1];
+  await expect(whiteboard(page)).toBeVisible();
+  await expect(page.locator('[data-testid="toolbar-image"]')).toBeAttached();
+
+  // A picture dropped on the board is sent, and only then the drawing.
+  const [upload, save] = await Promise.all([sent(), saved(page), drop(photo, 640, 380)]);
+  expect(upload.status()).toBe(204);
+  expect(save.ok()).toBe(true);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+  const pictures = async () =>
+    (await stored(page, id)).elements
+      .filter(({ type }) => type === "image")
+      .map(({ fileId }) => fileId!);
+  const [key] = await pictures();
+  expect(key).toMatch(/^[0-9a-f]{40}$/);
+  const address = `/api/brainstorm/${id}/pictures/${key}`;
+  const fetched = await page.request.get(address);
+  expect(fetched.status()).toBe(200);
+  expect(fetched.headers()["content-type"]).toBe("image/webp");
+  expect(fetched.headers()["cache-control"]).toBe("private, max-age=31536000, immutable");
+  expect(await sharp(await fetched.body()).metadata()).toMatchObject({
+    format: "webp",
+    width: 400,
+    height: 300,
+  });
+  const stranger = await browser.newContext({ storageState: undefined });
+  expect((await stranger.request.get(`${baseURL}${address}`)).status()).toBe(401);
+  await stranger.close();
+  expect(
+    (await page.request.get(`/api/brainstorm/${id}/pictures/${"0".repeat(40)}`)).status(),
+  ).toBe(404);
+  // Not from another site.
+  expect(
+    (
+      await page.request.post(`/api/brainstorm/${id}/pictures`, {
+        multipart: { key: "abc", file: photo },
+        headers: { origin: "https://elsewhere.example" },
+      })
+    ).status(),
+  ).toBe(403);
+
+  // After a reload the picture is fetched again and still on the board.
+  await page.reload();
+  await expect(whiteboard(page)).toBeVisible();
+  await page.waitForResponse((response) => new URL(response.url()).pathname === address);
+  expect(await pictures()).toEqual([key]);
+
+  // A drawing that could carry script is taken off the board, and says why.
+  const refusal = sent();
+  await drop(vector, 300, 300);
+  expect((await refusal).status()).toBe(415);
+  await expect(page.getByText(/^Only PNG, JPEG, GIF and WebP pictures are kept\./)).toBeVisible();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(await pictures()).toEqual([key]);
+
+  expect(seen.outside).toEqual([]);
+  // The refused upload is logged by the browser as a failed request.
+  expect(seen.errors.filter((error) => !error.includes("415"))).toEqual([]);
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -223,6 +338,12 @@ test.describe("on a phone", () => {
     await expect(page).toHaveURL(BOARD);
     await expect(whiteboard(page)).toBeVisible();
     await expect(page.getByRole("button", { name: "Sticky note", exact: true })).toBeVisible();
+    // The tools, the picture tool among them, are all on the screen.
+    for (const tool of ["selection", "image", "eraser"]) {
+      await expect(page.locator(`[data-testid="toolbar-${tool}"]`)).toBeInViewport({
+        ratio: 1,
+      });
+    }
     const fits = () =>
       page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
     expect(await fits()).toBe(true);

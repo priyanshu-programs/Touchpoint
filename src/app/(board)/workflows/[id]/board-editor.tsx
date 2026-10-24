@@ -396,7 +396,11 @@ function Whiteboard({
   // Whether a picture put on the whiteboard is still on its way to the server.
   const [sending, setSending] = useState(false);
   const [pictures] = useState(() =>
-    createBoardPictures({ boardId, held, report: setSending }),
+    createBoardPictures({
+      address: `/api/workflows/${boardId}/pictures`,
+      held,
+      report: setSending,
+    }),
   );
   useEffect(() => {
     if (!api) return;
