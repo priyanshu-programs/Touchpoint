@@ -39,4 +39,29 @@ export const organizationInput = z.strictObject({
   tags: tagList,
 });
 
+// Which of the two companies each differing field is taken from. The values themselves
+// are read from the database, never from the form.
+const side = z.enum(["keep", "other"]).optional();
+export const organizationMerge = z
+  .strictObject({
+    keep: z.uuid(),
+    other: z.uuid(),
+    picks: z.strictObject({
+      name: side,
+      website: side,
+      phone: side,
+      email: side,
+      industry: side,
+      description: side,
+      location: side,
+      status: side,
+      logo: side,
+    }),
+    custom: z
+      .record(z.string().min(1).max(60), z.enum(["keep", "other"]))
+      .refine((picks) => Object.keys(picks).length <= 50),
+  })
+  .refine(({ keep, other }) => keep !== other);
+
 export type OrganizationInput = z.infer<typeof organizationInput>;
+export type OrganizationMerge = z.infer<typeof organizationMerge>;

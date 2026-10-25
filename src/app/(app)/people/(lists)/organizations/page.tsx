@@ -44,6 +44,7 @@ import { MergePanel } from "../merge-panel";
 import { RecordSheet } from "../record-sheet";
 import { RowCheckbox, SelectAll, Selection } from "../selection";
 import { StatusBadge } from "../status-badge";
+import { CompanyMergePanel } from "./company-merge-panel";
 import { CompanyPanel } from "./company-panel";
 import { NewCompanySheet } from "./new-company-sheet";
 
@@ -440,11 +441,13 @@ export default async function OrganizationsPage({
               ? "fields"
               : entry
                 ? entryKey(entry)
-                : contact && params.merge
+                : params.merge && (contact || !params.contact)
                   ? `merge:${params.merge}`
                   : (contact?.id ?? open.id)
           }
-          narrow={Boolean(params.fields || (contact && params.merge))}
+          narrow={Boolean(
+            params.fields || (params.merge && (contact || !params.contact)),
+          )}
         >
           {params.fields ? (
             <FieldsPanel
@@ -487,6 +490,19 @@ export default async function OrganizationsPage({
                   : `${contactHref(keep)}&merge=${other}`
               }
               company={open.id}
+            />
+          ) : params.merge && !params.contact ? (
+            <CompanyMergePanel
+              ownerId={owner.id}
+              keepId={open.id}
+              otherId={params.merge}
+              back={{
+                href: companiesHref(params, { merge: undefined }),
+                label: `Back to ${open.name}`,
+              }}
+              swapHref={(keep, other) =>
+                companiesHref(params, { company: keep, merge: other })
+              }
             />
           ) : contact ? (
             <ContactPanel

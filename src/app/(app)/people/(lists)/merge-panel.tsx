@@ -13,6 +13,7 @@ import {
 import { formatCustomValue } from "@/modules/fields/format";
 import { getLayout, listCustomFields } from "@/modules/fields/queries";
 import { customKey } from "@/modules/fields/schema";
+import { mergeContactsAction } from "../contacts/actions";
 import { labelFor } from "../labels";
 import { MergeForm, type MergeRow } from "./merge-form";
 
@@ -170,6 +171,8 @@ export async function MergePanel({
 
       <div className="p-4">
         <MergeForm
+          action={mergeContactsAction}
+          pronoun="they"
           keep={{ id: keep.id, name: keep.fullName }}
           other={{ id: other.id, name: other.fullName }}
           company={company ?? ""}

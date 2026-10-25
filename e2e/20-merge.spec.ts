@@ -143,3 +143,74 @@ test("on a phone, the merge view fits", async ({ page }) => {
     ),
   ).toBe(true);
 });
+
+test("two companies merged from the company's menu", async ({ page }) => {
+  await quickAdd(
+    page,
+    { first: "Kai", last: "Ono", email: "kai@ferncliff.test" },
+    { name: "Ferncliff", domain: "ferncliff.test" },
+  );
+  const kept = /company=([0-9a-f-]{36})/.exec(page.url())![1];
+  await quickAdd(
+    page,
+    { first: "Lea", last: "Moss", email: "lea@ferncliffltd.test" },
+    { name: "Ferncliff Ltd", domain: "ferncliffltd.test" },
+  );
+  const other = /company=([0-9a-f-]{36})/.exec(page.url())![1];
+
+  await page.goto(`/people/organizations?company=${kept}`);
+  const panel = page.getByRole("dialog");
+  await panel.getByRole("button", { name: "More actions" }).first().click();
+  await page.getByRole("menuitem", { name: "Merge with…", exact: true }).click();
+  await page.getByPlaceholder("Search companies…").fill("Ferncliff Ltd");
+  await page.getByRole("option", { name: /Ferncliff Ltd/ }).first().click();
+  await expect(page).toHaveURL(new RegExp(`company=${kept}&merge=${other}$`));
+  await expect(
+    panel.getByRole("heading", { name: "Merge Ferncliff Ltd into Ferncliff" }),
+  ).toBeVisible();
+  await expect(panel.getByText("1 person", { exact: true })).toBeVisible();
+
+  await panel.getByRole("link", { name: "Swap" }).click();
+  await expect(
+    panel.getByRole("heading", { name: "Merge Ferncliff into Ferncliff Ltd" }),
+  ).toBeVisible();
+  await panel.getByRole("link", { name: "Swap" }).click();
+  await expect(
+    panel.getByRole("heading", { name: "Merge Ferncliff Ltd into Ferncliff" }),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(panel.getByRole("radio", { name: "Name from Ferncliff Ltd", exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  // Each new company's website read runs just after quick add; a merge waits for it.
+  const merge = panel.getByRole("button", { name: "Merge" });
+  await expect(async () => {
+    await page.reload();
+    await expect(merge).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+
+  await panel.getByRole("radio", { name: "Name from Ferncliff Ltd", exact: true }).check();
+  await merge.click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Merge" }).click();
+
+  await expect(page).toHaveURL(new RegExp(`/people/organizations\\?company=${kept}$`), {
+    timeout: 15_000,
+  });
+  await expect(panel.getByRole("heading", { name: "Ferncliff Ltd" })).toBeVisible();
+
+  await page.goto(`/people/organizations?company=${kept}&tab=contacts`);
+  await expect(panel.getByText("Kai Ono").first()).toBeVisible();
+  await expect(panel.getByText("Lea Moss").first()).toBeVisible();
+  await page.goto(`/people/organizations?company=${kept}&tab=tasks`);
+  await expect(panel.getByText("Follow up with Kai Ono", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Follow up with Lea Moss", { exact: true })).toBeVisible();
+
+  await page.goto(`/people/organizations?company=${other}`);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

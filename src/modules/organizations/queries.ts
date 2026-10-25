@@ -153,3 +153,52 @@ export async function findSimilarOrganizations(
     .orderBy(sql`similarity(${organizations.name}, ${name}) desc`)
     .limit(5);
 }
+
+// What the other company brings, and whether a website read on either is under way.
+async function carried(ownerId: string, keepId: string, otherId: string) {
+  const result = await db.execute<{
+    people: number;
+    shared: number;
+    activities: number;
+    tasks: number;
+    workflows: number;
+    sends: number;
+    reading: boolean;
+  }>(sql`
+    select
+      (select count(*)::int from contact_organizations
+        where owner_id = ${ownerId} and organization_id = ${otherId}) as people,
+      (select count(*)::int from contact_organizations merged
+        join contact_organizations kept on kept.contact_id = merged.contact_id
+          and kept.organization_id = ${keepId}
+        where merged.owner_id = ${ownerId} and merged.organization_id = ${otherId}) as shared,
+      (select count(*)::int from activities
+        where owner_id = ${ownerId} and organization_id = ${otherId}) as activities,
+      (select count(*)::int from tasks
+        where owner_id = ${ownerId} and organization_id = ${otherId}) as tasks,
+      (select count(*)::int from workflow_boards
+        where owner_id = ${ownerId} and organization_id = ${otherId}) as workflows,
+      (select count(*)::int from material_sends
+        where owner_id = ${ownerId} and organization_id = ${otherId}) as sends,
+      exists (select 1 from enrichment_runs
+        where owner_id = ${ownerId}
+          and organization_id in (${keepId}, ${otherId})
+          and status in ('queued', 'running')) as reading
+  `);
+  return result.rows[0];
+}
+
+// The two companies a merge would join, or nothing unless both are the owner's and apart.
+export async function organizationMergePreview(
+  ownerId: string,
+  keepId: string,
+  otherId: string,
+) {
+  if (keepId === otherId) return null;
+  const [keep, other, brings] = await Promise.all([
+    getOrganization(ownerId, keepId),
+    getOrganization(ownerId, otherId),
+    carried(ownerId, keepId, otherId),
+  ]);
+  return keep && other ? { keep, other, brings } : null;
+}
