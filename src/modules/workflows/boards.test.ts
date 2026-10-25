@@ -117,6 +117,8 @@ describe("sceneSave", () => {
     ["a stage's name over 200 characters", [box("a", { customData: { stage: { status: "done", name: "x".repeat(201) } } })]],
     ["a stage's name that is blank", [box("a", { customData: { stage: { status: "done", name: " " } } })]],
     ["a stage's name that is not text", [box("a", { customData: { stage: { status: "done", name: 7 } } })]],
+    ["a sticky mark that is not true", [box("a", { customData: { sticky: false } })]],
+    ["a sticky mark that is not a yes or no", [box("a", { customData: { sticky: "yes" } })]],
   ])("refuses %s", (_label, elements) => {
     expect(sceneSave.safeParse({ version: 1, elements }).success).toBe(false);
   });
@@ -129,6 +131,11 @@ describe("sceneSave", () => {
     expect(kept).toMatchObject({ type: "image", fileId, scale: [1, 1] });
     // Every other element says it shows no picture.
     expect(save(1, [box("a", { fileId: null })]).elements[0].fileId).toBeNull();
+  });
+
+  it("keeps a sticky note's mark", () => {
+    const [kept] = save(1, [box("a", { customData: { sticky: true } })]).elements;
+    expect(kept.customData).toEqual({ sticky: true });
   });
 
   it("keeps the name given with a stage's mark, trimmed", () => {

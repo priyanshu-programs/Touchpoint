@@ -140,6 +140,8 @@ const element = drawnElement
             name: z.string().trim().min(1).max(MAX_STAGE_NAME).optional(),
           })
           .optional(),
+        // A box put down as a sticky note, which the board draws as one.
+        sticky: z.literal(true).optional(),
       })
       .optional(),
   })
