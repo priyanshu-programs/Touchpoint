@@ -14,6 +14,7 @@ import { RecordWorkflows } from "@/app/(app)/workflows/record-workflows";
 import {
   deleteContactAction,
   removeContactPhotoAction,
+  searchContactsAction,
   setContactArchivedAction,
   setContactRelationshipAction,
 } from "../contacts/actions";
@@ -131,6 +132,7 @@ export function ContactPanel({
           removePhotoAction={
             contact.photoVersion ? removeContactPhotoAction : undefined
           }
+          merge={{ noun: "person", plural: "people", search: searchContactsAction }}
           remove={{
             title: `Delete ${contact.fullName}?`,
             description:

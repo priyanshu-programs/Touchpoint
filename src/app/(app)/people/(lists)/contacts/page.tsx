@@ -33,13 +33,19 @@ import {
 } from "../list-controls";
 import { ListHeader } from "../list-header";
 import { ListToolbar } from "../list-toolbar";
+import { MergePanel } from "../merge-panel";
 import { RecordSheet } from "../record-sheet";
 import { RowCheckbox, SelectAll, Selection } from "../selection";
 
 export const metadata: Metadata = { title: "Contacts" };
 
 const PATH = "/people/contacts";
-const NO_ENTRY = { activity: undefined, task: undefined, send: undefined };
+const NO_ENTRY = {
+  activity: undefined,
+  task: undefined,
+  send: undefined,
+  merge: undefined,
+};
 const NO_PANEL = {
   ...NO_ENTRY,
   contact: undefined,
@@ -270,9 +276,15 @@ export default async function ContactsPage({
         <RecordSheet
           closeHref={contactsHref(params, NO_PANEL)}
           recordKey={
-            params.fields ? "fields" : entry ? entryKey(entry) : open.id
+            params.fields
+              ? "fields"
+              : entry
+                ? entryKey(entry)
+                : params.merge
+                  ? `merge:${params.merge}`
+                  : open.id
           }
-          narrow={Boolean(params.fields)}
+          narrow={Boolean(params.fields || params.merge)}
         >
           {params.fields ? (
             <FieldsPanel
@@ -298,6 +310,19 @@ export default async function ContactsPage({
                 }),
                 label: `Back to ${open.fullName}`,
               }}
+            />
+          ) : params.merge ? (
+            <MergePanel
+              ownerId={owner.id}
+              keepId={open.id}
+              otherId={params.merge}
+              back={{
+                href: contactsHref(params, { merge: undefined }),
+                label: `Back to ${open.fullName}`,
+              }}
+              swapHref={(keep, other) =>
+                contactsHref(params, { contact: keep, merge: other })
+              }
             />
           ) : (
             <ContactPanel

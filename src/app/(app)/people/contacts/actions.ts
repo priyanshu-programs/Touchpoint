@@ -13,6 +13,7 @@ import {
   contactEmailInput,
   contactInput,
   contactLinkInput,
+  contactMerge,
   newContactInput,
   RELATIONSHIP_TYPES,
 } from "@/modules/contacts/schema";
@@ -33,6 +34,8 @@ import {
   updateContact,
   type ContactResult,
 } from "@/modules/contacts/service";
+import { MAX_MERGED_TAGS, mergeContacts } from "@/modules/contacts/merge";
+import { MAX_RECORD_BOARDS } from "@/modules/workflows/schema";
 import { removeContactPhoto, requestPhoto } from "@/modules/enrichment/photos";
 import {
   acceptProfile,
@@ -466,6 +469,49 @@ export async function deleteContactAction(formData: FormData) {
   if (!(await deleteContact(owner.id, id))) notFound();
   revalidatePath("/people", "layout");
   redirect(company ? companyHref(company, "contacts") : "/people/contacts");
+}
+
+// The choices arrive as `pick.<field>` and `custom.<key>`, each naming a side, never a
+// value. `company` is the company whose panel the merge was opened in.
+export async function mergeContactsAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const owner = await requireOwner();
+  const picks: Record<string, FormDataEntryValue> = {};
+  const custom: Record<string, FormDataEntryValue> = {};
+  for (const [name, value] of formData) {
+    if (name.startsWith("pick.")) picks[name.slice(5)] = value;
+    if (name.startsWith("custom.")) custom[name.slice(7)] = value;
+  }
+  const { company } = z
+    .strictObject({ company: z.union([z.literal(""), z.uuid()]) })
+    .parse(readFields(formData, ["company"]));
+  const parsed = contactMerge.safeParse({
+    ...readFields(formData, ["keep", "other"]),
+    picks,
+    custom,
+  });
+  if (!parsed.success) {
+    return { ok: false, message: "This merge could not be read. Open it again." };
+  }
+  const result = await mergeContacts(owner.id, parsed.data);
+  if (!result.ok) {
+    if (result.reason === "not_found") notFound();
+    return {
+      ok: false,
+      message:
+        result.reason === "tags"
+          ? `Together they have ${result.count} tags. Remove some first: a person can have at most ${MAX_MERGED_TAGS}.`
+          : `Together they have ${result.count} workflows. Remove some first: a person can have at most ${MAX_RECORD_BOARDS}.`,
+    };
+  }
+  revalidatePath("/people", "layout");
+  redirect(
+    company
+      ? contactPanelHref(company, parsed.data.keep)
+      : contactHref(parsed.data.keep),
+  );
 }
 
 // The rows ticked on one page of the list, which holds 50.

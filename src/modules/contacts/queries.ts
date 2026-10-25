@@ -236,3 +236,39 @@ export async function findSimilarContacts(
     .orderBy(sql`similarity(${contacts.fullName}, ${name}) desc`)
     .limit(5);
 }
+
+// What the person merged in brings with them, counted for the merge view.
+async function carried(ownerId: string, contactId: string) {
+  const result = await db.execute<{
+    activities: number;
+    tasks: number;
+    workflows: number;
+    sends: number;
+  }>(sql`
+    select
+      (select count(*)::int from activity_contacts
+        where owner_id = ${ownerId} and contact_id = ${contactId}) as activities,
+      (select count(*)::int from tasks
+        where owner_id = ${ownerId} and contact_id = ${contactId}) as tasks,
+      (select count(*)::int from workflow_boards
+        where owner_id = ${ownerId} and contact_id = ${contactId}) as workflows,
+      (select count(*)::int from material_send_recipients
+        where owner_id = ${ownerId} and contact_id = ${contactId}) as sends
+  `);
+  return result.rows[0];
+}
+
+// The two people a merge would join, or nothing unless both are the owner's and apart.
+export async function contactMergePreview(
+  ownerId: string,
+  keepId: string,
+  otherId: string,
+) {
+  if (keepId === otherId) return null;
+  const [keep, other, brings] = await Promise.all([
+    getContact(ownerId, keepId),
+    getContact(ownerId, otherId),
+    carried(ownerId, otherId),
+  ]);
+  return keep && other ? { keep, other, brings } : null;
+}

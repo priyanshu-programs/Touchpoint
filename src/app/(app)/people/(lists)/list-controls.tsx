@@ -22,7 +22,13 @@ export const listParams = z.object({
 // last, so an address reads record, tab, entry.
 const entry = optional(z.union([z.literal("new"), z.uuid()]));
 export type EntryParam = z.infer<typeof entry>;
-const entryParams = { activity: entry, task: entry, send: optional(z.literal("new")) };
+// `merge` puts the open person beside another, to be merged into them.
+const entryParams = {
+  activity: entry,
+  task: entry,
+  send: optional(z.literal("new")),
+  merge: optional(z.uuid()),
+};
 type ListParams = z.infer<typeof listParams>;
 
 // `company` and `tab` say which company panel is open over the list; `after` pages its timeline.
