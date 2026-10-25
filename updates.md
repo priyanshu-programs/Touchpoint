@@ -842,3 +842,23 @@
 - [2026-10-26] Committed the trail learning on keeping a sticky note's light colours on the dark board (.trail/learnings/2026-10-25-a-note-keeps-its-light-colours-l.md)
 - [2026-10-26] e2e/20: the waits after a merge allow 15 seconds, since a merge makes about thirty round trips to the database in one transaction
 - [2026-10-26] Merging people runs: lint and typecheck clean; Vitest 761 of 762 (the known clock-skew materials sort test only). Full e2e 103 of 119: 16, 18, 19 and 20 failed on 5-second waits while the Neon test host timed out (connect ETIMEDOUT), and 12 after them did not run; a rerun of those failed everywhere, 01 included, on the same slow host; the next passed 28 with all of 16, 19 and 20, 18 failing once more on a 60-second timeout in its palette test. Pushed with CI as the deciding full run, as on 2026-10-14 and 2026-10-24
+- [2026-10-26] Merging people is live (5e41e7e): CI green in 13 minutes with the whole unit and e2e suites, Vercel production deploy succeeded
+- [2026-10-26] Committed the trail learning on Vitest and Playwright sharing one test database (.trail/learnings/2026-10-25-vitest-and-playwright-share-one-test-l.md)
+- [2026-10-26] Owner approved Step 9 slice 3 part 2, merging companies, on the pattern of part 1 (C:\Users\l\.claude\plans\satrt-what-we-gotta-mighty-crab.md)
+- [2026-10-26] Added src/modules/organizations/merge-fields.ts: the fields a merge of two companies compares (website with its domain and location each as one)
+- [2026-10-26] src/modules/organizations/schema.ts: organizationMerge (strict: two different uuids, a side per standard field from a fixed list and per custom key, never a value)
+- [2026-10-26] src/modules/organizations/service.ts: snapshot exported and lockOrganization added for the merge
+- [2026-10-26] Added src/modules/organizations/merge.ts: mergeOrganizations locks both companies in one order, refuses more than 20 tags or workflows together or a website read under way, writes the picks from the stored values, moves provenance, the logo, reads, tags, people, activities, sends, tasks and workflows, deletes the other and audits organization.merge; no dropUnusedFiles, since every board moves and logos are not in files
+- [2026-10-26] src/modules/organizations/queries.ts: organizationMergePreview (both companies, counts of what the other brings, whether a read is under way)
+- [2026-10-26] src/app/(app)/people/organizations/actions.ts: mergeOrganizationsAction reads pick.* and custom.* sides, says why a merge is refused and lands on the kept company
+- [2026-10-26] company-actions.tsx: "Merge with…" in a company's three-dots menu, searching companies
+- [2026-10-26] merge-form.tsx: shared by both merges, taking the action, how the merged record is spoken of, an optional company and a reason the merge must wait; merge-panel.tsx passes the people action
+- [2026-10-26] Added (lists)/organizations/company-merge-panel.tsx: the two companies side by side, a radio card pair per differing field (the status as its pill, the logo, the website under its domain), Swap and what is brought over
+- [2026-10-26] organizations/page.tsx: the company merge view in place of the company's panel when merge= is set without a contact
+- [2026-10-26] Tests: new src/modules/organizations/merge.test.ts (16 tests: the schema's refusals, picks, location and website as one, provenance, reads, custom values, the logo, tags and people with one star, activities, sends, tasks and workflows, the limits, a read under way, another owner's company, archiving); e2e/20 gains a company merge from the menu with Swap, a pick, a phone width, and both people and follow-ups on the kept company
+- [2026-10-26] Looked at the company merge view in screenshots from a throwaway spec (light, dark, phone, the menu): the website card now puts the domain over the address, which wraps on a phone; the spec was deleted
+- [2026-10-26] security.md: the rule for merging two companies
+- [2026-10-26] docs/PRD.md: merging companies in section 6 (Companies) and 8.2 (Duplicate handling)
+- [2026-10-26] plan.md: Step 9 slice 3 part 2 and slice 3 ticked with the Not built list; slice 4 (the rest of custom fields) is next, on the owner's word
+- [2026-10-26] Merging companies runs: lint and typecheck clean; Vitest 777 of 778 (the known clock-skew materials sort test only); e2e 01, 02, 07, 20 and 99 passed (29 tests)
+- [2026-10-26] Merging companies: full e2e 120 of 120 passed (18 minutes, run alone); trail check found no conflicts

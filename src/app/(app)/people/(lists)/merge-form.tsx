@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { SECTION_HEADING } from "@/components/detail-rows";
+import type { FormState } from "@/app/(app)/settings/actions";
 import type { MergeSide } from "@/modules/contacts/merge-fields";
-import { mergeContactsAction } from "../contacts/actions";
 
 export type MergeRow = {
   name: string;
@@ -26,31 +26,41 @@ export type MergeRow = {
   side: MergeSide;
 };
 
-type Person = { id: string; name: string };
+type Named = { id: string; name: string };
 
 const FORM_ID = "merge-form";
 
 export function MergeForm({
+  action,
   keep,
   other,
+  pronoun,
   company,
+  blocked,
   rows,
   brought,
 }: {
-  keep: Person;
-  other: Person;
-  company: string;
+  action: (previous: FormState, formData: FormData) => Promise<FormState>;
+  keep: Named;
+  other: Named;
+  // How the one merged in is spoken of: a person as "they", a company as "it".
+  pronoun: "they" | "it";
+  company?: string;
+  // Why the merge cannot be made yet, said before the owner tries.
+  blocked?: string;
   rows: MergeRow[];
   brought: string[];
 }) {
-  const [state, formAction, pending] = useActionState(mergeContactsAction, null);
+  const [state, formAction, pending] = useActionState(action, null);
   const [confirming, setConfirming] = useState(false);
 
   return (
     <form id={FORM_ID} action={formAction} className="grid gap-6">
       <input type="hidden" name="keep" value={keep.id} />
       <input type="hidden" name="other" value={other.id} />
-      <input type="hidden" name="company" value={company} />
+      {company !== undefined && (
+        <input type="hidden" name="company" value={company} />
+      )}
 
       <section aria-labelledby="merge-choices" className="grid gap-3">
         <h3 id="merge-choices" className={SECTION_HEADING}>
@@ -116,12 +126,12 @@ export function MergeForm({
       </section>
 
       <div className="grid gap-2">
-        <FormMessage state={state} />
+        <FormMessage state={state ?? (blocked ? { ok: false, message: blocked } : null)} />
         <div>
           <Button
             type="button"
             variant="destructive"
-            disabled={pending}
+            disabled={pending || Boolean(blocked)}
             onClick={() => setConfirming(true)}
           >
             <Merge aria-hidden />
@@ -137,7 +147,7 @@ export function MergeForm({
               Merge {other.name} into {keep.name}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {other.name} is deleted, and everything they had moves to{" "}
+              {other.name} is deleted, and everything {pronoun} had moves to{" "}
               {keep.name}. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

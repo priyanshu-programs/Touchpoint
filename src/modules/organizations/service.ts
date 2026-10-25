@@ -23,7 +23,7 @@ export type OrganizationResult =
   | { ok: false; reason: "unknown_status" }
   | { ok: false; reason: "not_found" };
 
-const snapshot = (row: typeof organizations.$inferSelect, tags: string[]) => ({
+export const snapshot = (row: typeof organizations.$inferSelect, tags: string[]) => ({
   name: row.name,
   domain: row.domain,
   website: row.website,
@@ -38,6 +38,15 @@ const snapshot = (row: typeof organizations.$inferSelect, tags: string[]) => ({
   custom: row.custom,
   tags,
 });
+
+export async function lockOrganization(tx: Tx, ownerId: string, id: string) {
+  const [row] = await tx
+    .select()
+    .from(organizations)
+    .where(and(eq(organizations.ownerId, ownerId), eq(organizations.id, id)))
+    .for("update");
+  return row;
+}
 
 export async function domainOwner(
   tx: Tx,

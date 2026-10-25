@@ -3,7 +3,10 @@
 import { RefreshCw } from "lucide-react";
 import { useActionState, type ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
-import { enrichCompanyAction } from "../../organizations/actions";
+import {
+  enrichCompanyAction,
+  searchOrganizationsAction,
+} from "../../organizations/actions";
 import { RecordActions } from "../record-actions";
 
 export function CompanyActions({
@@ -36,7 +39,14 @@ export function CompanyActions({
             </Button>
           </form>
         )}
-        <RecordActions {...record} />
+        <RecordActions
+          {...record}
+          merge={{
+            noun: "company",
+            plural: "companies",
+            search: searchOrganizationsAction,
+          }}
+        />
       </div>
       {state && (
         <p role="status" className="max-w-56 text-right text-xs text-muted-foreground">

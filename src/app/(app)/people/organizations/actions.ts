@@ -11,7 +11,12 @@ import { requestEnrichment } from "@/modules/enrichment/service";
 import { runDueJobs } from "@/modules/jobs/service";
 import { handlers } from "@/modules/jobs/tick";
 import { listOrganizations } from "@/modules/organizations/queries";
-import { organizationInput } from "@/modules/organizations/schema";
+import { MAX_MERGED_TAGS } from "@/modules/contacts/merge";
+import { mergeOrganizations } from "@/modules/organizations/merge";
+import {
+  organizationInput,
+  organizationMerge,
+} from "@/modules/organizations/schema";
 import {
   createOrganization,
   deleteOrganization,
@@ -21,6 +26,8 @@ import {
   type OrganizationResult,
 } from "@/modules/organizations/service";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
+import type { FormState } from "@/app/(app)/settings/actions";
+import { MAX_RECORD_BOARDS } from "@/modules/workflows/schema";
 import { readCustomValues } from "../fields/custom-values";
 import { companyHref } from "../labels";
 
@@ -248,4 +255,40 @@ export async function searchOrganizationsAction(query: string) {
   const q = z.string().max(100).parse(query);
   const { rows } = await listOrganizations(owner.id, { q, limit: 20 });
   return rows.map((row) => ({ id: row.id, label: row.name, hint: row.domain }));
+}
+
+export async function mergeOrganizationsAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const owner = await requireOwner();
+  const picks: Record<string, FormDataEntryValue> = {};
+  const custom: Record<string, FormDataEntryValue> = {};
+  for (const [name, value] of formData) {
+    if (name.startsWith("pick.")) picks[name.slice(5)] = value;
+    if (name.startsWith("custom.")) custom[name.slice(7)] = value;
+  }
+  const parsed = organizationMerge.safeParse({
+    ...readFields(formData, ["keep", "other"]),
+    picks,
+    custom,
+  });
+  if (!parsed.success) {
+    return { ok: false, message: "This merge could not be read. Open it again." };
+  }
+  const result = await mergeOrganizations(owner.id, parsed.data);
+  if (!result.ok) {
+    if (result.reason === "not_found") notFound();
+    return {
+      ok: false,
+      message:
+        result.reason === "reading"
+          ? "A website read is under way on one of them. Try again in a minute, once it has finished."
+          : result.reason === "tags"
+            ? `Together they have ${result.count} tags. Remove some first: a company can have at most ${MAX_MERGED_TAGS}.`
+            : `Together they have ${result.count} workflows. Remove some first: a company can have at most ${MAX_RECORD_BOARDS}.`,
+    };
+  }
+  revalidatePath("/people", "layout");
+  redirect(companyHref(parsed.data.keep));
 }
