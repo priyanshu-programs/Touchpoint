@@ -28,13 +28,17 @@ export const brainstormListParams = z.object({
 });
 export type BrainstormListParams = z.infer<typeof brainstormListParams>;
 
-// A brainstorm board has no stages, so nothing of the whiteboard's own data is
-// kept: a box copied over from a workflow loses its stage mark rather than
-// stopping the drawing from saving.
+// A brainstorm board has no stages, so of the whiteboard's own data only a
+// sticky note's mark is kept: a box copied over from a workflow loses its stage
+// mark rather than stopping the drawing from saving.
 const element = drawnElement
   .transform((drawn) => {
     const kept = { ...drawn };
-    delete kept.customData;
+    if ((drawn.customData as { sticky?: unknown } | undefined)?.sticky === true) {
+      kept.customData = { sticky: true };
+    } else {
+      delete kept.customData;
+    }
     return kept;
   })
   .refine(showsStoredPicture);

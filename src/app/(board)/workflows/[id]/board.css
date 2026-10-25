@@ -148,6 +148,85 @@
   }
 }
 
+/* A sticky note's shadow, in a layer under the canvases, and its shading, in a
+   layer over them; both are moved and scaled with the drawing as the glows are.
+   The note's own fill covers the middle of its shadow, so what shows is the
+   soft edge, deepest at the foot, where the paper lifts. The shading sits
+   between the whiteboard's canvases (2) and the text being typed (3), so the
+   whiteboard's own controls are never under it. */
+.sticky-shadows,
+.sticky-sheen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sticky-sheen {
+  z-index: 2;
+}
+
+.sticky-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.sticky-shadow,
+.sticky-shine {
+  position: absolute;
+}
+
+.sticky-shadow {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.1),
+    0 6px 12px -4px rgb(0 0 0 / 0.18);
+}
+
+.sticky-shadow::after {
+  content: "";
+  position: absolute;
+  right: 6%;
+  bottom: 0;
+  left: 6%;
+  height: 40%;
+  box-shadow: 0 14px 18px -6px rgb(0 0 0 / 0.28);
+}
+
+.sticky-shadows[data-dark] .sticky-shadow {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 8px 16px -4px rgb(0 0 0 / 0.5);
+}
+
+.sticky-shadows[data-dark] .sticky-shadow::after {
+  box-shadow: 0 16px 20px -6px rgb(0 0 0 / 0.6);
+}
+
+.sticky-shine {
+  background: linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 0.12),
+    transparent 30%,
+    transparent 70%,
+    rgb(0 0 0 / 0.05)
+  );
+}
+
+/* The whiteboard's dark theme draws through invert(93%) hue-rotate(180deg);
+   inverting again and stretching the contrast by 1 / 0.86 takes it back. */
+.sticky-sheen[data-dark] .sticky-shine {
+  backdrop-filter: invert(100%) hue-rotate(180deg) contrast(1.163);
+}
+
+/* The text being written on a note lies over the shading. The whiteboard turns
+   it light through the dark theme's filter (set on the element itself); without
+   it, the text keeps its own colour and reads dark on the bright note. */
+.board[data-writing-on-note] .excalidraw.theme--dark .excalidraw-wysiwyg {
+  filter: none !important;
+}
+
 /* The paperclip above a box that carries links or files: a third layer under
    the canvases, moved and scaled with the drawing as the glows are. A mark
    stands with its foot at the box's corner and is scaled back about that point,

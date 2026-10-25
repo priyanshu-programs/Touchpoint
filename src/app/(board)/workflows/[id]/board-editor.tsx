@@ -41,6 +41,12 @@ import { ColorGrid, samePicked, type Picked } from "./color-grid";
 import { pickedColors } from "@/modules/workflows/colors";
 import { closedShape } from "@/modules/workflows/sketch";
 import {
+  sameNotes,
+  stickyNotes,
+  writingOnNote,
+  type StickyNote,
+} from "@/modules/workflows/sticky";
+import {
   placeOf,
   stageLinks,
   stagesOf,
@@ -56,6 +62,7 @@ import type { Paper } from "./paper";
 import { RecordChips, type BoardRecord, type ChipSpot } from "./record-chip";
 import { StageAsk } from "./stage-ask";
 import { StageHalos, type StageBox } from "./stage-halos";
+import { StickySheen, StickyShadows } from "./sticky-notes";
 
 const oneOf = (types: readonly string[], element: ExcalidrawElement) =>
   types.includes(element.type);
@@ -371,6 +378,9 @@ function Whiteboard({
   const [stages, setStages] = useState<StageBox[]>([]);
   const [flow, setFlow] = useState<Flow>(() => flowOf([]));
   const halos = useRef<HTMLDivElement>(null);
+  const [notes, setNotes] = useState<StickyNote[]>([]);
+  const shadows = useRef<HTMLDivElement>(null);
+  const sheen = useRef<HTMLDivElement>(null);
   const chips = useRef<HTMLDivElement | null>(null);
   // Where the drawing is moved to and how large it is drawn, for a layer that
   // first shows between two changes, as the chips do once there is a stage.
@@ -565,6 +575,7 @@ function Whiteboard({
     <div ref={board} className="board absolute inset-0">
       <div ref={page} aria-hidden className="board-paper" data-paper={paper} />
       <StageHalos layer={halos} stages={stages} tracked={tracked} />
+      <StickyShadows layer={shadows} notes={notes} dark={isDark} />
       <BoxMarks layer={clips} marks={marks} />
       <Excalidraw
         excalidrawAPI={setApi}
@@ -617,6 +628,19 @@ function Whiteboard({
           const zoom = appState.zoom.value;
           const placed = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
           if (halos.current) halos.current.style.transform = placed;
+          if (shadows.current) shadows.current.style.transform = placed;
+          if (sheen.current) sheen.current.style.transform = placed;
+          const onScreen = stickyNotes(all, {
+            x: -appState.scrollX,
+            y: -appState.scrollY,
+            width: appState.width / zoom,
+            height: appState.height / zoom,
+          });
+          setNotes((before) => (sameNotes(before, onScreen) ? before : onScreen));
+          board.current?.toggleAttribute(
+            "data-writing-on-note",
+            writingOnNote(all, appState.editingTextElement),
+          );
           if (clips.current) {
             clips.current.style.transform = placed;
             clips.current.style.setProperty("--board-zoom", String(zoom));
@@ -692,6 +716,7 @@ function Whiteboard({
           <PaperChoices paper={paper} onChange={setPaper} />
         </MainMenu>
       </Excalidraw>
+      <StickySheen layer={sheen} notes={notes} dark={isDark} />
       <ColorGrid board={board} api={api} picked={picked} />
       <div ref={asks} className="stage-asks">
         {ask && (

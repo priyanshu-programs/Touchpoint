@@ -8,7 +8,6 @@ import {
   getNonDeletedElements,
   hashElementsVersion,
   MainMenu,
-  ROUNDNESS,
   viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
@@ -32,6 +31,13 @@ import {
   type GridColor,
 } from "@/modules/workflows/colors";
 import { ELEMENT_TYPES } from "@/modules/workflows/drawing";
+import {
+  sameNotes,
+  stickyNotes,
+  writingOnNote,
+  unmarkedSticky,
+  type StickyNote as NoteOnBoard,
+} from "@/modules/workflows/sticky";
 import "../../workflows/[id]/board.css";
 import {
   followPaper,
@@ -44,6 +50,7 @@ import { createBoardPictures } from "../../workflows/[id]/board-pictures";
 import { createBoardSaver, type SaveState } from "../../workflows/[id]/board-saver";
 import { openBrainstormAction } from "@/app/(app)/brainstorm/actions";
 import type { Paper } from "../../workflows/[id]/paper";
+import { StickySheen, StickyShadows } from "../../workflows/[id]/sticky-notes";
 
 // A sticky note comes in the grid's light and bright colours, light yellow first.
 const STICKY_COLORS = [...LIGHT_COLORS, ...BRIGHT_COLORS];
@@ -81,7 +88,8 @@ function freeSpot(drawn: readonly ExcalidrawElement[], middle: { x: number; y: n
 
 // A square note near the middle of what is on the screen, where it covers
 // nothing, selected and open for typing. It is a plain box with its text
-// inside, so it moves, resizes and takes arrows like any other.
+// inside, so it moves, resizes and takes arrows like any other; its mark is
+// what has the board draw it as a note.
 function addSticky(api: ExcalidrawImperativeAPI, { value: fill }: GridColor) {
   const appState = api.getAppState();
   const middle = viewportCoordsToSceneCoords(
@@ -109,7 +117,8 @@ function addSticky(api: ExcalidrawImperativeAPI, { value: fill }: GridColor) {
       fillStyle: "solid",
       strokeColor: "transparent",
       roughness: 0,
-      roundness: { type: ROUNDNESS.ADAPTIVE_RADIUS },
+      roundness: null,
+      customData: { sticky: true },
     },
   ]);
   api.updateScene({
@@ -174,7 +183,6 @@ function StickyButton({
               <span
                 aria-hidden
                 className="color-swatch size-5"
-                data-drawn
                 style={{ "--swatch": choice.value } as React.CSSProperties}
               />
             </DropdownMenuItem>
@@ -273,6 +281,9 @@ function Whiteboard({
   const [picked, setPicked] = useState<Picked>({ stroke: "", fill: null });
   const board = useRef<HTMLDivElement>(null);
   const page = useRef<HTMLDivElement>(null);
+  const [notes, setNotes] = useState<NoteOnBoard[]>([]);
+  const shadows = useRef<HTMLDivElement>(null);
+  const sheen = useRef<HTMLDivElement>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [saver] = useState(() =>
     createBoardSaver<NonDeletedExcalidrawElement>({
@@ -283,6 +294,15 @@ function Whiteboard({
     }),
   );
   const unfitted = useRef(elements.length > 0);
+  // Notes put down before they carried a mark are given it, and square
+  // corners, as the board opens; the drawing's next save keeps them.
+  const [opening] = useState(() =>
+    (elements as unknown as ExcalidrawElement[]).map((element) =>
+      unmarkedSticky(element)
+        ? { ...element, roundness: null, customData: { sticky: true } }
+        : element,
+    ),
+  );
 
   // Whether a picture put on the whiteboard is still on its way to the server.
   const [sending, setSending] = useState(false);
@@ -323,6 +343,7 @@ function Whiteboard({
   return (
     <div ref={board} className="board absolute inset-0">
       <div ref={page} aria-hidden className="board-paper" data-paper={paper} />
+      <StickyShadows layer={shadows} notes={notes} dark={isDark} />
       <Excalidraw
         excalidrawAPI={setApi}
         name={name}
@@ -331,7 +352,7 @@ function Whiteboard({
         aiEnabled={false}
         validateEmbeddable={false}
         initialData={{
-          elements: elements as unknown as ExcalidrawElement[],
+          elements: opening,
           appState: {
             currentItemRoughness: 0,
             currentItemFontFamily: FONT_FAMILY.Nunito,
@@ -362,6 +383,22 @@ function Whiteboard({
             );
           }
           followPaper(page.current, { ...appState, zoom: appState.zoom.value });
+          // The notes' shadows and shading go where the drawing goes.
+          const zoom = appState.zoom.value;
+          const placed = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
+          if (shadows.current) shadows.current.style.transform = placed;
+          if (sheen.current) sheen.current.style.transform = placed;
+          const onScreen = stickyNotes(all, {
+            x: -appState.scrollX,
+            y: -appState.scrollY,
+            width: appState.width / zoom,
+            height: appState.height / zoom,
+          });
+          setNotes((before) => (sameNotes(before, onScreen) ? before : onScreen));
+          board.current?.toggleAttribute(
+            "data-writing-on-note",
+            writingOnNote(all, appState.editingTextElement),
+          );
           const now = pickedColors(all, appState);
           setPicked((before) => (samePicked(before, now) ? before : now));
           pictures.look(all, files);
@@ -395,6 +432,7 @@ function Whiteboard({
           <PaperChoices paper={paper} onChange={setPaper} />
         </MainMenu>
       </Excalidraw>
+      <StickySheen layer={sheen} notes={notes} dark={isDark} />
       <ColorGrid board={board} api={api} picked={picked} />
       {/* On a phone the tools fill the top row, so the note waits above the bar
           at the foot of the board instead. */}

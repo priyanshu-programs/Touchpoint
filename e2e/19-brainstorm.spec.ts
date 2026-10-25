@@ -27,6 +27,7 @@ type Element = {
   text?: string;
   containerId?: string | null;
   customData?: unknown;
+  roundness?: unknown;
   fileId?: string;
 };
 
@@ -116,11 +117,19 @@ test("sticky notes are added in a click, written on and saved", async ({ page })
   expect(written.every(({ containerId }) => notes.some(({ id }) => id === containerId))).toBe(
     true,
   );
+  // Each is kept as a note, with square corners, and drawn with a shadow.
+  for (const note of notes) {
+    expect(note.customData).toEqual({ sticky: true });
+    expect(note.roundness).toBeNull();
+  }
+  await expect(page.locator(".sticky-shadow")).toHaveCount(2);
+  await expect(page.locator(".sticky-shine")).toHaveCount(2);
 
-  // Still there after a reload.
+  // Still there after a reload, and still notes.
   await page.reload();
   await expect(whiteboard(page)).toBeVisible();
   expect((await stored(page, boardId)).elements).toHaveLength(elements.length);
+  await expect(page.locator(".sticky-shadow")).toHaveCount(2);
 
   expect(seen.outside).toEqual([]);
   expect(seen.errors).toEqual([]);
@@ -193,6 +202,15 @@ test("a drawing is saved only by the owner, from this app, from its latest versi
         height: 10,
         customData: { stage: { status: "done" } },
       },
+      {
+        id: "noted",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        customData: { sticky: true, stage: { status: "done" } },
+      },
     ],
   };
 
@@ -208,6 +226,7 @@ test("a drawing is saved only by the owner, from this app, from its latest versi
   const after = await stored(page, boardId);
   expect(after.version).toBe(version + 1);
   expect(after.elements.find(({ id }) => id === "staged")).not.toHaveProperty("customData");
+  expect(after.elements.find(({ id }) => id === "noted")?.customData).toEqual({ sticky: true });
   // A save from the version before is refused.
   expect((await page.request.put(address, { headers: { origin }, data: marked })).status()).toBe(409);
   // Put back as it was, from the version now stored.

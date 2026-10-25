@@ -804,3 +804,18 @@
 - [2026-10-25] plan.md: the colours item split into its two approved slices
 - [2026-10-25] Looked at the grid in screenshots from a throwaway spec (light, dark, phone sheet, the sticky menu in dark): as intended, the sticky menu's colours still darkened in the dark theme until slice 2; the spec was deleted
 - [2026-10-25] Colour grid runs: typecheck and lint of the changed files clean; e2e 01, 13, 19 and 99 passed (34 tests), after two runs that failed on the grid holding the keys and on spec 13's own key order, and two 5-second waits on a new workflow while the Neon test host timed out
+- [2026-10-26] Colour grid is live (30ccc8a, Vercel production READY); plan.md: Slice 1 of the colours item ticked
+- [2026-10-26] src/modules/workflows/schema.ts: a drawing's element may carry a sticky note's mark (customData.sticky, exactly true) beside a stage's mark, so a note keeps its look on a workflow board
+- [2026-10-26] src/modules/brainstorm/schema.ts: brainstormSceneSave keeps a sticky note's mark as exactly { sticky: true } and still drops a stage mark and anything else in customData
+- [2026-10-26] Added src/modules/workflows/sticky.ts: which elements are notes and on or near the screen, whether text being written is inside a note, and notes put down before the mark; with sticky.test.ts (5 tests)
+- [2026-10-26] Added src/app/(board)/workflows/[id]/sticky-notes.tsx: a shadow layer under the canvases and a shading layer over them for each note, moved with the drawing as the stage glows are
+- [2026-10-26] board.css: the notes' shadow and shading, the dark theme's filter undone over a note by a backdrop filter, and text being written on a note shown without the dark filter
+- [2026-10-26] brainstorm-editor.tsx: a new note has square corners and the sticky mark; older notes get both as the board opens; the shadow and shading layers follow the drawing; the sticky menu's swatches show their true colours
+- [2026-10-26] board-editor.tsx: the same shadow and shading layers on a workflow board, for a note pasted there
+- [2026-10-26] Tests: boards.test.ts (sticky mark kept, false or text refused) and brainstorm service.test.ts (mark kept, stage mark beside it dropped); e2e/19 checks a note is saved with the mark and square corners, has a shadow and shading after a reload, and that the scene route keeps the mark and drops a stage mark beside it
+- [2026-10-26] security.md: the sticky note's mark in the drawing deviation and the Brainstorm boards rule (owner sign-off with the plan approved 2026-10-25)
+- [2026-10-26] docs/PRD.md section 6: the sticky note's look and its mark
+- [2026-10-26] plan.md: whiteboard colours slice 2 and the colours item ticked with what is not built; Step 9 slice 3 is next, on the owner's word
+- [2026-10-26] Looked at the note in screenshots from a throwaway spec (light, dark, writing on a note in dark, selected, phone): bright with dark text on a dark board after the writing fix; light yellow measured 248,238,202 against 255,243,163 (the dark filter clips it); the spec was deleted
+- [2026-10-26] eslint.config.mjs: .trail/** ignored as .claude/** and graft/** are; the trail hook tracked since 4937b71 failed pnpm lint
+- [2026-10-26] Sticky look runs: typecheck and lint clean; Vitest 747 of 748 (the known clock-skew materials sort test only); e2e 01 and 19 passed (17 tests); the full e2e run passed 72 (01 to 12) and lost its session from 13 on, while another session building merge duplicates shared the test database; a rerun could not build past that session's unfinished merge.test.ts, so 13 to 99 were not run again here

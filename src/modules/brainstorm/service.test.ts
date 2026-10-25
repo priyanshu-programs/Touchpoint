@@ -60,6 +60,17 @@ describe("brainstormSceneSave", () => {
     expect(kept).not.toHaveProperty("customData");
   });
 
+  it("keeps a sticky note's mark and nothing else beside it", () => {
+    const [note, both, other] = save(1, [
+      box("a", { customData: { sticky: true } }),
+      box("b", { customData: { sticky: true, stage: { status: "done" } } }),
+      box("c", { customData: { sticky: "yes" } }),
+    ]).elements;
+    expect(note.customData).toEqual({ sticky: true });
+    expect(both.customData).toEqual({ sticky: true });
+    expect(other).not.toHaveProperty("customData");
+  });
+
   it("refuses embedded pages, pictures with no stored id and unknown envelope fields", () => {
     expect(brainstormSceneSave.safeParse({ version: 1, elements: [box("a", { type: "iframe" })] }).success).toBe(false);
     expect(brainstormSceneSave.safeParse({ version: 1, elements: [box("a", { type: "embeddable" })] }).success).toBe(false);
