@@ -25,6 +25,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  BRIGHT_COLORS,
+  LIGHT_COLORS,
+  pickedColors,
+  type GridColor,
+} from "@/modules/workflows/colors";
 import { ELEMENT_TYPES } from "@/modules/workflows/drawing";
 import "../../workflows/[id]/board.css";
 import {
@@ -33,20 +39,15 @@ import {
   SaveStatus,
   useDarkTheme,
 } from "../../workflows/[id]/board-chrome";
+import { ColorGrid, samePicked, type Picked } from "../../workflows/[id]/color-grid";
 import { createBoardPictures } from "../../workflows/[id]/board-pictures";
 import { createBoardSaver, type SaveState } from "../../workflows/[id]/board-saver";
 import { openBrainstormAction } from "@/app/(app)/brainstorm/actions";
 import type { Paper } from "../../workflows/[id]/paper";
 
-// The colours a sticky note comes in, as on a wall of paper notes.
-const STICKY_COLORS = [
-  { key: "yellow", label: "Yellow", fill: "#fff3a3" },
-  { key: "pink", label: "Pink", fill: "#ffc9de" },
-  { key: "blue", label: "Blue", fill: "#c3e4ff" },
-  { key: "green", label: "Green", fill: "#c9f2c7" },
-  { key: "orange", label: "Orange", fill: "#ffd8a8" },
-] as const;
-type StickyColor = (typeof STICKY_COLORS)[number];
+// A sticky note comes in the grid's light and bright colours, light yellow first.
+const STICKY_COLORS = [...LIGHT_COLORS, ...BRIGHT_COLORS];
+const FIRST_STICKY = LIGHT_COLORS.find(({ name }) => name === "Light yellow")!;
 
 const STICKY_SIZE = 200;
 const STICKY_STEP = STICKY_SIZE + 24;
@@ -81,7 +82,7 @@ function freeSpot(drawn: readonly ExcalidrawElement[], middle: { x: number; y: n
 // A square note near the middle of what is on the screen, where it covers
 // nothing, selected and open for typing. It is a plain box with its text
 // inside, so it moves, resizes and takes arrows like any other.
-function addSticky(api: ExcalidrawImperativeAPI, { fill }: StickyColor) {
+function addSticky(api: ExcalidrawImperativeAPI, { value: fill }: GridColor) {
   const appState = api.getAppState();
   const middle = viewportCoordsToSceneCoords(
     {
@@ -133,11 +134,11 @@ function StickyButton({
   className,
 }: {
   api: ExcalidrawImperativeAPI | null;
-  color: StickyColor;
-  onColor: (color: StickyColor) => void;
+  color: GridColor;
+  onColor: (color: GridColor) => void;
   className?: string;
 }) {
-  const add = (chosen: StickyColor) => {
+  const add = (chosen: GridColor) => {
     onColor(chosen);
     if (api) addSticky(api, chosen);
   };
@@ -161,15 +162,21 @@ function StickyButton({
         >
           <ChevronDown aria-hidden className="size-3.5" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-auto min-w-32">
+        <DropdownMenuContent align="end" className="grid w-auto grid-cols-10 gap-0.5 p-1.5">
           {STICKY_COLORS.map((choice) => (
-            <DropdownMenuItem key={choice.key} onClick={() => add(choice)}>
+            <DropdownMenuItem
+              key={choice.value}
+              aria-label={choice.name}
+              title={choice.name}
+              onClick={() => add(choice)}
+              className="p-1"
+            >
               <span
                 aria-hidden
-                className="size-4 rounded-sm ring-1 ring-foreground/15"
-                style={{ backgroundColor: choice.fill }}
+                className="color-swatch size-5"
+                data-drawn
+                style={{ "--swatch": choice.value } as React.CSSProperties}
               />
-              {choice.label}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -262,7 +269,9 @@ function Whiteboard({
   const [paper, setPaper] = useState(opensOn);
   const isDark = useDarkTheme();
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
-  const [color, setColor] = useState<StickyColor>(STICKY_COLORS[0]);
+  const [color, setColor] = useState(FIRST_STICKY);
+  const [picked, setPicked] = useState<Picked>({ stroke: "", fill: null });
+  const board = useRef<HTMLDivElement>(null);
   const page = useRef<HTMLDivElement>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [saver] = useState(() =>
@@ -312,7 +321,7 @@ function Whiteboard({
   }, [unstored]);
 
   return (
-    <div className="board absolute inset-0">
+    <div ref={board} className="board absolute inset-0">
       <div ref={page} aria-hidden className="board-paper" data-paper={paper} />
       <Excalidraw
         excalidrawAPI={setApi}
@@ -353,6 +362,8 @@ function Whiteboard({
             );
           }
           followPaper(page.current, { ...appState, zoom: appState.zoom.value });
+          const now = pickedColors(all, appState);
+          setPicked((before) => (samePicked(before, now) ? before : now));
           pictures.look(all, files);
           // A picture is sent with the drawing once its bytes are stored.
           saver.changed(
@@ -384,6 +395,7 @@ function Whiteboard({
           <PaperChoices paper={paper} onChange={setPaper} />
         </MainMenu>
       </Excalidraw>
+      <ColorGrid board={board} api={api} picked={picked} />
       {/* On a phone the tools fill the top row, so the note waits above the bar
           at the foot of the board instead. */}
       <StickyButton
