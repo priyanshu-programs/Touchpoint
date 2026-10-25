@@ -12,10 +12,10 @@ import {
 } from "@/components/ui/command";
 
 export type PickerOption = { id: string; label: string; hint?: string | null };
-type Search = (query: string) => Promise<PickerOption[]>;
+export type Search = (query: string) => Promise<PickerOption[]>;
 
 // Searches on the server, so the list never has to be loaded whole.
-function RecordSearchDialog({
+export function RecordSearchDialog({
   open,
   onOpenChange,
   noun,

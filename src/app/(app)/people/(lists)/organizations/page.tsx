@@ -39,6 +39,8 @@ import {
 } from "../list-controls";
 import { ListHeader } from "../list-header";
 import { ListToolbar } from "../list-toolbar";
+import { contactHref } from "../../labels";
+import { MergePanel } from "../merge-panel";
 import { RecordSheet } from "../record-sheet";
 import { RowCheckbox, SelectAll, Selection } from "../selection";
 import { StatusBadge } from "../status-badge";
@@ -64,7 +66,12 @@ const FIRST_DIRECTION = {
   contacts: "desc",
   activity: "desc",
 } as const;
-const NO_ENTRY = { activity: undefined, task: undefined, send: undefined };
+const NO_ENTRY = {
+  activity: undefined,
+  task: undefined,
+  send: undefined,
+  merge: undefined,
+};
 const NO_CONTACT = {
   ...NO_ENTRY,
   contact: undefined,
@@ -433,9 +440,11 @@ export default async function OrganizationsPage({
               ? "fields"
               : entry
                 ? entryKey(entry)
-                : (contact?.id ?? open.id)
+                : contact && params.merge
+                  ? `merge:${params.merge}`
+                  : (contact?.id ?? open.id)
           }
-          narrow={Boolean(params.fields)}
+          narrow={Boolean(params.fields || (contact && params.merge))}
         >
           {params.fields ? (
             <FieldsPanel
@@ -461,6 +470,23 @@ export default async function OrganizationsPage({
                 }),
                 label: `Back to ${contact?.fullName ?? open.name}`,
               }}
+            />
+          ) : contact && params.merge ? (
+            <MergePanel
+              ownerId={owner.id}
+              keepId={contact.id}
+              otherId={params.merge}
+              back={{
+                href: companiesHref(params, { merge: undefined }),
+                label: `Back to ${contact.fullName}`,
+              }}
+              // Inside the company only while both are at it; else over the people list.
+              swapHref={(keep, other, here) =>
+                here
+                  ? companiesHref(params, { contact: keep, merge: other })
+                  : `${contactHref(keep)}&merge=${other}`
+              }
+              company={open.id}
             />
           ) : contact ? (
             <ContactPanel

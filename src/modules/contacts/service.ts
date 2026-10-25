@@ -41,7 +41,7 @@ export type CompanyLinkResult =
   | { ok: true }
   | { ok: false; reason: "not_found" | "unknown_organization" | "already" };
 
-const snapshot = (row: typeof contacts.$inferSelect, tags: string[]) => ({
+export const snapshot = (row: typeof contacts.$inferSelect, tags: string[]) => ({
   firstName: row.firstName,
   lastName: row.lastName,
   jobTitle: row.jobTitle,
@@ -115,7 +115,7 @@ export async function emailHolder(tx: Tx, ownerId: string, email: string) {
   return row;
 }
 
-async function lockContact(tx: Tx, ownerId: string, id: string) {
+export async function lockContact(tx: Tx, ownerId: string, id: string) {
   const [row] = await tx
     .select()
     .from(contacts)

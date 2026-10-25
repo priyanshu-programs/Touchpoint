@@ -4,11 +4,12 @@ import {
   Archive,
   ArchiveRestore,
   ImageOff,
+  Merge,
   MoreVertical,
   Pencil,
   Trash2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -20,6 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { RecordSearchDialog, type Search } from "@/components/record-picker";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -36,6 +38,7 @@ export function RecordActions({
   archived = false,
   archiveAction,
   removePhotoAction,
+  merge,
   remove,
 }: {
   id: string;
@@ -44,6 +47,8 @@ export function RecordActions({
   archiveAction?: (formData: FormData) => Promise<void>;
   // Given when the record has a picture read from a website, which may be the wrong one.
   removePhotoAction?: (formData: FormData) => Promise<void>;
+  // Looks for the record to merge into this one, which then opens side by side in the panel.
+  merge?: { noun: string; plural: string; search: Search };
   remove: {
     title: string;
     description: string;
@@ -54,7 +59,10 @@ export function RecordActions({
   };
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [confirming, setConfirming] = useState(false);
+  const [merging, setMerging] = useState(false);
 
   function toggleArchived() {
     const formData = new FormData();
@@ -67,6 +75,15 @@ export function RecordActions({
     const formData = new FormData();
     formData.set("id", id);
     void removePhotoAction?.(formData);
+  }
+
+  function openMerge(otherId: string) {
+    const params = new URLSearchParams(searchParams);
+    for (const name of ["tab", "activity", "task", "send", "fields", "earlier"]) {
+      params.delete(name);
+    }
+    params.set("merge", otherId);
+    router.push(`${pathname}?${params}`, { scroll: false });
   }
 
   return (
@@ -95,6 +112,12 @@ export function RecordActions({
               Remove photo
             </DropdownMenuItem>
           )}
+          {merge && (
+            <DropdownMenuItem onClick={() => setMerging(true)}>
+              <Merge aria-hidden />
+              Merge with…
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
@@ -105,6 +128,18 @@ export function RecordActions({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {merge && (
+        <RecordSearchDialog
+          open={merging}
+          onOpenChange={setMerging}
+          noun={merge.noun}
+          plural={merge.plural}
+          search={merge.search}
+          exclude={[id]}
+          onSelect={(option) => openMerge(option.id)}
+        />
+      )}
 
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
