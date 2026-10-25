@@ -1,18 +1,17 @@
 # Touchpoint — Agent Instructions
 
-## Graft — use first, always
+## Trail — use first, always
 
-Before ANY file search, code lookup, or symbol trace, use Graft MCP tools:
+Before ANY file search, code lookup, or symbol trace, use the `trail` CLI:
 
-- `graft_find_code` — find ranked nodes relevant to the current task
-- `graft_file_api` — get function/class signatures for a specific file
-- `graft_trace_calls` — trace callers or callees for a symbol
-- `graft_find_all` — regex search grouped by symbol
-- `graft_repo_map` — get an orientation overview of the whole repo
-- `graft_check_freshness` — verify the graph is current before relying on it
+- `trail ask "<task>" --source` — find ranked nodes for the task, with code inlined at file:line
+- `trail grep "<literal>"` — every occurrence, grouped by enclosing symbol
+- `trail skeleton <file>` — a file's function/class signatures and spans
+- `trail callers <sym> [--direction out] [--depth N|all]` — callers or callees; run before changing a symbol
+- `trail map` — an orientation overview of the whole repo
 
-Only fall back to Glob, Grep, or Read when Graft returns nothing relevant.
-Run `graft build` in the terminal if `graft_check_freshness` reports the graph is stale.
+Only fall back to Glob, Grep, or Read when trail returns nothing relevant.
+Run `trail check` before committing, pushing, or opening a PR.
 
 ## Required reading — before every reply or code change
 
