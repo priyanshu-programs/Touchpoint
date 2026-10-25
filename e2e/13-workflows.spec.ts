@@ -245,6 +245,16 @@ test("a workflow is drawn by hand: a box made a stage, saved, renamed and delete
   await page.keyboard.press("Enter");
   await page.keyboard.type("Welcome call");
   await page.keyboard.press("Escape");
+  // The colour grid stands in the whiteboard's own Stroke and Background rows.
+  const colours = page.getByRole("group", { name: "Colours" });
+  await expect(colours).toBeVisible();
+  await expect(page.locator(".panelColumn .color-picker__top-picks").first()).toBeHidden();
+  await colours.getByRole("button", { name: "Line" }).click();
+  await colours.getByRole("button", { name: "Dark blue" }).click();
+  await expect(colours.getByRole("button", { name: "Dark blue" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 
   // A box that is not a stage has no glow; a stage has one, where it was drawn.
   await expect(halos(page)).toHaveCount(0);
@@ -263,9 +273,13 @@ test("a workflow is drawn by hand: a box made a stage, saved, renamed and delete
   await expect(halos(page)).toHaveCSS("animation-name", "stage-halo");
 
   // It is all still there after a reload: the box, in the middle of the
-  // whiteboard now, is a stage.
+  // whiteboard now, is a stage, in the line colour picked from the grid.
   await page.reload();
   await expect(whiteboard(page)).toBeVisible();
+  const kept = (await (
+    await page.request.get(`${new URL(page.url()).pathname.replace("/workflows/", "/api/workflows/")}/scene`)
+  ).json()) as { elements: { type: string; strokeColor: string }[] };
+  expect(kept.elements.find(({ type }) => type === "rectangle")?.strokeColor).toBe("#1864ab");
   const box = await whiteboard(page).boundingBox();
   await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await expect(card(page).getByRole("button", { name: "Not a stage" })).toBeVisible();

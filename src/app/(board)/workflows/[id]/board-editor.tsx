@@ -37,6 +37,8 @@ import "./board.css";
 import { followPaper, PaperChoices, SaveStatus, useDarkTheme } from "./board-chrome";
 import { createBoardPictures } from "./board-pictures";
 import { createBoardSaver, type SaveState } from "./board-saver";
+import { ColorGrid, samePicked, type Picked } from "./color-grid";
+import { pickedColors } from "@/modules/workflows/colors";
 import { closedShape } from "@/modules/workflows/sketch";
 import {
   placeOf,
@@ -379,6 +381,8 @@ function Whiteboard({
     layer.style.setProperty("--board-zoom", String(view.current.zoom));
   };
   const page = useRef<HTMLDivElement>(null);
+  const board = useRef<HTMLDivElement>(null);
+  const [picked, setPicked] = useState<Picked>({ stroke: "", fill: null });
   const [ask, setAsk] = useState<Ask | null>(null);
   const asks = useRef<HTMLDivElement>(null);
   // The stroke the pen is in the middle of, to tell when it is lifted.
@@ -558,7 +562,7 @@ function Whiteboard({
   };
 
   return (
-    <div className="board absolute inset-0">
+    <div ref={board} className="board absolute inset-0">
       <div ref={page} aria-hidden className="board-paper" data-paper={paper} />
       <StageHalos layer={halos} stages={stages} tracked={tracked} />
       <BoxMarks layer={clips} marks={marks} />
@@ -655,6 +659,8 @@ function Whiteboard({
             }
           }
           followPaper(page.current, { ...appState, zoom });
+          const colors = pickedColors(all, appState);
+          setPicked((before) => (samePicked(before, colors) ? before : colors));
           const boxes = stageBoxes(all);
           setStages((before) => (sameBoxes(before, boxes) ? before : boxes));
           if (tracked) {
@@ -686,6 +692,7 @@ function Whiteboard({
           <PaperChoices paper={paper} onChange={setPaper} />
         </MainMenu>
       </Excalidraw>
+      <ColorGrid board={board} api={api} picked={picked} />
       <div ref={asks} className="stage-asks">
         {ask && (
           <StageAsk

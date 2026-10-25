@@ -99,7 +99,7 @@ test("sticky notes are added in a click, written on and saved", async ({ page })
 
   // Another colour from the menu beside it.
   await page.getByRole("button", { name: "Sticky note colour" }).click();
-  await page.getByRole("menuitem", { name: "Pink" }).click();
+  await page.getByRole("menuitem", { name: "Light pink" }).click();
   await page.keyboard.type("Ask users");
   await page.keyboard.press("Escape");
   await saved(page);
@@ -121,6 +121,52 @@ test("sticky notes are added in a click, written on and saved", async ({ page })
   await page.reload();
   await expect(whiteboard(page)).toBeVisible();
   expect((await stored(page, boardId)).elements).toHaveLength(elements.length);
+
+  expect(seen.outside).toEqual([]);
+  expect(seen.errors).toEqual([]);
+});
+
+test("the colour grid colours what is selected and the next thing drawn", async ({
+  page,
+}) => {
+  const seen = watch(page);
+  await page.goto(`/brainstorm/${boardId}`);
+  await expect(whiteboard(page)).toBeVisible();
+  const before = (await stored(page, boardId)).elements.length;
+
+  const box = async (from: [number, number], to: [number, number]) => {
+    await page.keyboard.press("r");
+    await page.mouse.move(...from);
+    await page.mouse.down();
+    await page.mouse.move(...to, { steps: 6 });
+    await page.mouse.up();
+  };
+  await box([1000, 520], [1150, 650]);
+  const colours = page.getByRole("group", { name: "Colours" });
+  await colours.getByRole("button", { name: "Fill" }).click();
+  await colours.getByRole("button", { name: "Red", exact: true }).click();
+  await colours.getByRole("group", { name: "See-through" }).getByRole("button", { name: "50%" }).click();
+  await expect(colours.getByRole("button", { name: "Red", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.keyboard.press("Escape");
+  // The next box takes the same fill.
+  await box([1000, 150], [1150, 250]);
+  await page.keyboard.press("Escape");
+  await expect
+    .poll(async () =>
+      (await stored(page, boardId)).elements
+        .slice(before)
+        .map(({ backgroundColor }) => backgroundColor),
+    )
+    .toEqual(["#fa525280", "#fa525280"]);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+  // The sticky note's menu offers the grid's light and bright colours.
+  await page.getByRole("button", { name: "Sticky note colour" }).click();
+  await expect(page.getByRole("menuitem")).toHaveCount(20);
+  await page.keyboard.press("Escape");
 
   expect(seen.outside).toEqual([]);
   expect(seen.errors).toEqual([]);

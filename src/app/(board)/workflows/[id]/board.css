@@ -339,3 +339,100 @@
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
 }
+
+/* The colour grid (color-grid.tsx) takes the place of the whiteboard's own
+   Stroke and Background rows, which offer only a few colours each and no way to
+   give it others. The rest of the panel (fill style, line width, layers) stays.
+   The panel is widened a little for ten swatches in a row. */
+.board .panelColumn > div:has(.color-picker__top-picks) {
+  display: none;
+}
+
+.board .App-menu__left {
+  width: 15rem;
+}
+
+.color-grid {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.color-grid > [role="group"] {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.color-grid-tabs,
+.color-grid-alphas {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.color-grid-tabs button,
+.color-grid-alphas button {
+  flex: 1;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.color-grid-tabs button[aria-pressed="true"],
+.color-grid-alphas button[aria-pressed="true"] {
+  color: var(--primary-foreground);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.color-grid-alphas button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.color-grid-swatches {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+}
+
+/* A swatch over a checked ground, so a see-through colour and no colour at
+   all can be told from white. */
+.color-swatch {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid color-mix(in oklch, var(--foreground) 15%, transparent);
+  background:
+    linear-gradient(var(--swatch), var(--swatch)),
+    repeating-conic-gradient(#d0d0d0 0 25%, #ffffff 0 50%) 0 0 / 6px 6px;
+  cursor: pointer;
+}
+
+.color-swatch[aria-pressed="true"] {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.color-swatch[aria-label="No colour"] {
+  background:
+    linear-gradient(
+      to top right,
+      transparent calc(50% - 1px),
+      #e03131 calc(50% - 1px) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ),
+    #ffffff;
+}
+
+/* In the dark theme the whiteboard draws through a filter, so a swatch shows
+   what will be drawn (as the whiteboard's own swatches do). */
+@media (prefers-color-scheme: dark) {
+  .color-swatch[data-drawn] {
+    filter: invert(93%) hue-rotate(180deg);
+  }
+}
