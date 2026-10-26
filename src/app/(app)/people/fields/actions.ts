@@ -17,6 +17,7 @@ import {
   addSuggestedField,
   createCustomField,
   deleteCustomField,
+  removeCustomFieldOption,
   saveLayout,
   updateCustomField,
   type CustomFieldResult,
@@ -126,6 +127,35 @@ export async function updateCustomFieldAction(
 
   revalidatePath("/people", "layout");
   return { ok: true, message: "Saved." };
+}
+
+export async function removeFieldOptionAction(
+  id: string,
+  _previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const { option } = z
+    .strictObject({ option: z.string().trim().min(1).max(60) })
+    .parse({ option: formData.get("option") });
+  const result = await removeCustomFieldOption(
+    owner.id,
+    z.uuid().parse(id),
+    option,
+  );
+  if (!result.ok) {
+    if (result.reason === "not_found") notFound();
+    return {
+      ok: false,
+      message:
+        result.reason === "last_option"
+          ? "A dropdown needs at least one option."
+          : `${option} is no longer one of its options.`,
+    };
+  }
+
+  revalidatePath("/people", "layout");
+  return { ok: true, message: `${option} removed.` };
 }
 
 export async function deleteCustomFieldAction(formData: FormData) {

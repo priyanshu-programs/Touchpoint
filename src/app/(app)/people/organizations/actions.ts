@@ -94,12 +94,16 @@ export async function createOrganizationAction(
   formData: FormData,
 ): Promise<RecordFormState> {
   const owner = await requireOwner();
-  const values = readFields(formData, FIELDS);
-  const parsed = organizationInput.safeParse(values);
+  const standard = readFields(formData, FIELDS);
+  const custom = await readCustomValues(owner.id, "organization", formData);
+  const values = { ...standard, ...custom.typed };
+  const parsed = organizationInput.safeParse(standard);
   if (!parsed.success) return invalid(parsed.error, values);
+  if (!custom.parsed.success) return invalid(custom.parsed.error, values);
 
   const result = await createOrganization(owner.id, parsed.data, {
     confirmSimilar: formData.get("confirmSimilar") === "yes",
+    custom: custom.parsed.data,
   });
   if (!result.ok) return failure(result, values);
 

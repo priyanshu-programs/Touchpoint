@@ -1,6 +1,11 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, count, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { customFieldDefs, fieldLayouts } from "@/db/schema";
+import {
+  contacts,
+  customFieldDefs,
+  fieldLayouts,
+  organizations,
+} from "@/db/schema";
 import { customKey, type EntityType, type LayoutInput } from "./schema";
 import { STANDARD_FIELDS } from "./standard";
 
@@ -44,6 +49,34 @@ export async function listCustomFields(ownerId: string, entityType: EntityType) 
       ),
     )
     .orderBy(asc(customFieldDefs.createdAt), asc(customFieldDefs.key));
+}
+
+// How many records hold each option of the owner's dropdowns on that kind of record,
+// by field key and then option; archived records count, since removing one clears them too.
+export async function optionUse(ownerId: string, entityType: EntityType) {
+  const records = entityType === "organization" ? organizations : contacts;
+  const option = sql<string>`${records.custom} ->> ${customFieldDefs.key}`;
+  const rows = await db
+    .select({ key: customFieldDefs.key, option, count: count() })
+    .from(customFieldDefs)
+    .innerJoin(
+      records,
+      and(
+        eq(records.ownerId, customFieldDefs.ownerId),
+        sql`${records.custom} ? ${customFieldDefs.key}`,
+      ),
+    )
+    .where(
+      and(
+        eq(customFieldDefs.ownerId, ownerId),
+        eq(customFieldDefs.entityType, entityType),
+        eq(customFieldDefs.type, "select"),
+      ),
+    )
+    .groupBy(customFieldDefs.key, option);
+  const use: Record<string, Record<string, number>> = {};
+  for (const row of rows) (use[row.key] ??= {})[row.option] = row.count;
+  return use;
 }
 
 // Standard fields in their order, then the owner's own in theirs.

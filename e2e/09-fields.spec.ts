@@ -339,6 +339,50 @@ test("a person's own fields are apart from a company's", async ({ page }) => {
   ]);
 });
 
+test("a new company and person take the owner's own fields, and a dropdown's option is removed where it was chosen", async ({
+  page,
+}) => {
+  await page.goto("/people/contacts/new");
+  await page.getByLabel("First name").fill("Mira");
+  await page.getByLabel("Last name").fill("Kapoor");
+  await page.getByLabel("Birthday").fill("1985-01-02");
+  await page.getByRole("button", { name: "Add contact" }).click();
+  await expect(details(page).getByText("Wed, 2 Jan 1985")).toBeVisible();
+
+  await page.goto("/people/organizations/new");
+  await page.getByLabel("Name").fill("Fieldwork Co");
+  await page.getByLabel("Segment").selectOption("SMB");
+  await page.getByRole("button", { name: "Add company" }).click();
+  await expect(panel(page).getByRole("heading", { name: "Fieldwork Co" })).toBeVisible();
+
+  await details(page).getByRole("link", { name: "Fields" }).click();
+  await panel(page).getByRole("button", { name: "Actions for Segment" }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
+  const editField = page.getByRole("dialog", { name: "Edit field" });
+  const options = editField.getByRole("region", { name: "Options" });
+  const option = (name: string) =>
+    options.getByRole("listitem").filter({ hasText: name });
+  await expect(option("Enterprise")).toContainText("1 company");
+  await expect(option("Mid-Market")).not.toContainText("compan");
+
+  // Asked first in the row, saying who loses the value; Keep it changes nothing.
+  await editField.getByRole("button", { name: "Remove SMB" }).click();
+  await expect(option("SMB")).toContainText(
+    "Removing SMB also clears it from 1 company.",
+  );
+  await editField.getByRole("button", { name: "Keep it" }).click();
+  await editField.getByRole("button", { name: "Remove SMB" }).click();
+  await editField.getByRole("button", { name: "Remove SMB" }).click();
+  await expect(option("SMB")).toHaveCount(0);
+  await expect(options.getByRole("listitem")).toHaveCount(2);
+  await editField.getByRole("button", { name: "Close" }).click();
+  await expect(ownFields(page)).toHaveText(["Segment · Enterprise, Mid-Market"]);
+
+  await panel(page).getByRole("link", { name: "Back to Fieldwork Co" }).click();
+  await recordAction(page, "Edit");
+  await expect(page.getByLabel("Segment")).toHaveValue("");
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 

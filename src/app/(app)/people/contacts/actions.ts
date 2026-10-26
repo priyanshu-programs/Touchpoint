@@ -122,12 +122,15 @@ export async function createContactAction(
 ): Promise<RecordFormState> {
   const owner = await requireOwner();
   const fields = readFields(formData, [...FIELDS, "organizationId", "email"]);
-  const values = { ...fields, ...organizationLabel(formData) };
+  const custom = await readCustomValues(owner.id, "contact", formData);
+  const values = { ...fields, ...organizationLabel(formData), ...custom.typed };
   const parsed = newContactInput.safeParse(fields);
   if (!parsed.success) return invalid(parsed.error, values);
+  if (!custom.parsed.success) return invalid(custom.parsed.error, values);
 
   const result = await createContact(owner.id, parsed.data, {
     confirmSimilar: formData.get("confirmSimilar") === "yes",
+    custom: custom.parsed.data,
   });
   if (!result.ok) return failure(result, values);
 

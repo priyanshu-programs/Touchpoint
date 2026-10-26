@@ -863,3 +863,20 @@
 - [2026-10-26] Merging companies runs: lint and typecheck clean; Vitest 777 of 778 (the known clock-skew materials sort test only); e2e 01, 02, 07, 20 and 99 passed (29 tests)
 - [2026-10-26] Merging companies: full e2e 120 of 120 passed (18 minutes, run alone); trail check found no conflicts
 - [2026-10-26] Merging companies is live (329a9f7): CI green in 12 minutes with the whole unit and e2e suites, Vercel production deploy succeeded. Not looked at signed in on the live site
+- [2026-10-26] Owner approved Step 9 slice 4 (the rest of custom fields) in three parts, the New forms and removing a dropdown option first; clearing a removed option on records, in-place editing for custom fields only, columns with sort, search in Ctrl+K and the lists; People list to numbered pages and a non-additive migration 0031 for search (C:\Users\l\.claude\plans\next-phase-declarative-otter.md)
+- [2026-10-26] organizations and contacts services: createOrganization/createContact take the owner's custom values in their options, and insertOrganization/insertContact store them, so a new record can carry custom fields
+- [2026-10-26] createOrganizationAction and createContactAction read and check the owner's custom fields as the Edit actions do, handing typed values back on a refusal
+- [2026-10-26] New company and New contact pages: the Custom fields section, as on the Edit pages
+- [2026-10-26] src/modules/fields/service.ts: removeCustomFieldOption takes an option off a dropdown under the field's lock, refuses an unknown or the last option, clears it on every record of that kind that held it and audits field.option_remove with the count
+- [2026-10-26] src/modules/fields/queries.ts: optionUse counts the records holding each option of the owner's dropdowns, archived ones included
+- [2026-10-26] src/app/(app)/people/fields/actions.ts: removeFieldOptionAction (the field as a uuid, a strict option of 1 to 60 characters)
+- [2026-10-26] Fields panel: a dropdown's Edit dialog lists its options with how many records hold each and a remove that asks in the row, naming how many lose the value; the dialog reads the field from the list again so a removed option goes
+- [2026-10-26] Tests: custom.test.ts gains creating a company and a person with custom values, removing an option (cleared on that kind's records only, counts before and after, the audit row) and its refusals (unknown, last, a text field, another owner's); 45 passed. e2e/09 gains a new person and company with custom values and an option removed from the Edit dialog after Keep it; 01, 02, 09 and 99 passed (24 tests)
+- [2026-10-26] Looked at the option list and its confirmation in screenshots from a throwaway spec (light, dark, phone): the first wording ("clears it on it") was changed to "Removing SMB also clears it from 1 company."; the spec was deleted
+- [2026-10-26] security.md: custom values read on the New forms, and the rule for removing a dropdown's option
+- [2026-10-26] docs/PRD.md: custom fields on the New forms and removing a dropdown's option, in section 6 and custom_field_defs
+- [2026-10-26] plan.md: Step 9 slice 4 split into its three parts, part 1 ticked with its Not built list; the Key Decisions line names trail in place of the removed Graft
+- [2026-10-26] Saved a trail learning on the owner's custom-field choices: a removed dropdown option is cleared from the records that held it (.trail/learnings/2026-10-26-removing-a-dropdown-option-clears-it-l.md)
+- [2026-10-26] Part 1 runs: lint and typecheck clean; Vitest 780 of 781 (the known clock-skew materials sort test only)
+- [2026-10-26] Part 1: full e2e 121 of 121 passed (19 minutes, run alone)
+- [2026-10-26] Part 1: trail check found no conflicts (its eleven notes were the new learning's own ruled-out options, which this change does not do)

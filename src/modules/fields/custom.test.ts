@@ -13,7 +13,7 @@ import {
 } from "@/modules/organizations/service";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import { formatCustomValue } from "./format";
-import { getLayout, listCustomFields } from "./queries";
+import { getLayout, listCustomFields, optionUse } from "./queries";
 import {
   customFieldChange,
   customFieldInput,
@@ -24,6 +24,7 @@ import {
   addSuggestedField,
   createCustomField,
   deleteCustomField,
+  removeCustomFieldOption,
   saveLayout,
   updateCustomField,
 } from "./service";
@@ -431,6 +432,116 @@ describe("custom fields", () => {
     ]);
   });
 
+  it("creates a company and a person with values of the owner's fields", async () => {
+    const organization = await createOrganization(ownerId, company, {
+      custom: { tier: "Gold" },
+    });
+    const contact = await createContact(
+      ownerId,
+      newContactInput.parse({ ...person, organizationId: "", email: "" }),
+      { custom: { score: 7 } },
+    );
+    if (!organization.ok || !contact.ok) throw new Error("not created");
+
+    expect((await getOrganization(ownerId, organization.id))!.custom).toEqual({
+      tier: "Gold",
+    });
+    expect((await getContact(ownerId, contact.id))!.custom).toEqual({ score: 7 });
+    expect((await listAudit(ownerId)).rows[1]).toMatchObject({
+      action: "organization.create",
+      after: { custom: { tier: "Gold" } },
+    });
+  });
+
+  it("removes a dropdown's option and clears it where it was held", async () => {
+    const tier = await created(
+      createCustomField(
+        ownerId,
+        "organization",
+        select("Tier", ["Gold", "Silver", "Bronze"]),
+      ),
+    );
+    // A person's field of the same name keeps its own values.
+    await created(createCustomField(ownerId, "contact", select("Tier", ["Gold"])));
+    const ids: string[] = [];
+    for (const [name, value] of [
+      ["Acme Design", "Gold"],
+      ["Bolt Labs", "Gold"],
+      ["Cove Studio", "Silver"],
+    ]) {
+      ids.push(
+        await created(
+          createOrganization(
+            ownerId,
+            { ...company, name },
+            { confirmSimilar: true, custom: { tier: value, notes: name } },
+          ),
+        ),
+      );
+    }
+    const contact = await createContact(
+      ownerId,
+      newContactInput.parse({ ...person, organizationId: "", email: "" }),
+      { custom: { tier: "Gold" } },
+    );
+    if (!contact.ok) throw new Error("not created");
+    expect(await optionUse(ownerId, "organization")).toEqual({
+      tier: { Gold: 2, Silver: 1 },
+    });
+
+    expect(await removeCustomFieldOption(ownerId, tier, "Gold")).toEqual({
+      ok: true,
+      cleared: 2,
+    });
+
+    expect(
+      (await listCustomFields(ownerId, "organization"))[0].options,
+    ).toEqual(["Silver", "Bronze"]);
+    expect((await getOrganization(ownerId, ids[0]))!.custom).toEqual({
+      notes: "Acme Design",
+    });
+    expect((await getOrganization(ownerId, ids[2]))!.custom).toEqual({
+      tier: "Silver",
+      notes: "Cove Studio",
+    });
+    expect((await getContact(ownerId, contact.id))!.custom).toEqual({
+      tier: "Gold",
+    });
+    expect(await optionUse(ownerId, "organization")).toEqual({
+      tier: { Silver: 1 },
+    });
+    expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+      action: "field.option_remove",
+      before: { options: ["Gold", "Silver", "Bronze"] },
+      after: { options: ["Silver", "Bronze"], removed: "Gold", cleared: 2 },
+    });
+  });
+
+  it("refuses to remove an option it does not offer, or the last one", async () => {
+    const tier = await created(
+      createCustomField(ownerId, "organization", select("Tier", ["Gold"])),
+    );
+    const notes = await created(
+      createCustomField(ownerId, "organization", text("Notes")),
+    );
+
+    expect(await removeCustomFieldOption(ownerId, tier, "gold")).toEqual({
+      ok: false,
+      reason: "unknown_option",
+    });
+    expect(await removeCustomFieldOption(ownerId, tier, "Gold")).toEqual({
+      ok: false,
+      reason: "last_option",
+    });
+    expect(await removeCustomFieldOption(ownerId, notes, "Gold")).toEqual({
+      ok: false,
+      reason: "unknown_option",
+    });
+    expect((await listCustomFields(ownerId, "organization"))[0].options).toEqual([
+      "Gold",
+    ]);
+  });
+
   it("keeps another owner's fields and values out of reach", async () => {
     const otherId = await createTestOwner("other@example.com");
     const theirs = await created(
@@ -449,6 +560,11 @@ describe("custom fields", () => {
       ),
     ).toEqual({ ok: false, reason: "not_found" });
     expect(await deleteCustomField(ownerId, theirs)).toBe(false);
+    expect(await removeCustomFieldOption(ownerId, theirs, "Gold")).toEqual({
+      ok: false,
+      reason: "not_found",
+    });
+    expect(await optionUse(ownerId, "organization")).toEqual({});
     expect(
       await saveLayout(ownerId, "organization", [
         { key: "custom.tier", hidden: true },
