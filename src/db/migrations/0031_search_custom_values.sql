@@ -1,0 +1,6 @@
+ALTER TABLE "contacts" drop column "search";--> statement-breakpoint
+ALTER TABLE "contacts" ADD COLUMN "search" "tsvector" GENERATED ALWAYS AS (to_tsvector('simple', "contacts"."first_name" || ' ' || coalesce("contacts"."last_name", '') || ' ' || coalesce("contacts"."job_title", '') || ' ' || coalesce("contacts"."department", '')) || jsonb_to_tsvector('simple', "contacts"."custom", '["string"]')) STORED;--> statement-breakpoint
+ALTER TABLE "organizations" drop column "search";--> statement-breakpoint
+ALTER TABLE "organizations" ADD COLUMN "search" "tsvector" GENERATED ALWAYS AS (to_tsvector('simple', "organizations"."name" || ' ' || coalesce("organizations"."domain", '') || ' ' || coalesce("organizations"."industry", '') || ' ' || coalesce("organizations"."city", '')) || jsonb_to_tsvector('simple', "organizations"."custom", '["string"]')) STORED;--> statement-breakpoint
+CREATE INDEX "contacts_search_idx" ON "contacts" USING gin ("search");--> statement-breakpoint
+CREATE INDEX "organizations_search_idx" ON "organizations" USING gin ("search");

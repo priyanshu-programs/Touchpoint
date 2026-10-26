@@ -1,4 +1,3 @@
-import { ArrowDown, ArrowDownUp, ArrowUp } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -15,6 +14,10 @@ import {
 import { requireOwner } from "@/lib/session";
 import { dateIn, formatDate } from "@/lib/time";
 import { getContact } from "@/modules/contacts/queries";
+import { formatCustomValue } from "@/modules/fields/format";
+import { getLayout, listCustomFields } from "@/modules/fields/queries";
+import { customKey } from "@/modules/fields/schema";
+import { customFirstDirection, customSortOf } from "@/modules/fields/sort";
 import {
   getOrganization,
   listOrganizations,
@@ -27,7 +30,13 @@ import {
   archiveOrganizationsAction,
   deleteOrganizationsAction,
 } from "../../organizations/actions";
-import { COLUMN_COOKIES, COMPANY_COLUMNS, hiddenColumns } from "../columns";
+import {
+  COLUMN_COOKIES,
+  COMPANY_COLUMNS,
+  CUSTOM_COLUMN_COOKIES,
+  customColumns,
+  hiddenColumns,
+} from "../columns";
 import { ContactPanel } from "../contact-panel";
 import { EntryPanel, entryKey, entryTab, findEntry } from "../entry-panel";
 import { FieldsPanel } from "../fields-panel";
@@ -43,6 +52,7 @@ import { contactHref } from "../../labels";
 import { MergePanel } from "../merge-panel";
 import { RecordSheet } from "../record-sheet";
 import { RowCheckbox, SelectAll, Selection } from "../selection";
+import { SortHead } from "../sort-head";
 import { StatusBadge } from "../status-badge";
 import { CompanyMergePanel } from "./company-merge-panel";
 import { CompanyPanel } from "./company-panel";
@@ -51,7 +61,7 @@ import { NewCompanySheet } from "./new-company-sheet";
 export const metadata: Metadata = { title: "Companies" };
 
 const PAGE_SIZE = 50;
-type Sort = NonNullable<CompanyListParams["sort"]>;
+type Sort = (typeof ORGANIZATION_SORTS)[number];
 const SORT_LABELS: Record<Sort, string> = {
   name: "Company",
   domain: "Domain",
@@ -85,63 +95,38 @@ const NO_PANEL = { ...NO_CONTACT, company: undefined };
 const FIRST_PAGE = { ...NO_PANEL, page: undefined };
 
 // Where a column is in the order now, and the address that sorts by it: the other
-// direction when it already leads, its own first direction otherwise.
-function sorting(params: CompanyListParams, sort: Sort) {
+// direction when it already leads, its own first direction otherwise. `params.sort`
+// is already one the page resolved.
+function sorting(
+  params: CompanyListParams,
+  sort: string,
+  first: "asc" | "desc",
+) {
   const current = (params.sort ?? "name") === sort;
-  const dir = params.dir ?? FIRST_DIRECTION[sort];
-  const next = current
-    ? dir === "asc"
-      ? "desc"
-      : "asc"
-    : FIRST_DIRECTION[sort];
+  const dir = params.dir ?? first;
+  const next = current ? (dir === "asc" ? "desc" : "asc") : first;
   return {
     current: current ? dir : null,
     href: companiesHref(params, { ...FIRST_PAGE, sort, dir: next }),
   };
 }
 
-function SortHead({
-  params,
-  sort,
-  className,
-}: {
-  params: CompanyListParams;
-  sort: Sort;
-  className?: string;
-}) {
-  const { current, href } = sorting(params, sort);
-  const Icon =
-    current === "asc" ? ArrowUp : current === "desc" ? ArrowDown : ArrowDownUp;
-  return (
-    <TableHead
-      aria-sort={
-        current ? (current === "asc" ? "ascending" : "descending") : undefined
-      }
-      className={className}
-    >
-      <Link
-        href={href}
-        className="inline-flex items-center gap-1 hover:text-foreground"
-      >
-        {SORT_LABELS[sort]}
-        <Icon
-          className={current ? "size-3 text-foreground" : "size-3 opacity-50"}
-          aria-hidden
-        />
-      </Link>
-    </TableHead>
-  );
-}
+const standardSort = (params: CompanyListParams, sort: Sort) => ({
+  label: SORT_LABELS[sort],
+  ...sorting(params, sort, FIRST_DIRECTION[sort]),
+});
 
 export default async function OrganizationsPage({
   searchParams,
 }: PageProps<"/people/organizations">) {
   const owner = await requireOwner();
   const typed = companyListParams.parse(await searchParams);
-  const [statuses, entry, jar] = await Promise.all([
+  const [statuses, entry, jar, fields, layout] = await Promise.all([
     listCompanyStatuses(owner.id),
     typed.company ? findEntry(owner.id, typed) : null,
     cookies(),
+    listCustomFields(owner.id, "organization"),
+    getLayout(owner.id, "organization"),
   ]);
   const hidden = hiddenColumns(
     jar.get(COLUMN_COOKIES.companies)?.value,
@@ -149,17 +134,24 @@ export default async function OrganizationsPage({
   );
   const shows = (column: (typeof COMPANY_COLUMNS)[number]["key"]) =>
     !hidden.includes(column);
-  // A status the owner does not have, or no longer has, narrows nothing, and an
-  // entry that is not theirs opens nothing.
+  const custom = customColumns(
+    jar.get(CUSTOM_COLUMN_COOKIES.companies)?.value,
+    fields,
+    layout,
+  );
+  const standard = ORGANIZATION_SORTS.find((sort) => sort === typed.sort);
+  const customSort = customSortOf(typed.sort, fields);
+  // A status or a custom field the owner does not have, or no longer has, narrows or
+  // orders nothing, and an entry that is not theirs opens nothing.
   const params = {
     ...typed,
     status: statuses.some(({ key }) => key === typed.status)
       ? typed.status
       : undefined,
+    sort: standard ?? (customSort ? typed.sort : undefined),
     activity: entry?.kind === "activity" ? typed.activity : undefined,
     task: entry?.kind === "task" ? typed.task : undefined,
   };
-  const sort = params.sort ?? "name";
   const pageNumber = params.page ?? 1;
   const [page, tags, settings, open, person] = await Promise.all([
     listOrganizations(owner.id, {
@@ -167,8 +159,12 @@ export default async function OrganizationsPage({
       tagId: params.tag,
       status: params.status,
       archived: params.archived === "1",
-      sort,
-      dir: params.dir ?? FIRST_DIRECTION[sort],
+      sort: customSort ?? standard ?? "name",
+      dir:
+        params.dir ??
+        (customSort
+          ? customFirstDirection(customSort.type)
+          : FIRST_DIRECTION[standard ?? "name"]),
       limit: PAGE_SIZE,
       offset: (pageNumber - 1) * PAGE_SIZE,
     }),
@@ -253,14 +249,26 @@ export default async function OrganizationsPage({
             dir: params.dir,
           }}
           filters={filters}
-          sorts={ORGANIZATION_SORTS.map((column) => ({
-            label: SORT_LABELS[column],
-            ...sorting(params, column),
-          }))}
+          sorts={[
+            ...ORGANIZATION_SORTS.map((sort) => standardSort(params, sort)),
+            ...custom.options.map((field) => ({
+              label: field.label,
+              ...sorting(
+                params,
+                customKey(field.key),
+                customFirstDirection(field.type),
+              ),
+            })),
+          ]}
           columns={{
             cookie: COLUMN_COOKIES.companies,
             options: COMPANY_COLUMNS,
             hidden,
+            custom: {
+              cookie: CUSTOM_COLUMN_COOKIES.companies,
+              options: custom.options.map(({ key, label }) => ({ key, label })),
+              shown: custom.shown.map(({ key }) => key),
+            },
           }}
           archived={{
             on: params.archived === "1",
@@ -293,36 +301,44 @@ export default async function OrganizationsPage({
                     <TableHead className="w-10 p-0!">
                       <SelectAll />
                     </TableHead>
-                    <SortHead params={params} sort="name" />
+                    <SortHead {...standardSort(params, "name")} />
                     {shows("status") && (
                       <TableHead className="hidden md:table-cell">Status</TableHead>
                     )}
                     {shows("domain") && (
                       <SortHead
-                        params={params}
-                        sort="domain"
+                        {...standardSort(params, "domain")}
                         className="hidden sm:table-cell"
                       />
                     )}
                     {shows("industry") && (
                       <SortHead
-                        params={params}
-                        sort="industry"
+                        {...standardSort(params, "industry")}
                         className="hidden md:table-cell"
                       />
                     )}
+                    {custom.shown.map((field) => (
+                      <SortHead
+                        key={field.key}
+                        label={field.label}
+                        {...sorting(
+                          params,
+                          customKey(field.key),
+                          customFirstDirection(field.type),
+                        )}
+                        className="hidden md:table-cell"
+                      />
+                    ))}
                     {/* The last column on a phone, where the one after it is hidden. */}
                     {shows("contacts") && (
                       <SortHead
-                        params={params}
-                        sort="contacts"
+                        {...standardSort(params, "contacts")}
                         className="pr-4 text-right sm:pr-2"
                       />
                     )}
                     {shows("activity") && (
                       <SortHead
-                        params={params}
-                        sort="activity"
+                        {...standardSort(params, "activity")}
                         className="hidden text-right sm:table-cell"
                       />
                     )}
@@ -378,6 +394,12 @@ export default async function OrganizationsPage({
                             {row.industry ?? "—"}
                           </TableCell>
                         )}
+                        {custom.shown.map((field) => (
+                          <TableCell key={field.key} className="hidden md:table-cell">
+                            {formatCustomValue(field.type, row.custom[field.key]) ??
+                              "—"}
+                          </TableCell>
+                        ))}
                         {shows("contacts") && (
                           <TableCell className="pr-4 text-right tabular-nums sm:pr-2">
                             {row.contactCount}

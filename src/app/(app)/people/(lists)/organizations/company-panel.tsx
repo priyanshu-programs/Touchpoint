@@ -102,7 +102,7 @@ const TABS = [
   { tab: "workflows", label: "Workflows" },
 ] as const;
 
-// Counts come from one capped page, so a full page is shown as "100+".
+// Tasks are counted from one capped page, so a full page is shown as "100+".
 const upTo = (page: { rows: unknown[]; nextAfter: string | null }) =>
   `${page.rows.length}${page.nextAfter ? "+" : ""}`;
 
@@ -197,7 +197,7 @@ export async function CompanyPanel({
   const contactLink = (id: string) =>
     companiesHref(params, { contact: id, tab: undefined, after: undefined });
   const tiles = [
-    { label: "Contacts", value: upTo(contacts) },
+    { label: "Contacts", value: String(contacts.total) },
     { label: "Open tasks", value: upTo(openTasks) },
     {
       label: "Last activity",
@@ -249,7 +249,7 @@ export async function CompanyPanel({
             description: `The company, its tags, logo and website details are removed for good. ${
               contacts.rows.length === 0
                 ? "Its tasks and logged activity"
-                : `Its contacts (${upTo(contacts)}), tasks and logged activity`
+                : `Its contacts (${contacts.total}), tasks and logged activity`
             } are kept, no longer linked to a company. To hide it instead, use Archive.`,
             confirmLabel: "Delete company",
             action: deleteOrganizationAction,
@@ -285,7 +285,7 @@ export async function CompanyPanel({
             {label}
             {tab === "contacts" && contacts.rows.length > 0 && (
               <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                {upTo(contacts)}
+                {contacts.total}
               </span>
             )}
           </Link>

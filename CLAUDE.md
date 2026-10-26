@@ -10,6 +10,10 @@ Before ANY file search, code lookup, or symbol trace, use the `trail` CLI:
 - `trail callers <sym> [--direction out] [--depth N|all]` — callers or callees; run before changing a symbol
 - `trail map` — an orientation overview of the whole repo
 
+When the `mcp__trail-code__trail_*` tools are listed, use them in place of the CLI
+(find_code = ask, find_all = grep, trace_calls = callers, file_api = skeleton,
+repo_map = map); the CLI is the fallback.
+
 Only fall back to Glob, Grep, or Read when trail returns nothing relevant.
 Run `trail check` before committing, pushing, or opening a PR.
 

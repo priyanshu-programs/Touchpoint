@@ -898,3 +898,32 @@
 - [2026-10-26] Saved a trail learning: inside a record's panel, Base UI's dialog takes focus back and closes on Escape, so the in-place editor uses a layout effect and the sheet's onOpenChange (.trail/learnings/2026-10-26-inside-a-record-s-panel-base-l.md)
 - [2026-10-26] Part 2 runs: lint and typecheck clean; Vitest 782 of 783 (the known clock-skew materials sort test only); e2e 01, 02, 09, 21 and 99 passed (27 tests)
 - [2026-10-26] Part 2: full e2e 114 passed with 3 timing failures in specs this change does not touch (09 Fieldwork Co's panel, 13 a whiteboard's canvas, 16 a material's page, each a 5-second wait under a loading page); rerun, 01, 02, 09, 13, 15, 16 and 99 passed 52 of 52 both with and without this change
+- [2026-10-26] Custom fields part 2 is live (ba14dcc): CI green with the whole unit and e2e suites, Vercel production deploy succeeded. Not looked at signed in on the live site
+- [2026-10-26] Owner approved Step 9 slice 4 part 3 (custom fields as list columns with sort, and in search; People list to numbered pages; migration 0031, not additive) as planned (C:\Users\l\.claude\plans\get-started-with-the-spicy-toucan.md)
+- [2026-10-26] src/db/schema/people.ts: the search columns on organizations and contacts also take the record's custom text, dropdown and date values (jsonb_to_tsvector, strings only), so Ctrl+K and the lists' search boxes find them
+- [2026-10-26] Migration 0031_search_custom_values (not additive, approved): drops and re-adds the generated search columns on contacts and organizations, and re-creates their GIN indexes by hand since drizzle-kit left them out
+- [2026-10-26] src/modules/search/queries.test.ts: a company and a person are found by a custom text or dropdown value, not by a number, and not by another owner
+- [2026-10-26] Added src/modules/fields/sort.ts: the custom sort named in a list's address (custom.<key>), resolved only against the owner's fields, and its order (a number as numeric, a date as its ISO text, text and dropdowns without regard to case) with the key as a bound parameter
+- [2026-10-26] listOrganizations sorts by a custom field when given one and returns each company's custom values
+- [2026-10-26] listContacts pages by offset in place of the name cursor, sorts by name or a custom field in either direction (blanks last), returns custom values and hasMore in place of nextAfter
+- [2026-10-26] Company panel: the Contacts tile, tab count and delete note give the exact number of contacts, since listContacts no longer gives a cursor
+- [2026-10-26] columns.ts: CUSTOM_COLUMN_COOKIES (columns-companies-custom, columns-contacts-custom) and customColumns, which gives the owner's custom fields in the Fields panel's order and the ones the cookie turns on (a custom column is off until turned on, so it names those shown)
+- [2026-10-26] list-toolbar.tsx: the Columns menu has a Custom fields group that writes its own cookie, the count includes custom columns shown, and Sort menu items are keyed by address since a custom field may share a standard column's name
+- [2026-10-26] Added (lists)/sort-head.tsx: the sortable column heading, moved out of the Companies page so the People list uses it too
+- [2026-10-26] list-controls.tsx: a list's sort may name a custom field (custom.<key>, strict pattern); the People list takes sort, dir and page and no longer a list cursor (after); NextPageLink removed
+- [2026-10-26] Companies list: custom fields as columns (turned on from Columns, hidden below tablet width) and in the Sort menu and their headings; a sort naming a field the owner does not have falls back to the name
+- [2026-10-26] People list: sorts by name or a custom field (headings and a Sort menu), custom fields as columns, numbered pages with Previous and Next, and "Showing a-b of n" gives its start on every page
+- [2026-10-26] Tests: contacts paging by offset (hasMore, total, both directions), sorting people and companies by a custom number, text or dropdown and date with blanks last, and the lists' search boxes finding a custom value; 75 passed
+- [2026-10-26] list-card.tsx: ListFooter always takes the page's start, since both lists now page by number
+- [2026-10-26] e2e/12: a custom number column on Companies turned on from Columns, sorted both ways with blanks last, kept after a reload, an unknown custom sort falling back to the name; a custom text column on People sorted from the Sort menu, and People's footer giving its start. e2e/17: a company and a person found by a custom value in Ctrl+K and in their lists' search boxes
+- [2026-10-26] Part 3 e2e 01, 02, 12, 17, 21 and 99 passed (32 tests)
+- [2026-10-26] Looked at the Companies list with a custom column, its Columns menu and its Sort menu in screenshots from a throwaway spec (light, dark, phone): the Custom fields group sits under the standard columns in the same style, and the custom column is hidden on a phone as planned; nothing changed; the spec was deleted
+- [2026-10-26] security.md: the custom-column cookies and the custom sort named in a list's address
+- [2026-10-26] docs/PRD.md: custom fields as list columns with sort, the People list's sort and numbered pages, and custom values in search, in section 6; the search columns of organizations and contacts in section 8
+- [2026-10-26] plan.md: Step 9 slice 4 part 3 ticked with its Not built list, slice 4 and Step 9 ticked; Step 10 (journey tests and the phase close-out) is next, on the owner's word
+- [2026-10-26] Saved a trail learning: a changed generated-column expression makes drizzle-kit drop and re-add the column without re-creating its indexes (.trail/learnings/2026-10-26-changing-a-generated-column-s-expression-l.md)
+- [2026-10-26] Part 3 runs: lint and typecheck clean; Vitest 783 of 786, the known clock-skew materials sort test and two company-merge tests whose database could not be reached for a moment (getaddrinfo ENOTFOUND for the Neon test host); merge.test.ts rerun alone passed 16 of 16
+- [2026-10-26] opencode.json: OpenCode loads CLAUDE.md as instructions, since it reads AGENTS.md first and skips CLAUDE.md when AGENTS.md exists
+- [2026-10-26] Part 3: full e2e 126 of 126 passed (21 minutes, run alone)
+- [2026-10-26] Part 3: trail check found no conflicts (its 12 notes were loose matches, such as the removed-option learning's own wording quoted in updates.md)
+- [2026-10-26] Part 3 committed with the CLAUDE.md change and the two trail learnings of parts 1 and 2, which had been left uncommitted

@@ -7,6 +7,7 @@ import {
   contactEmails,
   contactLinks,
   contactOrganizations,
+  contacts,
   contactTags,
   tasks,
 } from "@/db/schema";
@@ -668,23 +669,54 @@ describe("contacts", () => {
       await create({ firstName, lastName: "" });
     }
 
-    const first = await listContacts(ownerId, { limit: 2 });
-    const second = await listContacts(ownerId, {
-      limit: 2,
-      after: first.nextAfter!,
-    });
-    const third = await listContacts(ownerId, {
-      limit: 2,
-      after: second.nextAfter!,
-    });
+    const pages = await Promise.all(
+      [0, 2, 4].map((offset) => listContacts(ownerId, { limit: 2, offset })),
+    );
 
-    expect(
-      [...first.rows, ...second.rows, ...third.rows].map((row) => row.fullName),
-    ).toEqual(["anil", "bela", "Chitra", "Dev", "Esha"]);
-    expect(third.nextAfter).toBeNull();
+    expect(pages.flatMap((page) => page.rows.map((row) => row.fullName))).toEqual(
+      ["anil", "bela", "Chitra", "Dev", "Esha"],
+    );
+    expect(pages.map((page) => page.hasMore)).toEqual([true, true, false]);
     // Every page says how many there are in all, wherever it starts.
-    expect([first, second, third].map((page) => page.total)).toEqual([5, 5, 5]);
+    expect(pages.map((page) => page.total)).toEqual([5, 5, 5]);
     expect((await listContacts(ownerId, { q: "an" })).total).toBe(1);
+    expect(
+      (await listContacts(ownerId, { dir: "desc", limit: 2 })).rows.map(
+        (row) => row.fullName,
+      ),
+    ).toEqual(["Esha", "Dev"]);
+  });
+
+  it("sorts by a custom field in either direction, people without a value last", async () => {
+    const values: [string, Record<string, string | number>][] = [
+      ["Dev", { seats: 10, source: "referral", met: "2026-03-01" }],
+      ["Anil", { seats: 9, source: "Conference", met: "2025-12-31" }],
+      ["Chitra", {}],
+      ["Bela", { seats: 120, source: "ads" }],
+    ];
+    for (const [firstName, custom] of values) {
+      const id = await create({ firstName, lastName: "" });
+      await db.update(contacts).set({ custom }).where(eq(contacts.id, id));
+    }
+    const order = async (
+      key: string,
+      type: "number" | "text" | "date",
+      dir: "asc" | "desc",
+    ) =>
+      (await listContacts(ownerId, { sort: { key, type }, dir })).rows.map(
+        (row) => row.fullName,
+      );
+
+    // As numbers, not as text, where "10" would come before "9".
+    expect(await order("seats", "number", "asc")).toEqual(["Anil", "Dev", "Bela", "Chitra"]);
+    expect(await order("seats", "number", "desc")).toEqual(["Bela", "Dev", "Anil", "Chitra"]);
+    expect(await order("source", "text", "asc")).toEqual(["Bela", "Anil", "Dev", "Chitra"]);
+    expect(await order("met", "date", "desc")).toEqual(["Dev", "Anil", "Bela", "Chitra"]);
+
+    const found = await listContacts(ownerId, { q: "confer" });
+    expect(found.rows).toMatchObject([
+      { fullName: "Anil", custom: { source: "Conference" } },
+    ]);
   });
 
   it("keeps another owner's contacts out of reach", async () => {

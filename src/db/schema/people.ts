@@ -72,7 +72,7 @@ export const organizations = pgTable(
     custom: jsonb("custom").$type<CustomValues>().notNull().default({}),
     search: tsvector("search").generatedAlwaysAs(
       (): SQL =>
-        sql`to_tsvector('simple', ${organizations.name} || ' ' || coalesce(${organizations.domain}, '') || ' ' || coalesce(${organizations.industry}, '') || ' ' || coalesce(${organizations.city}, ''))`,
+        sql`to_tsvector('simple', ${organizations.name} || ' ' || coalesce(${organizations.domain}, '') || ' ' || coalesce(${organizations.industry}, '') || ' ' || coalesce(${organizations.city}, '')) || jsonb_to_tsvector('simple', ${organizations.custom}, '["string"]')`,
     ),
     archivedAt,
     createdAt,
@@ -145,7 +145,7 @@ export const contacts = pgTable(
     custom: jsonb("custom").$type<CustomValues>().notNull().default({}),
     search: tsvector("search").generatedAlwaysAs(
       (): SQL =>
-        sql`to_tsvector('simple', ${contacts.firstName} || ' ' || coalesce(${contacts.lastName}, '') || ' ' || coalesce(${contacts.jobTitle}, '') || ' ' || coalesce(${contacts.department}, ''))`,
+        sql`to_tsvector('simple', ${contacts.firstName} || ' ' || coalesce(${contacts.lastName}, '') || ' ' || coalesce(${contacts.jobTitle}, '') || ' ' || coalesce(${contacts.department}, '')) || jsonb_to_tsvector('simple', ${contacts.custom}, '["string"]')`,
     ),
     archivedAt,
     createdAt,

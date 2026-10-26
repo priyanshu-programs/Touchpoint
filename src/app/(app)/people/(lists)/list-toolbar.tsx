@@ -51,29 +51,49 @@ export type ToolbarSort = {
   current: "asc" | "desc" | null;
 };
 
-// The columns a list can go without, and which of them are turned off now.
+// The columns a list can go without, and which of them are turned off now; and the
+// owner's custom fields, each a column only once it is turned on.
 export type ToolbarColumns = {
   cookie: string;
   options: readonly { key: string; label: string }[];
   hidden: readonly string[];
+  custom?: {
+    cookie: string;
+    options: readonly { key: string; label: string }[];
+    shown: readonly string[];
+  };
 };
 
-function keepHidden(cookie: string, keys: string[]) {
+function keepColumns(cookie: string, keys: readonly string[]) {
   document.cookie = `${cookie}=${keys.join(".")}; path=/; max-age=31536000; samesite=lax`;
 }
 
 // Which columns show is not part of the address: it is how the owner likes the list,
 // whatever it is narrowed to, so it is kept in a cookie the page reads.
-function ColumnsMenu({ cookie, options, hidden }: ToolbarColumns) {
+function ColumnsMenu({ cookie, options, hidden, custom }: ToolbarColumns) {
   const router = useRouter();
   const [off, setOff] = useState(hidden);
+  const [on, setOn] = useState(custom?.shown ?? []);
 
   function show(key: string, shown: boolean) {
     const next = options
       .map((option) => option.key)
       .filter((each) => (each === key ? !shown : off.includes(each)));
     setOff(next);
-    keepHidden(cookie, next);
+    keepColumns(cookie, next);
+    router.refresh();
+  }
+
+  function showCustom(
+    fields: NonNullable<ToolbarColumns["custom"]>,
+    key: string,
+    shown: boolean,
+  ) {
+    const next = fields.options
+      .map((option) => option.key)
+      .filter((each) => (each === key ? shown : on.includes(each)));
+    setOn(next);
+    keepColumns(fields.cookie, next);
     router.refresh();
   }
 
@@ -83,7 +103,7 @@ function ColumnsMenu({ cookie, options, hidden }: ToolbarColumns) {
         <Columns3 aria-hidden />
         Columns
         <span className="text-muted-foreground">
-          ({options.length - off.length + 1})
+          ({options.length - off.length + on.length + 1})
         </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-44">
@@ -99,6 +119,23 @@ function ColumnsMenu({ cookie, options, hidden }: ToolbarColumns) {
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuGroup>
+        {custom && custom.options.length > 0 && (
+          <DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Custom fields</DropdownMenuLabel>
+            {custom.options.map((option) => (
+              <DropdownMenuCheckboxItem
+                key={option.key}
+                checked={on.includes(option.key)}
+                onCheckedChange={(shown) =>
+                  showCustom(custom, option.key, shown)
+                }
+              >
+                {option.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuGroup>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -202,7 +239,7 @@ export function ListToolbar({
                 <DropdownMenuLabel>Sort by</DropdownMenuLabel>
                 {sorts.map((sort) => (
                   <DropdownMenuItem
-                    key={sort.label}
+                    key={sort.href}
                     onClick={() => router.push(sort.href)}
                   >
                     {sort.label}

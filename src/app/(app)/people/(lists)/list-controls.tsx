@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { z } from "zod";
+import { CUSTOM_SORT } from "@/modules/fields/sort";
 import { ORGANIZATION_SORTS } from "@/modules/organizations/queries";
 
 const optional = <T extends z.ZodType>(schema: T) =>
@@ -29,16 +29,19 @@ const entryParams = {
   send: optional(z.literal("new")),
   merge: optional(z.uuid()),
 };
-type ListParams = z.infer<typeof listParams>;
+const customSort = z.string().regex(CUSTOM_SORT);
+const dir = optional(z.enum(["asc", "desc"]));
+const page = optional(z.coerce.number().int().min(1).max(1000));
 
 // `company` and `tab` say which company panel is open over the list; `after` pages its timeline.
 // With `contact`, the panel shows that person at the company and `tab` is theirs.
 export const companyListParams = listParams.extend({
   // The page checks it against the owner's statuses.
   status: optional(z.string().min(1).max(60)),
-  sort: optional(z.enum(ORGANIZATION_SORTS)),
-  dir: optional(z.enum(["asc", "desc"])),
-  page: optional(z.coerce.number().int().min(1).max(1000)),
+  // A custom field's key is checked against the owner's fields by the page.
+  sort: optional(z.union([z.enum(ORGANIZATION_SORTS), customSort])),
+  dir,
+  page,
   company: optional(z.uuid()),
   contact: optional(z.uuid()),
   tab: optional(z.enum(["contacts", "activity", "tasks", "workflows"])),
@@ -47,8 +50,11 @@ export const companyListParams = listParams.extend({
 export type CompanyListParams = z.infer<typeof companyListParams>;
 
 // `contact` and `tab` say whose panel is open over the people list. `earlier` pages
-// that person's timeline, since `after` already pages the list.
-export const contactListParams = listParams.extend({
+// that person's timeline.
+export const contactListParams = listParams.omit({ after: true }).extend({
+  sort: optional(z.union([z.literal("name"), customSort])),
+  dir,
+  page,
   contact: optional(z.uuid()),
   tab: optional(z.enum(["activity", "tasks", "workflows"])),
   earlier: optional(z.uuid()),
@@ -74,24 +80,3 @@ export const contactsHref = (
   params: ContactListParams,
   change: Partial<ContactListParams> = {},
 ) => listHref("/people/contacts", { ...params, ...change });
-
-export function NextPageLink({
-  path,
-  params,
-  after,
-}: {
-  path: string;
-  params: ListParams;
-  after: string | null;
-}) {
-  if (!after) return null;
-  const search = new URLSearchParams({ after });
-  if (params.q) search.set("q", params.q);
-  if (params.tag) search.set("tag", params.tag);
-  if (params.archived) search.set("archived", params.archived);
-  return (
-    <Link href={`${path}?${search}`} className="underline">
-      Next page
-    </Link>
-  );
-}
