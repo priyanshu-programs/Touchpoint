@@ -93,3 +93,15 @@ nothing more.
 - Validate only at system boundaries (user input, external APIs)
 - No speculative abstractions — only what the current task requires
 - Never hard-code secrets; use environment variables
+
+## QA steps — after every feature
+
+The owner checks every feature by hand. After finishing any feature or fix, end the
+reply with a short **"Try it yourself"** list:
+
+- Numbered steps in plain words: where to click, what to type, what should appear.
+- Run against the app the owner will open: `corepack pnpm dev` locally, or the PR preview.
+- Include at least one thing that should be refused or warned about, and what it says.
+- If the feature has a phone layout, end with the same check at phone width
+  (browser dev tools, or the window narrowed).
+- Use made-up names for the data, and no code, file paths or jargon.
