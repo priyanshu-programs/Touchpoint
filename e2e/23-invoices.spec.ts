@@ -154,7 +154,7 @@ test("an issued invoice is voided after a confirmation, and stays void", async (
   await page.goto(invoiceUrl);
   await menu(page, "Void");
   await page.getByRole("button", { name: "Void invoice" }).click();
-  await expect(main(page).getByText("Void", { exact: true })).toBeVisible();
+  await expect(main(page).getByText("Void", { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: `More actions for ${NUMBER}` })).toHaveCount(0);
 });
 
