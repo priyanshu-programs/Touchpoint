@@ -56,6 +56,8 @@ export function RecordActions({
     action: (formData: FormData) => Promise<void>;
     // Sent with the id, such as where the record was opened from.
     fields?: Record<string, string>;
+    // Why the record cannot be deleted, said in place of the confirmation.
+    blocked?: { title: string; description: string };
   };
 }) {
   const router = useRouter();
@@ -144,24 +146,28 @@ export function RecordActions({
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{remove.title}</AlertDialogTitle>
-            <AlertDialogDescription>{remove.description}</AlertDialogDescription>
+            <AlertDialogTitle>{remove.blocked?.title ?? remove.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {remove.blocked?.description ?? remove.description}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <form action={remove.action}>
-              <input type="hidden" name="id" value={id} />
-              {Object.entries(remove.fields ?? {}).map(([name, value]) => (
-                <input key={name} type="hidden" name={name} value={value} />
-              ))}
-              <AlertDialogAction
-                type="submit"
-                variant="destructive"
-                className="w-full"
-              >
-                {remove.confirmLabel}
-              </AlertDialogAction>
-            </form>
+            <AlertDialogCancel>{remove.blocked ? "Close" : "Cancel"}</AlertDialogCancel>
+            {!remove.blocked && (
+              <form action={remove.action}>
+                <input type="hidden" name="id" value={id} />
+                {Object.entries(remove.fields ?? {}).map(([name, value]) => (
+                  <input key={name} type="hidden" name={name} value={value} />
+                ))}
+                <AlertDialogAction
+                  type="submit"
+                  variant="destructive"
+                  className="w-full"
+                >
+                  {remove.confirmLabel}
+                </AlertDialogAction>
+              </form>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

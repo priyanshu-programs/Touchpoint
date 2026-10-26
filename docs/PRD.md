@@ -140,6 +140,8 @@ Left sidebar on desktop, bottom bar on mobile. The account menu (the owner's nam
 
 Every workspace page (contact, organization, opportunity, engagement) uses the same tabs: Timeline, Tasks, Roadmap, Materials, Money, Emails. This is what makes records feel connected instead of living in separate modules.
 
+Money (2026-10-27, Phase 4 step 1): the owner designs each invoice in Figma, so Touchpoint keeps a record of it and never lays one out or makes a PDF. "Money" in the sidebar after Materials (through "Go to" on a phone) opens `/money/invoices`: number, client (logo or photo), issue and due dates, total and a status pill (Draft, Issued, Void), with search by number or client, Status and Currency filters (Currency once there are two), sort by number, issue date, due date or total, and pages of 50; `?company=` or `?person=` narrows it to one client. "New invoice" (also in the palette, and on a company's or person's Money tab with the client filled in) takes the number as it is on the invoice, the client picked by search among companies and people, the issue date (today in the owner's zone) and due date (15 days later until changed), a currency (the base one at first; any currency), lines (description, service, quantity to two decimals, price; the amount and the total are shown as typed), discounts and write-offs with a reason, notes and optionally the exported PDF or picture; it is saved as a draft or as issued. There are no tax fields: tax is typed as a line. `/money/invoices/<id>` shows it with its lines, adjustments, total and file (attach, replace, remove; opens in a tab of its own) and a three-dots menu: Edit (not once void), Mark as issued and Delete for a draft, Void for an issued invoice after a confirmation. A company's and a person's panel has a Money tab listing their invoices; a company or person with invoices cannot be deleted (archive them instead), and a merge moves the other record's invoices to the one kept. Ctrl+K finds invoices by number. Payments, paid and overdue, and the revenue overview follow in the next steps.
+
 ---
 
 ## 7. Architecture
@@ -378,8 +380,8 @@ Built so far (migration 0026): `materials` (name as citext, unique per owner; ty
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `invoices` | number, organization_id or contact_id, engagement_id, issue_date, due_date, currency, status (draft/issued/void) | Unique (owner, number). Paid, partial and overdue are **derived** |
-| `invoice_lines` | invoice_id, description, quantity, unit_amount_minor, amount_minor, service_category | |
+| `invoices` | number, organization_id or contact_id, engagement_id, issue_date, due_date, currency, status (draft/issued/void), notes, file_id, file_name | Unique (owner, number). Paid, partial and overdue are **derived**. A record of an invoice made elsewhere (Figma); `file_id` is the exported PDF or picture in `files`. Exactly one client; a client with invoices is not deleted. `engagement_id` waits with Engagements (migration 0032 has none) |
+| `invoice_lines` | invoice_id, position, description, quantity, unit_amount_minor, amount_minor, service_category | Quantity to two decimals; the amount is worked out on the server, rounded half up. No tax column: tax is a line |
 | `invoice_adjustments` | invoice_id, amount_minor, reason | Discounts and write-offs, kept visible |
 | `payments` | received_on, amount_minor (> 0), currency, kind (payment/refund), method, reference, external_ref, payer, fx_rate_to_base, idempotency_key | Unique (owner, external_ref) and unique (owner, idempotency_key) |
 | `payment_allocations` | payment_id, invoice_id, amount_minor | Sum per payment ≤ payment amount; sum per invoice ≤ invoice balance; enforced in the transaction |

@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { dropUnusedFiles } from "@/modules/files/service";
+import { invoicesBilling, type ClientDeleteResult } from "@/modules/invoices/service";
 import { contactTagNames } from "@/modules/tags/queries";
 import { setContactTags } from "@/modules/tags/service";
 import { companies, findSimilarContacts } from "./queries";
@@ -364,10 +365,13 @@ export async function setContactArchived(
 
 // Emails, links, tags, their place at each company and on logged activities go with
 // them: their foreign keys cascade. Tasks outlive the person, with the link set to null.
-export async function deleteContact(ownerId: string, id: string) {
+// A person their invoices bill is kept, so the invoices always have a client.
+export async function deleteContact(ownerId: string, id: string): Promise<ClientDeleteResult> {
   return db.transaction(async (tx) => {
     const before = await lockContact(tx, ownerId, id);
-    if (!before) return false;
+    if (!before) return { ok: false, reason: "not_found" };
+    const invoiced = await invoicesBilling(tx, { contactId: id });
+    if (invoiced > 0) return { ok: false, reason: "invoiced", count: invoiced };
 
     const tags = await contactTagNames(tx, ownerId, id);
     const companies = await tx
@@ -400,7 +404,7 @@ export async function deleteContact(ownerId: string, id: string) {
         organizationIds: companies.map((company) => company.id),
       },
     });
-    return true;
+    return { ok: true };
   });
 }
 

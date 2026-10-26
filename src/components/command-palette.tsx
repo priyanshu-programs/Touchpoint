@@ -8,6 +8,7 @@ import {
   ListChecks,
   LogOut,
   NotebookPen,
+  Receipt,
   User,
   UserPlus,
   Workflow,
@@ -34,6 +35,7 @@ const ACTIONS = [
   { href: "/quick-add", label: "Quick add", icon: UserPlus },
   { href: "/activities/new", label: "Log activity", icon: NotebookPen },
   { href: "/materials/new", label: "New material", icon: FilePlus2 },
+  { href: "/money/invoices/new", label: "New invoice", icon: Receipt },
   { href: "/brainstorm/new", label: "New brainstorm board", icon: Lightbulb },
 ];
 
@@ -41,6 +43,7 @@ const GROUPS: { key: keyof SearchGroups; heading: string; icon: LucideIcon }[] =
   { key: "companies", heading: "Companies", icon: Building2 },
   { key: "people", heading: "People", icon: User },
   { key: "materials", heading: "Materials", icon: Files },
+  { key: "invoices", heading: "Invoices", icon: Receipt },
   { key: "workflows", heading: "Workflows", icon: Workflow },
   { key: "brainstorms", heading: "Brainstorm boards", icon: Lightbulb },
   { key: "activities", heading: "Activities", icon: NotebookPen },

@@ -14,6 +14,7 @@ import {
   activities,
   brainstormBoards,
   contacts,
+  invoices,
   materials,
   organizations,
   tasks,
@@ -47,6 +48,7 @@ export async function searchEverything(ownerId: string, input: string) {
     companyRows,
     personRows,
     materialRows,
+    invoiceRows,
     workflowRows,
     brainstormRows,
     activityRows,
@@ -117,6 +119,20 @@ export async function searchEverything(ownerId: string, input: string) {
           ),
         )
         .orderBy(desc(closeness(materials.name, q)), asc(sql`lower(${materials.name})`))
+        .limit(PER_KIND),
+      // By number only: a client's name already finds the client.
+      db
+        .select({
+          id: invoices.id,
+          number: invoices.number,
+          status: invoices.status,
+          client: sql<string>`coalesce(${organizations.name}, ${contacts.fullName})`,
+        })
+        .from(invoices)
+        .leftJoin(organizations, eq(organizations.id, invoices.organizationId))
+        .leftJoin(contacts, eq(contacts.id, invoices.contactId))
+        .where(and(eq(invoices.ownerId, ownerId), sql`${invoices.number} ilike ${contains(q)}`))
+        .orderBy(desc(invoices.issueDate), asc(invoices.id))
         .limit(PER_KIND),
       db
         .select({
@@ -199,6 +215,7 @@ export async function searchEverything(ownerId: string, input: string) {
     companies: companyRows,
     people: personRows,
     materials: materialRows,
+    invoices: invoiceRows,
     workflows: workflowRows,
     brainstorms: brainstormRows,
     activities: activityRows,

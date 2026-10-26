@@ -957,3 +957,23 @@
 - [2026-10-26] Step 10: trail check found no conflicts (one loose match on an older plan line about editing fields in place)
 - [2026-10-27] feat/journey-tests rebased onto main after #2 merged; its shorter QA steps section in CLAUDE.md dropped, since #2's fuller one replaces it
 - [2026-10-27] Saved a trail learning: main has no GitHub branch protection or ruleset yet, though CLAUDE.md says it is protected (.trail/learnings/2026-10-27-main-has-no-github-branch-protection-l.md)
+- [2026-10-27] Branch feat/invoices made from main for Phase 4 step 1 (invoices); the three earlier branches (chore/git-workflow, feat/journey-tests, docs/qa-steps) still wait for their pull requests, since gh is not signed in
+- [2026-10-27] Owner's choice: a company or person with invoices cannot be deleted; the delete is refused and they can be archived instead
+- [2026-10-27] Migration 0032 (additive): invoices, invoice_lines and invoice_adjustments (src/db/schema/money.ts); the client keys are no action, not restrict, so deleting an owner's account still takes everything
+- [2026-10-27] src/lib/money.ts recreated from the Engagements slice that was taken out, with toHundredths and lineAmount for quantities to two decimals; money.test.ts (34 tests)
+- [2026-10-27] src/modules/invoices: strict invoiceInput (client as kind:id, lines and adjustments as JSON, amounts read in the invoice's currency), service (create, update, issue, void, delete a draft, attach and remove the file, audited), queries (list, one invoice, a record's invoices, the file, services used)
+- [2026-10-27] dropUnusedFiles counts invoice files
+- [2026-10-27] deleteOrganization and deleteContact refuse a record its invoices bill and return a result instead of a boolean; their actions, tests and the bulk delete follow (the selection bar says how many it kept)
+- [2026-10-27] Merging two companies or two people moves the other record's invoices to the one kept
+- [2026-10-27] Record menu: a delete that would be refused shows why in place of the confirmation (remove.blocked)
+- [2026-10-27] Screens: /money/invoices (list), /money/invoices/new and /<id>/edit (form with lines, discounts, live total and the file), /money/invoices/<id> (lines, total, file, Edit, Mark as issued, Void, Delete); POST and GET /api/invoices/<id>/file
+- [2026-10-27] Money tab in a company's and a person's panel (tab=money), with New invoice for them
+- [2026-10-27] Money in the sidebar after Materials (Go to on a phone), New invoice in the palette, invoices found by number in Ctrl+K
+- [2026-10-27] src/modules/invoices/service.test.ts: 26 tests (input rules, number in any case, the owner's clients only, edits, status moves, files, delete refused, merges, list and sort)
+- [2026-10-27] e2e/23-invoices.spec.ts: an invoice from a company's Money tab with two lines, a discount and its PDF, a refused number, an edit, the list, Ctrl+K, the delete refusal, a void, and the pages on a phone; passes with 01 (16 of 16)
+- [2026-10-27] security.md: rules for invoices, money amounts, the invoice file routes and clients with invoices; the count of routes that change data outside server actions is nine
+- [2026-10-27] docs/PRD.md: Money in section 6, and the invoices and invoice_lines rows of section 8.8
+- [2026-10-27] plan.md: a Phase 4 section with its six steps, Step 1 ticked with its Not built list
+- [2026-10-27] src/modules/search/queries.test.ts: an invoice is found by its number with its client, and the empty result for another owner has an invoices group
+- [2026-10-27] Full Vitest: 844 of 846, then the search test fixed (15 of 15) and fields/custom.test.ts passing alone (34 of 34; its one failure was the slow test database)
+- [2026-10-27] Saved a trail learning: a company or person with invoices cannot be deleted, and the client keys are no action, not restrict (.trail/learnings/2026-10-26-a-company-or-person-with-invoices-l.md)

@@ -11,6 +11,9 @@ import { RELATIONSHIP_TYPES } from "@/modules/contacts/schema";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
 import { RecordWorkflows } from "@/app/(app)/workflows/record-workflows";
+import { invoicedBlock } from "@/app/(app)/money/invoices/labels";
+import { RecordInvoices } from "@/app/(app)/money/invoices/record-invoices";
+import { invoiceCount } from "@/modules/invoices/queries";
 import {
   deleteContactAction,
   removeContactPhotoAction,
@@ -27,17 +30,18 @@ import { FieldsLink } from "./fields-link";
 import { RecordActions } from "./record-actions";
 import { StatusMenu } from "./status-menu";
 
-type Tab = "activity" | "tasks" | "workflows" | undefined;
+type Tab = "activity" | "tasks" | "workflows" | "money" | undefined;
 
 const TABS = [
   { tab: undefined, label: "Overview" },
   { tab: "activity", label: "Activity" },
   { tab: "tasks", label: "Tasks" },
   { tab: "workflows", label: "Workflows" },
+  { tab: "money", label: "Money" },
 ] as const;
 
 // One person, shown in the panel over the people list or inside the panel of a company they are at.
-export function ContactPanel({
+export async function ContactPanel({
   ownerId,
   contact,
   inside,
@@ -62,6 +66,7 @@ export function ContactPanel({
   fieldsHref: string;
 }) {
   const filter = { contactId: contact.id };
+  const invoiced = await invoiceCount(ownerId, filter);
   const email = contact.emails.find((row) => row.isPrimary)?.email;
   // The company this view is about: the one it was opened in, else the person's first.
   const company =
@@ -140,6 +145,7 @@ export function ContactPanel({
             confirmLabel: "Delete contact",
             action: deleteContactAction,
             fields: { company: inside?.id ?? "" },
+            blocked: invoiced ? invoicedBlock(contact.fullName, invoiced) : undefined,
           }}
         />
       </header>
@@ -247,6 +253,8 @@ export function ContactPanel({
         {tab === "workflows" && (
           <RecordWorkflows ownerId={ownerId} subject={filter} />
         )}
+
+        {tab === "money" && <RecordInvoices ownerId={ownerId} client={filter} />}
       </div>
     </>
   );

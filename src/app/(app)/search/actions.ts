@@ -4,6 +4,7 @@ import { z } from "zod";
 import { companyHref, contactHref, labelFor } from "@/app/(app)/people/labels";
 import { requireOwner } from "@/lib/session";
 import { formatDate, formatDateTime } from "@/lib/time";
+import { INVOICE_STATUS_LABELS } from "@/modules/invoices/schema";
 import { MATERIAL_TYPE_LABELS } from "@/modules/materials/schema";
 import { searchEverything } from "@/modules/search/queries";
 import { getSettings } from "@/modules/settings/service";
@@ -19,6 +20,7 @@ export type SearchGroups = {
   companies: SearchHit[];
   people: SearchHit[];
   materials: SearchHit[];
+  invoices: SearchHit[];
   workflows: SearchHit[];
   brainstorms: SearchHit[];
   activities: SearchHit[];
@@ -56,6 +58,12 @@ export async function searchEverythingAction(
       label: row.name,
       hint: MATERIAL_TYPE_LABELS[row.type],
       href: `/materials/${row.id}`,
+    })),
+    invoices: found.invoices.map((row) => ({
+      id: row.id,
+      label: row.number,
+      hint: `${row.client} · ${INVOICE_STATUS_LABELS[row.status]}`,
+      href: `/money/invoices/${row.id}`,
     })),
     workflows: found.workflows.map((row) => {
       const on = row.company ?? row.person;
