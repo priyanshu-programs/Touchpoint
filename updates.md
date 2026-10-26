@@ -942,3 +942,4 @@
 - [2026-10-26] security.md: preview deployments rule (copy of real data behind Vercel Authentication, Preview's own secrets and DATABASE_URL, protected main, secret scanning), signed off with the plan
 - [2026-10-26] plan.md: a step's "deployed" now means merged into main through a pull request
 - [2026-10-27] Owner approved the Phase 4 outline (invoices, payments and allocations, revenue dashboard and filters, reports, data export, journeys 7 and 9) and Step 1 (invoices as records of ones made in Figma, the PDF attached; no tax; any currency with a rate on payment; proposal acceptance from proposal sends) (C:\Users\l\.claude\plans\get-started-with-the-dynamic-lampson.md)
+- [2026-10-27] Saved a trail learning: invoices are records of ones the owner designs in Figma, with the choices on tax, currency and proposal acceptance (.trail/learnings/2026-10-26-invoices-are-records-of-ones-the-l.md)
