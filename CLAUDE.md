@@ -43,6 +43,24 @@ append a one-line entry to `updates.md` in this exact format:
 
 Never batch multiple changes into one line — one line per distinct change.
 
+## Git workflow — nothing goes straight to `main`
+
+`main` is protected on GitHub: it takes only a squash-merged pull request whose CI
+`check` is green, and it deploys to production. See `CONTRIBUTING.md` for the full flow.
+
+1. Start from an up-to-date `main`: `git switch main && git pull`, then
+   `git switch -c <type>/<short-kebab>` where type is `feat`, `fix`, `chore` or `docs`.
+2. Commit on the branch. Run `trail check` before pushing, then `git push -u origin <branch>`.
+3. Open the PR with `gh pr create`, filling in `.github/pull_request_template.md`.
+4. Wait for CI and the Vercel preview. The owner clicks through the preview and merges,
+   or asks you to (`gh pr merge --squash --auto`). Never merge without being asked.
+5. After the merge: `git switch main && git pull`. The branch is deleted on GitHub by itself.
+
+A parallel session works in its own git worktree (`claude --worktree`, or EnterWorktree),
+never in the shared checkout, because switching branches there changes the files under
+every other window. If a PR conflicts on `updates.md`, run `git merge origin/main` on the
+branch (`.gitattributes` keeps both sides' lines) and push.
+
 ## General coding rules
 
 - No comments unless the WHY is non-obvious

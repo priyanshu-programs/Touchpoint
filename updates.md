@@ -927,3 +927,18 @@
 - [2026-10-26] Part 3: full e2e 126 of 126 passed (21 minutes, run alone)
 - [2026-10-26] Part 3: trail check found no conflicts (its 12 notes were loose matches, such as the removed-option learning's own wording quoted in updates.md)
 - [2026-10-26] Part 3 committed with the CLAUDE.md change and the two trail learnings of parts 1 and 2, which had been left uncommitted
+- [2026-10-26] Part 3 committed and pushed (d537813); it also carried opencode.json (an OpenCode config pointing at CLAUDE.md, no secrets), which appeared in the working tree during the session and went in with git add -A. CI and the Vercel deploy not yet confirmed: gh is not installed and the Vercel connection needs the team re-authorized
+- [2026-10-26] Git workflow plan agreed with the owner: local → PR preview (stands in for staging) → production; main takes only a squash-merged PR with green CI, no bypass; previews on their own Neon branch
+- [2026-10-26] GitHub CLI 2.103.2 installed with winget (C:\Program Files\GitHub CLI), so PRs and repo settings can be handled from the shell
+- [2026-10-26] Branch chore/git-workflow made for the workflow changes, the first to go through a pull request
+- [2026-10-26] src/lib/env.ts: in a Vercel preview APP_URL falls back to VERCEL_BRANCH_URL instead of the production domain, so sign-in and the Origin checks pass on the preview's own address; env.test.ts covers it (8 tests, passing)
+- [2026-10-26] .github/workflows/ci.yml: concurrency group per ref, so a new push to a PR cancels its stale run while every run on main finishes
+- [2026-10-26] .github/pull_request_template.md: what and why, how tested, migration, security.md impact, updates.md logged
+- [2026-10-26] .github/dependabot.yml: weekly npm PR with minor and patch updates grouped, monthly GitHub Actions PR
+- [2026-10-26] .gitattributes: updates.md merges with the union driver, so a local merge of main keeps both branches' lines
+- [2026-10-26] CLAUDE.md: Git workflow section (branch, trail check, push, gh pr create, owner merges, worktrees for parallel sessions)
+- [2026-10-26] CONTRIBUTING.md: the branch → PR → preview → squash merge flow and the three environments, for when the repo is open-sourced
+- [2026-10-26] docs/DEPLOYMENT.md: section 4 on previews (Neon integration for Preview only, Preview's own secrets, Deployment Protection kept on)
+- [2026-10-26] security.md: preview deployments rule (copy of real data behind Vercel Authentication, Preview's own secrets and DATABASE_URL, protected main, secret scanning), signed off with the plan
+- [2026-10-26] plan.md: a step's "deployed" now means merged into main through a pull request
+- [2026-10-27] Owner approved the Phase 4 outline (invoices, payments and allocations, revenue dashboard and filters, reports, data export, journeys 7 and 9) and Step 1 (invoices as records of ones made in Figma, the PDF attached; no tax; any currency with a rate on payment; proposal acceptance from proposal sends) (C:\Users\l\.claude\plans\get-started-with-the-dynamic-lampson.md)

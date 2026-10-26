@@ -1,0 +1,2 @@
+# Every branch appends to the end of the change log; keep both sides' lines when merging locally.
+updates.md merge=union
