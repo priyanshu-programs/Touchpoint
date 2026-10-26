@@ -862,3 +862,4 @@
 - [2026-10-26] plan.md: Step 9 slice 3 part 2 and slice 3 ticked with the Not built list; slice 4 (the rest of custom fields) is next, on the owner's word
 - [2026-10-26] Merging companies runs: lint and typecheck clean; Vitest 777 of 778 (the known clock-skew materials sort test only); e2e 01, 02, 07, 20 and 99 passed (29 tests)
 - [2026-10-26] Merging companies: full e2e 120 of 120 passed (18 minutes, run alone); trail check found no conflicts
+- [2026-10-26] Merging companies is live (329a9f7): CI green in 12 minutes with the whole unit and e2e suites, Vercel production deploy succeeded. Not looked at signed in on the live site
