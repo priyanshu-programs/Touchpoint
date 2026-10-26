@@ -69,6 +69,97 @@ test("a column is hidden from the Columns menu, and each list keeps its own choi
   expect(consoleErrors).toEqual([]);
 });
 
+const details = (page: Page) =>
+  panel(page).getByRole("region", { name: "Details" });
+
+async function newField(page: Page, name: string, kind: string) {
+  await details(page).getByRole("link", { name: "Fields" }).click();
+  await panel(page).getByRole("button", { name: "New field" }).click();
+  const dialog = page.getByRole("dialog", { name: "New field" });
+  await dialog.getByLabel("Name").fill(name);
+  await dialog.getByLabel("Kind").selectOption(kind);
+  await dialog.getByRole("button", { name: "Add field" }).click();
+  await expect(dialog).toHaveCount(0);
+}
+
+async function setValue(page: Page, field: string, value: string) {
+  await details(page).getByRole("button", { name: `Edit ${field}` }).click();
+  await details(page).getByLabel(field).fill(value);
+  await details(page).getByRole("button", { name: "Save" }).click();
+  await expect(
+    details(page).getByRole("button", { name: `Edit ${field}` }),
+  ).toContainText(value);
+}
+
+// The names in the list's first column, top to bottom.
+const listed = (page: Page) => page.locator("tbody tr td:nth-child(2) a").allInnerTexts();
+
+test("a custom field is turned on as a column, sorts the list and stays after a reload", async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+
+  await addCompany(page, "Ledger Point");
+  await newField(page, "Team size", "Number");
+  await panel(page).getByRole("link", { name: "Back to Ledger Point" }).click();
+  await setValue(page, "Team size", "40");
+  await page.goto("/people/organizations");
+  await page.getByRole("link", { name: "Acme Design", exact: true }).click();
+  await setValue(page, "Team size", "9");
+
+  await page.goto("/people/organizations");
+  // Off until it is turned on; turning it on adds one to the count.
+  await expect(head(page, "Team size")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Columns (6)" })).toBeVisible();
+  await showColumn(page, "Team size");
+  await expect(head(page, "Team size")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Columns (7)" })).toBeVisible();
+  await expect(row(page, "Ledger Point")).toContainText("40");
+
+  // Largest first when first chosen, as numbers, and companies without one last.
+  await head(page, "Team size").getByRole("link").click();
+  await expect(page).toHaveURL(/sort=custom\.team_size&dir=desc/);
+  await expect(head(page, "Team size")).toHaveAttribute("aria-sort", "descending");
+  let names = await listed(page);
+  expect(names.slice(0, 2)).toEqual(["Ledger Point", "Acme Design"]);
+
+  await head(page, "Team size").getByRole("link").click();
+  await expect(head(page, "Team size")).toHaveAttribute("aria-sort", "ascending");
+  names = await listed(page);
+  expect(names.slice(0, 2)).toEqual(["Acme Design", "Ledger Point"]);
+
+  await page.reload();
+  await expect(head(page, "Team size")).toBeVisible();
+  await expect(head(page, "Team size")).toHaveAttribute("aria-sort", "ascending");
+
+  // A sort naming a field the owner does not have orders by name.
+  await page.goto("/people/organizations?sort=custom.nothing_here&dir=desc");
+  await expect(head(page, "Company")).toHaveAttribute("aria-sort", "descending");
+
+  // The People list sorts by a custom field too, from its Sort menu.
+  await page.goto("/people/contacts");
+  await page.getByRole("link", { name: "Priya Sharma", exact: true }).click();
+  await newField(page, "Met at", "Text");
+  await panel(page).getByRole("link", { name: "Back to Priya Sharma" }).click();
+  await setValue(page, "Met at", "Design Week");
+  await page.goto("/people/contacts");
+  await expect(page.getByText(/^Showing 1–\d+ of \d+$/)).toBeVisible();
+  await showColumn(page, "Met at");
+  await expect(row(page, "Priya Sharma")).toContainText("Design Week");
+  await page.getByRole("button", { name: "Sort" }).click();
+  await page.getByRole("menuitem", { name: "Met at" }).click();
+  await expect(page).toHaveURL(/sort=custom\.met_at&dir=asc/);
+  expect((await listed(page))[0]).toBe("Priya Sharma");
+  // Whoever has no value stays last the other way round as well.
+  await head(page, "Met at").getByRole("link").click();
+  await expect(page).toHaveURL(/dir=desc/);
+  expect((await listed(page))[0]).toBe("Priya Sharma");
+  expect(consoleErrors).toEqual([]);
+});
+
 // A company and two people of this file's own, so nothing the earlier files made is touched.
 test("several people are archived, restored and deleted together", async ({
   page,

@@ -18,6 +18,7 @@ import {
   organizations,
 } from "@/db/schema";
 import { likePrefix, prefixTsQuery } from "@/lib/text-search";
+import { customSortBy, type CustomSort } from "@/modules/fields/sort";
 import { contactTagNames } from "@/modules/tags/queries";
 
 // Changes whenever the picture does, so its address can be cached for good.
@@ -50,11 +51,20 @@ export async function listContacts(
     tagId?: string;
     organizationId?: string;
     archived?: boolean;
-    after?: string;
+    // A custom field to sort by is one of the owner's, resolved by the page.
+    sort?: "name" | CustomSort;
+    dir?: "asc" | "desc";
+    offset?: number;
     limit?: number;
   } = {},
 ) {
   const limit = Math.min(options.limit ?? 50, 100);
+  const sort = options.sort ?? "name";
+  const sortBy =
+    sort === "name"
+      ? sql`lower(${contacts.fullName})`
+      : customSortBy(contacts.custom, sort);
+  const direction = options.dir === "desc" ? sql`desc` : sql`asc`;
   const q = options.q?.trim();
   const tsQuery = q ? prefixTsQuery(q) : "";
   const at = options.organizationId;
@@ -103,6 +113,7 @@ export async function listContacts(
         isPrimary: sql<boolean>`coalesce(${contactOrganizations.isPrimary}, false)`,
         companies,
         primaryEmail: contactEmails.email,
+        custom: contacts.custom,
         photoVersion,
       })
       .from(contacts)
@@ -114,19 +125,15 @@ export async function listContacts(
           eq(contactEmails.isPrimary, true),
         ),
       )
-      .where(
-        and(
-          matching,
-          options.after
-            ? sql`(lower(${contacts.fullName}), ${contacts.id}) > (
-                select lower(full_name), id from contacts
-                where id = ${options.after} and owner_id = ${ownerId}
-              )`
-            : undefined,
-        ),
+      .where(matching)
+      // People without a value sort last either way; the name and id keep pages stable.
+      .orderBy(
+        sql`${sortBy} ${direction} nulls last`,
+        sql`lower(${contacts.fullName})`,
+        asc(contacts.id),
       )
-      .orderBy(sql`lower(${contacts.fullName})`, asc(contacts.id))
-      .limit(limit + 1),
+      .limit(limit + 1)
+      .offset(options.offset ?? 0),
     // Everyone the filters match, on whichever page they fall.
     db
       .select({ total: count() })
@@ -135,12 +142,7 @@ export async function listContacts(
       .where(matching),
   ]);
 
-  const page = rows.slice(0, limit);
-  return {
-    rows: page,
-    nextAfter: rows.length > limit ? page[page.length - 1].id : null,
-    total,
-  };
+  return { rows: rows.slice(0, limit), hasMore: rows.length > limit, total };
 }
 
 export async function getContact(ownerId: string, id: string) {

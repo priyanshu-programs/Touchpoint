@@ -8,6 +8,7 @@ import {
   enrichmentRuns,
   fieldProvenance,
   organizationLogos,
+  organizations,
   organizationTags,
   tasks,
 } from "@/db/schema";
@@ -357,6 +358,54 @@ describe("organizations", () => {
       "Borealis Labs",
       "Acme Design",
       "Cobalt Works",
+    ]);
+  });
+
+  it("sorts by a custom field, companies without a value last, and finds one by its custom text", async () => {
+    const values: [string, Record<string, string | number>][] = [
+      ["Acme Design", { seats: 10, segment: "smb", renewal: "2026-03-01" }],
+      ["Borealis Labs", { seats: 9, segment: "Enterprise", renewal: "2027-01-15" }],
+      ["Cobalt Works", {}],
+    ];
+    for (const [name, custom] of values) {
+      const id = await create({ name });
+      await db.update(organizations).set({ custom }).where(eq(organizations.id, id));
+    }
+    const names = async (
+      key: string,
+      type: "number" | "select" | "date",
+      dir: "asc" | "desc",
+    ) =>
+      (await listOrganizations(ownerId, { sort: { key, type }, dir })).rows.map(
+        (row) => row.name,
+      );
+
+    // As numbers, not as text, where "10" would come before "9".
+    expect(await names("seats", "number", "asc")).toEqual([
+      "Borealis Labs",
+      "Acme Design",
+      "Cobalt Works",
+    ]);
+    expect(await names("seats", "number", "desc")).toEqual([
+      "Acme Design",
+      "Borealis Labs",
+      "Cobalt Works",
+    ]);
+    // Without regard to case: "Enterprise" comes before "smb".
+    expect(await names("segment", "select", "asc")).toEqual([
+      "Borealis Labs",
+      "Acme Design",
+      "Cobalt Works",
+    ]);
+    expect(await names("renewal", "date", "desc")).toEqual([
+      "Borealis Labs",
+      "Acme Design",
+      "Cobalt Works",
+    ]);
+
+    const found = await listOrganizations(ownerId, { q: "enterp" });
+    expect(found.rows).toMatchObject([
+      { name: "Borealis Labs", custom: { segment: "Enterprise" } },
     ]);
   });
 

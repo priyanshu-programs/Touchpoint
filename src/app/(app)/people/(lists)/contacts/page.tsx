@@ -15,13 +15,23 @@ import {
 } from "@/components/ui/table";
 import { requireOwner } from "@/lib/session";
 import { getContact, listContacts } from "@/modules/contacts/queries";
+import { formatCustomValue } from "@/modules/fields/format";
+import { getLayout, listCustomFields } from "@/modules/fields/queries";
+import { customKey } from "@/modules/fields/schema";
+import { customFirstDirection, customSortOf } from "@/modules/fields/sort";
 import { listTags } from "@/modules/tags/queries";
 import {
   archiveContactsAction,
   deleteContactsAction,
 } from "../../contacts/actions";
 import { companyHref, labelFor } from "../../labels";
-import { COLUMN_COOKIES, CONTACT_COLUMNS, hiddenColumns } from "../columns";
+import {
+  COLUMN_COOKIES,
+  CONTACT_COLUMNS,
+  CUSTOM_COLUMN_COOKIES,
+  customColumns,
+  hiddenColumns,
+} from "../columns";
 import { ContactPanel } from "../contact-panel";
 import { EntryPanel, entryKey, entryTab, findEntry } from "../entry-panel";
 import { FieldsPanel } from "../fields-panel";
@@ -29,17 +39,19 @@ import { ListCard, ListFooter } from "../list-card";
 import {
   contactListParams,
   contactsHref,
-  NextPageLink,
+  type ContactListParams,
 } from "../list-controls";
 import { ListHeader } from "../list-header";
 import { ListToolbar } from "../list-toolbar";
 import { MergePanel } from "../merge-panel";
 import { RecordSheet } from "../record-sheet";
 import { RowCheckbox, SelectAll, Selection } from "../selection";
+import { SortHead } from "../sort-head";
 
 export const metadata: Metadata = { title: "Contacts" };
 
 const PATH = "/people/contacts";
+const PAGE_SIZE = 50;
 const NO_ENTRY = {
   activity: undefined,
   task: undefined,
@@ -54,30 +66,59 @@ const NO_PANEL = {
   fields: undefined,
 };
 // A change to what the list shows starts again from its first page, with no record open.
-const FIRST_PAGE = { ...NO_PANEL, after: undefined };
+const FIRST_PAGE = { ...NO_PANEL, page: undefined };
+
+// Where a column is in the order now, and the address that sorts by it: the other
+// direction when it already leads, its own first direction otherwise. `params.sort`
+// is already one the page resolved.
+function sorting(
+  params: ContactListParams,
+  sort: string,
+  first: "asc" | "desc",
+) {
+  const current = (params.sort ?? "name") === sort;
+  const dir = params.dir ?? first;
+  const next = current ? (dir === "asc" ? "desc" : "asc") : first;
+  return {
+    current: current ? dir : null,
+    href: contactsHref(params, { ...FIRST_PAGE, sort, dir: next }),
+  };
+}
 
 export default async function ContactsPage({
   searchParams,
 }: PageProps<"/people/contacts">) {
   const owner = await requireOwner();
   const typed = contactListParams.parse(await searchParams);
-  const entry = typed.contact ? await findEntry(owner.id, typed) : null;
-  // An entry that is not the owner's opens nothing.
+  const [entry, fields, layout, jar] = await Promise.all([
+    typed.contact ? findEntry(owner.id, typed) : null,
+    listCustomFields(owner.id, "contact"),
+    getLayout(owner.id, "contact"),
+    cookies(),
+  ]);
+  const customSort = customSortOf(typed.sort, fields);
+  // A custom field the owner does not have, or no longer has, orders nothing, and an
+  // entry that is not theirs opens nothing.
   const params = {
     ...typed,
+    sort: customSort ? typed.sort : undefined,
     activity: entry?.kind === "activity" ? typed.activity : undefined,
     task: entry?.kind === "task" ? typed.task : undefined,
   };
-  const [page, tags, open, jar] = await Promise.all([
+  const pageNumber = params.page ?? 1;
+  const [page, tags, open] = await Promise.all([
     listContacts(owner.id, {
       q: params.q,
       tagId: params.tag,
       archived: params.archived === "1",
-      after: params.after,
+      sort: customSort ?? "name",
+      dir:
+        params.dir ?? (customSort ? customFirstDirection(customSort.type) : "asc"),
+      limit: PAGE_SIZE,
+      offset: (pageNumber - 1) * PAGE_SIZE,
     }),
     listTags(owner.id),
     params.contact ? getContact(owner.id, params.contact) : null,
-    cookies(),
   ]);
   const hidden = hiddenColumns(
     jar.get(COLUMN_COOKIES.contacts)?.value,
@@ -85,6 +126,16 @@ export default async function ContactsPage({
   );
   const shows = (column: (typeof CONTACT_COLUMNS)[number]["key"]) =>
     !hidden.includes(column);
+  const custom = customColumns(
+    jar.get(CUSTOM_COLUMN_COOKIES.contacts)?.value,
+    fields,
+    layout,
+  );
+  const customSorting = (field: (typeof fields)[number]) => ({
+    label: field.label,
+    ...sorting(params, customKey(field.key), customFirstDirection(field.type)),
+  });
+  const nameSorting = { label: "Name", ...sorting(params, "name", "asc") };
   const filtered = Boolean(params.q || params.tag || params.archived);
 
   return (
@@ -108,7 +159,12 @@ export default async function ContactsPage({
             placeholder: "Search people by name or email…",
             value: params.q,
           }}
-          keep={{ tag: params.tag, archived: params.archived }}
+          keep={{
+            tag: params.tag,
+            archived: params.archived,
+            sort: params.sort,
+            dir: params.dir,
+          }}
           filters={
             tags.length > 0
               ? [
@@ -137,10 +193,16 @@ export default async function ContactsPage({
                 ]
               : []
           }
+          sorts={[nameSorting, ...custom.options.map(customSorting)]}
           columns={{
             cookie: COLUMN_COOKIES.contacts,
             options: CONTACT_COLUMNS,
             hidden,
+            custom: {
+              cookie: CUSTOM_COLUMN_COOKIES.contacts,
+              options: custom.options.map(({ key, label }) => ({ key, label })),
+              shown: custom.shown.map(({ key }) => key),
+            },
           }}
           archived={{
             on: params.archived === "1",
@@ -173,7 +235,7 @@ export default async function ContactsPage({
                     <TableHead className="w-10 p-0!">
                       <SelectAll />
                     </TableHead>
-                    <TableHead>Name</TableHead>
+                    <SortHead {...nameSorting} />
                     {shows("company") && (
                       <TableHead className="hidden sm:table-cell">
                         Company
@@ -187,6 +249,13 @@ export default async function ContactsPage({
                         Relationship
                       </TableHead>
                     )}
+                    {custom.shown.map((field) => (
+                      <SortHead
+                        key={field.key}
+                        {...customSorting(field)}
+                        className="hidden md:table-cell"
+                      />
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -254,6 +323,12 @@ export default async function ContactsPage({
                             {labelFor(row.relationshipType)}
                           </TableCell>
                         )}
+                        {custom.shown.map((field) => (
+                          <TableCell key={field.key} className="hidden md:table-cell">
+                            {formatCustomValue(field.type, row.custom[field.key]) ??
+                              "—"}
+                          </TableCell>
+                        ))}
                       </ClickableRow>
                     );
                   })}
@@ -261,12 +336,36 @@ export default async function ContactsPage({
               </Table>
             </ListCard>
             <ListFooter
-              // A later page starts at a cursor, which does not say how many came before it.
-              first={params.after ? undefined : 1}
+              first={(pageNumber - 1) * PAGE_SIZE + 1}
               shown={page.rows.length}
               total={page.total}
             >
-              <NextPageLink path={PATH} params={params} after={page.nextAfter} />
+              {(pageNumber > 1 || page.hasMore) && (
+                <nav aria-label="Pages" className="flex gap-4">
+                  {pageNumber > 1 && (
+                    <Link
+                      href={contactsHref(params, {
+                        ...NO_PANEL,
+                        page: pageNumber === 2 ? undefined : pageNumber - 1,
+                      })}
+                      className="underline"
+                    >
+                      Previous page
+                    </Link>
+                  )}
+                  {page.hasMore && (
+                    <Link
+                      href={contactsHref(params, {
+                        ...NO_PANEL,
+                        page: pageNumber + 1,
+                      })}
+                      className="underline"
+                    >
+                      Next page
+                    </Link>
+                  )}
+                </nav>
+              )}
             </ListFooter>
           </Selection>
         )}

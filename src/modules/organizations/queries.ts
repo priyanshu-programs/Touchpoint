@@ -12,6 +12,7 @@ import {
 import { db, type Executor } from "@/db/client";
 import { activities, organizations } from "@/db/schema";
 import { likePrefix, prefixTsQuery } from "@/lib/text-search";
+import { customSortBy, type CustomSort } from "@/modules/fields/sort";
 import { organizationTagNames } from "@/modules/tags/queries";
 
 export const countOrganizations = (ownerId: string) =>
@@ -61,7 +62,8 @@ export async function listOrganizations(
     tagId?: string;
     status?: string;
     archived?: boolean;
-    sort?: (typeof ORGANIZATION_SORTS)[number];
+    // A custom field to sort by is one of the owner's, resolved by the page.
+    sort?: (typeof ORGANIZATION_SORTS)[number] | CustomSort;
     dir?: "asc" | "desc";
     offset?: number;
     limit?: number;
@@ -70,7 +72,9 @@ export async function listOrganizations(
   const limit = Math.min(options.limit ?? 50, 100);
   const q = options.q?.trim().toLowerCase();
   const tsQuery = q ? prefixTsQuery(q) : "";
-  const sort =options.sort ?? "name";
+  const sort = options.sort ?? "name";
+  const sortBy =
+    typeof sort === "string" ? SORT_BY[sort] : customSortBy(organizations.custom, sort);
   const direction = options.dir === "desc" ? sql`desc` : sql`asc`;
   const matching = and(
     eq(organizations.ownerId, ownerId),
@@ -106,6 +110,7 @@ export async function listOrganizations(
         status: organizations.status,
         city: organizations.city,
         country: organizations.country,
+        custom: organizations.custom,
         contactCount,
         lastActivityAt,
         logoVersion,
@@ -114,7 +119,7 @@ export async function listOrganizations(
       .where(matching)
       // Companies without a value sort last either way; the name and id keep pages stable.
       .orderBy(
-        sql`${SORT_BY[sort]} ${direction} nulls last`,
+        sql`${sortBy} ${direction} nulls last`,
         sql`lower(${organizations.name})`,
         asc(organizations.id),
       )

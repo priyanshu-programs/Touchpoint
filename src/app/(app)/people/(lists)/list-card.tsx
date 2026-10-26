@@ -17,8 +17,7 @@ export function ListFooter({
   total,
   children,
 }: {
-  // Where this page starts; left out when the list cannot say (it pages by a cursor).
-  first?: number;
+  first: number;
   shown: number;
   total: number;
   children?: ReactNode;
@@ -26,7 +25,7 @@ export function ListFooter({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
       <p>
-        Showing {first ? `${first}–${first + shown - 1}` : shown} of {total}
+        Showing {first}–{first + shown - 1} of {total}
       </p>
       {children}
     </div>

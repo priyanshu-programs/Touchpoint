@@ -67,6 +67,51 @@ test("an activity is found by a word in its notes", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Search probe" })).toBeVisible();
 });
 
+test("a company and a person are found by a custom value, in Ctrl+K and in their lists", async ({
+  page,
+}) => {
+  const panel = page.getByRole("dialog");
+  const details = panel.getByRole("region", { name: "Details" });
+  async function giveValue(link: string, value: string) {
+    await page.getByRole("link", { name: link, exact: true }).click();
+    await details.getByRole("link", { name: "Fields" }).click();
+    await panel.getByRole("button", { name: "New field" }).click();
+    const dialog = page.getByRole("dialog", { name: "New field" });
+    await dialog.getByLabel("Name").fill("Search note");
+    await dialog.getByRole("button", { name: "Add field" }).click();
+    await expect(dialog).toHaveCount(0);
+    await panel.getByRole("link", { name: `Back to ${link}` }).click();
+    await details.getByRole("button", { name: "Edit Search note" }).click();
+    await details.getByLabel("Search note").fill(value);
+    await details.getByRole("button", { name: "Save" }).click();
+    await expect(details.getByRole("button", { name: "Edit Search note" })).toHaveText(
+      value,
+    );
+  }
+  await page.goto("/people/organizations");
+  await giveValue("Acme Design", "Quokka orchard");
+  await page.goto("/people/contacts");
+  await giveValue("Priya Sharma", "Marmalade fair");
+
+  await openPalette(page);
+  await searchBox(page).fill("quokka");
+  await expect(
+    group(page, "Companies").getByRole("option", { name: /^Acme Design/ }),
+  ).toBeVisible();
+  await searchBox(page).fill("marmal");
+  await expect(
+    group(page, "People").getByRole("option", { name: /^Priya Sharma/ }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.goto("/people/organizations?q=orchard");
+  await expect(page.getByRole("link", { name: "Acme Design", exact: true })).toBeVisible();
+  await expect(page.getByText("Showing 1–1 of 1")).toBeVisible();
+  await page.goto("/people/contacts?q=marmalade");
+  await expect(page.getByRole("link", { name: "Priya Sharma", exact: true })).toBeVisible();
+  await expect(page.getByText("Showing 1–1 of 1")).toBeVisible();
+});
+
 test("screens still filter, and nothing found says so", async ({ page }) => {
   await openPalette(page);
   await searchBox(page).fill("work");

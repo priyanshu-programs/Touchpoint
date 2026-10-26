@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import {
@@ -109,6 +110,26 @@ describe("searchEverything", () => {
     expect(names((await searchEverything(ownerId, "Northwnd"))!.companies)).toEqual([
       "Northwind Traders",
     ]);
+  });
+
+  it("finds a company or a person by a custom text or dropdown value, but not by a number", async () => {
+    await db
+      .update(organizations)
+      .set({ custom: { segment: "Enterprise", territory: "Western Ghats", seats: 4200 } })
+      .where(eq(organizations.id, acme));
+    await db
+      .update(contacts)
+      .set({ custom: { lead_source: "Conference" } })
+      .where(eq(contacts.id, priya));
+
+    for (const q of ["enterpr", "ghats"]) {
+      expect(names((await searchEverything(ownerId, q))!.companies)).toEqual(["Acme Design"]);
+    }
+    expect(names((await searchEverything(ownerId, "4200"))!.companies)).toEqual([]);
+    expect(names((await searchEverything(ownerId, "confer"))!.people)).toEqual(["Priya Sharma"]);
+
+    const other = await createTestOwner("other@example.com");
+    expect((await searchEverything(other, "enterprise"))!.companies).toEqual([]);
   });
 
   it("leaves archived companies and people out", async () => {
