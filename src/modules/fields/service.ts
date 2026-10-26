@@ -8,8 +8,11 @@ import {
 } from "@/db/schema";
 import { keyFor } from "@/lib/key";
 import { audit } from "@/modules/audit/service";
+import { lockContact } from "@/modules/contacts/service";
+import { lockOrganization } from "@/modules/organizations/service";
 import {
   customKey,
+  customValuesInput,
   isCustomKey,
   MAX_CUSTOM_FIELDS,
   MAX_OPTIONS,
@@ -218,6 +221,69 @@ export async function removeCustomFieldOption(
       after: { ...snapshot(row), removed: option, cleared: cleared.length },
     });
     return { ok: true, cleared: cleared.length };
+  });
+}
+
+export type CustomValueResult =
+  | { ok: true }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "invalid"; message: string };
+
+// One field of one record, as Details edits it in place. Only that key is written,
+// so a value set at the same moment in another field is kept.
+export async function setCustomValue(
+  ownerId: string,
+  entityType: EntityType,
+  id: string,
+  key: string,
+  raw: string,
+): Promise<CustomValueResult> {
+  return db.transaction(async (tx) => {
+    const [field] = await tx
+      .select()
+      .from(customFieldDefs)
+      .where(
+        and(
+          eq(customFieldDefs.ownerId, ownerId),
+          eq(customFieldDefs.entityType, entityType),
+          eq(customFieldDefs.key, key),
+        ),
+      );
+    if (!field) return { ok: false, reason: "not_found" };
+    const record =
+      entityType === "organization"
+        ? await lockOrganization(tx, ownerId, id)
+        : await lockContact(tx, ownerId, id);
+    if (!record) return { ok: false, reason: "not_found" };
+
+    const parsed = customValuesInput([field]).safeParse({ [key]: raw });
+    if (!parsed.success) {
+      return { ok: false, reason: "invalid", message: parsed.error.issues[0].message };
+    }
+    const before = record.custom[key] ?? null;
+    const after = parsed.data[key] ?? null;
+    if (before === after) return { ok: true };
+
+    const records = entityType === "organization" ? organizations : contacts;
+    await tx
+      .update(records)
+      .set({
+        custom:
+          after === null
+            ? sql`${records.custom} - ${key}::text`
+            : sql`${records.custom} || jsonb_build_object(${key}::text, ${JSON.stringify(after)}::jsonb)`,
+      })
+      .where(and(eq(records.ownerId, ownerId), eq(records.id, id)));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: `${entityType}.update`,
+      entityType,
+      entityId: id,
+      before: { custom: { [key]: before } },
+      after: { custom: { [key]: after } },
+    });
+    return { ok: true };
   });
 }
 

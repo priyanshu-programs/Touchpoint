@@ -40,7 +40,10 @@ export async function ContactDetails({
     <DetailRows
       columns={2}
       rows={arrangeRows<StandardKey<"contact"> | `custom.${string}`>(layout, {
-        ...customDetailRows(customFields, contact.custom),
+        ...customDetailRows(customFields, contact.custom, {
+          entityType: "contact",
+          id: contact.id,
+        }),
         firstName: { value: contact.firstName },
         lastName: { value: contact.lastName },
         jobTitle: { value: contact.jobTitle },

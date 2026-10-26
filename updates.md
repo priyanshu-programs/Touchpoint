@@ -880,3 +880,21 @@
 - [2026-10-26] Part 1 runs: lint and typecheck clean; Vitest 780 of 781 (the known clock-skew materials sort test only)
 - [2026-10-26] Part 1: full e2e 121 of 121 passed (19 minutes, run alone)
 - [2026-10-26] Part 1: trail check found no conflicts (its eleven notes were the new learning's own ruled-out options, which this change does not do)
+- [2026-10-26] Part 1 committed and pushed (bc24f44, authored as on earlier commits since this shell has no git identity); the push also carried 86d26ad, the trail learning commit that was on main but not yet pushed. CI and the Vercel deploy not yet confirmed: gh is not installed and the Vercel connection needs the team re-authorized
+- [2026-10-26] Registered trail's MCP server as user-scope `trail-code` (cmd /c trail mcp) in ~/.claude.json, so Claude Code shows the named trail_find_code / find_all / repo_map tools again: trail 0.23+ dropped its Claude Code MCP server by design, and `trail init` deletes a user-scope server named `trail`
+- [2026-10-26] CLAUDE.md: use the mcp__trail-code__ tools when listed, with the trail CLI as fallback
+- [2026-10-26] Owner approved Step 9 slice 4 part 2 (custom fields edited in place in Details) as planned (C:\Users\l\.claude\plans\aight-start-witht-he-eager-mccarthy.md)
+- [2026-10-26] src/modules/fields/service.ts: setCustomValue finds the field by owner, kind and key, locks the record, checks the value with customValuesInput, writes only that key (or removes it when blank), skips an unchanged value and audits a change as the record's update
+- [2026-10-26] src/app/(app)/people/fields/actions.ts: setCustomValueAction (the kind from the fixed list, the record as a uuid, the key 1 to 60 characters, only the form's value read)
+- [2026-10-26] Added src/app/(app)/people/fields/inline-value.tsx: a custom value in Details is a button that turns into its kind's input with Save and Cancel, Enter and Escape, focus back on the value after
+- [2026-10-26] custom-values.ts renamed to custom-values.tsx: customDetailRows takes the record and gives each custom field the in-place editor; the company panel and a person's Details pass it
+- [2026-10-26] record-sheet.tsx: the record's panel ignores an Escape that comes from inside an in-place editor, so Escape cancels the edit and leaves the panel open
+- [2026-10-26] Tests: custom.test.ts gains setting a value in place (each kind, a number kept as a number, other keys kept, a blank clearing, an unchanged value not audited, the audit row) and its refusals (a value its field does not take, an unknown key, the other kind's field or record, another owner's record); new e2e/21-custom-fields edits a text, a dropdown, a number and a date in place, Escape and Cancel, after a reload and on a phone
+- [2026-10-26] e2e/09: the Edit form's custom fields are found by their exact label, since Details' "Edit <field>" buttons could match first while the Edit page was still loading
+- [2026-10-26] Looked at the in-place editor in screenshots from a throwaway spec (light, dark, phone): Save beside the input and Cancel wrapped under it on a phone, so the buttons now sit on their own line under the input at every width; the spec was deleted
+- [2026-10-26] security.md: the rule for setting a custom value in place
+- [2026-10-26] docs/PRD.md: custom values edited in place in Details, in section 6
+- [2026-10-26] plan.md: Step 9 slice 4 part 2 ticked with its Not built list; part 3 (columns with sort, and search) is next, on the owner's word
+- [2026-10-26] Saved a trail learning: inside a record's panel, Base UI's dialog takes focus back and closes on Escape, so the in-place editor uses a layout effect and the sheet's onOpenChange (.trail/learnings/2026-10-26-inside-a-record-s-panel-base-l.md)
+- [2026-10-26] Part 2 runs: lint and typecheck clean; Vitest 782 of 783 (the known clock-skew materials sort test only); e2e 01, 02, 09, 21 and 99 passed (27 tests)
+- [2026-10-26] Part 2: full e2e 114 passed with 3 timing failures in specs this change does not touch (09 Fieldwork Co's panel, 13 a whiteboard's canvas, 16 a material's page, each a 5-second wait under a loading page); rerun, 01, 02, 09, 13, 15, 16 and 99 passed 52 of 52 both with and without this change

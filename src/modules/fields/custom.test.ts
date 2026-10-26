@@ -26,6 +26,7 @@ import {
   deleteCustomField,
   removeCustomFieldOption,
   saveLayout,
+  setCustomValue,
   updateCustomField,
 } from "./service";
 import { STANDARD_FIELDS } from "./standard";
@@ -577,5 +578,126 @@ describe("custom fields", () => {
     expect((await getOrganization(otherId, organization.id))!.custom).toEqual({
       tier: "Gold",
     });
+    expect(
+      await setCustomValue(ownerId, "organization", organization.id, "tier", ""),
+    ).toEqual({ ok: false, reason: "not_found" });
+    // Not even through a field of the same key that is the owner's own.
+    await created(createCustomField(ownerId, "organization", select("Tier", ["Gold"])));
+    expect(
+      await setCustomValue(ownerId, "organization", organization.id, "tier", ""),
+    ).toEqual({ ok: false, reason: "not_found" });
+    expect((await getOrganization(otherId, organization.id))!.custom).toEqual({
+      tier: "Gold",
+    });
+  });
+
+  it("sets one value in place, in its field's own kind, leaving the others", async () => {
+    await created(createCustomField(ownerId, "organization", text("Notes")));
+    await created(createCustomField(ownerId, "organization", select("Tier", ["Gold", "Silver"])));
+    await created(
+      createCustomField(
+        ownerId,
+        "organization",
+        customFieldInput.parse({ label: "Score", type: "number", options: [] }),
+      ),
+    );
+    await created(
+      createCustomField(
+        ownerId,
+        "contact",
+        customFieldInput.parse({ label: "Met on", type: "date", options: [] }),
+      ),
+    );
+    const organization = await createOrganization(ownerId, company, {
+      custom: { notes: "Keep" },
+    });
+    const contact = await createContact(
+      ownerId,
+      newContactInput.parse({ ...person, organizationId: "", email: "" }),
+    );
+    if (!organization.ok || !contact.ok) throw new Error("not created");
+
+    expect(
+      await setCustomValue(ownerId, "organization", organization.id, "tier", "Gold"),
+    ).toEqual({ ok: true });
+    expect(
+      await setCustomValue(ownerId, "organization", organization.id, "score", " 7.5 "),
+    ).toEqual({ ok: true });
+    expect(
+      await setCustomValue(ownerId, "contact", contact.id, "met_on", "2026-10-20"),
+    ).toEqual({ ok: true });
+    expect((await getOrganization(ownerId, organization.id))!.custom).toEqual({
+      notes: "Keep",
+      tier: "Gold",
+      score: 7.5,
+    });
+    expect((await getContact(ownerId, contact.id))!.custom).toEqual({
+      met_on: "2026-10-20",
+    });
+    expect((await listAudit(ownerId)).rows[1]).toMatchObject({
+      action: "organization.update",
+      entityType: "organization",
+      entityId: organization.id,
+      before: { custom: { score: null } },
+      after: { custom: { score: 7.5 } },
+    });
+    expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+      action: "contact.update",
+      entityType: "contact",
+      after: { custom: { met_on: "2026-10-20" } },
+    });
+
+    // A blank clears the value; the same value again writes nothing.
+    const audited = (await listAudit(ownerId)).rows.length;
+    await setCustomValue(ownerId, "organization", organization.id, "tier", "");
+    await setCustomValue(ownerId, "organization", organization.id, "score", "7.5");
+    expect((await getOrganization(ownerId, organization.id))!.custom).toEqual({
+      notes: "Keep",
+      score: 7.5,
+    });
+    expect((await listAudit(ownerId)).rows).toHaveLength(audited + 1);
+    expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+      before: { custom: { tier: "Gold" } },
+      after: { custom: { tier: null } },
+    });
+  });
+
+  it("refuses a value its field does not take, and a field or record it does not know", async () => {
+    await created(createCustomField(ownerId, "organization", select("Tier", ["Gold"])));
+    await created(
+      createCustomField(
+        ownerId,
+        "organization",
+        customFieldInput.parse({ label: "Score", type: "number", options: [] }),
+      ),
+    );
+    const organization = await createOrganization(ownerId, company);
+    const contact = await createContact(
+      ownerId,
+      newContactInput.parse({ ...person, organizationId: "", email: "" }),
+    );
+    if (!organization.ok || !contact.ok) throw new Error("not created");
+
+    expect(
+      await setCustomValue(ownerId, "organization", organization.id, "tier", "Bronze"),
+    ).toEqual({
+      ok: false,
+      reason: "invalid",
+      message: "Choose one of the options for Tier",
+    });
+    expect(
+      await setCustomValue(ownerId, "organization", organization.id, "score", "lots"),
+    ).toEqual({ ok: false, reason: "invalid", message: "Score takes a number" });
+    expect(
+      await setCustomValue(ownerId, "organization", organization.id, "missing", "x"),
+    ).toEqual({ ok: false, reason: "not_found" });
+    // A company's field is not a person's, and a person's id is not a company's.
+    expect(
+      await setCustomValue(ownerId, "contact", contact.id, "tier", "Gold"),
+    ).toEqual({ ok: false, reason: "not_found" });
+    expect(
+      await setCustomValue(ownerId, "organization", contact.id, "tier", "Gold"),
+    ).toEqual({ ok: false, reason: "not_found" });
+    expect((await getOrganization(ownerId, organization.id))!.custom).toEqual({});
   });
 });
