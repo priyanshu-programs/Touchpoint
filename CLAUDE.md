@@ -61,6 +61,31 @@ never in the shared checkout, because switching branches there changes the files
 every other window. If a PR conflicts on `updates.md`, run `git merge origin/main` on the
 branch (`.gitattributes` keeps both sides' lines) and push.
 
+## QA steps — after every feature
+
+The owner tests every feature by hand. When a feature or fix is shipped (PR open and the
+preview is up, or merged), end the reply with a **"Try it yourself"** section the owner can
+follow without reading any code:
+
+1. **Where** — the link to open (the PR's Vercel preview, or `corepack pnpm dev` →
+   http://localhost:3000) and the page to start on.
+2. **Steps** — numbered, one action each: what to click, and what to type, with a real
+   example value in quotes (e.g. type "Maple Studio" in Name, "hello@maple.test" in Email).
+   Use made-up names, never real client data.
+3. **What you should see** — after each step that changes something, the result in plain
+   words ("Maple Studio appears at the top of the list").
+4. **End to end** — follow the data all the way: create it, then find it where else it shows
+   up (list, search, the record's tabs, Today), refresh the page to check it was saved, then
+   edit or delete it.
+5. **Should be refused** — at least one wrong input and the exact message the app shows
+   (e.g. add "hello@maple.test" again → the duplicate-email message, quoted word for word).
+6. **On a phone** — if the feature has a phone layout, repeat the key steps at phone width
+   (browser dev tools, or narrow the window).
+7. **Clean up** — how to remove the test data, if it should go.
+
+No jargon, file paths or code in these steps. Keep it short: what someone needs to try it,
+nothing more.
+
 ## General coding rules
 
 - No comments unless the WHY is non-obvious
