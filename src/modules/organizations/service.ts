@@ -70,7 +70,7 @@ export async function domainOwner(
 export async function createOrganization(
   ownerId: string,
   input: OrganizationInput,
-  options: { confirmSimilar?: boolean } = {},
+  options: { confirmSimilar?: boolean; custom?: CustomValues } = {},
 ): Promise<OrganizationResult> {
   return db.transaction(async (tx) => {
     if (!(await statusOnOffer(tx, ownerId, input.status))) {
@@ -86,20 +86,25 @@ export async function createOrganization(
         return { ok: false, reason: "similar", candidates };
       }
     }
-    return { ok: true, id: await insertOrganization(tx, ownerId, input) };
+    return {
+      ok: true,
+      id: await insertOrganization(tx, ownerId, input, options.custom),
+    };
   });
 }
 
-// The caller has checked the status, the domain and similar names.
+// The caller has checked the status, the domain and similar names, and `custom`
+// against the owner's fields.
 export async function insertOrganization(
   tx: Tx,
   ownerId: string,
   input: OrganizationInput,
+  custom: CustomValues = {},
 ) {
   const { tags, ...fields } = input;
   const [row] = await tx
     .insert(organizations)
-    .values({ ownerId, ...fields })
+    .values({ ownerId, ...fields, custom })
     .returning();
   await setOrganizationTags(tx, ownerId, row.id, tags);
   await audit(tx, {

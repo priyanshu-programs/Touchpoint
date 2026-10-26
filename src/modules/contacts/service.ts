@@ -127,7 +127,7 @@ export async function lockContact(tx: Tx, ownerId: string, id: string) {
 export async function createContact(
   ownerId: string,
   input: NewContactInput,
-  options: { confirmSimilar?: boolean } = {},
+  options: { confirmSimilar?: boolean; custom?: CustomValues } = {},
 ): Promise<ContactResult> {
   return db.transaction(async (tx) => {
     const { email, organizationId, firstName, lastName } = input;
@@ -153,20 +153,25 @@ export async function createContact(
         return { ok: false, reason: "similar", candidates };
       }
     }
-    return { ok: true, id: await insertContact(tx, ownerId, input) };
+    return {
+      ok: true,
+      id: await insertContact(tx, ownerId, input, options.custom),
+    };
   });
 }
 
-// The caller has checked the company, the email and similar names.
+// The caller has checked the company, the email and similar names, and `custom`
+// against the owner's fields.
 export async function insertContact(
   tx: Tx,
   ownerId: string,
   input: NewContactInput,
+  custom: CustomValues = {},
 ) {
   const { email, tags, organizationId, ...fields } = input;
   const [row] = await tx
     .insert(contacts)
-    .values({ ownerId, ...fields })
+    .values({ ownerId, ...fields, custom })
     .returning();
   if (organizationId) await insertLink(tx, ownerId, row, organizationId);
   if (email) {

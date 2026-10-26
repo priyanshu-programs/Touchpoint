@@ -2,7 +2,11 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { getLayout, listCustomFields } from "@/modules/fields/queries";
+import {
+  getLayout,
+  listCustomFields,
+  optionUse,
+} from "@/modules/fields/queries";
 import { customKey, isCustomKey } from "@/modules/fields/schema";
 import { SUGGESTED_FIELDS } from "@/modules/fields/suggested";
 import { saveFieldLayoutAction } from "../fields/actions";
@@ -18,8 +22,15 @@ const TABS = [
     label: "Companies",
     entityType: "organization",
     record: "company",
+    records: "companies",
   },
-  { tab: "contacts", label: "Contacts", entityType: "contact", record: "contact" },
+  {
+    tab: "contacts",
+    label: "Contacts",
+    entityType: "contact",
+    record: "contact",
+    records: "contacts",
+  },
 ] as const;
 
 const KINDS = { text: "Text", number: "Number", date: "Date" };
@@ -44,9 +55,10 @@ export async function FieldsPanel({
   hrefFor: (tab: FieldsTab) => string;
 }) {
   const current = TABS.find((item) => item.tab === tab)!;
-  const [layout, defs] = await Promise.all([
+  const [layout, defs, use] = await Promise.all([
     getLayout(ownerId, current.entityType),
     listCustomFields(ownerId, current.entityType),
+    optionUse(ownerId, current.entityType),
   ]);
   const saveAction = saveFieldLayoutAction.bind(null, current.entityType);
   const standard = layout.filter(({ key }) => !isCustomKey(key));
@@ -60,6 +72,7 @@ export async function FieldsPanel({
             id: def.id,
             detail: detailOf(def),
             options: def.options,
+            uses: use[def.key] ?? {},
             isSelect: def.type === "select",
           },
         ]
@@ -143,6 +156,7 @@ export async function FieldsPanel({
         key={current.entityType}
         entityType={current.entityType}
         record={current.record}
+        records={current.records}
         fields={custom}
         saveAction={saveAction}
       />

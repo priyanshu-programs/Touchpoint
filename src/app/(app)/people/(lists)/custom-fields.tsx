@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { MoreVertical, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useActionState, useState } from "react";
 import { SelectField, TextareaField, TextField } from "@/components/fields";
 import { FormMessage } from "@/components/form-message";
@@ -33,6 +33,7 @@ import type { RecordFormState } from "@/app/(app)/form-state";
 import {
   createCustomFieldAction,
   deleteCustomFieldAction,
+  removeFieldOptionAction,
   updateCustomFieldAction,
 } from "../fields/actions";
 import { FieldList, ROW_CONTROL, type FieldListItem } from "./field-list";
@@ -40,10 +41,14 @@ import { FieldsSection } from "./fields-section";
 
 export type CustomFieldRow = FieldListItem & {
   id: string;
-  // What a field of options already offers; empty for the other kinds.
+  // What a field of options already offers, and how many records hold each;
+  // empty for the other kinds.
   options: string[];
+  uses: Record<string, number>;
   isSelect: boolean;
 };
+
+type RecordWords = { record: string; records: string };
 
 const TYPES = [
   { value: "text", label: "Text" },
@@ -122,11 +127,85 @@ function NewFieldForm({
   );
 }
 
+// Removing asks first, in the row itself, saying how many records lose the value.
+function OptionRow({
+  fieldId,
+  option,
+  uses,
+  removable,
+  words,
+}: {
+  fieldId: string;
+  option: string;
+  uses: number;
+  removable: boolean;
+  words: RecordWords;
+}) {
+  const [asking, setAsking] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    removeFieldOptionAction.bind(null, fieldId),
+    null,
+  );
+  const held = `${uses} ${uses === 1 ? words.record : words.records}`;
+
+  return (
+    <li className="grid gap-2 py-2">
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 break-words">{option}</span>
+        {uses > 0 && (
+          <span className="text-xs text-muted-foreground">{held}</span>
+        )}
+        {removable && !asking && (
+          <button
+            type="button"
+            aria-label={`Remove ${option}`}
+            className={ROW_CONTROL}
+            onClick={() => setAsking(true)}
+          >
+            <X aria-hidden className="size-4" />
+          </button>
+        )}
+      </div>
+      {asking && (
+        <form action={formAction} className="grid gap-2 rounded-md bg-muted p-3">
+          <input type="hidden" name="option" value={option} />
+          <p className="text-sm">
+            {uses > 0
+              ? `Removing ${option} also clears it from ${held}.`
+              : `No ${words.record} has ${option} yet.`}
+          </p>
+          <FormMessage state={state?.ok ? null : state} />
+          <div className="flex gap-2">
+            <Button
+              type="submit"
+              size="sm"
+              variant="destructive"
+              disabled={pending}
+            >
+              {pending ? "Removing…" : `Remove ${option}`}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setAsking(false)}
+            >
+              Keep it
+            </Button>
+          </div>
+        </form>
+      )}
+    </li>
+  );
+}
+
 function EditFieldForm({
   field,
+  words,
   onSaved,
 }: {
   field: CustomFieldRow;
+  words: RecordWords;
   onSaved: () => void;
 }) {
   const [state, formAction, pending] = useSaving(
@@ -136,32 +215,53 @@ function EditFieldForm({
   const values = state?.values ?? { label: field.label, options: "" };
 
   return (
-    <form
-      key={JSON.stringify(values)}
-      action={formAction}
-      className="grid gap-4"
-    >
-      <TextField
-        name="label"
-        label="Name"
-        defaultValue={values.label}
-        maxLength={60}
-        required
-      />
-      {field.isSelect && (
-        <TextareaField
-          name="options"
-          label="More options"
-          hint={`One on each line. It already offers ${field.options.join(", ")}.`}
-          rows={3}
-          defaultValue={values.options}
+    <div className="grid gap-6">
+      <form
+        key={JSON.stringify(values)}
+        action={formAction}
+        className="grid gap-4"
+      >
+        <TextField
+          name="label"
+          label="Name"
+          defaultValue={values.label}
+          maxLength={60}
+          required
         />
+        {field.isSelect && (
+          <TextareaField
+            name="options"
+            label="More options"
+            hint="One on each line."
+            rows={3}
+            defaultValue={values.options}
+          />
+        )}
+        <FormMessage state={state} />
+        <Button type="submit" disabled={pending} className="justify-self-start">
+          {pending ? "Saving…" : "Save field"}
+        </Button>
+      </form>
+      {field.isSelect && (
+        <section aria-labelledby={`options-${field.id}`} className="grid gap-1">
+          <h3 id={`options-${field.id}`} className="text-sm font-medium">
+            Options
+          </h3>
+          <ul className="divide-y text-sm">
+            {field.options.map((option) => (
+              <OptionRow
+                key={option}
+                fieldId={field.id}
+                option={option}
+                uses={field.uses[option] ?? 0}
+                removable={field.options.length > 1}
+                words={words}
+              />
+            ))}
+          </ul>
+        </section>
       )}
-      <FormMessage state={state} />
-      <Button type="submit" disabled={pending} className="justify-self-start">
-        {pending ? "Saving…" : "Save field"}
-      </Button>
-    </form>
+    </div>
   );
 }
 
@@ -170,21 +270,25 @@ function EditFieldForm({
 export function CustomFields({
   entityType,
   record,
+  records,
   fields,
   saveAction,
 }: {
   entityType: string;
   record: string;
+  records: string;
   fields: CustomFieldRow[];
   saveAction: (fields: { key: string; hidden: boolean }[]) => Promise<void>;
 }) {
   // The field a dialog is about stays set while the dialog closes, so its
-  // words do not go blank on the way out.
+  // words do not go blank on the way out. While it is open, the field is read
+  // from the list again, so an option removed shows as gone.
   const [open, setOpen] = useState<"new" | "edit" | "delete" | null>(null);
-  const [chosen, setChosen] = useState<CustomFieldRow | null>(null);
+  const [picked, setPicked] = useState<CustomFieldRow | null>(null);
+  const chosen = fields.find(({ id }) => id === picked?.id) ?? picked;
   const close = (isOpen: boolean) => !isOpen && setOpen(null);
   const choose = (field: CustomFieldRow, dialog: "edit" | "delete") => {
-    setChosen(field);
+    setPicked(field);
     setOpen(dialog);
   };
 
@@ -280,6 +384,7 @@ export function CustomFields({
             <EditFieldForm
               key={chosen.id}
               field={chosen}
+              words={{ record, records }}
               onSaved={() => setOpen(null)}
             />
           )}
