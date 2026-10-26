@@ -26,7 +26,19 @@ export function RecordSheet({
   return (
     <Sheet
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next, details) => {
+        // Escape in a value edited in place closes that editor, not the panel.
+        const target = details.event.target;
+        if (
+          details.reason === "escape-key" &&
+          target instanceof Element &&
+          target.closest("[data-inline-editor]")
+        ) {
+          details.cancel();
+          return;
+        }
+        setOpen(next);
+      }}
       onOpenChangeComplete={(nowOpen) => {
         if (!nowOpen) router.push(closeHref, { scroll: false });
       }}

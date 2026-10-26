@@ -19,6 +19,7 @@ import {
   deleteCustomField,
   removeCustomFieldOption,
   saveLayout,
+  setCustomValue,
   updateCustomField,
   type CustomFieldResult,
 } from "@/modules/fields/service";
@@ -156,6 +157,32 @@ export async function removeFieldOptionAction(
 
   revalidatePath("/people", "layout");
   return { ok: true, message: `${option} removed.` };
+}
+
+// Details sets one value in place; only the form's value is read.
+export async function setCustomValueAction(
+  entityType: string,
+  recordId: string,
+  key: string,
+  _previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const values = readFields(formData, ["value"]);
+  const result = await setCustomValue(
+    owner.id,
+    entity.parse(entityType),
+    z.uuid().parse(recordId),
+    z.string().min(1).max(60).parse(key),
+    values.value,
+  );
+  if (!result.ok) {
+    if (result.reason === "not_found") notFound();
+    return { ok: false, message: result.message, values };
+  }
+
+  revalidatePath("/people", "layout");
+  return { ok: true, message: "Saved." };
 }
 
 export async function deleteCustomFieldAction(formData: FormData) {

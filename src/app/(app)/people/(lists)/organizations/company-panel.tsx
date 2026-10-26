@@ -167,7 +167,10 @@ export async function CompanyPanel({
   const details = arrangeRows<
     StandardKey<"organization"> | `custom.${string}`
   >(layout, {
-    ...customDetailRows(customFields, organization.custom),
+    ...customDetailRows(customFields, organization.custom, {
+      entityType: "organization",
+      id: organization.id,
+    }),
     name: { value: organization.name },
     domain: { value: organization.domain },
     website: {

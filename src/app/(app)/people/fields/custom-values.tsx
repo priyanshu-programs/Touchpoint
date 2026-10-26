@@ -8,6 +8,7 @@ import {
   type EntityType,
 } from "@/modules/fields/schema";
 import type { CustomFormField } from "./custom-inputs";
+import { InlineCustomValue } from "./inline-value";
 
 // The owner's own fields as an Edit form shows them, named as the form sends them.
 export const customFormFields = (fields: CustomField[]): CustomFormField[] =>
@@ -23,12 +24,26 @@ export const customFormValues = (fields: CustomField[], custom: CustomValues) =>
     fields.map(({ key }) => [customKey(key), String(custom[key] ?? "")]),
   );
 
-// A Details row for each of the owner's own fields, under the key its layout uses.
-export const customDetailRows = (fields: CustomField[], custom: CustomValues) =>
+// A Details row for each of the owner's own fields, under the key its layout uses,
+// edited in place.
+export const customDetailRows = (
+  fields: CustomField[],
+  custom: CustomValues,
+  record: { entityType: EntityType; id: string },
+) =>
   Object.fromEntries(
-    fields.map(({ key, type }) => [
+    fields.map(({ key, label, type, options }) => [
       customKey(key),
-      { value: formatCustomValue(type, custom[key]) },
+      {
+        value: (
+          <InlineCustomValue
+            record={record}
+            field={{ key, label, type, options }}
+            value={String(custom[key] ?? "")}
+            shown={formatCustomValue(type, custom[key])}
+          />
+        ),
+      },
     ]),
   );
 

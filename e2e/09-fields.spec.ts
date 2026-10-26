@@ -241,8 +241,8 @@ test("a company gets fields of the owner's own: suggested, made, filled in, arra
   ]);
   await expect(details(page).locator("dd").nth(9)).toHaveText("—");
   await recordAction(page, "Edit");
-  await page.getByLabel("Segment").selectOption("Enterprise");
-  await page.getByLabel("Renewal tier").selectOption("Gold");
+  await page.getByLabel("Segment", { exact: true }).selectOption("Enterprise");
+  await page.getByLabel("Renewal tier", { exact: true }).selectOption("Gold");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(details(page).locator("dd").nth(9)).toHaveText("Enterprise");
   await expect(details(page).locator("dd").nth(10)).toHaveText("Gold");
@@ -328,7 +328,7 @@ test("a person's own fields are apart from a company's", async ({ page }) => {
 
   await panel(page).getByRole("link", { name: "Back to Arjun Rao" }).click();
   await recordAction(page, "Edit");
-  await page.getByLabel("Birthday").fill("1990-04-12");
+  await page.getByLabel("Birthday", { exact: true }).fill("1990-04-12");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(details(page).getByText("Thu, 12 Apr 1990")).toBeVisible();
 
@@ -380,7 +380,7 @@ test("a new company and person take the owner's own fields, and a dropdown's opt
 
   await panel(page).getByRole("link", { name: "Back to Fieldwork Co" }).click();
   await recordAction(page, "Edit");
-  await expect(page.getByLabel("Segment")).toHaveValue("");
+  await expect(page.getByLabel("Segment", { exact: true })).toHaveValue("");
 });
 
 test.describe("on a phone", () => {
