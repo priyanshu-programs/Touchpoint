@@ -1008,3 +1008,5 @@
 - [2026-10-27] docs/PRD.md: payments in section 6, and the payments and payment_allocations rows of section 8.8 as built
 - [2026-10-27] plan.md: Step 2 ticked with its Not built list
 - [2026-10-27] Phase 4 step 2 runs: lint and typecheck clean; Vitest payments 20 of 20, invoices and money passing, organizations, contacts and search 106 of 106; e2e 01, 23 and 24 pass 23 of 23; trail check's 14 hits are word matches, explained in the PR
+- [2026-10-27] Invoice status pills coloured at the owner's request: Unpaid red, Partly paid orange, Paid green; Overdue solid red so it stands out from Unpaid
+- [2026-10-27] Removed an unused import from src/modules/payments/service.test.ts (a lint warning)
