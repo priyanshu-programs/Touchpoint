@@ -12,9 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { db } from "@/db/client";
 import { formatMoney } from "@/lib/money";
 import { requireOwner } from "@/lib/session";
-import { formatDate } from "@/lib/time";
+import { dateIn, formatDate } from "@/lib/time";
 import { getContact } from "@/modules/contacts/queries";
 import { invoiceCurrencies, listInvoices } from "@/modules/invoices/queries";
 import {
@@ -23,11 +24,14 @@ import {
   type InvoiceListParams,
   type InvoiceSort,
 } from "@/modules/invoices/schema";
+import { invoiceState } from "@/modules/invoices/state";
 import { getOrganization } from "@/modules/organizations/queries";
+import { ownerTimezone } from "@/modules/settings/service";
 import { ListCard, ListFooter } from "../../people/(lists)/list-card";
 import { ListToolbar } from "../../people/(lists)/list-toolbar";
 import { SortHead } from "../../people/(lists)/sort-head";
-import { invoiceHref, invoicesHref, invoiceStatusOptions, newInvoiceHref } from "./labels";
+import { MoneyHeader } from "../money-header";
+import { invoiceHref, invoicesHref, invoiceStateOptions, newInvoiceHref } from "./labels";
 import { InvoiceStatusPill } from "./status-pill";
 
 export const metadata: Metadata = { title: "Invoices" };
@@ -73,10 +77,11 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/money/i
   const params = invoiceListParams.parse(await searchParams);
   const sort = params.sort ?? "issued";
   const pageNumber = params.page ?? 1;
+  const today = dateIn(await ownerTimezone(db, owner.id));
   const [page, currencies, client] = await Promise.all([
     listInvoices(owner.id, {
       q: params.q,
-      status: params.status,
+      state: params.status && { is: params.status, today },
       currency: params.currency,
       organizationId: params.company,
       contactId: params.person,
@@ -101,7 +106,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/money/i
           label: "All statuses",
           href: invoicesHref(params, { ...FIRST_PAGE, status: undefined }),
         },
-        ...invoiceStatusOptions.map(({ value, label }) => ({
+        ...invoiceStateOptions.map(({ value, label }) => ({
           value,
           label,
           href: invoicesHref(params, { ...FIRST_PAGE, status: value }),
@@ -133,18 +138,16 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/money/i
 
   return (
     <div className="grid gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Invoices</h1>
-          <p className="text-muted-foreground">
-            A record of each invoice you send, with the file you exported.
-          </p>
-        </div>
-        <ButtonLink href={newInvoiceHref(client ?? undefined)}>
-          <Plus aria-hidden />
-          New invoice
-        </ButtonLink>
-      </div>
+      <MoneyHeader
+        title="Invoices"
+        subtitle="A record of each invoice you send, with the file you exported."
+        action={
+          <ButtonLink href={newInvoiceHref(client ?? undefined)}>
+            <Plus aria-hidden />
+            New invoice
+          </ButtonLink>
+        }
+      />
 
       <div className="grid gap-4">
         <ListToolbar
@@ -246,7 +249,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/money/i
                           {formatMoney(row.total, row.currency)}
                         </TableCell>
                         <TableCell className="pr-4 sm:pr-2">
-                          <InvoiceStatusPill status={row.status} />
+                          <InvoiceStatusPill state={invoiceState(row, today)} />
                         </TableCell>
                       </ClickableRow>
                     );

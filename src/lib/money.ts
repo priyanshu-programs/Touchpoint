@@ -60,3 +60,12 @@ export function lineAmount(hundredths: number, unitMinor: number): number | null
   const amount = (BigInt(hundredths) * BigInt(unitMinor) + BigInt(50)) / BigInt(100);
   return amount <= BigInt(MAX_MINOR) ? Number(amount) : null;
 }
+
+// A rate to the base currency ("83.25", "0.0112") as the decimal text the column
+// stores, or null. Up to ten whole digits and eight decimals, above 0.
+export function toRate(typed: string): string | null {
+  const match = /^(\d{1,10})(?:\.(\d{0,8}))?$/.exec(typed.trim().replace(/,/g, ""));
+  if (!match) return null;
+  const rate = `${match[1]}.${(match[2] ?? "").padEnd(8, "0")}`;
+  return Number(rate) > 0 ? rate : null;
+}

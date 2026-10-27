@@ -7,11 +7,13 @@ import {
   invoiceLines,
   invoices,
   organizations,
-  type InvoiceStatus,
+  paymentAllocations,
+  payments,
 } from "@/db/schema";
 import { photoVersion } from "@/modules/contacts/queries";
 import { logoVersion } from "@/modules/organizations/queries";
 import type { InvoiceSort } from "./schema";
+import type { InvoiceState } from "./state";
 
 const ownedBy = (ownerId: string) => eq(invoices.ownerId, ownerId);
 
@@ -25,6 +27,35 @@ const adjustmentsTotal = sql`(
 export const invoiceTotal = sql<number>`(${linesTotal} - ${adjustmentsTotal})::bigint`.mapWith(
   Number,
 );
+
+// What payments have put towards it, and what it still owes.
+export const invoicePaid = sql<number>`(
+  select coalesce(sum(pa.amount_minor), 0) from payment_allocations pa where pa.invoice_id = "invoices"."id"
+)::bigint`.mapWith(Number);
+export const invoiceBalance = sql<number>`(${invoiceTotal} - ${invoicePaid})::bigint`.mapWith(
+  Number,
+);
+
+// Each worked-out state as SQL, decided in the order `invoiceState` decides it;
+// today is the owner's date, bound as a parameter.
+function stateIs(state: InvoiceState, today: string) {
+  const issued = eq(invoices.status, "issued");
+  const owing = sql`${invoiceBalance} > 0`;
+  const onTime = sql`${invoices.dueDate} >= ${today}`;
+  switch (state) {
+    case "draft":
+    case "void":
+      return eq(invoices.status, state);
+    case "paid":
+      return and(issued, sql`${invoiceBalance} <= 0`);
+    case "overdue":
+      return and(issued, owing, sql`${invoices.dueDate} < ${today}`);
+    case "partly_paid":
+      return and(issued, owing, onTime, sql`${invoicePaid} > 0`);
+    case "unpaid":
+      return and(issued, owing, onTime, sql`${invoicePaid} = 0`);
+  }
+}
 
 // Who the invoice bills, a company or a person, with the picture to show beside them.
 const clientColumns = {
@@ -48,7 +79,8 @@ export async function listInvoices(
   ownerId: string,
   options: {
     q?: string;
-    status?: InvoiceStatus;
+    // With the owner's date, which decides what is overdue.
+    state?: { is: InvoiceState; today: string };
     currency?: string;
     organizationId?: string;
     contactId?: string;
@@ -63,7 +95,7 @@ export async function listInvoices(
   const direction = options.dir === "asc" ? sql`asc` : sql`desc`;
   const matching = and(
     ownedBy(ownerId),
-    options.status ? eq(invoices.status, options.status) : undefined,
+    options.state ? stateIs(options.state.is, options.state.today) : undefined,
     options.currency ? eq(invoices.currency, options.currency) : undefined,
     options.organizationId ? eq(invoices.organizationId, options.organizationId) : undefined,
     options.contactId ? eq(invoices.contactId, options.contactId) : undefined,
@@ -86,6 +118,8 @@ export async function listInvoices(
         dueDate: invoices.dueDate,
         currency: invoices.currency,
         total: invoiceTotal,
+        paid: invoicePaid,
+        balance: invoiceBalance,
         ...clientColumns,
       })
       .from(invoices)
@@ -161,7 +195,7 @@ export async function getInvoice(ownerId: string, id: string) {
     .where(and(ownedBy(ownerId), eq(invoices.id, id)));
   if (!row) return null;
 
-  const [lines, adjustments] = await Promise.all([
+  const [lines, adjustments, allocations] = await Promise.all([
     db
       .select({
         description: invoiceLines.description,
@@ -178,11 +212,34 @@ export async function getInvoice(ownerId: string, id: string) {
       .from(invoiceAdjustments)
       .where(eq(invoiceAdjustments.invoiceId, id))
       .orderBy(asc(invoiceAdjustments.position)),
+    db
+      .select({
+        paymentId: payments.id,
+        receivedOn: payments.receivedOn,
+        method: payments.method,
+        reference: payments.reference,
+        amountMinor: paymentAllocations.amountMinor,
+      })
+      .from(paymentAllocations)
+      .innerJoin(payments, eq(payments.id, paymentAllocations.paymentId))
+      .where(and(eq(paymentAllocations.ownerId, ownerId), eq(paymentAllocations.invoiceId, id)))
+      .orderBy(asc(payments.receivedOn), asc(payments.createdAt)),
   ]);
   const subtotal = lines.reduce((sum, line) => sum + line.amountMinor, 0);
   const off = adjustments.reduce((sum, adjustment) => sum + adjustment.amountMinor, 0);
+  const paid = allocations.reduce((sum, allocation) => sum + allocation.amountMinor, 0);
+  const total = subtotal - off;
 
-  return { ...row, lines, adjustments, subtotal, total: subtotal - off };
+  return {
+    ...row,
+    lines,
+    adjustments,
+    allocations,
+    subtotal,
+    total,
+    paid,
+    balance: total - paid,
+  };
 }
 
 export type Invoice = NonNullable<Awaited<ReturnType<typeof getInvoice>>>;
@@ -201,6 +258,8 @@ export async function invoicesOfRecord(
       dueDate: invoices.dueDate,
       currency: invoices.currency,
       total: invoiceTotal,
+      paid: invoicePaid,
+      balance: invoiceBalance,
     })
     .from(invoices)
     .where(
@@ -224,18 +283,30 @@ export async function getInvoiceFile(ownerId: string, id: string) {
   return file ?? null;
 }
 
-// How many invoices bill one company or person, which keeps it from being deleted.
-export async function invoiceCount(
+// How many invoices and payments a company or person has, which keeps it from being deleted.
+export async function moneyCount(
   ownerId: string,
   client: { organizationId: string } | { contactId: string },
 ) {
-  return db.$count(
-    invoices,
-    and(
-      ownedBy(ownerId),
-      "organizationId" in client
-        ? eq(invoices.organizationId, client.organizationId)
-        : eq(invoices.contactId, client.contactId),
+  const [invoiceRows, paymentRows] = await Promise.all([
+    db.$count(
+      invoices,
+      and(
+        ownedBy(ownerId),
+        "organizationId" in client
+          ? eq(invoices.organizationId, client.organizationId)
+          : eq(invoices.contactId, client.contactId),
+      ),
     ),
-  );
+    db.$count(
+      payments,
+      and(
+        eq(payments.ownerId, ownerId),
+        "organizationId" in client
+          ? eq(payments.organizationId, client.organizationId)
+          : eq(payments.contactId, client.contactId),
+      ),
+    ),
+  ]);
+  return { invoices: invoiceRows, payments: paymentRows };
 }

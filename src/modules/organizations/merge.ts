@@ -6,6 +6,7 @@ import {
   enrichmentRuns,
   fieldProvenance,
   invoices,
+  payments,
   materialSends,
   organizationLogos,
   organizations,
@@ -246,6 +247,10 @@ export async function mergeOrganizations(
       .update(invoices)
       .set({ organizationId: keep.id })
       .where(and(eq(invoices.ownerId, ownerId), eq(invoices.organizationId, other.id)));
+    await tx
+      .update(payments)
+      .set({ organizationId: keep.id })
+      .where(and(eq(payments.ownerId, ownerId), eq(payments.organizationId, other.id)));
     const [keptBoardStar] = await tx
       .select({ id: workflowBoards.id })
       .from(workflowBoards)

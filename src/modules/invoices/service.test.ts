@@ -15,7 +15,7 @@ import { createTestOwner, resetDatabase } from "@/test/owner";
 import {
   getInvoice,
   getInvoiceFile,
-  invoiceCount,
+  moneyCount,
   invoicesOfRecord,
   listInvoices,
   serviceCategories,
@@ -405,7 +405,7 @@ describe("invoices", () => {
       reason: "invoiced",
       count: 1,
     });
-    expect(await invoiceCount(ownerId, { organizationId: acme })).toBe(1);
+    expect(await moneyCount(ownerId, { organizationId: acme })).toEqual({ invoices: 1, payments: 0 });
 
     // A company with none is deleted as before.
     const bare = await createOrg(ownerId, "Bare Co");
@@ -446,7 +446,9 @@ describe("invoices", () => {
       second,
     ]);
     expect((await listInvoices(ownerId, { q: "001" })).rows.map((row) => row.id)).toEqual([first]);
-    expect((await listInvoices(ownerId, { status: "issued" })).total).toBe(1);
+    expect(
+      (await listInvoices(ownerId, { state: { is: "unpaid", today: "2000-01-01" } })).total,
+    ).toBe(1);
     expect((await listInvoices(ownerId, { currency: "INR" })).rows[0].id).toBe(first);
     expect((await listInvoices(ownerId, { contactId: priya })).rows[0].id).toBe(second);
     expect(

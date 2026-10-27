@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Banknote,
   Building2,
   FilePlus2,
   Files,
@@ -36,6 +37,7 @@ const ACTIONS = [
   { href: "/activities/new", label: "Log activity", icon: NotebookPen },
   { href: "/materials/new", label: "New material", icon: FilePlus2 },
   { href: "/money/invoices/new", label: "New invoice", icon: Receipt },
+  { href: "/money/payments/new", label: "Record payment", icon: Banknote },
   { href: "/brainstorm/new", label: "New brainstorm board", icon: Lightbulb },
 ];
 

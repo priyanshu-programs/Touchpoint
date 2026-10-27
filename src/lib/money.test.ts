@@ -6,6 +6,7 @@ import {
   minorToInput,
   toHundredths,
   toMinor,
+  toRate,
 } from "./money";
 
 describe("currencyDigits", () => {
@@ -92,5 +93,20 @@ describe("lineAmount", () => {
 
   it("refuses a product past what a number holds exactly", () => {
     expect(lineAmount(999_999_999, Number.MAX_SAFE_INTEGER)).toBeNull();
+  });
+});
+
+describe("toRate", () => {
+  it("reads a rate to eight decimals", () => {
+    expect(toRate("83.25")).toBe("83.25000000");
+    expect(toRate(" 0.0112 ")).toBe("0.01120000");
+    expect(toRate("1,083")).toBe("1083.00000000");
+    expect(toRate("2")).toBe("2.00000000");
+  });
+
+  it("refuses zero, a sign, too many decimals or too many digits", () => {
+    for (const typed of ["0", "0.00", "-1", "1.123456789", "12345678901", "abc", ""]) {
+      expect(toRate(typed), typed).toBeNull();
+    }
   });
 });

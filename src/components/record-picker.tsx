@@ -93,6 +93,7 @@ export function RecordPicker({
   plural,
   initial,
   search,
+  onChange,
 }: {
   name: string;
   labelName: string;
@@ -100,9 +101,14 @@ export function RecordPicker({
   plural?: string;
   initial: PickerOption | null;
   search: Search;
+  onChange?: (option: PickerOption | null) => void;
 }) {
-  const [selected, setSelected] = useState(initial);
+  const [selected, setSelectedState] = useState(initial);
   const [open, setOpen] = useState(false);
+  const setSelected = (option: PickerOption | null) => {
+    setSelectedState(option);
+    onChange?.(option);
+  };
 
   return (
     <div className="grid content-start gap-2">

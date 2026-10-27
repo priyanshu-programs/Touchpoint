@@ -109,3 +109,68 @@ export const invoiceAdjustments = pgTable(
     ),
   ],
 );
+
+export const PAYMENT_METHODS = ["bank_transfer", "upi", "card", "cash", "cheque", "other"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+// Money actually received from a client, put towards their issued invoices in the
+// same currency. What it does not cover stays on it, unallocated, for a later invoice.
+// A company or person with payments is refused deletion, as with invoices.
+export const payments = pgTable(
+  "payments",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    organizationId: uuid("organization_id").references(() => organizations.id),
+    contactId: uuid("contact_id").references(() => contacts.id),
+    receivedOn: date("received_on", { mode: "string" }).notNull(),
+    amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+    currency: text("currency").notNull(),
+    // Units of the base currency one unit of this one was worth; none when it is the base.
+    fxRateToBase: numeric("fx_rate_to_base", { precision: 18, scale: 8 }),
+    method: text("method").$type<PaymentMethod>().notNull(),
+    reference: text("reference"),
+    notes: text("notes"),
+    // Made when the form is shown, so a second submit of it records nothing new.
+    idempotencyKey: uuid("idempotency_key").notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    check("payments_amount_check", sql`${table.amountMinor} > 0`),
+    check("payments_currency_check", sql`${table.currency} ~ '^[A-Z]{3}$'`),
+    check("payments_rate_check", sql`${table.fxRateToBase} is null or ${table.fxRateToBase} > 0`),
+    check("payments_method_check", oneOf(table.method, PAYMENT_METHODS)),
+    check(
+      "payments_client_check",
+      sql`num_nonnulls(${table.organizationId}, ${table.contactId}) = 1`,
+    ),
+    uniqueIndex("payments_owner_key_idx").on(table.ownerId, table.idempotencyKey),
+    index("payments_owner_received_idx").on(table.ownerId, table.receivedOn),
+    index("payments_organization_idx").on(table.organizationId),
+    index("payments_contact_idx").on(table.contactId),
+  ],
+);
+
+// How much of a payment went to one invoice. Never more than the payment holds or the
+// invoice still owes, checked in the transaction that writes it.
+export const paymentAllocations = pgTable(
+  "payment_allocations",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    paymentId: uuid("payment_id")
+      .notNull()
+      .references(() => payments.id, { onDelete: "cascade" }),
+    // No action: an invoice that has been paid is not deleted from under its payment.
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id),
+    amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    check("payment_allocations_amount_check", sql`${table.amountMinor} > 0`),
+    uniqueIndex("payment_allocations_pair_idx").on(table.paymentId, table.invoiceId),
+    index("payment_allocations_invoice_idx").on(table.invoiceId),
+  ],
+);

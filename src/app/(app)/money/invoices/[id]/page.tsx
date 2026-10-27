@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
+import { ButtonLink } from "@/components/button-link";
 import { CompanyLogo, ContactAvatar } from "@/components/company-logo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -15,10 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { db } from "@/db/client";
 import { formatMoney } from "@/lib/money";
 import { requireOwner } from "@/lib/session";
-import { formatDate } from "@/lib/time";
+import { dateIn, formatDate } from "@/lib/time";
 import { getInvoice } from "@/modules/invoices/queries";
+import { invoiceState } from "@/modules/invoices/state";
+import { PAYMENT_METHOD_LABELS } from "@/modules/payments/schema";
+import { ownerTimezone } from "@/modules/settings/service";
+import { newPaymentHref, paymentHref } from "../../payments/labels";
 import { InvoiceStatusPill } from "../status-pill";
 import { InvoiceActions } from "./invoice-actions";
 import { InvoiceFile } from "./invoice-file";
@@ -61,8 +67,12 @@ export default async function InvoicePage({ params }: PageProps<"/money/invoices
   const owner = await requireOwner();
   const id = await parseId(params);
   if (!id.success) notFound();
-  const invoice = await getInvoice(owner.id, id.data);
+  const [invoice, timezone] = await Promise.all([
+    getInvoice(owner.id, id.data),
+    ownerTimezone(db, owner.id),
+  ]);
   if (!invoice) notFound();
+  const state = invoiceState(invoice, dateIn(timezone));
   const money = (minor: number) => formatMoney(minor, invoice.currency);
   const clientHref = invoice.organizationId
     ? companyHref(invoice.organizationId, "money")
@@ -84,7 +94,7 @@ export default async function InvoicePage({ params }: PageProps<"/money/invoices
             <h1 className="text-2xl font-semibold tracking-tight break-words">
               Invoice {invoice.number}
             </h1>
-            <InvoiceStatusPill status={invoice.status} />
+            <InvoiceStatusPill state={state} />
           </div>
           <Link
             href={clientHref}
@@ -112,11 +122,12 @@ export default async function InvoicePage({ params }: PageProps<"/money/invoices
           id={invoice.id}
           number={invoice.number}
           status={invoice.status}
+          paid={invoice.allocations.length > 0}
           editHref={`/money/invoices/${invoice.id}/edit`}
         />
       </header>
 
-      <dl className="grid grid-cols-2 gap-4 rounded-lg border p-4 text-sm sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-4 rounded-lg border p-4 text-sm sm:grid-cols-5">
         <div className="grid gap-1">
           <dt className="text-xs text-muted-foreground">Issued on</dt>
           <dd className="font-medium">{formatDate(invoice.issueDate)}</dd>
@@ -132,6 +143,12 @@ export default async function InvoicePage({ params }: PageProps<"/money/invoices
         <div className="grid gap-1">
           <dt className="text-xs text-muted-foreground">Total</dt>
           <dd className="font-medium tabular-nums">{money(invoice.total)}</dd>
+        </div>
+        <div className="grid gap-1">
+          <dt className="text-xs text-muted-foreground">Still owed</dt>
+          <dd className="font-medium tabular-nums">
+            {invoice.status === "issued" ? money(Math.max(invoice.balance, 0)) : "—"}
+          </dd>
         </div>
       </dl>
 
@@ -185,10 +202,65 @@ export default async function InvoicePage({ params }: PageProps<"/money/invoices
                 </>
               )}
               <FooterRow label="Total" amount={money(invoice.total)} strong />
+              {invoice.paid > 0 && (
+                <>
+                  <FooterRow label="Paid" amount={`−${money(invoice.paid)}`} />
+                  <FooterRow label="Still owed" amount={money(invoice.balance)} strong />
+                </>
+              )}
             </TableFooter>
           </Table>
         </CardContent>
       </Card>
+
+      {invoice.status === "issued" && (
+        <Card>
+          <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Payments</CardTitle>
+            {invoice.balance > 0 && (
+              <ButtonLink href={newPaymentHref({ invoice: invoice.id })} size="sm">
+                Record payment
+              </ButtonLink>
+            )}
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {invoice.allocations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No payments yet. Record one when the money arrives.
+              </p>
+            ) : (
+              <ul aria-label="Payments" className="grid gap-2 text-sm">
+                {invoice.allocations.map((allocation) => (
+                  <li
+                    key={allocation.paymentId}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1"
+                  >
+                    <Link
+                      href={paymentHref(allocation.paymentId)}
+                      className="font-medium underline-offset-4 hover:underline"
+                    >
+                      {formatDate(allocation.receivedOn)}
+                    </Link>
+                    <span className="text-muted-foreground">
+                      {PAYMENT_METHOD_LABELS[allocation.method]}
+                      {allocation.reference && ` · ${allocation.reference}`}
+                    </span>
+                    <span className="ml-auto font-medium tabular-nums">
+                      {money(allocation.amountMinor)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {invoice.allocations.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                An invoice with payments is not edited or voided. To change it, delete its
+                payments first.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

@@ -77,7 +77,7 @@ test("an invoice is recorded from a company's Invoices tab, with lines, a discou
   expect(served.headers()["cache-control"]).toBe("private, no-store");
 
   await menu(page, "Mark as issued");
-  await expect(main(page).getByText("Issued", { exact: true })).toBeVisible();
+  await expect(main(page).getByText("Unpaid", { exact: true })).toBeVisible();
 });
 
 test("the same number in another case is refused, and the form keeps its lines", async ({
@@ -126,7 +126,7 @@ test("an issued invoice is edited, listed and found in Ctrl+K", async ({ page })
   const row = main(page).getByRole("row", { name: new RegExp(NUMBER) });
   await expect(row).toContainText("Ledger Works");
   await expect(row).toContainText("₹1,50,000");
-  await expect(row).toContainText("Issued");
+  await expect(row).toContainText("Unpaid");
 
   await page.goto(`${companyUrl}&tab=money`);
   await expect(panel(page).getByRole("link", { name: NUMBER })).toBeVisible();

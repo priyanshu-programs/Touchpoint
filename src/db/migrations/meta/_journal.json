@@ -232,6 +232,13 @@
       "when": 1793041820387,
       "tag": "0032_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793099480423,
+      "tag": "0033_payments",
+      "breakpoints": true
     }
   ]
 }

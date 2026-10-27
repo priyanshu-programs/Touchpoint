@@ -1,9 +1,5 @@
-import {
-  INVOICE_STATUS_LABELS,
-  INVOICE_STATUSES,
-  MAX_INVOICES,
-  type InvoiceListParams,
-} from "@/modules/invoices/schema";
+import { MAX_INVOICES, type InvoiceListParams } from "@/modules/invoices/schema";
+import { INVOICE_STATE_LABELS, INVOICE_STATES } from "@/modules/invoices/state";
 
 export const invoiceHref = (id: string) => `/money/invoices/${id}`;
 
@@ -27,9 +23,9 @@ export function invoicesHref(
   return `/money/invoices${query ? `?${query}` : ""}`;
 }
 
-export const invoiceStatusOptions = INVOICE_STATUSES.map((value) => ({
+export const invoiceStateOptions = INVOICE_STATES.map((value) => ({
   value,
-  label: INVOICE_STATUS_LABELS[value],
+  label: INVOICE_STATE_LABELS[value],
 }));
 
 // What the file pickers offer; a convenience, since the server reads the kind
@@ -44,6 +40,7 @@ export const INVOICE_REFUSALS = {
   unknown_client: "Choose who the invoice is for from the list.",
   void: "This invoice is void, so it stays as it was.",
   issued: "This invoice has been issued, so it cannot go back to being a draft.",
+  paid: "This invoice has payments, so it stays as it is. Delete its payments first to change it.",
 } as const;
 
 // Why a file was not attached.
@@ -54,8 +51,19 @@ export const FILE_REFUSALS = {
   rate: "Too many uploads in a minute. Try again shortly.",
 } as const;
 
-// Said in place of the delete confirmation for a company or person their invoices bill.
-export const invoicedBlock = (name: string, count: number) => ({
-  title: `${name} cannot be deleted`,
-  description: `${name} has ${count === 1 ? "an invoice" : `${count} invoices`}. Invoices are kept as records, so archive ${name} instead, or delete ${count === 1 ? "the invoice if it is a draft" : "its draft invoices"} first.`,
-});
+const counted = (count: number, one: string) =>
+  count === 1 ? `1 ${one}` : `${count} ${one}s`;
+
+// Said in place of the delete confirmation for a company or person with invoices or payments.
+export function invoicedBlock(name: string, { invoices, payments }: { invoices: number; payments: number }) {
+  const held = [
+    invoices > 0 ? counted(invoices, "invoice") : null,
+    payments > 0 ? counted(payments, "payment") : null,
+  ]
+    .filter(Boolean)
+    .join(" and ");
+  return {
+    title: `${name} cannot be deleted`,
+    description: `${name} has ${held}. These are kept as records, so archive ${name} instead, or delete ${payments > 0 ? "the payments and " : ""}any draft or void invoices first.`,
+  };
+}

@@ -25,8 +25,8 @@ export default async function EditInvoicePage({
     getInvoice(owner.id, id.data),
     serviceCategories(owner.id),
   ]);
-  // A void invoice stays as it was voided.
-  if (!invoice || invoice.status === "void") notFound();
+  // A void invoice stays as it was voided, and a paid one as it was paid.
+  if (!invoice || invoice.status === "void" || invoice.allocations.length > 0) notFound();
   const { currency } = invoice;
 
   return (

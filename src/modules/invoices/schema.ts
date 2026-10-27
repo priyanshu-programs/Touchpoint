@@ -3,6 +3,7 @@ import { INVOICE_STATUSES, type InvoiceStatus } from "@/db/schema";
 import { blankToNull, text } from "@/lib/form";
 import { lineAmount, toHundredths, toMinor } from "@/lib/money";
 import { CURRENCIES } from "@/modules/settings/schema";
+import { INVOICE_STATES } from "./state";
 
 export { INVOICE_STATUSES };
 
@@ -27,15 +28,16 @@ export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
 };
 
 // A client is named by kind and id together, so one field can hold either.
-const client = z.string().transform((value, ctx) => {
-  const [kind, id, ...rest] = value.split(":");
-  if (rest.length === 0 && z.uuid().safeParse(id).success) {
-    if (kind === "organization") return { organizationId: id, contactId: null };
-    if (kind === "contact") return { organizationId: null, contactId: id };
-  }
-  ctx.addIssue({ code: "custom", message: "Choose who the invoice is for" });
-  return z.NEVER;
-});
+export const clientField = (message: string) =>
+  z.string().transform((value, ctx) => {
+    const [kind, id, ...rest] = value.split(":");
+    if (rest.length === 0 && z.uuid().safeParse(id).success) {
+      if (kind === "organization") return { organizationId: id, contactId: null };
+      if (kind === "contact") return { organizationId: null, contactId: id };
+    }
+    ctx.addIssue({ code: "custom", message });
+    return z.NEVER;
+  });
 
 // The form's lines and adjustments arrive as one JSON field each.
 const json = z.string().max(200_000).transform((value, ctx) => {
@@ -76,7 +78,7 @@ export const invoiceInput = z
       .trim()
       .min(1, "Enter the invoice's number, as it is on the invoice")
       .max(60, "An invoice number can be at most 60 characters"),
-    client,
+    client: clientField("Choose who the invoice is for"),
     issueDate: isoDate("Enter the date it was issued"),
     dueDate: isoDate("Enter the date it is due"),
     currency: z.string().refine((value) => CURRENCIES.includes(value), {
@@ -179,7 +181,7 @@ export type InvoiceSort = (typeof INVOICE_SORTS)[number];
 // What `/money/invoices` is narrowed and ordered by, read from its address.
 export const invoiceListParams = z.object({
   q: optional(z.string().trim().max(100)),
-  status: optional(z.enum(INVOICE_STATUSES)),
+  status: optional(z.enum(INVOICE_STATES)),
   currency: optional(z.string().regex(/^[A-Z]{3}$/)),
   company: optional(z.uuid()),
   person: optional(z.uuid()),

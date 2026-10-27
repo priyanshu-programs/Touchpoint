@@ -1,13 +1,22 @@
 import { Badge } from "@/components/ui/badge";
-import type { InvoiceStatus } from "@/db/schema";
-import { INVOICE_STATUS_LABELS } from "@/modules/invoices/schema";
+import { INVOICE_STATE_LABELS, type InvoiceState } from "@/modules/invoices/state";
 
 const VARIANTS = {
   draft: "outline",
-  issued: "secondary",
-  void: "destructive",
+  unpaid: "secondary",
+  partly_paid: "secondary",
+  overdue: "destructive",
+  paid: "default",
+  void: "ghost",
 } as const;
 
-export function InvoiceStatusPill({ status }: { status: InvoiceStatus }) {
-  return <Badge variant={VARIANTS[status]}>{INVOICE_STATUS_LABELS[status]}</Badge>;
+export function InvoiceStatusPill({ state }: { state: InvoiceState }) {
+  return (
+    <Badge
+      variant={VARIANTS[state]}
+      className={state === "void" ? "text-muted-foreground" : undefined}
+    >
+      {INVOICE_STATE_LABELS[state]}
+    </Badge>
+  );
 }
