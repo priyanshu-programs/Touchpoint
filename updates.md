@@ -980,3 +980,4 @@
 - [2026-10-27] Full e2e: 115 passed, 4 failed in 18 to 21 and 13 not run; reruns failed in different places each time (a 5-second wait after a submit, the test database unreachable for a while), so CI decides. e2e/23 waits 15 seconds for a void, as for its save
 - [2026-10-27] gh signed in as priyanshu-programs (keyring); PRs #1-#4 opened for chore/git-workflow, docs/qa-steps, feat/journey-tests and feat/invoices, and merged in that order on the owner's word
 - [2026-10-27] feat/invoices rebased onto main after #1-#3 merged; updates.md and plan.md keep both sides
+- [2026-10-27] plan.md: Current Phase points at Phase 4's approved steps, in place of "its plan is made when it starts" left from Step 10

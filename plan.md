@@ -10,7 +10,7 @@ The full product requirements, data model and architecture are in `docs/PRD.md`.
 
 ## Current Phase
 
-Phase 4 — Revenue and reports (PRD section 16). Its detailed plan is made when it starts, on the owner's word. Accepted when journeys 7 and 9 pass, the financial test suite is green and every dashboard number drills down to rows; the figures and reports that need Opportunities wait with them (see below).
+Phase 4 — Revenue and reports (PRD section 16). Its six steps, approved on 2026-10-27, are under "Phase 4 — Revenue and reports" below; Step 1 (invoices) is done. Accepted when journeys 7 and 9 pass, the financial test suite is green and every dashboard number drills down to rows; the figures and reports that need Opportunities wait with them (see below).
 
 Phase 3 — Core business modules was accepted on 2026-10-26. `e2e/22-journeys.spec.ts` runs journeys 2, 3, 4 and 8 as one story each on a desktop and a phone, and the template-and-copy rule is tested since Step 5 slice 2. Journey 3 is accepted on what Today shows (owner's choice, 2026-10-26): overdue and due-today tasks, the week ahead and recent activity, each opening its record; its meetings wait for the calendar (Phase 5), its suggested next actions for the assistant (Phase 6) and its stalled opportunities for Opportunities. What follows in this paragraph is the phase's rule as it stood:
 
