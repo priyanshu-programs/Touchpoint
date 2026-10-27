@@ -53,6 +53,18 @@ Every 15 minutes keeps a Neon Free database inside its monthly compute allowance
 
 Vercel also calls the same endpoint once a day as a backup; that is configured in `vercel.json` and needs no setup.
 
+## 4. Previews (optional)
+
+Vercel builds every pull request as a preview at its own address. The build runs the database migrations, so a preview must never have production's `DATABASE_URL`, or an unmerged branch would migrate your real database. Give previews their own database instead:
+
+1. In the Neon console, open Integrations → Vercel and connect your Neon project to the Vercel project. Turn it on for **Preview** only, with `main` as the parent branch, a branch per preview, and automatic deletion of a preview's branch when its git branch is deleted. Each preview then gets `DATABASE_URL` for a copy of your data made for it.
+2. In Vercel → Settings → Environment Variables, add `AUTH_SECRET` and `CRON_SECRET` for the **Preview** environment with new values, never production's. Don't set `TAVILY_API_KEY` for Preview.
+3. Leave Settings → Deployment Protection on Vercel Authentication. A preview holds a copy of your data, and this keeps it behind your Vercel login.
+
+Do not set `APP_URL` for Preview. A preview reads its branch's address from Vercel. Neon Free allows only a few branches per project, so delete merged branches (GitHub can do it on merge) to keep room.
+
+The day-to-day flow of branches and pull requests is in [CONTRIBUTING.md](../CONTRIBUTING.md).
+
 ## Troubleshooting
 
 | Symptom | Cause and fix |

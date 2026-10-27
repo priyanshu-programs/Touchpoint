@@ -17,8 +17,12 @@ const schema = z.object({
 export type Env = z.infer<typeof schema>;
 
 export function parseEnv(source: Record<string, string | undefined>): Env {
-  // Vercel supplies the production domain, so APP_URL need not be known before the first deploy.
-  const platformUrl = source.VERCEL_PROJECT_PRODUCTION_URL;
+  // Vercel supplies the domain, so APP_URL need not be known before the first deploy.
+  // A preview answers on its branch's address, not production's, or its Origin checks would fail.
+  const platformUrl =
+    source.VERCEL_ENV === "preview"
+      ? source.VERCEL_BRANCH_URL
+      : source.VERCEL_PROJECT_PRODUCTION_URL;
   const result = schema.safeParse({
     ...source,
     APP_URL:

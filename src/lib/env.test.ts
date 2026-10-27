@@ -58,6 +58,25 @@ describe("parseEnv", () => {
     ).toBe(valid.APP_URL);
   });
 
+  it("uses the branch's address in a preview, unless APP_URL is set", () => {
+    const preview = {
+      ...valid,
+      APP_URL: undefined,
+      VERCEL_ENV: "preview",
+      VERCEL_BRANCH_URL: "touchpoint-git-feat-x.vercel.app",
+      VERCEL_PROJECT_PRODUCTION_URL: "touchpoint.vercel.app",
+    };
+    expect(parseEnv(preview).APP_URL).toBe(
+      "https://touchpoint-git-feat-x.vercel.app",
+    );
+    expect(parseEnv({ ...preview, APP_URL: valid.APP_URL }).APP_URL).toBe(
+      valid.APP_URL,
+    );
+    expect(
+      parseEnv({ ...preview, VERCEL_ENV: "production" }).APP_URL,
+    ).toBe("https://touchpoint.vercel.app");
+  });
+
   it("rejects a malformed URL", () => {
     expect(() => parseEnv({ ...valid, APP_URL: "not a url" })).toThrow(
       /APP_URL/,
