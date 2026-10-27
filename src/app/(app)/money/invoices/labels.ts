@@ -1,0 +1,61 @@
+import {
+  INVOICE_STATUS_LABELS,
+  INVOICE_STATUSES,
+  MAX_INVOICES,
+  type InvoiceListParams,
+} from "@/modules/invoices/schema";
+
+export const invoiceHref = (id: string) => `/money/invoices/${id}`;
+
+// A new invoice for a company or a person comes with them filled in.
+export const newInvoiceHref = (client?: { organizationId: string } | { contactId: string }) =>
+  !client
+    ? "/money/invoices/new"
+    : "organizationId" in client
+      ? `/money/invoices/new?company=${client.organizationId}`
+      : `/money/invoices/new?person=${client.contactId}`;
+
+export function invoicesHref(
+  params: InvoiceListParams,
+  change: Partial<InvoiceListParams> = {},
+) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries({ ...params, ...change })) {
+    if (value !== undefined) search.set(key, String(value));
+  }
+  const query = search.toString();
+  return `/money/invoices${query ? `?${query}` : ""}`;
+}
+
+export const invoiceStatusOptions = INVOICE_STATUSES.map((value) => ({
+  value,
+  label: INVOICE_STATUS_LABELS[value],
+}));
+
+// What the file pickers offer; a convenience, since the server reads the kind
+// from the file itself.
+export const INVOICE_FILE_ACCEPT = ".pdf,.png,.jpg,.jpeg";
+export const INVOICE_FILE_HINT = "The PDF or picture you exported, up to 4 MB";
+
+// Why an invoice was not saved, as its form says it.
+export const INVOICE_REFUSALS = {
+  number_taken: "You already have an invoice with that number. Check the number on the invoice.",
+  limit: `You have ${MAX_INVOICES} invoices, the most there can be.`,
+  unknown_client: "Choose who the invoice is for from the list.",
+  void: "This invoice is void, so it stays as it was.",
+  issued: "This invoice has been issued, so it cannot go back to being a draft.",
+} as const;
+
+// Why a file was not attached.
+export const FILE_REFUSALS = {
+  too_large: "That file is larger than 4 MB.",
+  kind: "Only a PDF, PNG or JPEG is kept: export the invoice from Figma as one of those.",
+  full: "Your 200 MB of file storage is used up. Remove a file you no longer need first.",
+  rate: "Too many uploads in a minute. Try again shortly.",
+} as const;
+
+// Said in place of the delete confirmation for a company or person their invoices bill.
+export const invoicedBlock = (name: string, count: number) => ({
+  title: `${name} cannot be deleted`,
+  description: `${name} has ${count === 1 ? "an invoice" : `${count} invoices`}. Invoices are kept as records, so archive ${name} instead, or delete ${count === 1 ? "the invoice if it is a draft" : "its draft invoices"} first.`,
+});

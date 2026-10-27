@@ -524,7 +524,7 @@ describe("organizations", () => {
       })
       .returning({ id: activities.id });
 
-    expect(await deleteOrganization(ownerId, id)).toBe(true);
+    expect(await deleteOrganization(ownerId, id)).toEqual({ ok: true });
 
     expect(await getOrganization(ownerId, id)).toBeNull();
     for (const table of [
@@ -562,7 +562,7 @@ describe("organizations", () => {
     });
     // The domain is free again.
     await create({ domain: "acme.test" });
-    expect(await deleteOrganization(ownerId, id)).toBe(false);
+    expect(await deleteOrganization(ownerId, id)).toEqual({ ok: false, reason: "not_found" });
   });
 
   it("keeps another owner's organizations out of reach", async () => {
@@ -578,7 +578,7 @@ describe("organizations", () => {
     });
     expect(await setOrganizationArchived(otherId, id, true)).toBe(false);
     expect(await setOrganizationStatus(otherId, id, "client")).toBe(false);
-    expect(await deleteOrganization(otherId, id)).toBe(false);
+    expect(await deleteOrganization(otherId, id)).toEqual({ ok: false, reason: "not_found" });
     expect(await getOrganization(ownerId, id)).not.toBeNull();
     // The same domain is free for a different owner.
     const theirs = await createOrganization(otherId, input({ domain: "acme.com" }));

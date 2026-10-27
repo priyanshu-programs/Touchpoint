@@ -51,6 +51,9 @@ import {
 import { customDetailRows } from "../../fields/custom-values";
 import { FieldsLink } from "../fields-link";
 import { companiesHref, type CompanyListParams } from "../list-controls";
+import { invoicedBlock } from "@/app/(app)/money/invoices/labels";
+import { RecordInvoices } from "@/app/(app)/money/invoices/record-invoices";
+import { invoiceCount } from "@/modules/invoices/queries";
 import { AddContactForm } from "./add-contact-form";
 import { CompanyActions } from "./company-actions";
 import { CompanyStatusMenu } from "./company-status-menu";
@@ -100,6 +103,7 @@ const TABS = [
   { tab: "activity", label: "Activity" },
   { tab: "tasks", label: "Tasks" },
   { tab: "workflows", label: "Workflows" },
+  { tab: "money", label: "Money" },
 ] as const;
 
 // Tasks are counted from one capped page, so a full page is shown as "100+".
@@ -128,6 +132,7 @@ export async function CompanyPanel({
     run,
     sourced,
     suggested,
+    invoiced,
   ] = await Promise.all([
     getSettings(ownerId),
     getLayout(ownerId, "organization"),
@@ -138,6 +143,7 @@ export async function CompanyPanel({
     latestRun(ownerId, organization.id),
     websiteFields(ownerId, organization.id),
     params.tab === "contacts" ? suggestedPeople(ownerId, organization.id) : [],
+    invoiceCount(ownerId, filter),
   ]);
   const timezone = settings?.timezone ?? "UTC";
   const lastActivity = latest.rows[0]?.occurredAt;
@@ -253,6 +259,7 @@ export async function CompanyPanel({
             } are kept, no longer linked to a company. To hide it instead, use Archive.`,
             confirmLabel: "Delete company",
             action: deleteOrganizationAction,
+            blocked: invoiced ? invoicedBlock(organization.name, invoiced) : undefined,
           }}
         />
       </header>
@@ -468,6 +475,10 @@ export async function CompanyPanel({
 
           {params.tab === "workflows" && (
             <RecordWorkflows ownerId={ownerId} subject={filter} />
+          )}
+
+          {params.tab === "money" && (
+            <RecordInvoices ownerId={ownerId} client={filter} />
           )}
         </div>
       )}

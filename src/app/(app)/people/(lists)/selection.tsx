@@ -46,13 +46,15 @@ export function Selection({
   // The list is showing archived records, which are restored and not archived.
   archived: boolean;
   archiveAction: (ids: string[], archived: boolean) => Promise<void>;
-  deleteAction: (ids: string[]) => Promise<void>;
+  // Gives how many were kept, because invoices bill them.
+  deleteAction: (ids: string[]) => Promise<number>;
   // What goes with the records and what stays, said before they are deleted.
   deleteNote: string;
   children: ReactNode;
 }) {
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
+  const [kept, setKept] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   // Only what is on the page counts: a row that a filter, another page or an action
   // took away is no longer chosen.
@@ -70,7 +72,7 @@ export function Selection({
     });
   }
 
-  function run(action: () => Promise<void>) {
+  function run(action: () => Promise<unknown>) {
     startTransition(async () => {
       await action();
       setTicked(new Set());
@@ -78,9 +80,35 @@ export function Selection({
     });
   }
 
+  function remove() {
+    setKept(null);
+    run(async () => {
+      const count = await deleteAction(selected);
+      if (count > 0) {
+        setKept(
+          `${count} ${count === 1 ? noun.one : noun.many} kept: invoices bill ${count === 1 ? "it" : "them"}, so archive ${count === 1 ? "it" : "them"} instead.`,
+        );
+      }
+    });
+  }
+
   return (
     <SelectionContext value={{ ids, selected, set }}>
       {children}
+
+      {kept && selected.length === 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 md:bottom-6">
+          <div
+            role="status"
+            className="pointer-events-auto flex items-center gap-2 rounded-xl border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
+          >
+            <span>{kept}</span>
+            <Button variant="ghost" size="sm" onClick={() => setKept(null)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
 
       {selected.length > 0 && (
         // Clear of the bar a phone has along its foot.
@@ -131,7 +159,7 @@ export function Selection({
             <AlertDialogAction
               variant="destructive"
               disabled={pending}
-              onClick={() => run(() => deleteAction(selected))}
+              onClick={remove}
             >
               {pending ? "Deleting…" : `Delete ${count}`}
             </AlertDialogAction>

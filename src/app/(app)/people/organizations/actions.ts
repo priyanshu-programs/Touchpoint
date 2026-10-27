@@ -226,9 +226,11 @@ export async function setOrganizationStatusAction(id: string, status: string) {
 export async function deleteOrganizationAction(formData: FormData) {
   const owner = await requireOwner();
   const id = z.uuid().parse(formData.get("id"));
-  if (!(await deleteOrganization(owner.id, id))) notFound();
+  const result = await deleteOrganization(owner.id, id);
+  if (!result.ok && result.reason === "not_found") notFound();
   revalidatePath("/people", "layout");
-  redirect("/people/organizations");
+  // A company its invoices bill stays; its panel already says why.
+  if (result.ok) redirect("/people/organizations");
 }
 
 // The rows ticked on one page of the list, which holds 50.
@@ -246,12 +248,16 @@ export async function archiveOrganizationsAction(
   revalidatePath("/people", "layout");
 }
 
+// How many were kept because invoices bill them.
 export async function deleteOrganizationsAction(ids: string[]) {
   const owner = await requireOwner();
+  let kept = 0;
   for (const id of tickedIds.parse(ids)) {
-    await deleteOrganization(owner.id, id);
+    const result = await deleteOrganization(owner.id, id);
+    if (!result.ok && result.reason === "invoiced") kept += 1;
   }
   revalidatePath("/people", "layout");
+  return kept;
 }
 
 export async function searchOrganizationsAction(query: string) {

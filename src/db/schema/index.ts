@@ -6,6 +6,7 @@ export * from "./enrichment";
 export * from "./fields";
 export * from "./files";
 export * from "./materials";
+export * from "./money";
 export * from "./people";
 export * from "./tasks";
 export * from "./workflows";

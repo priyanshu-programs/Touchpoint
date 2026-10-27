@@ -8,6 +8,7 @@ import {
   contactPhotos,
   contacts,
   fieldProvenance,
+  invoices,
   materialSendRecipients,
   profileSearches,
   tasks,
@@ -250,6 +251,10 @@ export async function mergeContacts(
       .update(tasks)
       .set({ contactId: keep.id })
       .where(and(eq(tasks.ownerId, ownerId), eq(tasks.contactId, other.id)));
+    await tx
+      .update(invoices)
+      .set({ contactId: keep.id })
+      .where(and(eq(invoices.ownerId, ownerId), eq(invoices.contactId, other.id)));
     const [keptStar] = await tx
       .select({ id: workflowBoards.id })
       .from(workflowBoards)

@@ -532,7 +532,7 @@ describe("contacts", () => {
 
     await setContactArchived(ownerId, id, false);
     await setPrimaryContact(ownerId, id, borealis, true);
-    expect(await deleteOrganization(ownerId, borealis)).toBe(true);
+    expect(await deleteOrganization(ownerId, borealis)).toEqual({ ok: true });
     expect((await getContact(ownerId, id))!.companies).toMatchObject([
       { id: acme, isPrimary: false },
     ]);
@@ -600,7 +600,7 @@ describe("contacts", () => {
       { ownerId, activityId: activity.id, contactId: colleague },
     ]);
 
-    expect(await deleteContact(ownerId, id)).toBe(true);
+    expect(await deleteContact(ownerId, id)).toEqual({ ok: true });
 
     expect(await getContact(ownerId, id)).toBeNull();
     expect(await db.$count(contactOrganizations)).toBe(1);
@@ -628,7 +628,7 @@ describe("contacts", () => {
     });
     // The address is free again, and there is nobody left to delete twice.
     await create({ email: "priya@acme.com" });
-    expect(await deleteContact(ownerId, id)).toBe(false);
+    expect(await deleteContact(ownerId, id)).toEqual({ ok: false, reason: "not_found" });
   });
 
   it("filters by name prefix, email, tag and organization", async () => {
@@ -733,7 +733,7 @@ describe("contacts", () => {
     });
     expect(await setContactArchived(otherId, id, true)).toBe(false);
     expect(await setContactRelationship(otherId, id, "client")).toBe(false);
-    expect(await deleteContact(otherId, id)).toBe(false);
+    expect(await deleteContact(otherId, id)).toEqual({ ok: false, reason: "not_found" });
     expect(await getContact(ownerId, id)).toMatchObject({ relationshipType: "prospect" });
     // Neither end of a link may be someone else's: not the person, not the company.
     const mine = await createOrg("Acme Design");

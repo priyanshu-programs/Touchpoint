@@ -9,6 +9,7 @@ import { audit } from "@/modules/audit/service";
 import { markManual, requestEnrichment } from "@/modules/enrichment/service";
 import { ENRICHABLE_FIELDS } from "@/modules/enrichment/website/read";
 import { dropUnusedFiles } from "@/modules/files/service";
+import { invoicesBilling, type ClientDeleteResult } from "@/modules/invoices/service";
 import { statusOnOffer } from "@/modules/statuses/service";
 import { organizationTagNames } from "@/modules/tags/queries";
 import { setOrganizationTags } from "@/modules/tags/service";
@@ -172,8 +173,9 @@ export async function updateOrganization(
 }
 
 // Contacts, tasks and activities outlive the company. A contact's place at it goes by
-// foreign key, star included; tasks and activities have their link set to null.
-export async function deleteOrganization(ownerId: string, id: string) {
+// foreign key, star included; tasks and activities have their link set to null. A
+// company its invoices bill is kept, so they always have a client.
+export async function deleteOrganization(ownerId: string, id: string): Promise<ClientDeleteResult> {
   return db.transaction(async (tx) => {
     const owned = and(
       eq(organizations.ownerId, ownerId),
@@ -184,7 +186,9 @@ export async function deleteOrganization(ownerId: string, id: string) {
       .from(organizations)
       .where(owned)
       .for("update");
-    if (!before) return false;
+    if (!before) return { ok: false, reason: "not_found" };
+    const invoiced = await invoicesBilling(tx, { organizationId: id });
+    if (invoiced > 0) return { ok: false, reason: "invoiced", count: invoiced };
 
     const tags = await organizationTagNames(tx, ownerId, id);
     // Provenance points at any kind of record, so no foreign key clears it.
@@ -208,7 +212,7 @@ export async function deleteOrganization(ownerId: string, id: string) {
       entityId: id,
       before: snapshot(before, tags),
     });
-    return true;
+    return { ok: true };
   });
 }
 
