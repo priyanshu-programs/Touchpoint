@@ -65,6 +65,7 @@ export default async function MoneyPage({ searchParams }: PageProps<"/money">) {
       />
 
       <OverviewControls
+        path="/money"
         periods={PERIODS.map((value) => ({
           value,
           label: PERIOD_LABELS[value],

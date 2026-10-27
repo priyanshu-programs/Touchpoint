@@ -27,6 +27,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-bar: var(--chart-bar);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -94,6 +95,9 @@
   --chart-3: oklch(0.8593 0.0068 106.542);
   --chart-4: oklch(0.7143 0.0057 106.5431);
   --chart-5: oklch(0 0 0);
+  /* The lime a step deeper, for bars: the brand lime is too faint on white (checked at
+     3:1 and more against each theme's card). */
+  --chart-bar: oklch(0.62 0.17 128.24);
   --sidebar: oklch(0.9875 0.0026 106.4475);
   --sidebar-foreground: oklch(0.5243 0 0);
   --sidebar-primary: oklch(0.9154 0.2402 128.2393);
@@ -145,6 +149,7 @@
     --chart-3: oklch(0.3715 0 0);
     --chart-4: oklch(0.5103 0 0);
     --chart-5: oklch(0.6401 0 0);
+    --chart-bar: oklch(0.66 0.18 128.24);
     --sidebar: oklch(0.1448 0 0);
     --sidebar-foreground: oklch(0.709 0 0);
     --sidebar-primary: oklch(0.9154 0.2402 128.2393);

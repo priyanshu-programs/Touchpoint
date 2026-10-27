@@ -1028,3 +1028,18 @@
 - [2026-10-27] Invoice status pills coloured at the owner's request: Unpaid red, Partly paid orange, Paid green; Overdue solid red so it stands out from Unpaid
 - [2026-10-27] Removed an unused import from src/modules/payments/service.test.ts (a lint warning)
 - [2026-10-27] feat/revenue-dashboard: merged main after PR #13 so updates.md no longer conflicts; both sides' lines kept, and the unused-import lint warning is gone with #13
+- [2026-10-27] Owner's choices for Phase 4 step 4: Reports is a fourth tab under Money, proposal acceptance counts proposals sent in the period, reply rate counts outbound activities only, and the step ships in two parts (money reports first)
+- [2026-10-27] Branch feat/reports-revenue made from main for Phase 4 step 4 part 1
+- [2026-10-27] src/modules/revenue/queries.ts: inBase (sums of payments in the base currency at their stored rates, no-rate ones named apart) pulled out of received() with ratedColumns and ratedGroup, and clientOf and within exported, so the reports convert exactly as Received does
+- [2026-10-27] src/modules/payments/queries.ts: clientColumns exported for the reports
+- [2026-10-27] src/modules/reports: revenueByMonth, revenueByClient, revenueByService (allocations split across an invoice's lines by their amounts, unallocated money apart), serviceRows, unallocatedRows, timeToPayment and timeToPaymentRows; reportParams and REPORT_DETAILS in schema.ts
+- [2026-10-27] src/modules/reports/revenue.test.ts: 8 tests (months filled and clamped, clients most first matching their Payments list, a payment split across two services adding up to Received, unallocated money, time to payment with part payments and an advance, another owner sees nothing)
+- [2026-10-27] src/lib/money.ts: formatMoneyCompact for a chart's scale (₹1.5L, ₹20K); money.test.ts covers it
+- [2026-10-27] globals.css: --chart-bar, the lime a step deeper for bars (the brand lime is 1.22:1 on white); both theme steps checked with the dataviz validator against each theme's card
+- [2026-10-27] OverviewControls takes its address and hidden fields, and the client picker is optional, so Reports reuses the period menu and From and To
+- [2026-10-27] Money tabs: Reports after Payments
+- [2026-10-27] /money/reports: revenue by month (bar chart with a hover tooltip, and a table), by client (top ten), by service and time to payment, each saying what it counts or Not enough data, each figure and row opening its rows
+- [2026-10-27] /money/reports/<report>: the rows behind revenue by client, a service, unallocated money and time to payment, 50 a page, with the period controls; an unknown report shows Not found
+- [2026-10-27] e2e/26-reports.spec.ts: an invoice of two services paid in two parts, then the month, client, service and time-to-payment rows, another period, Not enough data for dates with nothing, Not found for a wrong report, and every page at phone width; 01 and 26 pass 13 of 13
+- [2026-10-27] docs/PRD.md: Reports in section 6 and the money reports as built in section 10; plan.md: Step 4 split into two parts, part 1 ticked with its Not built list; security.md: a rule for the reports' address and sums
+- [2026-10-27] Saved a trail learning: revenue by service splits each allocation across its invoice's lines by amount, and the reports' not-found answers 200 (.trail/learnings/2026-10-27-revenue-by-service-splits-each-allocation-l.md)
