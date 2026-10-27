@@ -1027,3 +1027,4 @@
 - [2026-10-27] Saved a trail learning: Money's overview converts received payments at their stored rate and counts Outstanding as of today (.trail/learnings/2026-10-27-money-s-overview-converts-received-payments-l.md)
 - [2026-10-27] Invoice status pills coloured at the owner's request: Unpaid red, Partly paid orange, Paid green; Overdue solid red so it stands out from Unpaid
 - [2026-10-27] Removed an unused import from src/modules/payments/service.test.ts (a lint warning)
+- [2026-10-27] feat/revenue-dashboard: merged main after PR #13 so updates.md no longer conflicts; both sides' lines kept, and the unused-import lint warning is gone with #13
