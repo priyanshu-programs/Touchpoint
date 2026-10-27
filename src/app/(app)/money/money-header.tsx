@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 import { TabNav } from "@/components/tab-nav";
 
 const TABS = [
+  { href: "/money", label: "Overview" },
   { href: "/money/invoices", label: "Invoices" },
   { href: "/money/payments", label: "Payments" },
 ];
 
-// What stands above the invoices and the payments: the list's name, the button that
-// adds to it, and the way to the other one.
+// What stands above the overview, the invoices and the payments: the page's name, the
+// button that adds to it, and the way to the others.
 export function MoneyHeader({
   title,
   subtitle,
@@ -15,7 +16,7 @@ export function MoneyHeader({
 }: {
   title: string;
   subtitle: string;
-  action: ReactNode;
+  action?: ReactNode;
 }) {
   return (
     <>
@@ -26,7 +27,7 @@ export function MoneyHeader({
         </div>
         {action}
       </div>
-      <TabNav label="Invoices and payments" tabs={TABS} />
+      <TabNav label="Money" tabs={TABS} />
     </>
   );
 }

@@ -120,6 +120,11 @@ test("an issued invoice is edited, listed and found in Ctrl+K", async ({ page })
 
   await page
     .getByRole("navigation", { name: "Main" })
+    .getByRole("link", { name: "Money" })
+    .click();
+  await expect(page).toHaveURL(/\/money$/);
+  await page
+    .getByRole("navigation", { name: "Money" })
     .getByRole("link", { name: "Invoices" })
     .click();
   await expect(page).toHaveURL(/\/money\/invoices$/);
@@ -161,7 +166,7 @@ test("an issued invoice is voided after a confirmation, and stays void", async (
   await page.keyboard.press("Escape");
 });
 
-test("Invoices fit a phone and are reached through Go to", async ({ page }) => {
+test("Invoices fit a phone and are reached through Go to and Money", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of ["/money/invoices", invoiceUrl, "/money/invoices/new"]) {
     await page.goto(path);
@@ -170,7 +175,9 @@ test("Invoices fit a phone and are reached through Go to", async ({ page }) => {
   }
   await page.goto("/");
   await page.getByRole("button", { name: "Go to", exact: true }).click();
-  await page.getByRole("option", { name: "Invoices", exact: true }).click();
+  await page.getByRole("option", { name: "Money", exact: true }).click();
+  await expect(page).toHaveURL(/\/money$/);
+  await page.getByRole("link", { name: "Invoices", exact: true }).click();
   await expect(page).toHaveURL(/\/money\/invoices$/);
 });
 

@@ -108,15 +108,15 @@ test("an advance is kept unallocated, then put towards a later invoice", async (
   await expect(header(page).getByText("Paid", { exact: true })).toBeVisible();
 });
 
-test("payments are listed under Invoices and on the company's tab", async ({ page }) => {
+test("payments are listed under Money and on the company's tab", async ({ page }) => {
   await page.goto("/");
   await page
     .getByRole("navigation", { name: "Main" })
-    .getByRole("link", { name: "Invoices" })
+    .getByRole("link", { name: "Money" })
     .click();
-  await expect(page).toHaveURL(/\/money\/invoices$/);
+  await expect(page).toHaveURL(/\/money$/);
   await page
-    .getByRole("navigation", { name: "Invoices and payments" })
+    .getByRole("navigation", { name: "Money" })
     .getByRole("link", { name: "Payments" })
     .click();
   await expect(page).toHaveURL(/\/money\/payments$/);
@@ -151,8 +151,8 @@ test("Payments fit a phone and are reached through Go to", async ({ page }) => {
   }
   await page.goto("/");
   await page.getByRole("button", { name: "Go to", exact: true }).click();
-  await page.getByRole("option", { name: "Invoices", exact: true }).click();
-  await expect(page).toHaveURL(/\/money\/invoices$/);
+  await page.getByRole("option", { name: "Money", exact: true }).click();
+  await expect(page).toHaveURL(/\/money$/);
   await page.getByRole("link", { name: "Payments" }).click();
   await expect(page).toHaveURL(/\/money\/payments$/);
 });

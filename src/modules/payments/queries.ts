@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { contacts, invoices, organizations, paymentAllocations, payments } from "@/db/schema";
 import { photoVersion } from "@/modules/contacts/queries";
@@ -53,6 +53,9 @@ export async function listPayments(
     currency?: string;
     organizationId?: string;
     contactId?: string;
+    // Received on or after, and on or before.
+    from?: string;
+    to?: string;
     sort?: PaymentSort;
     dir?: "asc" | "desc";
     offset?: number;
@@ -67,6 +70,8 @@ export async function listPayments(
     options.currency ? eq(payments.currency, options.currency) : undefined,
     options.organizationId ? eq(payments.organizationId, options.organizationId) : undefined,
     options.contactId ? eq(payments.contactId, options.contactId) : undefined,
+    options.from ? gte(payments.receivedOn, options.from) : undefined,
+    options.to ? lte(payments.receivedOn, options.to) : undefined,
     q
       ? or(
           sql`${payments.reference} ilike ${contains(q)}`,

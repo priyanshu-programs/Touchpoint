@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   contacts,
@@ -12,8 +12,7 @@ import {
 } from "@/db/schema";
 import { photoVersion } from "@/modules/contacts/queries";
 import { logoVersion } from "@/modules/organizations/queries";
-import type { InvoiceSort } from "./schema";
-import type { InvoiceState } from "./state";
+import type { InvoiceFilter, InvoiceSort } from "./schema";
 
 const ownedBy = (ownerId: string) => eq(invoices.ownerId, ownerId);
 
@@ -36,9 +35,9 @@ export const invoiceBalance = sql<number>`(${invoiceTotal} - ${invoicePaid})::bi
   Number,
 );
 
-// Each worked-out state as SQL, decided in the order `invoiceState` decides it;
-// today is the owner's date, bound as a parameter.
-function stateIs(state: InvoiceState, today: string) {
+// Each worked-out state as SQL, decided in the order `invoiceState` decides it, and the
+// two groups of them; today is the owner's date, bound as a parameter.
+export function stateIs(state: InvoiceFilter, today: string) {
   const issued = eq(invoices.status, "issued");
   const owing = sql`${invoiceBalance} > 0`;
   const onTime = sql`${invoices.dueDate} >= ${today}`;
@@ -46,6 +45,10 @@ function stateIs(state: InvoiceState, today: string) {
     case "draft":
     case "void":
       return eq(invoices.status, state);
+    case "issued":
+      return issued;
+    case "outstanding":
+      return and(issued, owing);
     case "paid":
       return and(issued, sql`${invoiceBalance} <= 0`);
     case "overdue":
@@ -80,10 +83,13 @@ export async function listInvoices(
   options: {
     q?: string;
     // With the owner's date, which decides what is overdue.
-    state?: { is: InvoiceState; today: string };
+    state?: { is: InvoiceFilter; today: string };
     currency?: string;
     organizationId?: string;
     contactId?: string;
+    // Issued on or after, and on or before.
+    from?: string;
+    to?: string;
     sort?: InvoiceSort;
     dir?: "asc" | "desc";
     offset?: number;
@@ -99,6 +105,8 @@ export async function listInvoices(
     options.currency ? eq(invoices.currency, options.currency) : undefined,
     options.organizationId ? eq(invoices.organizationId, options.organizationId) : undefined,
     options.contactId ? eq(invoices.contactId, options.contactId) : undefined,
+    options.from ? gte(invoices.issueDate, options.from) : undefined,
+    options.to ? lte(invoices.issueDate, options.to) : undefined,
     q
       ? or(
           sql`${invoices.number} ilike ${contains(q)}`,
