@@ -69,3 +69,15 @@ export function toRate(typed: string): string | null {
   const rate = `${match[1]}.${(match[2] ?? "").padEnd(8, "0")}`;
   return Number(rate) > 0 ? rate : null;
 }
+
+// A sum of minor units times their rates to the base currency, as the exact decimal
+// text Postgres gives, in the base currency's minor units: scaled by the difference in
+// the two currencies' decimals (a yen is 0, a rupee 2) and half a unit rounded up,
+// once, in bigint.
+export function convertToBase(product: string, currency: string, baseCurrency: string) {
+  const [whole, fraction = ""] = product.split(".");
+  const shift = currencyDigits(baseCurrency) - currencyDigits(currency);
+  const scaled = BigInt(whole + fraction) * BigInt(10) ** BigInt(Math.max(shift, 0));
+  const divisor = BigInt(10) ** BigInt(fraction.length + Math.max(-shift, 0));
+  return Number((scaled * BigInt(2) + divisor) / (BigInt(2) * divisor));
+}

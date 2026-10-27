@@ -15,8 +15,6 @@ import {
 import { formatMoney } from "@/lib/money";
 import { requireOwner } from "@/lib/session";
 import { formatDate } from "@/lib/time";
-import { getContact } from "@/modules/contacts/queries";
-import { getOrganization } from "@/modules/organizations/queries";
 import { listPayments, paymentCurrencies } from "@/modules/payments/queries";
 import {
   PAYMENT_METHOD_LABELS,
@@ -28,7 +26,9 @@ import {
 import { ListCard, ListFooter } from "../../people/(lists)/list-card";
 import { ListToolbar } from "../../people/(lists)/list-toolbar";
 import { SortHead } from "../../people/(lists)/sort-head";
+import { namedClient } from "../client";
 import { MoneyHeader } from "../money-header";
+import { rangeText } from "../range";
 import { newPaymentHref, paymentHref, paymentsHref } from "./labels";
 
 export const metadata: Metadata = { title: "Payments" };
@@ -49,20 +49,6 @@ function sorting(params: PaymentListParams, sort: PaymentSort) {
   };
 }
 
-// Narrowed to one client from their tab; the name is shown only once the record is
-// found to be the owner's.
-async function clientOf(ownerId: string, params: PaymentListParams) {
-  if (params.company) {
-    const organization = await getOrganization(ownerId, params.company);
-    return organization ? { name: organization.name, organizationId: params.company } : null;
-  }
-  if (params.person) {
-    const contact = await getContact(ownerId, params.person);
-    return contact ? { name: contact.fullName, contactId: params.person } : null;
-  }
-  return null;
-}
-
 export default async function PaymentsPage({ searchParams }: PageProps<"/money/payments">) {
   const owner = await requireOwner();
   const params = paymentListParams.parse(await searchParams);
@@ -73,15 +59,20 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/money/p
       currency: params.currency,
       organizationId: params.company,
       contactId: params.person,
+      from: params.from,
+      to: params.to,
       sort: params.sort,
       dir: params.dir,
       limit: PAGE_SIZE,
       offset: (pageNumber - 1) * PAGE_SIZE,
     }),
     paymentCurrencies(owner.id),
-    clientOf(owner.id, params),
+    namedClient(owner.id, params),
   ]);
-  const filtered = Boolean(params.q || params.currency || params.company || params.person);
+  const filtered = Boolean(
+    params.q || params.currency || params.company || params.person || params.from || params.to,
+  );
+  const dates = rangeText(params);
   // Offered once there is more than one to choose between.
   const filters =
     currencies.length > 1
@@ -130,6 +121,8 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/money/p
             currency: params.currency,
             company: params.company,
             person: params.person,
+            from: params.from,
+            to: params.to,
             sort: params.sort,
             dir: params.dir,
           }}
@@ -145,6 +138,18 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/money/p
               className="underline"
             >
               Show every client
+            </Link>
+          </p>
+        )}
+
+        {dates && (
+          <p className="text-sm">
+            Received {dates}.{" "}
+            <Link
+              href={paymentsHref(params, { ...FIRST_PAGE, from: undefined, to: undefined })}
+              className="underline"
+            >
+              Show any date
             </Link>
           </p>
         )}

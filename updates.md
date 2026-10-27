@@ -1008,5 +1008,23 @@
 - [2026-10-27] docs/PRD.md: payments in section 6, and the payments and payment_allocations rows of section 8.8 as built
 - [2026-10-27] plan.md: Step 2 ticked with its Not built list
 - [2026-10-27] Phase 4 step 2 runs: lint and typecheck clean; Vitest payments 20 of 20, invoices and money passing, organizations, contacts and search 106 of 106; e2e 01, 23 and 24 pass 23 of 23; trail check's 14 hits are word matches, explained in the PR
+- [2026-10-27] PR #13: the invoice pill colours (73aa345), pushed to feat/payments after PR #12 had merged, cherry-picked onto their own branch so they reach main
+- [2026-10-27] Owner's choices for Phase 4 step 3: the sidebar entry is Money again with an Overview tab first, a period menu plus From and To, Received converted to the base currency at each payment's stored rate, Outstanding always as of today
+- [2026-10-27] src/lib/money.ts: convertToBase turns a sum of amount times rate into the base currency's minor units in bigint, scaled by the two currencies' decimals and rounded half up once; money.test.ts covers it
+- [2026-10-27] src/modules/revenue/period.ts: the six periods, periodRange (calendar months, quarters and years, the last 12 months, all time) and revenueParams/chosenRange for /money's address; period.test.ts, 14 tests
+- [2026-10-27] src/modules/revenue/queries.ts: revenueSummary (Received in the base currency with converted and unconverted currencies, Invoiced per currency, Outstanding today per currency with overdue) and hasMoney; queries.test.ts, 7 tests, including that each figure's count matches the list it opens
+- [2026-10-27] Invoices list: from and to on the issue date, and All issued and Outstanding in the Status filter (INVOICE_GROUPS; stateIs exported for the overview)
+- [2026-10-27] Payments list: from and to on the date received
+- [2026-10-27] Both lists say when they are narrowed to dates ("Issued from … to …", "Show any date"); the client lookup both lists repeated is now namedClient in src/app/(app)/money/client.ts
+- [2026-10-27] /money: the Overview, with a period menu, From and To, a client picked by search, and Received, Invoiced and Outstanding today cards whose every figure links to its rows (figure-links.ts, overview-controls.tsx)
+- [2026-10-27] Sidebar and Go to: Invoices renamed back to Money, opening /money; the Money tabs are Overview, Invoices and Payments
+- [2026-10-27] Today: Received this month, Invoiced this month and Outstanding today tiles once an invoice or payment exists, each opening its rows
+- [2026-10-27] e2e/23 and e2e/24 reach invoices and payments through Money; e2e/25-revenue.spec.ts: one client's figures, each opening its rows, another period and From and To, clearing the client, Today's tiles, a phone
+- [2026-10-27] docs/PRD.md: Money in section 6 and the revenue overview as built; plan.md: Step 3 ticked with its Not built list
+- [2026-10-27] security.md: a rule for the revenue overview's address, its sums and the lists' date range
+- [2026-10-27] Saved a trail learning: a new page's PageProps route fails typecheck until next typegen regenerates the route types (.trail/learnings/2026-10-27-a-new-page-s-pageprops-route-l.md)
+- [2026-10-27] Phase 4 step 3 runs: typecheck clean, lint clean but for the unused import PR #13 removes; Vitest money, revenue, invoices and payments 110 of 110; e2e 01, 23 and 24 pass 23 of 23, and 01 with 25 pass 14 of 14 (25 now waits for the invoice's amount box before typing a payment, and expects the period kept when a client is picked)
+- [2026-10-27] Saved a trail learning: Money's overview converts received payments at their stored rate and counts Outstanding as of today (.trail/learnings/2026-10-27-money-s-overview-converts-received-payments-l.md)
 - [2026-10-27] Invoice status pills coloured at the owner's request: Unpaid red, Partly paid orange, Paid green; Overdue solid red so it stands out from Unpaid
 - [2026-10-27] Removed an unused import from src/modules/payments/service.test.ts (a lint warning)
+- [2026-10-27] feat/revenue-dashboard: merged main after PR #13 so updates.md no longer conflicts; both sides' lines kept, and the unused-import lint warning is gone with #13

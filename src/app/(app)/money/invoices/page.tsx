@@ -16,21 +16,23 @@ import { db } from "@/db/client";
 import { formatMoney } from "@/lib/money";
 import { requireOwner } from "@/lib/session";
 import { dateIn, formatDate } from "@/lib/time";
-import { getContact } from "@/modules/contacts/queries";
 import { invoiceCurrencies, listInvoices } from "@/modules/invoices/queries";
 import {
+  INVOICE_GROUP_LABELS,
+  INVOICE_GROUPS,
   INVOICE_SORTS,
   invoiceListParams,
   type InvoiceListParams,
   type InvoiceSort,
 } from "@/modules/invoices/schema";
 import { invoiceState } from "@/modules/invoices/state";
-import { getOrganization } from "@/modules/organizations/queries";
 import { ownerTimezone } from "@/modules/settings/service";
 import { ListCard, ListFooter } from "../../people/(lists)/list-card";
 import { ListToolbar } from "../../people/(lists)/list-toolbar";
 import { SortHead } from "../../people/(lists)/sort-head";
+import { namedClient } from "../client";
 import { MoneyHeader } from "../money-header";
+import { rangeText } from "../range";
 import { invoiceHref, invoicesHref, invoiceStateOptions, newInvoiceHref } from "./labels";
 import { InvoiceStatusPill } from "./status-pill";
 
@@ -58,20 +60,6 @@ function sorting(params: InvoiceListParams, sort: InvoiceSort) {
   };
 }
 
-// The list can be narrowed to one client from their Invoices tab or a figure that
-// counts them; the name is shown only once the record is found to be the owner's.
-async function clientOf(ownerId: string, params: InvoiceListParams) {
-  if (params.company) {
-    const organization = await getOrganization(ownerId, params.company);
-    return organization ? { name: organization.name, organizationId: params.company } : null;
-  }
-  if (params.person) {
-    const contact = await getContact(ownerId, params.person);
-    return contact ? { name: contact.fullName, contactId: params.person } : null;
-  }
-  return null;
-}
-
 export default async function InvoicesPage({ searchParams }: PageProps<"/money/invoices">) {
   const owner = await requireOwner();
   const params = invoiceListParams.parse(await searchParams);
@@ -85,17 +73,26 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/money/i
       currency: params.currency,
       organizationId: params.company,
       contactId: params.person,
+      from: params.from,
+      to: params.to,
       sort,
       dir: params.dir ?? FIRST_DIRECTION[sort],
       limit: PAGE_SIZE,
       offset: (pageNumber - 1) * PAGE_SIZE,
     }),
     invoiceCurrencies(owner.id),
-    clientOf(owner.id, params),
+    namedClient(owner.id, params),
   ]);
   const filtered = Boolean(
-    params.q || params.status || params.currency || params.company || params.person,
+    params.q ||
+      params.status ||
+      params.currency ||
+      params.company ||
+      params.person ||
+      params.from ||
+      params.to,
   );
+  const dates = rangeText(params);
   const filters = [
     {
       label: "Status",
@@ -106,6 +103,11 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/money/i
           label: "All statuses",
           href: invoicesHref(params, { ...FIRST_PAGE, status: undefined }),
         },
+        ...INVOICE_GROUPS.map((value) => ({
+          value,
+          label: INVOICE_GROUP_LABELS[value],
+          href: invoicesHref(params, { ...FIRST_PAGE, status: value }),
+        })),
         ...invoiceStateOptions.map(({ value, label }) => ({
           value,
           label,
@@ -162,6 +164,8 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/money/i
             currency: params.currency,
             company: params.company,
             person: params.person,
+            from: params.from,
+            to: params.to,
             sort: params.sort,
             dir: params.dir,
           }}
@@ -177,6 +181,18 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/money/i
               className="underline"
             >
               Show every client
+            </Link>
+          </p>
+        )}
+
+        {dates && (
+          <p className="text-sm">
+            Issued {dates}.{" "}
+            <Link
+              href={invoicesHref(params, { ...FIRST_PAGE, from: undefined, to: undefined })}
+              className="underline"
+            >
+              Show any date
             </Link>
           </p>
         )}

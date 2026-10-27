@@ -140,6 +140,9 @@ export const paymentListParams = z.object({
   currency: optional(z.string().regex(/^[A-Z]{3}$/)),
   company: optional(z.uuid()),
   person: optional(z.uuid()),
+  // Received on or after, and on or before.
+  from: optional(z.iso.date()),
+  to: optional(z.iso.date()),
   sort: optional(z.enum(PAYMENT_SORTS)),
   dir: optional(z.enum(["asc", "desc"])),
   page: optional(z.coerce.number().int().min(1).max(1000)),

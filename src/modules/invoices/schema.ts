@@ -3,7 +3,7 @@ import { INVOICE_STATUSES, type InvoiceStatus } from "@/db/schema";
 import { blankToNull, text } from "@/lib/form";
 import { lineAmount, toHundredths, toMinor } from "@/lib/money";
 import { CURRENCIES } from "@/modules/settings/schema";
-import { INVOICE_STATES } from "./state";
+import { INVOICE_STATES, type InvoiceState } from "./state";
 
 export { INVOICE_STATUSES };
 
@@ -176,15 +176,27 @@ const optional = <T extends z.ZodType>(schema: T) =>
   schema.optional().catch(undefined);
 
 export const INVOICE_SORTS = ["number", "issued", "due", "total"] as const;
+
+// The Status filter also takes two groups of states, which the overview's figures open:
+// every issued invoice, and every one still owing.
+export const INVOICE_GROUPS = ["issued", "outstanding"] as const;
+export type InvoiceFilter = InvoiceState | (typeof INVOICE_GROUPS)[number];
+export const INVOICE_GROUP_LABELS: Record<(typeof INVOICE_GROUPS)[number], string> = {
+  issued: "All issued",
+  outstanding: "Outstanding",
+};
 export type InvoiceSort = (typeof INVOICE_SORTS)[number];
 
 // What `/money/invoices` is narrowed and ordered by, read from its address.
 export const invoiceListParams = z.object({
   q: optional(z.string().trim().max(100)),
-  status: optional(z.enum(INVOICE_STATES)),
+  status: optional(z.enum([...INVOICE_GROUPS, ...INVOICE_STATES])),
   currency: optional(z.string().regex(/^[A-Z]{3}$/)),
   company: optional(z.uuid()),
   person: optional(z.uuid()),
+  // Issued on or after, and on or before.
+  from: optional(z.iso.date()),
+  to: optional(z.iso.date()),
   sort: optional(z.enum(INVOICE_SORTS)),
   dir: optional(z.enum(["asc", "desc"])),
   page: optional(z.coerce.number().int().min(1).max(1000)),

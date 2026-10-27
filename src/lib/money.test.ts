@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  convertToBase,
   currencyDigits,
   formatMoney,
   lineAmount,
@@ -108,5 +109,19 @@ describe("toRate", () => {
     for (const typed of ["0", "0.00", "-1", "1.123456789", "12345678901", "abc", ""]) {
       expect(toRate(typed), typed).toBeNull();
     }
+  });
+});
+
+describe("convertToBase", () => {
+  it.each([
+    ["9994162.50000000", "USD", "INR", 9_994_163],
+    ["9994162.49999999", "USD", "INR", 9_994_162],
+    ["1400.00000000", "JPY", "INR", 140_000],
+    ["333797.00000000", "KWD", "INR", 33_380],
+    ["26700.00000000", "INR", "JPY", 267],
+    ["0.00000000", "USD", "INR", 0],
+    ["100", "EUR", "INR", 100],
+  ])("turns %s %s into %s", (product, currency, base, minor) => {
+    expect(convertToBase(product, currency, base)).toBe(minor);
   });
 });

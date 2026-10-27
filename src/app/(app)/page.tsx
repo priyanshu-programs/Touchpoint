@@ -9,28 +9,74 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatMoney } from "@/lib/money";
 import { requireOwner } from "@/lib/session";
 import { addDays, dateIn, formatDateTime } from "@/lib/time";
 import { listTimeline } from "@/modules/activities/queries";
 import { countContacts } from "@/modules/contacts/queries";
 import { countOrganizations } from "@/modules/organizations/queries";
+import { periodRange } from "@/modules/revenue/period";
+import { hasMoney, revenueSummary, type CurrencyAmount } from "@/modules/revenue/queries";
 import { getSettings } from "@/modules/settings/service";
 import {
   listDeliveredReminders,
   listDueTasks,
 } from "@/modules/tasks/queries";
 import { TimelineEvent } from "./activities/timeline-event";
+import { figureLinks } from "./money/figure-links";
 import { dismissReminderAction } from "./tasks/actions";
 import { DueToday } from "./tasks/due-today";
 import { WeekAhead } from "./tasks/week-ahead";
 
 export const metadata: Metadata = { title: "Today" };
 
+// This month's money in the base currency, with what came in other currencies said after
+// it; each tile opens the rows it adds up.
+async function moneyTiles(ownerId: string, today: string, base: string) {
+  if (!(await hasMoney(ownerId))) return null;
+  const range = periodRange("this-month", today);
+  const { received, invoiced, outstanding } = await revenueSummary(ownerId, {
+    range,
+    today,
+    baseCurrency: base,
+  });
+  const links = figureLinks(range);
+  const inBase = (amounts: CurrencyAmount[]) =>
+    amounts.find(({ currency }) => currency === base)?.minor ?? 0;
+  const others = (amounts: CurrencyAmount[]) => {
+    const rest = amounts.filter(({ currency }) => currency !== base);
+    return rest.length > 0
+      ? `and ${rest.map(({ minor, currency }) => formatMoney(minor, currency)).join(", ")}`
+      : null;
+  };
+  return [
+    {
+      label: "Received this month",
+      href: links.received(),
+      figure: formatMoney(received.minor, base),
+      more: null,
+    },
+    {
+      label: "Invoiced this month",
+      href: links.invoiced(base),
+      figure: formatMoney(inBase(invoiced), base),
+      more: others(invoiced),
+    },
+    {
+      label: "Outstanding today",
+      href: links.outstanding(base),
+      figure: formatMoney(inBase(outstanding), base),
+      more: others(outstanding),
+    },
+  ];
+}
+
 export default async function TodayPage() {
   const owner = await requireOwner();
-  const timezone = (await getSettings(owner.id))?.timezone ?? "UTC";
+  const settings = await getSettings(owner.id);
+  const timezone = settings?.timezone ?? "UTC";
   const today = dateIn(timezone);
-  const [tasks, reminders, upcoming, recent, contactCount, organizationCount] =
+  const [tasks, reminders, upcoming, recent, contactCount, organizationCount, money] =
     await Promise.all([
       listDueTasks(owner.id, { through: today, hideSnoozed: true }),
       listDeliveredReminders(owner.id),
@@ -41,6 +87,7 @@ export default async function TodayPage() {
       listTimeline(owner.id, { limit: 5 }),
       countContacts(owner.id),
       countOrganizations(owner.id),
+      moneyTiles(owner.id, today, settings?.baseCurrency ?? "INR"),
     ]);
   const people = [
     { href: "/people/contacts", label: "Contacts", count: contactCount },
@@ -73,6 +120,27 @@ export default async function TodayPage() {
           </li>
         ))}
       </ul>
+
+      {money && (
+        <ul aria-label="Money" className="grid gap-4 sm:grid-cols-3 lg:gap-6">
+          {money.map((tile) => (
+            <li key={tile.label}>
+              <Link
+                href={tile.href}
+                className="grid gap-1 rounded-xl bg-card p-4 ring-1 ring-foreground/10 hover:bg-accent"
+              >
+                <span className="text-sm text-muted-foreground">{tile.label}</span>
+                <span className="text-2xl font-semibold tracking-tight tabular-nums">
+                  {tile.figure}
+                </span>
+                {tile.more && (
+                  <span className="text-sm text-muted-foreground">{tile.more}</span>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {reminders.length > 0 && (
         <Card>
