@@ -8,7 +8,7 @@ import { ListCard } from "../../people/(lists)/list-card";
 import { invoiceHref, newInvoiceHref } from "./labels";
 import { InvoiceStatusPill } from "./status-pill";
 
-// The Money tab of a company or a person: the invoices that bill them.
+// The Invoices tab of a company or a person: the invoices that bill them.
 export async function RecordInvoices({
   ownerId,
   client,

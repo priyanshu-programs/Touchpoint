@@ -987,3 +987,4 @@
 - [2026-10-27] security.md: the invoices rule says a draft or a void invoice is deleted, an issued one is voided first
 - [2026-10-27] service.test.ts deletes an invoice after its void; e2e/23 checks a void invoice's menu, deletes it, then finds its company deletable
 - [2026-10-27] plan.md: Step 1's entry says a void invoice can be deleted
+- [2026-10-27] Renamed the "Money" sidebar entry, its Go to option and the Money tab on a company's and a person's panel to "Invoices" (owner's request); URLs stay /money/invoices and ?tab=money
