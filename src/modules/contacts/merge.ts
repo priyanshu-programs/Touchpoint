@@ -9,6 +9,7 @@ import {
   contacts,
   fieldProvenance,
   invoices,
+  payments,
   materialSendRecipients,
   profileSearches,
   tasks,
@@ -255,6 +256,10 @@ export async function mergeContacts(
       .update(invoices)
       .set({ contactId: keep.id })
       .where(and(eq(invoices.ownerId, ownerId), eq(invoices.contactId, other.id)));
+    await tx
+      .update(payments)
+      .set({ contactId: keep.id })
+      .where(and(eq(payments.ownerId, ownerId), eq(payments.contactId, other.id)));
     const [keptStar] = await tx
       .select({ id: workflowBoards.id })
       .from(workflowBoards)

@@ -7,6 +7,8 @@ import {
   invoiceLines,
   invoices,
   organizations,
+  paymentAllocations,
+  payments,
 } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { dropUnusedFiles, storeFile } from "@/modules/files/service";
@@ -24,7 +26,14 @@ export type InvoiceResult =
   | { ok: true; id: string }
   | {
       ok: false;
-      reason: "not_found" | "number_taken" | "limit" | "unknown_client" | "void" | "issued";
+      reason:
+        | "not_found"
+        | "number_taken"
+        | "limit"
+        | "unknown_client"
+        | "void"
+        | "issued"
+        | "paid";
     };
 
 // Held to the end of the transaction, so the limit and the unique number cannot
@@ -41,6 +50,11 @@ async function lockInvoice(tx: Tx, ownerId: string, id: string) {
   return row;
 }
 
+// A payment locks the invoices it goes to before it reads them, so with the invoice
+// locked this count holds until the change is written.
+const hasPayments = async (tx: Tx, invoiceId: string) =>
+  (await tx.$count(paymentAllocations, eq(paymentAllocations.invoiceId, invoiceId))) > 0;
+
 // The number is citext, so this compares without regard to case.
 async function numberTaken(tx: Tx, ownerId: string, number: string, except?: string) {
   const [row] = await tx
@@ -56,8 +70,8 @@ async function numberTaken(tx: Tx, ownerId: string, number: string, except?: str
   return Boolean(row);
 }
 
-// The client is held while the invoice is written, so it cannot be deleted under it.
-async function clientIsOwners(
+// The client is held while the invoice or payment is written, so it cannot be deleted under it.
+export async function clientIsOwners(
   tx: Tx,
   ownerId: string,
   { organizationId, contactId }: Pick<InvoiceInput, "organizationId" | "contactId">,
@@ -193,6 +207,8 @@ export async function updateInvoice(
     if (before.status === "issued" && input.status === "draft") {
       return { ok: false, reason: "issued" };
     }
+    // What was paid was paid against these lines and this client.
+    if (await hasPayments(tx, id)) return { ok: false, reason: "paid" };
     if (await numberTaken(tx, ownerId, input.number, id)) {
       return { ok: false, reason: "number_taken" };
     }
@@ -216,9 +232,12 @@ export async function updateInvoice(
   });
 }
 
-export type StatusResult = { ok: true } | { ok: false; reason: "not_found" | "status" };
+export type StatusResult =
+  | { ok: true }
+  | { ok: false; reason: "not_found" | "status" | "paid" };
 
-// A draft is issued, and an issued invoice voided; voiding cannot be undone.
+// A draft is issued, and an issued invoice voided; voiding cannot be undone. An
+// invoice with payments is not voided, so a void invoice never has any.
 async function moveStatus(
   ownerId: string,
   id: string,
@@ -229,6 +248,7 @@ async function moveStatus(
     const before = await lockInvoice(tx, ownerId, id);
     if (!before) return { ok: false, reason: "not_found" };
     if (before.status !== from) return { ok: false, reason: "status" };
+    if (to === "void" && (await hasPayments(tx, id))) return { ok: false, reason: "paid" };
     await tx.update(invoices).set({ status: to }).where(eq(invoices.id, id));
     await audit(tx, {
       ownerId,
@@ -361,14 +381,24 @@ export type ClientDeleteResult =
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "invoiced"; count: number };
 
-// How many invoices bill a company or a person, which keeps it from being deleted.
-export const invoicesBilling = (
+// How many invoices and payments a company or a person has, which keeps it from being deleted.
+export async function invoicesBilling(
   tx: Tx,
   client: { organizationId: string } | { contactId: string },
-) =>
-  tx.$count(
-    invoices,
-    "organizationId" in client
-      ? eq(invoices.organizationId, client.organizationId)
-      : eq(invoices.contactId, client.contactId),
-  );
+) {
+  const [invoiceRows, paymentRows] = await Promise.all([
+    tx.$count(
+      invoices,
+      "organizationId" in client
+        ? eq(invoices.organizationId, client.organizationId)
+        : eq(invoices.contactId, client.contactId),
+    ),
+    tx.$count(
+      payments,
+      "organizationId" in client
+        ? eq(payments.organizationId, client.organizationId)
+        : eq(payments.contactId, client.contactId),
+    ),
+  ]);
+  return invoiceRows + paymentRows;
+}

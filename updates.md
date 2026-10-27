@@ -988,3 +988,23 @@
 - [2026-10-27] service.test.ts deletes an invoice after its void; e2e/23 checks a void invoice's menu, deletes it, then finds its company deletable
 - [2026-10-27] plan.md: Step 1's entry says a void invoice can be deleted
 - [2026-10-27] Renamed the "Money" sidebar entry, its Go to option and the Money tab on a company's and a person's panel to "Invoices" (owner's request); URLs stay /money/invoices and ?tab=money
+- [2026-10-27] Owner's choices for Phase 4 step 2: payments are a second tab under Invoices, refunds are left out, a payment's leftover is kept unallocated for a later invoice, and the payer is the client
+- [2026-10-27] Branch feat/payments made from main for Phase 4 step 2; it also carries the rename's trail learning, which was left uncommitted on chore/rename-money-to-invoices
+- [2026-10-27] Migration 0033 (additive): payments and payment_allocations (src/db/schema/money.ts); client and invoice keys are no action, so a client with payments and a paid invoice are not deleted from under them
+- [2026-10-27] src/lib/money.ts: toRate reads a rate to the base currency to eight decimals; money.test.ts covers it
+- [2026-10-27] src/modules/invoices/state.ts: an invoice's state (Draft, Unpaid, Partly paid, Overdue, Paid, Void) worked out from its status, payments and due date, never stored
+- [2026-10-27] Invoice queries: paid and balance on every invoice, the list's Status filter takes the six states with the owner's date bound, getInvoice lists its payments, moneyCount counts invoices and payments
+- [2026-10-27] Invoice service: an invoice with payments is not edited or voided (reason paid); clientIsOwners exported for payments; a client's delete counts payments as well as invoices
+- [2026-10-27] Merging two companies or two people moves the other record's payments to the one kept
+- [2026-10-27] src/modules/payments: strict paymentInput (client, date, amount and rate in the payment's currency, method, reference, idempotency key, Record anyway, amounts per invoice), service (record, allocate a leftover, delete; locked, checked and audited) and queries (list, one payment, a record's payments, a client's open invoices)
+- [2026-10-27] src/modules/payments/service.test.ts: 20 tests (input rules, part and full payment, a form sent twice, the duplicate warning, invoices refused by status, client, currency and balance, rate, future date, another owner, leftovers, delete freeing an invoice, client delete refused, merges, list)
+- [2026-10-27] Screens: Invoices and Payments tabs (money-header.tsx); /money/payments (list), /money/payments/new (form with the client's open invoices filled oldest due first), /money/payments/<id> (invoices paid, Put towards an invoice, Delete)
+- [2026-10-27] Invoice page: worked-out pill, Still owed, Paid and Still owed under the total, a Payments card with Record payment; no menu and no edit page once it has payments
+- [2026-10-27] A company's and a person's Invoices tab shows worked-out pills and a Payments section with Record payment; the delete refusal names invoices and payments
+- [2026-10-27] RecordPicker takes an optional onChange, so the payment form loads the chosen client's open invoices
+- [2026-10-27] Record payment in the command palette
+- [2026-10-27] e2e/23 expects Unpaid for an issued invoice; e2e/24-payments.spec.ts: part and full payment from an invoice, a duplicate stopped, an advance put towards a later invoice, the Payments tab and the company's tab, a delete, the pages on a phone; 01, 23 and 24 pass (23 of 23)
+- [2026-10-27] security.md: rules for payments; an invoice with payments is not edited or voided; a client with payments is not deleted and merges move them
+- [2026-10-27] docs/PRD.md: payments in section 6, and the payments and payment_allocations rows of section 8.8 as built
+- [2026-10-27] plan.md: Step 2 ticked with its Not built list
+- [2026-10-27] Phase 4 step 2 runs: lint and typecheck clean; Vitest payments 20 of 20, invoices and money passing, organizations, contacts and search 106 of 106; e2e 01, 23 and 24 pass 23 of 23; trail check's 14 hits are word matches, explained in the PR

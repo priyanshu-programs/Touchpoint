@@ -13,7 +13,7 @@ import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
 import { RecordWorkflows } from "@/app/(app)/workflows/record-workflows";
 import { invoicedBlock } from "@/app/(app)/money/invoices/labels";
 import { RecordInvoices } from "@/app/(app)/money/invoices/record-invoices";
-import { invoiceCount } from "@/modules/invoices/queries";
+import { moneyCount } from "@/modules/invoices/queries";
 import {
   deleteContactAction,
   removeContactPhotoAction,
@@ -66,7 +66,7 @@ export async function ContactPanel({
   fieldsHref: string;
 }) {
   const filter = { contactId: contact.id };
-  const invoiced = await invoiceCount(ownerId, filter);
+  const invoiced = await moneyCount(ownerId, filter);
   const email = contact.emails.find((row) => row.isPrimary)?.email;
   // The company this view is about: the one it was opened in, else the person's first.
   const company =
@@ -145,7 +145,7 @@ export async function ContactPanel({
             confirmLabel: "Delete contact",
             action: deleteContactAction,
             fields: { company: inside?.id ?? "" },
-            blocked: invoiced ? invoicedBlock(contact.fullName, invoiced) : undefined,
+            blocked: invoiced.invoices + invoiced.payments > 0 ? invoicedBlock(contact.fullName, invoiced) : undefined,
           }}
         />
       </header>

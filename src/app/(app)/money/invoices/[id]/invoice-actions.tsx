@@ -49,15 +49,18 @@ const CONFIRMS = {
 
 // What can be done to an invoice depends on where it stands: a draft is issued or
 // deleted, an issued invoice voided (never deleted outright), and a void one deleted.
+// One with payments stays as it is, so it has no menu until they are deleted.
 export function InvoiceActions({
   id,
   number,
   status,
+  paid,
   editHref,
 }: {
   id: string;
   number: string;
   status: InvoiceStatus;
+  paid: boolean;
   editHref: string;
 }) {
   const router = useRouter();
@@ -69,6 +72,8 @@ export function InvoiceActions({
     formData.set("id", id);
     void issueInvoiceAction(formData);
   }
+
+  if (paid) return null;
 
   return (
     <>

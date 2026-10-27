@@ -53,7 +53,7 @@ import { FieldsLink } from "../fields-link";
 import { companiesHref, type CompanyListParams } from "../list-controls";
 import { invoicedBlock } from "@/app/(app)/money/invoices/labels";
 import { RecordInvoices } from "@/app/(app)/money/invoices/record-invoices";
-import { invoiceCount } from "@/modules/invoices/queries";
+import { moneyCount } from "@/modules/invoices/queries";
 import { AddContactForm } from "./add-contact-form";
 import { CompanyActions } from "./company-actions";
 import { CompanyStatusMenu } from "./company-status-menu";
@@ -143,7 +143,7 @@ export async function CompanyPanel({
     latestRun(ownerId, organization.id),
     websiteFields(ownerId, organization.id),
     params.tab === "contacts" ? suggestedPeople(ownerId, organization.id) : [],
-    invoiceCount(ownerId, filter),
+    moneyCount(ownerId, filter),
   ]);
   const timezone = settings?.timezone ?? "UTC";
   const lastActivity = latest.rows[0]?.occurredAt;
@@ -259,7 +259,7 @@ export async function CompanyPanel({
             } are kept, no longer linked to a company. To hide it instead, use Archive.`,
             confirmLabel: "Delete company",
             action: deleteOrganizationAction,
-            blocked: invoiced ? invoicedBlock(organization.name, invoiced) : undefined,
+            blocked: invoiced.invoices + invoiced.payments > 0 ? invoicedBlock(organization.name, invoiced) : undefined,
           }}
         />
       </header>
