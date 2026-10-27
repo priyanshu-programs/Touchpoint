@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { Pool } from "pg";
 import { OWNER_SESSION } from "./support";
 
 test.describe.configure({ mode: "serial" });
@@ -124,6 +125,97 @@ test("another period or dates of the owner's own, and Not enough data where noth
   }
 });
 
+// A month no other file writes to, so the three rates can be checked exactly. Logging
+// activities, follow-ups and sends is covered by their own files; here they are placed in
+// the database with the dates the reports count by.
+const MARCH = "from=2025-03-01&to=2025-03-31";
+
+test("follow-up compliance, reply rate and proposal acceptance, each opening its rows", async ({ page }) => {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  await pool.query(`
+    with owner as (select id from "user" order by created_at limit 1),
+    ava as (insert into contacts (owner_id, first_name, last_name) select id, 'Ava', 'Linwood' from owner returning id, owner_id),
+    ben as (insert into contacts (owner_id, first_name, last_name) select id, 'Ben', 'Ortega' from owner returning id, owner_id),
+    follow_ups as (
+      insert into tasks (owner_id, title, due_on, status, completed_at, origin, contact_id)
+      select owner_id, 'Send Ava the timeline', '2025-03-10'::date, 'done', '2025-03-09T10:00:00Z'::timestamptz, 'follow_up', id from ava
+      union all
+      select owner_id, 'Chase Ben about the brief', '2025-03-12'::date, 'open', null, 'follow_up', id from ben
+    ),
+    calls as (
+      insert into activities (owner_id, kind, direction, occurred_at, title)
+      select id, 'email', 'outbound', '2025-03-05T06:00:00Z'::timestamptz, 'Intro to Ava' from owner
+      union all select id, 'email', 'inbound', '2025-03-06T06:00:00Z'::timestamptz, 'Ava wrote back' from owner
+      union all select id, 'call', 'outbound', '2025-03-07T06:00:00Z'::timestamptz, 'Called Ben' from owner
+      returning id, title, owner_id
+    ),
+    linked as (
+      insert into activity_contacts (activity_id, contact_id, owner_id)
+      select calls.id, case when calls.title = 'Called Ben' then ben.id else ava.id end, calls.owner_id
+      from calls, ava, ben
+    ),
+    material as (
+      insert into materials (owner_id, name, type) select id, 'Linwood proposal', 'proposal' from owner returning id, owner_id
+    ),
+    version as (
+      insert into material_versions (owner_id, material_id, label, url)
+      select owner_id, id, 'v1', 'https://example.com/linwood' from material returning id, owner_id
+    ),
+    sends as (
+      insert into material_sends (owner_id, version_id, sent_at, channel, status)
+      select owner_id, id, '2025-03-08T06:00:00Z'::timestamptz, 'email', 'accepted' from version
+      union all select owner_id, id, '2025-03-09T06:00:00Z'::timestamptz, 'email', 'rejected' from version
+      union all select owner_id, id, '2025-03-10T06:00:00Z'::timestamptz, 'email', 'sent' from version
+      returning id, owner_id, status
+    )
+    insert into material_send_recipients (send_id, contact_id, owner_id)
+    select sends.id, case when sends.status = 'rejected' then ben.id else ava.id end, sends.owner_id
+    from sends, ava, ben
+  `);
+  await pool.end();
+
+  await page.goto(`/money/reports?${MARCH}`);
+  await expect(page.getByRole("heading", { name: "Follow-ups and sales" })).toBeVisible();
+  const compliance = card(page, "Follow-up compliance");
+  await expect(compliance.getByRole("link", { name: "50% on time" })).toBeVisible();
+  await expect(compliance).toContainText("1 of 2 follow-ups due");
+  await expect(card(page, "Reply rate").getByRole("link", { name: "50% replied" })).toBeVisible();
+  await expect(card(page, "Reply rate")).toContainText("1 of 2 people you reached out to");
+  const acceptance = card(page, "Proposal acceptance");
+  await expect(acceptance.getByRole("link", { name: "50% accepted" })).toBeVisible();
+  await expect(acceptance).toContainText("1 of 2 proposals");
+  await expect(acceptance).toContainText("1 waiting for an answer");
+
+  await compliance.getByRole("link", { name: "50% on time" }).click();
+  await expect(page).toHaveURL(/\/money\/reports\/follow-ups\?from=2025-03-01&to=2025-03-31/);
+  await expect(main(page).getByRole("row", { name: /Send Ava the timeline/ })).toContainText("On time");
+  await expect(main(page).getByRole("row", { name: /Chase Ben about the brief/ })).toContainText("Not done");
+  await main(page).getByRole("link", { name: "Chase Ben about the brief" }).click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${ID}$`));
+
+  await page.goto(`/money/reports?${MARCH}`);
+  await card(page, "Reply rate").getByRole("link", { name: "50% replied" }).click();
+  await expect(page).toHaveURL(/\/money\/reports\/replies/);
+  await expect(main(page).getByRole("row", { name: /Ava Linwood/ })).toContainText("Email");
+  await expect(main(page).getByRole("row", { name: /Ben Ortega/ })).toContainText("No reply yet");
+  await main(page).getByRole("link", { name: "Ava Linwood" }).click();
+  await expect(page.getByRole("dialog").getByRole("heading", { name: "Ava Linwood" })).toBeVisible();
+
+  await page.goto(`/money/reports?${MARCH}`);
+  await acceptance.getByRole("link", { name: "50% accepted" }).click();
+  await expect(page).toHaveURL(/\/money\/reports\/proposals/);
+  await expect(main(page).getByRole("row", { name: /Linwood proposal/ })).toHaveCount(3);
+  await expect(main(page).getByText("Listed but not counted: 1 waiting for an answer.")).toBeVisible();
+  await main(page).getByRole("link", { name: "Linwood proposal" }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/materials/${ID}$`));
+
+  // The month before has none of it.
+  await page.goto("/money/reports?from=2025-02-01&to=2025-02-28");
+  for (const title of ["Follow-up compliance", "Reply rate", "Proposal acceptance"]) {
+    await expect(card(page, title)).toContainText("Not enough data.");
+  }
+});
+
 test("the reports fit a phone", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of [
@@ -133,6 +225,10 @@ test("the reports fit a phone", async ({ page }) => {
     "/money/reports/services?service=Cedar+branding",
     "/money/reports/unallocated?period=all",
     "/money/reports/time-to-payment",
+    `/money/reports?${MARCH}`,
+    `/money/reports/follow-ups?${MARCH}`,
+    `/money/reports/replies?${MARCH}`,
+    `/money/reports/proposals?${MARCH}`,
   ]) {
     await page.goto(path);
     await expect(main(page)).toBeVisible();

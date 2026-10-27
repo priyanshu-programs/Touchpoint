@@ -2,7 +2,15 @@ import { z } from "zod";
 import { PERIODS } from "@/modules/revenue/period";
 
 // The reports whose rows have a page of their own.
-export const REPORT_DETAILS = ["clients", "services", "unallocated", "time-to-payment"] as const;
+export const REPORT_DETAILS = [
+  "clients",
+  "services",
+  "unallocated",
+  "time-to-payment",
+  "follow-ups",
+  "replies",
+  "proposals",
+] as const;
 export type ReportDetail = (typeof REPORT_DETAILS)[number];
 
 const optional = <T extends z.ZodType>(schema: T) => schema.optional().catch(undefined);

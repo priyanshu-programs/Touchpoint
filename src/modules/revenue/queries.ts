@@ -1,6 +1,6 @@
 import { and, asc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
-import { invoices, payments } from "@/db/schema";
+import { invoices, payments, type tasks } from "@/db/schema";
 import { convertToBase } from "@/lib/money";
 import { invoiceBalance, invoiceTotal, stateIs } from "@/modules/invoices/queries";
 import type { DateRange } from "./period";
@@ -23,7 +23,10 @@ export const clientOf = (
       ? eq(table.organizationId, client.organizationId)
       : eq(table.contactId, client.contactId);
 
-export const within = (column: typeof invoices.issueDate | typeof payments.receivedOn, range: DateRange) =>
+export const within = (
+  column: typeof invoices.issueDate | typeof payments.receivedOn | typeof tasks.dueOn,
+  range: DateRange,
+) =>
   and(range.from ? gte(column, range.from) : undefined, range.to ? lte(column, range.to) : undefined);
 
 // Payments summed by currency and by whether they carry a rate, as `inBase` takes them;
