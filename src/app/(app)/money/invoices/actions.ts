@@ -36,7 +36,7 @@ const FIELDS = [
 
 function refresh() {
   revalidatePath("/money", "layout");
-  // A company's and a person's Money tab, and whether they can be deleted.
+  // A company's and a person's Invoices tab, and whether they can be deleted.
   revalidatePath("/people", "layout");
 }
 

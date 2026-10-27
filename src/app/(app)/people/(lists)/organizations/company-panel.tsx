@@ -103,7 +103,7 @@ const TABS = [
   { tab: "activity", label: "Activity" },
   { tab: "tasks", label: "Tasks" },
   { tab: "workflows", label: "Workflows" },
-  { tab: "money", label: "Money" },
+  { tab: "money", label: "Invoices" },
 ] as const;
 
 // Tasks are counted from one capped page, so a full page is shown as "100+".

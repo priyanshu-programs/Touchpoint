@@ -37,7 +37,7 @@ const TABS = [
   { tab: "activity", label: "Activity" },
   { tab: "tasks", label: "Tasks" },
   { tab: "workflows", label: "Workflows" },
-  { tab: "money", label: "Money" },
+  { tab: "money", label: "Invoices" },
 ] as const;
 
 // One person, shown in the panel over the people list or inside the panel of a company they are at.

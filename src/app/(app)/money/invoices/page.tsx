@@ -54,7 +54,7 @@ function sorting(params: InvoiceListParams, sort: InvoiceSort) {
   };
 }
 
-// The list can be narrowed to one client from their Money tab or a figure that
+// The list can be narrowed to one client from their Invoices tab or a figure that
 // counts them; the name is shown only once the record is found to be the owner's.
 async function clientOf(ownerId: string, params: InvoiceListParams) {
   if (params.company) {

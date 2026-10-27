@@ -19,7 +19,7 @@ const from = z.object({
   person: z.uuid().optional().catch(undefined),
 });
 
-// Opened from a company's or a person's Money tab, the client is filled in, once
+// Opened from a company's or a person's Invoices tab, the client is filled in, once
 // the record is found to be the owner's.
 async function clientOf(ownerId: string, { company, person }: z.infer<typeof from>) {
   if (company) {

@@ -29,7 +29,7 @@ async function menu(page: Page, item: string) {
   await page.getByRole("menuitem", { name: item, exact: true }).click();
 }
 
-test("an invoice is recorded from a company's Money tab, with lines, a discount and its PDF", async ({
+test("an invoice is recorded from a company's Invoices tab, with lines, a discount and its PDF", async ({
   page,
 }) => {
   await page.goto("/people/organizations/new");
@@ -38,7 +38,7 @@ test("an invoice is recorded from a company's Money tab, with lines, a discount 
   await expect(panel(page).getByRole("heading", { name: "Ledger Works" })).toBeVisible();
   companyUrl = page.url().replace(/&.*$/, "");
 
-  await panel(page).getByRole("link", { name: "Money", exact: true }).click();
+  await panel(page).getByRole("link", { name: "Invoices", exact: true }).click();
   await expect(panel(page).getByText("No invoices yet.")).toBeVisible();
   await panel(page).getByRole("link", { name: "New invoice" }).click();
   await expect(page).toHaveURL(new RegExp(`/money/invoices/new\\?company=${ID}$`));
@@ -120,7 +120,7 @@ test("an issued invoice is edited, listed and found in Ctrl+K", async ({ page })
 
   await page
     .getByRole("navigation", { name: "Main" })
-    .getByRole("link", { name: "Money" })
+    .getByRole("link", { name: "Invoices" })
     .click();
   await expect(page).toHaveURL(/\/money\/invoices$/);
   const row = main(page).getByRole("row", { name: new RegExp(NUMBER) });
@@ -161,7 +161,7 @@ test("an issued invoice is voided after a confirmation, and stays void", async (
   await page.keyboard.press("Escape");
 });
 
-test("Money fits a phone and is reached through Go to", async ({ page }) => {
+test("Invoices fit a phone and are reached through Go to", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of ["/money/invoices", invoiceUrl, "/money/invoices/new"]) {
     await page.goto(path);
@@ -170,7 +170,7 @@ test("Money fits a phone and is reached through Go to", async ({ page }) => {
   }
   await page.goto("/");
   await page.getByRole("button", { name: "Go to", exact: true }).click();
-  await page.getByRole("option", { name: "Money", exact: true }).click();
+  await page.getByRole("option", { name: "Invoices", exact: true }).click();
   await expect(page).toHaveURL(/\/money\/invoices$/);
 });
 

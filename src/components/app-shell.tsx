@@ -63,7 +63,7 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
     },
     {
       href: "/money/invoices",
-      label: "Money",
+      label: "Invoices",
       icon: Receipt,
       prefix: "/money",
     },
