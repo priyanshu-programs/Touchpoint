@@ -945,3 +945,15 @@
 - [2026-10-27] Saved a trail learning: invoices are records of ones the owner designs in Figma, with the choices on tax, currency and proposal acceptance (.trail/learnings/2026-10-26-invoices-are-records-of-ones-the-l.md)
 - [2026-10-27] CLAUDE.md: "QA steps — after every feature" section, so every shipped feature ends with end-to-end "Try it yourself" steps with example values for the owner
 - [2026-10-27] docs/qa-steps rebased onto main after #1 merged; CLAUDE.md keeps the Git workflow section, then the QA steps section
+- [2026-10-26] Step 10 started on branch feat/journey-tests in its own worktree, since another session holds the shared checkout on chore/git-workflow
+- [2026-10-26] Owner's choice: journey 3 is accepted on what Today shows now; its meetings wait for the calendar (Phase 5), suggested next actions for the assistant (Phase 6), stalled opportunities for Opportunities
+- [2026-10-26] Added e2e/22-journeys.spec.ts: journeys 2, 3, 4 and 8 each as one story, on a desktop (1280 px) and a phone (390 px), reached through the sidebar or the phone's bar and Go to, with nothing wider than a phone's screen
+- [2026-10-26] CLAUDE.md: QA steps section; after every feature or fix the reply ends with plain-language click-through steps for the owner, asked for by the owner as a standing rule
+- [2026-10-26] plan.md: Step 10 ticked, Phase 3 accepted, Current Phase is now Phase 4 (revenue and reports), planned on the owner's word
+- [2026-10-26] docs/PRD.md: section 15 names the journey spec; section 16 records Phase 3's acceptance and what journey 3 leaves for later
+- [2026-10-26] Saved a trail learning: in e2e an open record panel puts the sidebar out of reach, and New material clears a name typed before the page settles (.trail/learnings/2026-10-26-in-e2e-an-open-record-panel-l.md)
+- [2026-10-26] Step 10 runs: lint and typecheck clean; e2e 01, 02, 13, 22 and 99 passed 41 of 41 (journeys on desktop and phone); Vitest 785 of 786, the one failure 'takes at most 30 sends a minute' timing out at 30 s on the slow Neon test host (no app code changed)
+- [2026-10-26] Step 10: the full local e2e run could not finish: the Neon test host timed out (connect ETIMEDOUT), then took over 5 s to create the owner, failing every file after first run; CI's run on its own Postgres stands for the full suite
+- [2026-10-26] Step 10: trail check found no conflicts (one loose match on an older plan line about editing fields in place)
+- [2026-10-27] feat/journey-tests rebased onto main after #2 merged; its shorter QA steps section in CLAUDE.md dropped, since #2's fuller one replaces it
+- [2026-10-27] Saved a trail learning: main has no GitHub branch protection or ruleset yet, though CLAUDE.md says it is protected (.trail/learnings/2026-10-27-main-has-no-github-branch-protection-l.md)
