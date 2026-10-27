@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   convertToBase,
+  formatMoneyCompact,
   currencyDigits,
   formatMoney,
   lineAmount,
@@ -53,6 +54,16 @@ describe("formatMoney", () => {
     expect(formatMoney(15_000_050, "USD")).toBe("US$150,000.50");
     expect(formatMoney(2500, "JPY")).toBe("JP¥2,500");
     expect(formatMoney(1234, "KWD")).toBe("KWD 1.234");
+  });
+});
+
+describe("formatMoneyCompact", () => {
+  it("shortens rupees to lakhs and crores and other currencies to thousands and millions", () => {
+    expect(formatMoneyCompact(15_000_000, "INR")).toBe("₹1.5L");
+    expect(formatMoneyCompact(1_250_000_000, "INR")).toBe("₹1.3Cr");
+    expect(formatMoneyCompact(2_000_000, "INR")).toBe("₹20K");
+    expect(formatMoneyCompact(120_000_000, "USD")).toBe("US$1.2m");
+    expect(formatMoneyCompact(0, "INR")).toBe("₹0");
   });
 });
 

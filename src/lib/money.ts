@@ -38,6 +38,16 @@ export function formatMoney(minor: number, currency: string) {
   }).format(minor / 10 ** digits);
 }
 
+// Short, for a chart's scale: ₹1.5L, ₹20K, US$1.2m.
+export function formatMoneyCompact(minor: number, currency: string) {
+  return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-GB", {
+    style: "currency",
+    currency,
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(minor / 10 ** currencyDigits(currency));
+}
+
 // The amount back in the form it is typed in, for an edit form.
 export function minorToInput(minor: number, currency: string) {
   const digits = currencyDigits(currency);

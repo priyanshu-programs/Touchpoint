@@ -14,27 +14,33 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { searchClientsAction } from "./invoices/actions";
 
-// The overview's period, a From and To of the owner's own, and the client it is for.
-// Every choice is an address, so the page is what its URL says.
+// A period, a From and To of the owner's own and, on the overview, the client it is
+// for. Every choice is an address, so the page is what its URL says. `hidden` is what
+// a From and To keep of the address besides the dates.
 export function OverviewControls({
+  path,
   periods,
   current,
   label,
   range,
+  hidden = {},
   client,
 }: {
+  path: string;
   periods: { value: string; label: string; href: string }[];
   current: string;
   label: string;
   range: { from?: string; to?: string };
-  client: { initial: PickerOption | null; keep: Record<string, string | undefined> };
+  hidden?: Record<string, string | undefined>;
+  client?: { initial: PickerOption | null; keep: Record<string, string | undefined> };
 }) {
   const router = useRouter();
   const clientHref = (option: PickerOption | null) => {
     const search = new URLSearchParams();
-    for (const [name, value] of Object.entries(client.keep)) {
+    for (const [name, value] of Object.entries(client?.keep ?? {})) {
       if (value !== undefined) search.set(name, value);
     }
     if (option) {
@@ -42,11 +48,16 @@ export function OverviewControls({
       search.set(kind === "organization" ? "company" : "person", id);
     }
     const query = search.toString();
-    return `/money${query ? `?${query}` : ""}`;
+    return `${path}${query ? `?${query}` : ""}`;
   };
 
   return (
-    <div className="grid gap-4 md:grid-cols-[auto_1fr_minmax(0,18rem)] md:items-end">
+    <div
+      className={cn(
+        "grid gap-4 md:items-end",
+        client ? "md:grid-cols-[auto_1fr_minmax(0,18rem)]" : "md:grid-cols-[auto_1fr]",
+      )}
+    >
       <div className="grid gap-2">
         <p className="text-sm leading-none font-medium">Period</p>
         <DropdownMenu>
@@ -72,7 +83,7 @@ export function OverviewControls({
         </DropdownMenu>
       </div>
 
-      <Form action="/money" className="flex flex-wrap items-end gap-2">
+      <Form action={path} className="flex flex-wrap items-end gap-2">
         <div className="grid gap-2">
           <Label htmlFor="overview-from">From</Label>
           <Input id="overview-from" name="from" type="date" defaultValue={range.from} required />
@@ -81,7 +92,10 @@ export function OverviewControls({
           <Label htmlFor="overview-to">To</Label>
           <Input id="overview-to" name="to" type="date" defaultValue={range.to} required />
         </div>
-        {client.initial && (
+        {Object.entries(hidden).map(
+          ([name, value]) => value !== undefined && <input key={name} type="hidden" name={name} value={value} />,
+        )}
+        {client?.initial && (
           <input
             type="hidden"
             name={client.initial.id.startsWith("organization:") ? "company" : "person"}
@@ -93,15 +107,17 @@ export function OverviewControls({
         </Button>
       </Form>
 
-      <RecordPicker
-        name="client"
-        labelName="clientLabel"
-        noun="client"
-        plural="companies and people"
-        initial={client.initial}
-        search={searchClientsAction}
-        onChange={(option) => router.push(clientHref(option))}
-      />
+      {client && (
+        <RecordPicker
+          name="client"
+          labelName="clientLabel"
+          noun="client"
+          plural="companies and people"
+          initial={client.initial}
+          search={searchClientsAction}
+          onChange={(option) => router.push(clientHref(option))}
+        />
+      )}
     </div>
   );
 }

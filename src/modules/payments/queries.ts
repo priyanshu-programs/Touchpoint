@@ -21,7 +21,7 @@ export const paymentAllocated = sql<number>`(
 )::bigint`.mapWith(Number);
 
 // Who paid, a company or a person, with the picture to show beside them.
-const clientColumns = {
+export const clientColumns = {
   organizationId: payments.organizationId,
   contactId: payments.contactId,
   clientName: sql<string>`coalesce(${organizations.name}, ${contacts.fullName})`,

@@ -13,7 +13,7 @@ export type CurrencyAmount = { currency: string; minor: number; count: number };
 const baseFirst = (base: string) => (a: { currency: string }, b: { currency: string }) =>
   a.currency === base ? -1 : b.currency === base ? 1 : a.currency.localeCompare(b.currency);
 
-const clientOf = (
+export const clientOf = (
   table: typeof invoices | typeof payments,
   client: Client | undefined,
 ): SQL | undefined =>
@@ -23,28 +23,32 @@ const clientOf = (
       ? eq(table.organizationId, client.organizationId)
       : eq(table.contactId, client.contactId);
 
-const within = (column: typeof invoices.issueDate | typeof payments.receivedOn, range: DateRange) =>
+export const within = (column: typeof invoices.issueDate | typeof payments.receivedOn, range: DateRange) =>
   and(range.from ? gte(column, range.from) : undefined, range.to ? lte(column, range.to) : undefined);
 
-// Money that came in during the period, in the base currency. A payment in another
-// currency counts at the rate stored with it; one with no rate (recorded before the
-// base currency was changed) is listed apart, not guessed.
-async function received(ownerId: string, range: DateRange, client: Client | undefined, base: string) {
-  const rows = await db
-    .select({
-      currency: payments.currency,
-      rated: sql<boolean>`${payments.fxRateToBase} is not null`,
-      count: sql<number>`count(*)::int`,
-      minor: sql<number>`sum(${payments.amountMinor})::bigint`.mapWith(Number),
-      product: sql<string | null>`sum(${payments.amountMinor} * ${payments.fxRateToBase})::text`,
-    })
-    .from(payments)
-    .where(
-      and(eq(payments.ownerId, ownerId), within(payments.receivedOn, range), clientOf(payments, client)),
-    )
-    .groupBy(payments.currency, sql`${payments.fxRateToBase} is not null`)
-    .orderBy(asc(payments.currency));
+// Payments summed by currency and by whether they carry a rate, as `inBase` takes them;
+// `product` is the sum of each amount times its rate, as exact text.
+export const ratedColumns = {
+  currency: payments.currency,
+  rated: sql<boolean>`${payments.fxRateToBase} is not null`,
+  count: sql<number>`count(*)::int`,
+  minor: sql<number>`sum(${payments.amountMinor})::bigint`.mapWith(Number),
+  product: sql<string | null>`sum(${payments.amountMinor} * ${payments.fxRateToBase})::text`,
+};
+export const ratedGroup = [payments.currency, sql`${payments.fxRateToBase} is not null`] as const;
 
+export type RatedSum = {
+  currency: string;
+  rated: boolean;
+  count: number;
+  minor: number;
+  product: string | null;
+};
+
+// Sums of payments in the base currency. A payment in another currency counts at the
+// rate stored with it; one with no rate (recorded before the base currency was changed)
+// is listed apart, not guessed.
+export function inBase(rows: RatedSum[], base: string) {
   let minor = 0;
   let count = 0;
   const converted: CurrencyAmount[] = [];
@@ -61,6 +65,21 @@ async function received(ownerId: string, range: DateRange, client: Client | unde
     }
   }
   return { minor, count, converted, unconverted };
+}
+
+export type BaseSum = ReturnType<typeof inBase>;
+
+// Money that came in during the period, in the base currency.
+async function received(ownerId: string, range: DateRange, client: Client | undefined, base: string) {
+  const rows = await db
+    .select(ratedColumns)
+    .from(payments)
+    .where(
+      and(eq(payments.ownerId, ownerId), within(payments.receivedOn, range), clientOf(payments, client)),
+    )
+    .groupBy(...ratedGroup)
+    .orderBy(asc(payments.currency));
+  return inBase(rows, base);
 }
 
 // Issued invoices dated in the period, per currency; drafts and void ones are not counted.

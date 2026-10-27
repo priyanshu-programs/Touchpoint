@@ -5,6 +5,7 @@ const TABS = [
   { href: "/money", label: "Overview" },
   { href: "/money/invoices", label: "Invoices" },
   { href: "/money/payments", label: "Payments" },
+  { href: "/money/reports", label: "Reports" },
 ];
 
 // What stands above the overview, the invoices and the payments: the page's name, the
