@@ -943,3 +943,5 @@
 - [2026-10-26] plan.md: a step's "deployed" now means merged into main through a pull request
 - [2026-10-27] Owner approved the Phase 4 outline (invoices, payments and allocations, revenue dashboard and filters, reports, data export, journeys 7 and 9) and Step 1 (invoices as records of ones made in Figma, the PDF attached; no tax; any currency with a rate on payment; proposal acceptance from proposal sends) (C:\Users\l\.claude\plans\get-started-with-the-dynamic-lampson.md)
 - [2026-10-27] Saved a trail learning: invoices are records of ones the owner designs in Figma, with the choices on tax, currency and proposal acceptance (.trail/learnings/2026-10-26-invoices-are-records-of-ones-the-l.md)
+- [2026-10-27] CLAUDE.md: "QA steps — after every feature" section, so every shipped feature ends with end-to-end "Try it yourself" steps with example values for the owner
+- [2026-10-27] docs/qa-steps rebased onto main after #1 merged; CLAUDE.md keeps the Git workflow section, then the QA steps section
