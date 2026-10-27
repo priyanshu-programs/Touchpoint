@@ -955,3 +955,5 @@
 - [2026-10-26] Step 10 runs: lint and typecheck clean; e2e 01, 02, 13, 22 and 99 passed 41 of 41 (journeys on desktop and phone); Vitest 785 of 786, the one failure 'takes at most 30 sends a minute' timing out at 30 s on the slow Neon test host (no app code changed)
 - [2026-10-26] Step 10: the full local e2e run could not finish: the Neon test host timed out (connect ETIMEDOUT), then took over 5 s to create the owner, failing every file after first run; CI's run on its own Postgres stands for the full suite
 - [2026-10-26] Step 10: trail check found no conflicts (one loose match on an older plan line about editing fields in place)
+- [2026-10-27] feat/journey-tests rebased onto main after #2 merged; its shorter QA steps section in CLAUDE.md dropped, since #2's fuller one replaces it
+- [2026-10-27] Saved a trail learning: main has no GitHub branch protection or ruleset yet, though CLAUDE.md says it is protected (.trail/learnings/2026-10-27-main-has-no-github-branch-protection-l.md)
