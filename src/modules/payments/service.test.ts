@@ -8,7 +8,6 @@ import { invoiceInput } from "@/modules/invoices/schema";
 import {
   createInvoice,
   deleteInvoice,
-  issueInvoice,
   updateInvoice,
   voidInvoice,
 } from "@/modules/invoices/service";
