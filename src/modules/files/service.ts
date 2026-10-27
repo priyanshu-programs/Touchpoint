@@ -4,6 +4,7 @@ import type { Tx } from "@/db/client";
 import {
   brainstormPictures,
   files,
+  invoices,
   materialVersions,
   workflowAttachments,
   workflowPictures,
@@ -49,8 +50,8 @@ export async function storeFile(
 
 // Files nothing points at any more are deleted, wherever the last pointer went:
 // removed by hand, or with its board, or with the board's company or person.
-// A file is pointed at by what a box carries, by a picture on a board and by a
-// version of a material.
+// A file is pointed at by what a box carries, by a picture on a board, by a
+// version of a material and by an invoice.
 export async function dropUnusedFiles(tx: Tx, ownerId: string) {
   await lockFiles(tx, ownerId);
   await tx.delete(files).where(
@@ -79,6 +80,12 @@ export async function dropUnusedFiles(tx: Tx, ownerId: string) {
           .select({ id: materialVersions.id })
           .from(materialVersions)
           .where(eq(materialVersions.fileId, files.id)),
+      ),
+      notExists(
+        tx
+          .select({ id: invoices.id })
+          .from(invoices)
+          .where(eq(invoices.fileId, files.id)),
       ),
     ),
   );

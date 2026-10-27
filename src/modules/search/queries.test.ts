@@ -9,6 +9,7 @@ import {
   contactOrganizations,
   contacts,
   contactTags,
+  invoices,
   materials,
   organizations,
   tags,
@@ -175,12 +176,30 @@ describe("searchEverything", () => {
     expect((await searchEverything(ownerId, "deck"))!.materials).toHaveLength(PER_KIND);
   });
 
+  it("finds an invoice by its number, with its client", async () => {
+    await db.insert(invoices).values([
+      { ownerId, number: "INV-2026-014", organizationId: acme, issueDate: "2026-10-01", dueDate: "2026-10-16", currency: "INR" },
+      { ownerId, number: "Q-77", contactId: priya, issueDate: "2026-10-02", dueDate: "2026-10-17", currency: "USD", status: "issued" },
+    ]);
+    expect((await searchEverything(ownerId, "2026-014"))!.invoices).toMatchObject([
+      { number: "INV-2026-014", client: "Acme Design", status: "draft" },
+    ]);
+    expect((await searchEverything(ownerId, "q-77"))!.invoices).toMatchObject([
+      { number: "Q-77", client: "Priya Sharma" },
+    ]);
+    // A client's name finds the client, not each of their invoices.
+    expect((await searchEverything(ownerId, "acme"))!.invoices).toEqual([]);
+    const other = await createTestOwner("stranger@example.com");
+    expect((await searchEverything(other, "2026-014"))!.invoices).toEqual([]);
+  });
+
   it("never shows another owner's records", async () => {
     const other = await createTestOwner("other@example.com");
     expect(await searchEverything(other, "acme")).toEqual({
       companies: [],
       people: [],
       materials: [],
+      invoices: [],
       workflows: [],
       brainstorms: [],
       activities: [],

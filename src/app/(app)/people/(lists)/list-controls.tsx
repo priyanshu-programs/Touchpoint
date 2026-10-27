@@ -44,7 +44,7 @@ export const companyListParams = listParams.extend({
   page,
   company: optional(z.uuid()),
   contact: optional(z.uuid()),
-  tab: optional(z.enum(["contacts", "activity", "tasks", "workflows"])),
+  tab: optional(z.enum(["contacts", "activity", "tasks", "workflows", "money"])),
   ...entryParams,
 });
 export type CompanyListParams = z.infer<typeof companyListParams>;
@@ -56,7 +56,7 @@ export const contactListParams = listParams.omit({ after: true }).extend({
   dir,
   page,
   contact: optional(z.uuid()),
-  tab: optional(z.enum(["activity", "tasks", "workflows"])),
+  tab: optional(z.enum(["activity", "tasks", "workflows", "money"])),
   earlier: optional(z.uuid()),
   ...entryParams,
 });

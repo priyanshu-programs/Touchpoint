@@ -225,6 +225,13 @@
       "when": 1793011397170,
       "tag": "0031_search_custom_values",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793041820387,
+      "tag": "0032_invoices",
+      "breakpoints": true
     }
   ]
 }

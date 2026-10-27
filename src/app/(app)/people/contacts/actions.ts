@@ -469,9 +469,11 @@ export async function deleteContactAction(formData: FormData) {
   const { id, company } = z
     .strictObject({ id: z.uuid(), company: z.union([z.literal(""), z.uuid()]) })
     .parse(readFields(formData, ["id", "company"]));
-  if (!(await deleteContact(owner.id, id))) notFound();
+  const result = await deleteContact(owner.id, id);
+  if (!result.ok && result.reason === "not_found") notFound();
   revalidatePath("/people", "layout");
-  redirect(company ? companyHref(company, "contacts") : "/people/contacts");
+  // A person their invoices bill stays; their panel already says why.
+  if (result.ok) redirect(company ? companyHref(company, "contacts") : "/people/contacts");
 }
 
 // The choices arrive as `pick.<field>` and `custom.<key>`, each naming a side, never a
@@ -529,12 +531,16 @@ export async function archiveContactsAction(ids: string[], archived: boolean) {
   revalidatePath("/people", "layout");
 }
 
+// How many were kept because invoices bill them.
 export async function deleteContactsAction(ids: string[]) {
   const owner = await requireOwner();
+  let kept = 0;
   for (const id of tickedIds.parse(ids)) {
-    await deleteContact(owner.id, id);
+    const result = await deleteContact(owner.id, id);
+    if (!result.ok && result.reason === "invoiced") kept += 1;
   }
   revalidatePath("/people", "layout");
+  return kept;
 }
 
 export async function addContactEmailAction(
