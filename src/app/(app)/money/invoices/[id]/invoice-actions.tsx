@@ -38,10 +38,17 @@ const CONFIRMS = {
     label: "Delete draft",
     action: deleteInvoiceAction,
   },
+  deleteVoid: {
+    title: "Delete this void invoice?",
+    description:
+      "The invoice, its lines and its file are removed for good. Its company or person can then be deleted if nothing else bills them.",
+    label: "Delete invoice",
+    action: deleteInvoiceAction,
+  },
 };
 
 // What can be done to an invoice depends on where it stands: a draft is issued or
-// deleted, an issued invoice voided, and a void one left as it is.
+// deleted, an issued invoice voided (never deleted outright), and a void one deleted.
 export function InvoiceActions({
   id,
   number,
@@ -63,8 +70,6 @@ export function InvoiceActions({
     void issueInvoiceAction(formData);
   }
 
-  if (status === "void") return null;
-
   return (
     <>
       <DropdownMenu>
@@ -75,24 +80,31 @@ export function InvoiceActions({
           <MoreVertical aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-auto min-w-36">
-          <DropdownMenuItem onClick={() => router.push(editHref)}>
-            <Pencil aria-hidden />
-            Edit
-          </DropdownMenuItem>
-          {status === "draft" && (
-            <DropdownMenuItem onClick={issue}>
-              <Send aria-hidden />
-              Mark as issued
-            </DropdownMenuItem>
+          {status !== "void" && (
+            <>
+              <DropdownMenuItem onClick={() => router.push(editHref)}>
+                <Pencil aria-hidden />
+                Edit
+              </DropdownMenuItem>
+              {status === "draft" && (
+                <DropdownMenuItem onClick={issue}>
+                  <Send aria-hidden />
+                  Mark as issued
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+            </>
           )}
-          <DropdownMenuSeparator />
           {status === "issued" ? (
             <DropdownMenuItem variant="destructive" onClick={() => setConfirming("void")}>
               <Ban aria-hidden />
               Void
             </DropdownMenuItem>
           ) : (
-            <DropdownMenuItem variant="destructive" onClick={() => setConfirming("delete")}>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => setConfirming(status === "void" ? "deleteVoid" : "delete")}
+            >
               <Trash2 aria-hidden />
               Delete
             </DropdownMenuItem>

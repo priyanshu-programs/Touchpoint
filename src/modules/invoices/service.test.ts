@@ -340,12 +340,17 @@ describe("invoices", () => {
     expect(
       await updateInvoice(ownerId, id, parse({ ...baseForm(`organization:${acme}`), status: "issued" })),
     ).toEqual(refused("void"));
-    expect(await deleteInvoice(ownerId, id)).toEqual(refused("status"));
     const actions = (await listAudit(ownerId, { limit: 3 })).rows.map((row) => row.action);
     expect(actions).toEqual(["invoice.void", "invoice.update", "invoice.issue"]);
+
+    // Void, it can be deleted.
+    expect(await deleteInvoice(ownerId, id)).toEqual({ ok: true });
+    expect(await getInvoice(ownerId, id)).toBeNull();
+    const [entry] = (await listAudit(ownerId, { limit: 1 })).rows;
+    expect(entry).toMatchObject({ action: "invoice.delete", before: { status: "void" } });
   });
 
-  it("is deleted only as a draft, with its file if nothing else uses it", async () => {
+  it("is deleted as a draft or once void, with its file if nothing else uses it", async () => {
     const id = await make();
     expect(await attachInvoiceFile(ownerId, id, { name: "INV-001.pdf", bytes: pdf("one") })).toEqual(
       { ok: true },

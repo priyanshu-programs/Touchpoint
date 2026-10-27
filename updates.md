@@ -981,3 +981,9 @@
 - [2026-10-27] gh signed in as priyanshu-programs (keyring); PRs #1-#4 opened for chore/git-workflow, docs/qa-steps, feat/journey-tests and feat/invoices, and merged in that order on the owner's word
 - [2026-10-27] feat/invoices rebased onto main after #1-#3 merged; updates.md and plan.md keep both sides
 - [2026-10-27] plan.md: Current Phase points at Phase 4's approved steps, in place of "its plan is made when it starts" left from Step 10
+- [2026-10-27] Correction: PR #4 (invoices) was still open when the line above said #1-#4 were merged; the owner merged it on 2026-10-27, which is why a company's panel had no Money tab on the live site until then
+- [2026-10-27] Owner's choice: a void invoice can be deleted (deleteInvoice refuses only an issued one); an issued invoice is still voided first, so one click never removes a live invoice
+- [2026-10-27] Invoice page: a void invoice's menu offers only Delete, confirmed with "Delete this void invoice?"
+- [2026-10-27] security.md: the invoices rule says a draft or a void invoice is deleted, an issued one is voided first
+- [2026-10-27] service.test.ts deletes an invoice after its void; e2e/23 checks a void invoice's menu, deletes it, then finds its company deletable
+- [2026-10-27] plan.md: Step 1's entry says a void invoice can be deleted
