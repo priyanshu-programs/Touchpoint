@@ -254,7 +254,7 @@ export async function deleteInvoice(ownerId: string, id: string): Promise<Status
   return db.transaction(async (tx) => {
     const before = await lockInvoice(tx, ownerId, id);
     if (!before) return { ok: false, reason: "not_found" };
-    if (before.status !== "draft") return { ok: false, reason: "status" };
+    if (before.status === "issued") return { ok: false, reason: "status" };
     const was = await snapshot(tx, before);
     await tx.delete(invoices).where(eq(invoices.id, id));
     if (before.fileId) await dropUnusedFiles(tx, ownerId);

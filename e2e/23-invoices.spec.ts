@@ -155,7 +155,10 @@ test("an issued invoice is voided after a confirmation, and stays void", async (
   await menu(page, "Void");
   await page.getByRole("button", { name: "Void invoice" }).click();
   await expect(main(page).getByText("Void", { exact: true })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: `More actions for ${NUMBER}` })).toHaveCount(0);
+  await page.getByRole("button", { name: `More actions for ${NUMBER}` }).click();
+  await expect(page.getByRole("menuitem", { name: "Edit" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Void" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
 });
 
 test("Money fits a phone and is reached through Go to", async ({ page }) => {
@@ -169,4 +172,18 @@ test("Money fits a phone and is reached through Go to", async ({ page }) => {
   await page.getByRole("button", { name: "Go to", exact: true }).click();
   await page.getByRole("option", { name: "Money", exact: true }).click();
   await expect(page).toHaveURL(/\/money\/invoices$/);
+});
+
+test("a void invoice is deleted, and then its company can be", async ({ page }) => {
+  await page.goto(invoiceUrl);
+  await menu(page, "Delete");
+  await expect(page.getByText("Delete this void invoice?")).toBeVisible();
+  await page.getByRole("button", { name: "Delete invoice" }).click();
+  await expect(page).toHaveURL(/\/money\/invoices$/, { timeout: 15_000 });
+  await expect(main(page).getByText(NUMBER)).toHaveCount(0);
+
+  await page.goto(companyUrl);
+  await panel(page).getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(page.getByRole("button", { name: "Delete company" })).toBeVisible();
 });
