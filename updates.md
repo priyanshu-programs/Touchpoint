@@ -987,3 +987,4 @@
 - [2026-10-27] security.md: the invoices rule says a draft or a void invoice is deleted, an issued one is voided first
 - [2026-10-27] service.test.ts deletes an invoice after its void; e2e/23 checks a void invoice's menu, deletes it, then finds its company deletable
 - [2026-10-27] plan.md: Step 1's entry says a void invoice can be deleted
+- [2026-10-27] Owner's rule: no Claude Code attribution on GitHub. The "Generated with Claude Code" line removed from PRs #1-#4 and #9; main's history rewritten to drop the Claude co-author line from its 16 commits since "Replace Graft tooling with trail" (same code, new commit IDs) and force-pushed
