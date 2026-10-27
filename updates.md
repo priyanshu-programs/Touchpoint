@@ -1024,3 +1024,4 @@
 - [2026-10-27] security.md: a rule for the revenue overview's address, its sums and the lists' date range
 - [2026-10-27] Saved a trail learning: a new page's PageProps route fails typecheck until next typegen regenerates the route types (.trail/learnings/2026-10-27-a-new-page-s-pageprops-route-l.md)
 - [2026-10-27] Phase 4 step 3 runs: typecheck clean, lint clean but for the unused import PR #13 removes; Vitest money, revenue, invoices and payments 110 of 110; e2e 01, 23 and 24 pass 23 of 23, and 01 with 25 pass 14 of 14 (25 now waits for the invoice's amount box before typing a payment, and expects the period kept when a client is picked)
+- [2026-10-27] Saved a trail learning: Money's overview converts received payments at their stored rate and counts Outstanding as of today (.trail/learnings/2026-10-27-money-s-overview-converts-received-payments-l.md)
