@@ -7,6 +7,7 @@ test.use({ storageState: OWNER_SESSION });
 const ID = "[0-9a-f-]{36}";
 const FIRST = "INV-2026-201";
 const SECOND = "INV-2026-202";
+const THIRD = "INV-2026-203";
 const main = (page: Page) => page.getByRole("main");
 const header = (page: Page) => main(page).locator("header");
 const panel = (page: Page) => page.getByRole("dialog");
@@ -19,6 +20,7 @@ const fits = (page: Page) =>
 let companyId = "";
 let firstUrl = "";
 let advanceUrl = "";
+let secondUrl = "";
 
 async function issueInvoice(page: Page, number: string, price: string) {
   await page.goto(`/money/invoices/new?company=${companyId}`);
@@ -57,7 +59,12 @@ test("a payment against an invoice lowers what it owes, until it is paid", async
   await expect(page).toHaveURL(firstUrl, { timeout: 15_000 });
   await expect(header(page).getByText("Partly paid", { exact: true })).toBeVisible();
   await expect(main(page).locator("dl")).toContainText("₹60,000");
-  await expect(page.getByRole("button", { name: `More actions for ${FIRST}` })).toHaveCount(0);
+  // With a payment it is not edited or voided, only deleted.
+  await page.getByRole("button", { name: `More actions for ${FIRST}` }).click();
+  await expect(page.getByRole("menuitem", { name: "Edit" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Void" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   await main(page).getByRole("link", { name: "Record payment" }).click();
   await expect(page.getByLabel(`Amount for ${FIRST}`)).toHaveValue("60000");
@@ -95,7 +102,7 @@ test("an advance is kept unallocated, then put towards a later invoice", async (
   await expect(main(page).getByRole("heading", { name: "₹25,000 received" })).toBeVisible();
   await expect(main(page).getByText("Not put towards any invoice yet.")).toBeVisible();
 
-  const second = await issueInvoice(page, SECOND, "20,000");
+  secondUrl = await issueInvoice(page, SECOND, "20,000");
   await page.goto(advanceUrl);
   await page.getByLabel(`Amount for ${SECOND}`).fill("20,000");
   await page.getByRole("button", { name: "Put towards these invoices" }).click();
@@ -104,7 +111,7 @@ test("an advance is kept unallocated, then put towards a later invoice", async (
   });
   await expect(main(page).locator("dl")).toContainText("₹5,000");
 
-  await page.goto(second);
+  await page.goto(secondUrl);
   await expect(header(page).getByText("Paid", { exact: true })).toBeVisible();
 });
 
@@ -155,4 +162,43 @@ test("Payments fit a phone and are reached through Go to", async ({ page }) => {
   await expect(page).toHaveURL(/\/money$/);
   await page.getByRole("link", { name: "Payments" }).click();
   await expect(page).toHaveURL(/\/money\/payments$/);
+});
+
+test("an unpaid invoice is deleted outright", async ({ page }) => {
+  await issueInvoice(page, THIRD, "5,000");
+  await page.getByRole("button", { name: `More actions for ${THIRD}` }).click();
+  await expect(page.getByRole("menuitem", { name: "Void" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(page.getByText("Delete this invoice?")).toBeVisible();
+  await expect(page.getByRole("radio")).toHaveCount(0);
+  await page.getByRole("button", { name: "Delete invoice" }).click();
+  await expect(page).toHaveURL(/\/money\/invoices$/,{ timeout: 15_000 });
+  await expect(main(page).getByText(THIRD)).toHaveCount(0);
+});
+
+test("a partly paid invoice is deleted, and its payment is kept as unallocated", async ({ page }) => {
+  await page.goto(firstUrl);
+  await page.getByRole("button", { name: `More actions for ${FIRST}` }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(page.getByRole("radio", { name: /Keep the payments/ })).toBeChecked();
+  await page.getByRole("button", { name: "Delete invoice" }).click();
+  await expect(page).toHaveURL(/\/money\/invoices$/,{ timeout: 15_000 });
+  await expect(main(page).getByText(FIRST)).toHaveCount(0);
+
+  await page.goto("/money/payments?q=UTR-40K");
+  await expect(main(page).getByRole("row", { name: /UTR-40K/ })).toContainText("₹40,000 unallocated");
+});
+
+test("a paid invoice is deleted with its payments", async ({ page }) => {
+  await page.goto(secondUrl);
+  await expect(header(page).getByText("Paid", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: `More actions for ${SECOND}` }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.getByRole("radio", { name: /Delete the payments too/ }).check();
+  await page.getByRole("button", { name: "Delete invoice" }).click();
+  await expect(page).toHaveURL(/\/money\/invoices$/,{ timeout: 15_000 });
+
+  await page.goto("/money/payments");
+  await expect(main(page).getByText("ADV-1")).toHaveCount(0);
+  await expect(main(page).getByText("UTR-40K")).toBeVisible();
 });

@@ -5,6 +5,7 @@ import { dateIn } from "@/lib/time";
 import { audit } from "@/modules/audit/service";
 import { invoiceBalance } from "@/modules/invoices/queries";
 import { clientIsOwners } from "@/modules/invoices/service";
+import { paymentSnapshot, removePayment } from "./records";
 import { MAX_PAYMENTS, type Allocation, type PaymentInput } from "./schema";
 
 type Refusal =
@@ -76,27 +77,6 @@ async function allocationRefusal(
   }
   const total = allocations.reduce((sum, { amountMinor }) => sum + amountMinor, 0);
   return total > payment.unallocated ? "over_amount" : null;
-}
-
-// What the audit log keeps of a payment.
-async function snapshot(tx: Tx, row: typeof payments.$inferSelect) {
-  const allocations = await tx
-    .select({ invoiceId: paymentAllocations.invoiceId, amountMinor: paymentAllocations.amountMinor })
-    .from(paymentAllocations)
-    .where(eq(paymentAllocations.paymentId, row.id))
-    .orderBy(asc(paymentAllocations.invoiceId));
-  return {
-    organizationId: row.organizationId,
-    contactId: row.contactId,
-    receivedOn: row.receivedOn,
-    amountMinor: row.amountMinor,
-    currency: row.currency,
-    fxRateToBase: row.fxRateToBase,
-    method: row.method,
-    reference: row.reference,
-    notes: row.notes,
-    allocations,
-  };
 }
 
 export async function recordPayment(
@@ -190,7 +170,7 @@ export async function recordPayment(
       action: "payment.record",
       entityType: "payment",
       entityId: row.id,
-      after: await snapshot(tx, row),
+      after: await paymentSnapshot(tx, row),
     });
     return { ok: true, id: row.id };
   });
@@ -215,7 +195,7 @@ export async function allocatePayment(
   return db.transaction(async (tx) => {
     const payment = await lockPayment(tx, ownerId, paymentId);
     if (!payment) return { ok: false, reason: "not_found" };
-    const before = await snapshot(tx, payment);
+    const before = await paymentSnapshot(tx, payment);
     const allocated = before.allocations.reduce((sum, { amountMinor }) => sum + amountMinor, 0);
     const refusal = await allocationRefusal(
       tx,
@@ -241,7 +221,7 @@ export async function allocatePayment(
       entityType: "payment",
       entityId: paymentId,
       before,
-      after: await snapshot(tx, payment),
+      after: await paymentSnapshot(tx, payment),
     });
     return { ok: true };
   });
@@ -253,16 +233,7 @@ export async function deletePayment(ownerId: string, id: string) {
   return db.transaction(async (tx) => {
     const payment = await lockPayment(tx, ownerId, id);
     if (!payment) return false;
-    const before = await snapshot(tx, payment);
-    await tx.delete(payments).where(eq(payments.id, id));
-    await audit(tx, {
-      ownerId,
-      actor: "user",
-      action: "payment.delete",
-      entityType: "payment",
-      entityId: id,
-      before,
-    });
+    await removePayment(tx, ownerId, payment);
     return true;
   });
 }
