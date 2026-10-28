@@ -1061,3 +1061,4 @@
 - [2026-10-28] security.md's invoices rule, plan.md Steps 1 and 2 and docs/PRD.md sections on invoices and payments say any invoice can be deleted (owner's choice)
 - [2026-10-28] Added a trail learning replacing l-3ef49b50: any invoice can be deleted, with the keep-or-delete payments choice and the lock order
 - [2026-10-28] The new deleteInvoice unit tests compare the two audit actions in any order, since rows written in one transaction share a timestamp (CI saw them reversed)
+- [2026-10-28] Added a trail learning: audit rows from one transaction share a timestamp, so tests compare them in any order
