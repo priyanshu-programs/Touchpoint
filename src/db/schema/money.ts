@@ -162,7 +162,7 @@ export const paymentAllocations = pgTable(
     paymentId: uuid("payment_id")
       .notNull()
       .references(() => payments.id, { onDelete: "cascade" }),
-    // No action: an invoice that has been paid is not deleted from under its payment.
+    // No action: deleting an invoice removes its allocations first, so one left over is refused.
     invoiceId: uuid("invoice_id")
       .notNull()
       .references(() => invoices.id),

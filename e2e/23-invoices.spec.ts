@@ -157,7 +157,9 @@ test("a company its invoices bill cannot be deleted", async ({ page }) => {
 
 test("an issued invoice is voided after a confirmation, and stays void", async ({ page }) => {
   await page.goto(invoiceUrl);
-  await menu(page, "Void");
+  await page.getByRole("button", { name: `More actions for ${NUMBER}` }).click();
+  await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Void", exact: true }).click();
   await page.getByRole("button", { name: "Void invoice" }).click();
   await expect(main(page).getByText("Void", { exact: true })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: `More actions for ${NUMBER}` }).click();

@@ -113,7 +113,8 @@ export async function voidInvoiceAction(formData: FormData) {
 }
 
 export async function deleteInvoiceAction(formData: FormData) {
-  await change(formData, deleteInvoice);
+  const payments = z.enum(["keep", "delete"]).catch("keep").parse(formData.get("payments"));
+  await change(formData, (ownerId, id) => deleteInvoice(ownerId, id, payments));
   redirect("/money/invoices");
 }
 
