@@ -181,6 +181,54 @@ test("the colour grid colours what is selected and the next thing drawn", async 
   expect(seen.errors).toEqual([]);
 });
 
+test("pen strokes are stored to a hundredth, and a board too big to store says it is full", async ({
+  page,
+}) => {
+  await page.goto(`/brainstorm/${boardId}`);
+  await expect(whiteboard(page)).toBeVisible();
+  const before = (await stored(page, boardId)).elements.length;
+
+  // Off 100%, where a stroke's points fall between whole pixels.
+  await page.keyboard.press("Control+Equal");
+  const stroke = async (from: [number, number], to: [number, number]) => {
+    await page.keyboard.press("7");
+    await page.mouse.move(...from);
+    await page.mouse.down();
+    await page.mouse.move(...to, { steps: 12 });
+    await page.mouse.up();
+    await page.keyboard.press("Escape");
+  };
+  await stroke([700, 300], [833, 377]);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const drawn = (await stored(page, boardId)).elements.slice(before) as (Element & {
+    points: [number, number][];
+  })[];
+  expect(drawn.map(({ type }) => type)).toEqual(["freedraw"]);
+  const coordinates = drawn[0].points.flat();
+  expect(coordinates.some((n) => !Number.isInteger(n))).toBe(true);
+  expect(coordinates.every((n) => Math.round(n * 100) / 100 === n)).toBe(true);
+
+  let refused = 0;
+  await page.route(SCENE, (route) => {
+    if (route.request().method() !== "PUT") return route.continue();
+    refused += 1;
+    return route.fulfill({ status: 413 });
+  });
+  await stroke([700, 420], [833, 470]);
+  await expect(
+    page.getByText("Board is full. Remove some drawings to keep saving."),
+  ).toBeVisible();
+  // Sending the same drawing again cannot fit it, so it is not tried again.
+  await page.waitForTimeout(11_000);
+  expect(refused).toBe(1);
+
+  // Rubbing the stroke out is the next change, and that one is stored.
+  await page.unroute(SCENE);
+  await page.keyboard.press("Control+z");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect((await stored(page, boardId)).elements).toHaveLength(before + 1);
+});
+
 test("a drawing is saved only by the owner, from this app, from its latest version, with no stage marks", async ({
   page,
   browser,

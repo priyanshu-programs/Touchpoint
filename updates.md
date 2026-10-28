@@ -1052,3 +1052,8 @@
 - [2026-10-28] e2e/26-reports.spec.ts places a March 2025 of follow-ups, activities and proposal sends in the database and checks the three rates, their rows and records, Not enough data and the phone width
 - [2026-10-28] plan.md ticks Step 4 part 2 and Step 4, docs/PRD.md sections 6 and 10 describe the three reports as built, and security.md's reports rule covers them
 - [2026-10-28] Added a trail learning on how the three activity reports count (on time in the owner's zone, a follow-up not yet late left out, a reply only after the first outbound)
+- [2026-10-28] The board saver rounds every point and pen pressure to two decimals in the copy it sends, so a board of handwriting (the owner's "Touchpoint" brainstorm board: 2.99 MB, all freedraw) is stored in about half the bytes (1.57 MB)
+- [2026-10-28] A save the server refuses as too big (413) now shows "Board is full. Remove some drawings to keep saving." in words on every width and is not retried every 10 seconds; the next change, a stroke rubbed out, saves as usual
+- [2026-10-28] Leaving a board while it is full warns about unsaved work, as it does while a save has failed
+- [2026-10-28] e2e/19-brainstorm.spec.ts checks a pen stroke drawn at 110% is stored to a hundredth, and that a 413 shows the full message, is sent once and clears with the next change
+- [2026-10-28] Added a trail learning on why boards filled up (17-digit freedraw points) and what 413 now means

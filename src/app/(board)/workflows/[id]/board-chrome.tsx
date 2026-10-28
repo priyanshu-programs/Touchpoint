@@ -15,6 +15,7 @@ const SAVE_LABELS: Record<SaveState, string> = {
   saving: "Saving…",
   error: "Could not save. Trying again…",
   conflict: "Changed somewhere else. Reload to go on.",
+  full: "Board is full. Remove some drawings to keep saving.",
 };
 
 // The dot beside the save label: green at rest, amber while work is pending,
@@ -25,6 +26,7 @@ const SAVE_DOTS: Record<SaveState, string> = {
   saving: "animate-pulse bg-amber-500",
   error: "bg-destructive",
   conflict: "bg-destructive",
+  full: "bg-destructive",
 };
 
 // The dot alone on a phone, where the tools take the whole width and a word
@@ -39,7 +41,9 @@ export function SaveStatus({ state }: { state: SaveState }) {
       <span aria-hidden className={`size-2 rounded-full sm:size-1.5 ${SAVE_DOTS[state]}`} />
       <span
         className={`text-muted-foreground ${
-          state === "error" || state === "conflict" ? "" : "sr-only sm:not-sr-only"
+          state === "error" || state === "conflict" || state === "full"
+            ? ""
+            : "sr-only sm:not-sr-only"
         }`}
       >
         {SAVE_LABELS[state]}
