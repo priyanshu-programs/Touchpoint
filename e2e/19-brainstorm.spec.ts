@@ -10,14 +10,14 @@ const heading = (page: Page, name: string) =>
   page.getByRole("heading", { name, exact: true });
 const whiteboard = (page: Page) => page.locator(".excalidraw canvas.interactive");
 const searchBox = (page: Page) => page.getByPlaceholder("Search or jump to…");
-const SCENE = /\/api\/brainstorm\/[0-9a-f-]{36}\/scene$/;
+const ELEMENTS = /\/api\/brainstorm\/[0-9a-f-]{36}\/elements$/;
 const BOARD = /\/brainstorm\/([0-9a-f-]{36})$/;
 
 const saved = (page: Page) =>
   page.waitForResponse(
     (response) =>
-      response.request().method() === "PUT" &&
-      SCENE.test(new URL(response.url()).pathname),
+      response.request().method() === "PATCH" &&
+      ELEMENTS.test(new URL(response.url()).pathname),
   );
 
 type Element = {
@@ -29,13 +29,29 @@ type Element = {
   customData?: unknown;
   roundness?: unknown;
   fileId?: string;
+  index?: string | null;
+  x?: number;
+  isDeleted?: boolean;
 };
 
-const stored = async (page: Page, id: string) =>
-  (await (await page.request.get(`/api/brainstorm/${id}/scene`)).json()) as {
-    version: number;
-    elements: Element[];
-  };
+// The board as stored, every page of it, in the order it is drawn in.
+async function stored(page: Page, id: string) {
+  const elements: Element[] = [];
+  let clock = 0;
+  let after: string | null = null;
+  do {
+    const query = new URLSearchParams({ since: "0", ...(after ? { after } : {}) });
+    const answer = (await (
+      await page.request.get(`/api/brainstorm/${id}/elements?${query}`)
+    ).json()) as { clock: number; elements: Element[]; next: string | null };
+    if (!after) clock = answer.clock;
+    elements.push(...answer.elements);
+    after = answer.next;
+  } while (after);
+  const at = ({ index }: Element) => index ?? "\uffff";
+  elements.sort((a, b) => (at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0));
+  return { clock, elements };
+}
 
 function watch(page: Page) {
   const errors: string[] = [];
@@ -209,8 +225,8 @@ test("pen strokes are stored to a hundredth, and a board too big to store says i
   expect(coordinates.every((n) => Math.round(n * 100) / 100 === n)).toBe(true);
 
   let refused = 0;
-  await page.route(SCENE, (route) => {
-    if (route.request().method() !== "PUT") return route.continue();
+  await page.route(ELEMENTS, (route) => {
+    if (route.request().method() !== "PATCH") return route.continue();
     refused += 1;
     return route.fulfill({ status: 413 });
   });
@@ -223,65 +239,169 @@ test("pen strokes are stored to a hundredth, and a board too big to store says i
   expect(refused).toBe(1);
 
   // Rubbing the stroke out is the next change, and that one is stored.
-  await page.unroute(SCENE);
+  await page.unroute(ELEMENTS);
   await page.keyboard.press("Control+z");
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   expect((await stored(page, boardId)).elements).toHaveLength(before + 1);
 });
 
-test("a drawing is saved only by the owner, from this app, from its latest version, with no stage marks", async ({
+test("a drawing is saved only by the owner, from this app, merged element by element, with no stage marks", async ({
   page,
   browser,
 }) => {
   await page.goto(`/brainstorm/${boardId}`);
   const origin = new URL(page.url()).origin;
-  const { version, elements } = await stored(page, boardId);
-  const address = `/api/brainstorm/${boardId}/scene`;
+  const { clock } = await stored(page, boardId);
+  const address = `/api/brainstorm/${boardId}/elements`;
+  const element = (id: string, more: Record<string, unknown> = {}) => ({
+    id,
+    type: "rectangle",
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 10,
+    version: 1,
+    versionNonce: 1,
+    isDeleted: false,
+    ...more,
+  });
   const marked = {
-    version,
+    since: clock,
     elements: [
-      ...elements,
-      {
-        id: "staged",
-        type: "rectangle",
-        x: 0,
-        y: 0,
-        width: 10,
-        height: 10,
-        customData: { stage: { status: "done" } },
-      },
-      {
-        id: "noted",
-        type: "rectangle",
-        x: 0,
-        y: 0,
-        width: 10,
-        height: 10,
-        customData: { sticky: true, stage: { status: "done" } },
-      },
+      element("staged", { customData: { stage: { status: "done" } } }),
+      element("noted", { customData: { sticky: true, stage: { status: "done" } } }),
     ],
   };
+  const patch = (data: unknown, headers: Record<string, string> = { origin }) =>
+    page.request.patch(address, { headers, data });
 
-  expect(
-    (await page.request.put(address, { headers: { origin: "https://elsewhere.example" }, data: marked }))
-      .status(),
-  ).toBe(403);
+  expect((await patch(marked, { origin: "https://elsewhere.example" })).status()).toBe(403);
   const signedOut = await browser.newContext({ storageState: undefined });
-  expect((await signedOut.request.put(`${origin}${address}`, { headers: { origin }, data: marked })).status()).toBe(401);
+  expect(
+    (await signedOut.request.patch(`${origin}${address}`, { headers: { origin }, data: marked })).status(),
+  ).toBe(401);
   await signedOut.close();
 
-  expect((await page.request.put(address, { headers: { origin }, data: marked })).status()).toBe(200);
-  const after = await stored(page, boardId);
-  expect(after.version).toBe(version + 1);
-  expect(after.elements.find(({ id }) => id === "staged")).not.toHaveProperty("customData");
-  expect(after.elements.find(({ id }) => id === "noted")?.customData).toEqual({ sticky: true });
-  // A save from the version before is refused.
-  expect((await page.request.put(address, { headers: { origin }, data: marked })).status()).toBe(409);
-  // Put back as it was, from the version now stored.
-  expect(
-    (await page.request.put(address, { headers: { origin }, data: { version: after.version, elements } }))
-      .status(),
-  ).toBe(200);
+  const first = await patch(marked);
+  expect(first.status()).toBe(200);
+  expect(await first.json()).toEqual({ clock: clock + 1, behind: false });
+  let after = await stored(page, boardId);
+  const find = (id: string) => after.elements.find((kept) => kept.id === id);
+  expect(find("staged")).not.toHaveProperty("customData");
+  expect(find("noted")?.customData).toEqual({ sticky: true });
+
+  // A newer copy of an element is kept; an older one sent after it is not.
+  await patch({ since: clock + 1, elements: [element("staged", { version: 2, x: 50 })] });
+  expect((await patch({ since: clock + 2, elements: [element("staged", { x: 99 })] })).status()).toBe(200);
+  after = await stored(page, boardId);
+  expect(find("staged")?.x).toBe(50);
+
+  // Taken off the board again.
+  await patch({
+    since: clock + 2,
+    elements: [
+      element("staged", { version: 3, isDeleted: true }),
+      element("noted", { version: 2, isDeleted: true }),
+    ],
+  });
+  after = await stored(page, boardId);
+  expect(find("staged")).toBeUndefined();
+  expect(find("noted")).toBeUndefined();
+});
+
+test("a board far past what one save could carry is stored and opens again", async ({ page }) => {
+  await page.goto(`/brainstorm/${boardId}`);
+  await expect(whiteboard(page)).toBeVisible();
+  const origin = new URL(page.url()).origin;
+  const address = `/api/brainstorm/${boardId}/elements`;
+  // About 45 KB a stroke: 70 of them are more than the 3 MB a whole board
+  // could once take, sent in two saves as a device would.
+  const stroke = (n: number, version: number, isDeleted = false) => ({
+    id: `ink-${n}`,
+    type: "freedraw",
+    x: 3000 + (n % 10) * 60,
+    y: 3000 + Math.floor(n / 10) * 60,
+    width: 50,
+    height: 50,
+    version,
+    versionNonce: 1,
+    isDeleted,
+    points: Array.from({ length: 1500 }, (_, i) => [i / 30, Math.sin(i / 10) * 25]),
+    pressures: [],
+    simulatePressure: true,
+  });
+  const send = async (version: number, isDeleted = false) => {
+    let bytes = 0;
+    for (const half of [0, 35]) {
+      const elements = Array.from({ length: 35 }, (_, n) => stroke(half + n, version, isDeleted));
+      bytes += JSON.stringify(elements).length;
+      const answer = await page.request.patch(address, {
+        headers: { origin },
+        data: { since: 0, elements },
+      });
+      expect(answer.status()).toBe(200);
+    }
+    return bytes;
+  };
+  expect(await send(1)).toBeGreaterThan(3_000_000);
+
+  const opening: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "GET" && /\/elements\?since=0/.test(request.url())) {
+      opening.push(request.url());
+    }
+  });
+  await page.reload();
+  await expect(whiteboard(page)).toBeVisible();
+  await expect(page.getByText("The board could not be opened.")).toHaveCount(0);
+  // Opened a page at a time, each well under what one answer may carry.
+  expect(opening.length).toBeGreaterThanOrEqual(2);
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const ink = (await stored(page, boardId)).elements.filter(({ id }) => id.startsWith("ink-"));
+  expect(ink).toHaveLength(70);
+
+  await send(1_000, true);
+});
+
+test("two windows on one board draw together: each sees the other's notes, and what is rubbed out", async ({
+  browser,
+}) => {
+  const open = async () => {
+    const context = await browser.newContext({ storageState: OWNER_SESSION });
+    const page = await context.newPage();
+    await page.goto(`/brainstorm/${boardId}`);
+    await expect(whiteboard(page)).toBeVisible();
+    return page;
+  };
+  const laptop = await open();
+  const phone = await open();
+  const notes = (page: Page) => page.locator(".sticky-shadow");
+  const before = await notes(laptop).count();
+  await expect(notes(phone)).toHaveCount(before);
+  const note = async (page: Page, text: string) => {
+    await page.getByRole("button", { name: "Sticky note", exact: true }).click();
+    await page.keyboard.type(text);
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  };
+
+  await note(laptop, "From the laptop");
+  await expect(notes(phone)).toHaveCount(before + 1, { timeout: 20_000 });
+  await note(phone, "From the phone");
+  await expect(notes(laptop)).toHaveCount(before + 2, { timeout: 20_000 });
+
+  // Everything rubbed out on one is gone from the other too.
+  await laptop.keyboard.press("Escape");
+  await laptop.keyboard.press("Control+a");
+  await laptop.keyboard.press("Delete");
+  await expect(notes(laptop)).toHaveCount(0);
+  await expect(laptop.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(notes(phone)).toHaveCount(0, { timeout: 20_000 });
+  await expect(phone.getByText("Changed somewhere else")).toHaveCount(0);
+  expect((await stored(laptop, boardId)).elements).toEqual([]);
+
+  await laptop.context().close();
+  await phone.context().close();
 });
 
 test("a board is renamed, found from Ctrl+K and deleted", async ({ page }) => {
@@ -323,7 +443,7 @@ test("a board is renamed, found from Ctrl+K and deleted", async ({ page }) => {
   await page.getByRole("button", { name: "Delete board" }).click();
   await expect(page).toHaveURL(/\/brainstorm$/);
   await expect(main(page).getByText(/^No boards yet\./)).toBeVisible();
-  expect((await page.request.get(`/api/brainstorm/${boardId}/scene`)).status()).toBe(404);
+  expect((await page.request.get(`/api/brainstorm/${boardId}/elements?since=0`)).status()).toBe(404);
 });
 
 test("pictures are kept on a brainstorm board: stored, fetched again and refused when not a picture", async ({

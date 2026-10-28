@@ -154,31 +154,43 @@ export function createBoardPictures({
     }
   }
 
+  function fetchPicture(board: ExcalidrawImperativeAPI, key: string) {
+    void fetch(`${address}/${key}`)
+      .then(async (response) => {
+        if (!response.ok) return;
+        const picture = await response.blob();
+        board.addFiles([
+          {
+            id: key as FileId,
+            dataURL: await dataURLOf(picture),
+            mimeType: picture.type as BinaryFileData["mimeType"],
+            created: Date.now(),
+          },
+        ]);
+      })
+      // Left as an empty frame; a reload fetches it again.
+      .catch(() => undefined);
+  }
+
   return {
     // Whether the server has the picture an element shows. Only then is the
     // element sent with the drawing.
     has: (key: string | null) => key !== null && kept.has(key),
     look,
+    // Pictures shown by elements another device drew: the server has them,
+    // so they are fetched and not sent.
+    fetchShown(elements: readonly ExcalidrawElement[]) {
+      for (const element of elements) {
+        if (element.type !== "image" || element.isDeleted || !element.fileId) continue;
+        if (kept.has(element.fileId)) continue;
+        kept.add(element.fileId);
+        if (api) fetchPicture(api, element.fileId);
+      }
+    },
     // Called with the whiteboard once it is there: gives it the stored pictures.
     attach(board: ExcalidrawImperativeAPI) {
       api = board;
-      for (const key of held) {
-        void fetch(`${address}/${key}`)
-          .then(async (response) => {
-            if (!response.ok) return;
-            const picture = await response.blob();
-            board.addFiles([
-              {
-                id: key as FileId,
-                dataURL: await dataURLOf(picture),
-                mimeType: picture.type as BinaryFileData["mimeType"],
-                created: Date.now(),
-              },
-            ]);
-          })
-          // Left as an empty frame; a reload fetches it again.
-          .catch(() => undefined);
-      }
+      for (const key of held) fetchPicture(board, key);
       look();
     },
     stop() {

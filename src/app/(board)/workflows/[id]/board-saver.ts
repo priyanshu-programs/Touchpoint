@@ -16,7 +16,7 @@ const round = (n: number) => Math.round(n * 100) / 100;
 // A pen stroke is kept as every point it passed through, each to 17 digits:
 // most of a drawing's bytes, and of the room it has to be stored in. A
 // hundredth of a pixel is as fine as anyone can see.
-function trimmed(key: string, value: unknown) {
+export function trimmed(key: string, value: unknown) {
   if (key === "points" && Array.isArray(value)) {
     return value.map(([x, y]: [number, number]) => [round(x), round(y)]);
   }

@@ -1,4 +1,4 @@
-import { and, eq, gt, lt, sql } from "drizzle-orm";
+import { and, eq, gt, lt, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
 import {
   files,
@@ -40,10 +40,13 @@ export function boardPictures({
   boards,
   pictures,
   entityType,
+  shown,
 }: {
   boards: typeof workflowBoards | typeof brainstormBoards;
   pictures: typeof workflowPictures | typeof brainstormPictures;
   entityType: "workflow" | "brainstorm";
+  // Whether an element of the board's stored drawing shows the picture `key`.
+  shown: (boardId: string, key: SQLWrapper) => SQL;
 }) {
   const onBoard = (ownerId: string, boardId: string) =>
     and(eq(pictures.ownerId, ownerId), eq(pictures.boardId, boardId));
@@ -130,14 +133,7 @@ export function boardPictures({
           and(
             onBoard(ownerId, boardId),
             lt(pictures.createdAt, sql`now() - interval '10 minutes'`),
-            sql`not exists (
-              select 1
-              from ${boards} as board,
-                jsonb_array_elements(board.scene -> 'elements') as element
-              where board.id = ${boardId}
-                and element ->> 'type' = 'image'
-                and element ->> 'fileId' = ${pictures.fileKey}
-            )`,
+            sql`not ${shown(boardId, pictures.fileKey)}`,
           ),
         )
         .returning({ id: pictures.id });
@@ -177,6 +173,14 @@ export const { addPicture, openPictures, getPicture } = boardPictures({
   boards: workflowBoards,
   pictures: workflowPictures,
   entityType: "workflow",
+  shown: (boardId, key) => sql`exists (
+    select 1
+    from ${workflowBoards} as board,
+      jsonb_array_elements(board.scene -> 'elements') as element
+    where board.id = ${boardId}
+      and element ->> 'type' = 'image'
+      and element ->> 'fileId' = ${key}
+  )`,
 });
 
 // A copy of a workflow shows the pictures its drawing shows. A picture is

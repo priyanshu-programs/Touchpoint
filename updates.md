@@ -1068,3 +1068,14 @@
 - [2026-10-28] Added a trail learning replacing l-3ef49b50: any invoice can be deleted, with the keep-or-delete payments choice and the lock order
 - [2026-10-28] The new deleteInvoice unit tests compare the two audit actions in any order, since rows written in one transaction share a timestamp (CI saw them reversed)
 - [2026-10-28] Added a trail learning: audit rows from one transaction share a timestamp, so tests compare them in any order
+- [2026-10-28] Migration 0034: brainstorm_elements (one row per element of a brainstorm board, with its version, nonce, deleted mark, size and clock) and clock, live, bytes and pruned on brainstorm_boards; every board's scene moved into rows at clock 1 and emptied
+- [2026-10-28] saveBrainstormElements merges a device's changed elements by Excalidraw's rule (higher version, or same version and lower nonce), refuses past 100,000 elements or 50 MB unless the board gets smaller, and says whether another device saved in between
+- [2026-10-28] brainstormChanges gives what changed after a clock in pages of about 2 MB, and pruneBrainstorm clears deletion marks over 30 days old as a board opens, sending a device that looked before then to load again
+- [2026-10-28] /api/brainstorm/[id]/scene replaced by /api/brainstorm/[id]/elements: GET for changes since a clock, PATCH for a device's changes
+- [2026-10-28] boardPictures takes a `shown` check, so a brainstorm board's pictures are kept while a row in brainstorm_elements shows them
+- [2026-10-28] New board-sync.ts on the brainstorm whiteboard: sends only elements whose version moved, in batches under 2 MB, looks for other devices' changes every 10 seconds while in view and merges them with Excalidraw's restoreElements and reconcileElements outside undo
+- [2026-10-28] board-pictures.ts fetches pictures shown by elements another device drew (fetchShown)
+- [2026-10-28] The brainstorm editor loads a board a page at a time, saves through board-sync, and no longer shows "Changed somewhere else": two devices never stop each other saving
+- [2026-10-28] Unit tests for the merge rule, deletion marks, pruning and reset, paging, the element limit and migration 0034's copy; e2e/19 moved to the new route and checks a board over 3 MB opening in pages and two windows staying in step
+- [2026-10-28] security.md's brainstorm rule, docs/PRD.md's data model and plan.md describe the per-element storage
+- [2026-10-28] Added a trail learning on brainstorm per-element storage: the merge rule, polling over WebSockets, restoreElements with null, the sendable hash, tombstones and reset
