@@ -14,6 +14,7 @@ import {
 import {
   createBrainstorm,
   deleteBrainstorm,
+  pruneBrainstorm,
   renameBrainstorm,
   setBrainstormIcon,
   type BrainstormResult,
@@ -73,11 +74,14 @@ export async function setBrainstormIconAction(boardId: string, icon: string | nu
   revalidatePath("/brainstorm", "layout");
 }
 
-// The ids of the pictures drawn on a board, asked for as its whiteboard opens.
+// The ids of the pictures drawn on a board, asked for as its whiteboard opens,
+// when elements deleted long ago are cleared away too.
 export async function openBrainstormAction(boardId: string) {
   const owner = await requireOwner();
-  const pictures = await openPictures(owner.id, z.uuid().parse(boardId));
+  const id = z.uuid().parse(boardId);
+  const pictures = await openPictures(owner.id, id);
   if (!pictures) notFound();
+  await pruneBrainstorm(owner.id, id);
   return { pictures };
 }
 

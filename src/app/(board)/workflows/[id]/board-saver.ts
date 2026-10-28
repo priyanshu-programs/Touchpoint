@@ -1,9 +1,30 @@
-export type SaveState = "saved" | "unsaved" | "saving" | "error" | "conflict";
+export type SaveState =
+  | "saved"
+  | "unsaved"
+  | "saving"
+  | "error"
+  | "conflict"
+  | "full";
 
 const QUIET_MS = 2_000;
 const RETRY_MS = 10_000;
 // A browser sends a request that outlives its page only if the body is small.
 const KEEPALIVE_BYTES = 60_000;
+
+const round = (n: number) => Math.round(n * 100) / 100;
+
+// A pen stroke is kept as every point it passed through, each to 17 digits:
+// most of a drawing's bytes, and of the room it has to be stored in. A
+// hundredth of a pixel is as fine as anyone can see.
+export function trimmed(key: string, value: unknown) {
+  if (key === "points" && Array.isArray(value)) {
+    return value.map(([x, y]: [number, number]) => [round(x), round(y)]);
+  }
+  if (key === "pressures" && Array.isArray(value)) {
+    return value.map(round);
+  }
+  return value;
+}
 
 // Saves a drawing a little after the last change to it, one save at a time, each
 // from the version the one before gave back. `hash` tells one state of the
@@ -46,7 +67,7 @@ export function createBoardSaver<Element>({
     busy = true;
     report("saving");
 
-    const body = JSON.stringify({ version, elements });
+    const body = JSON.stringify({ version, elements }, trimmed);
     const response = await fetch(endpoint, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -71,6 +92,10 @@ export function createBoardSaver<Element>({
       // Saving over it would lose that, so this whiteboard stops saving.
       stopped = true;
       report("conflict");
+    } else if (response?.status === 413) {
+      // The drawing is bigger than a board can hold. Sending it again cannot
+      // help; the next change, a stroke rubbed out, is tried as usual.
+      report("full");
     } else {
       waiting ??= elements;
       report("error");

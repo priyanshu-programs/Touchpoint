@@ -339,6 +339,8 @@ Migration 0021 added `workflow_pictures`. The whiteboard gives each picture an i
 
 `brainstorm_boards` (migration 0029, additive, 2026-10-24): name (citext, unique per owner), icon, scene, version. A whiteboard of the owner's own on no record: no stages column, nothing copied, and `customData` dropped from every element it saves. `updated_at` is set by the database's clock on every change, and the list is in that order.
 
+`brainstorm_elements` (migration 0034, 2026-10-28): one row per element of a brainstorm board's drawing: owner, board (cascade), the element's id (with the board, the key), the whiteboard's version and nonce for it, deleted or not, the element as jsonb, its size and the board's clock when it last changed. `brainstorm_boards` gains `clock`, `live`, `bytes` and `pruned`. The migration moved every board's `scene` into rows at clock 1 and emptied it; `scene` and `version` are no longer read and are dropped later. A device saves only what it changed and merges what other devices saved, the way Excalidraw merges a drawing shared live; a board holds up to 100,000 elements and 50 MB.
+
 `brainstorm_pictures` (migration 0030, additive, 2026-10-24): owner, board (cascade), the whiteboard's id for the picture (unique per board) and the stored file, as `workflow_pictures` is. A file is freed only when no workflow picture, brainstorm picture, box or material version points at it.
 
 ### 8.5 Tasks and calendar

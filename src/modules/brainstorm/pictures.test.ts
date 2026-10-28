@@ -14,11 +14,12 @@ import {
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import { grainy, shape, solid } from "@/test/pictures";
 import { addPicture, getPicture, openPictures } from "./pictures";
-import { brainstormSceneSave } from "./schema";
-import { createBrainstorm, deleteBrainstorm, saveBrainstormScene } from "./service";
+import { brainstormElementsSave } from "./schema";
+import { createBrainstorm, deleteBrainstorm, saveBrainstormElements } from "./service";
 
-const box = { id: "box", type: "rectangle", x: 0, y: 0, width: 200, height: 200 };
-const shown = (key: string) => ({ id: `on-${key}`, type: "image", fileId: key });
+const saved = { version: 1, versionNonce: 1, isDeleted: false };
+const box = { id: "box", type: "rectangle", x: 0, y: 0, width: 200, height: 200, ...saved };
+const shown = (key: string) => ({ id: `on-${key}`, type: "image", fileId: key, ...saved });
 const refused = (reason: string) => ({ ok: false, reason });
 const LONG_AGO = new Date(Date.now() - 11 * 60_000);
 
@@ -30,10 +31,10 @@ describe("pictures on a brainstorm board", () => {
   const drawn = async (name: string, keys: string[], owner = ownerId) => {
     const created = await createBrainstorm(owner, { name });
     if (!created.ok) throw new Error(created.reason);
-    await saveBrainstormScene(
+    await saveBrainstormElements(
       owner,
       created.id,
-      brainstormSceneSave.parse({ version: 1, elements: [box, ...keys.map(shown)] }),
+      brainstormElementsSave.parse({ since: 0, elements: [box, ...keys.map(shown)] }),
     );
     return created.id;
   };

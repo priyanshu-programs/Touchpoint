@@ -1,22 +1,26 @@
-import { eq } from "drizzle-orm";
+import { readFileSync } from "node:fs";
+import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
-import { brainstormBoards } from "@/db/schema";
+import { brainstormBoards, brainstormElements } from "@/db/schema";
 import { listAudit } from "@/modules/audit/service";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import { getBrainstorm, listBrainstorms } from "./queries";
 import {
   BRAINSTORM_PAGE_SIZE,
   brainstormIcon,
+  brainstormElementsSave,
   brainstormName,
-  brainstormSceneSave,
+  MAX_BOARD_ELEMENTS,
   MAX_BRAINSTORM_BOARDS,
 } from "./schema";
 import {
+  brainstormChanges,
   createBrainstorm,
   deleteBrainstorm,
+  pruneBrainstorm,
   renameBrainstorm,
-  saveBrainstormScene,
+  saveBrainstormElements,
   setBrainstormIcon,
 } from "./service";
 
@@ -28,10 +32,19 @@ const box = (id: string, more: Record<string, unknown> = {}) => ({
   y: 0,
   width: 200,
   height: 200,
+  version: 1,
+  versionNonce: 5,
+  isDeleted: false,
   ...more,
 });
-const save = (version: number, elements: unknown[]) =>
-  brainstormSceneSave.parse({ version, elements });
+const save = (since: number, elements: unknown[]) =>
+  brainstormElementsSave.parse({ since, elements });
+// The board as a device opening it is given it, by id.
+async function drawing(ownerId: string, id: string) {
+  const changes = await brainstormChanges(ownerId, id, { since: 0 });
+  if (!changes || "reset" in changes) throw new Error("no drawing");
+  return Object.fromEntries(changes.elements.map((element) => [element.id, element]));
+}
 
 async function made(ownerId: string, name: string) {
   const result = await createBrainstorm(ownerId, named(name));
@@ -48,7 +61,7 @@ describe("brainstormName", () => {
   });
 });
 
-describe("brainstormSceneSave", () => {
+describe("brainstormElementsSave", () => {
   it("keeps how an element is drawn and drops any whiteboard data on it", () => {
     const [kept] = save(1, [
       box("a", {
@@ -71,11 +84,15 @@ describe("brainstormSceneSave", () => {
     expect(other).not.toHaveProperty("customData");
   });
 
-  it("refuses embedded pages, pictures with no stored id and unknown envelope fields", () => {
-    expect(brainstormSceneSave.safeParse({ version: 1, elements: [box("a", { type: "iframe" })] }).success).toBe(false);
-    expect(brainstormSceneSave.safeParse({ version: 1, elements: [box("a", { type: "embeddable" })] }).success).toBe(false);
-    expect(brainstormSceneSave.safeParse({ version: 1, elements: [box("a", { type: "image" })] }).success).toBe(false);
-    expect(brainstormSceneSave.safeParse({ version: 1, elements: [], files: {} }).success).toBe(false);
+  it("refuses embedded pages, pictures with no stored id, unknown envelope fields, an element twice and one with no version", () => {
+    const passes = (value: unknown) => brainstormElementsSave.safeParse(value).success;
+    expect(passes({ since: 1, elements: [box("a", { type: "iframe" })] })).toBe(false);
+    expect(passes({ since: 1, elements: [box("a", { type: "embeddable" })] })).toBe(false);
+    expect(passes({ since: 1, elements: [box("a", { type: "image" })] })).toBe(false);
+    expect(passes({ since: 1, elements: [], files: {} })).toBe(false);
+    expect(passes({ since: 1, elements: [box("a"), box("a")] })).toBe(false);
+    expect(passes({ since: 1, elements: [box("a", { version: undefined })] })).toBe(false);
+    expect(passes({ since: 1, elements: [box("a", { versionNonce: 2 ** 31 })] })).toBe(false);
   });
 
   it("drops a link that is not a web address", () => {
@@ -99,8 +116,8 @@ describe("brainstorm boards", () => {
   it("makes a board with an empty drawing, audited", async () => {
     const id = await made(ownerId, "Q3 ideas");
     const board = await getBrainstorm(ownerId, id);
-    expect(board).toMatchObject({ name: "Q3 ideas", version: 1, icon: null });
-    expect(board!.scene.elements).toEqual([]);
+    expect(board).toMatchObject({ name: "Q3 ideas", clock: 0, icon: null });
+    expect(await drawing(ownerId, id)).toEqual({});
     const { rows: entries } = await listAudit(ownerId);
     expect(entries.map(({ action }) => action)).toContain("brainstorm.create");
   });
@@ -134,19 +151,134 @@ describe("brainstorm boards", () => {
     });
   });
 
-  it("saves the drawing only from the version it was loaded at", async () => {
+  it("merges what two devices save, element by element, by the whiteboard's own rule", async () => {
     const id = await made(ownerId, "Ideas");
-    expect(await saveBrainstormScene(ownerId, id, save(1, [box("a")]))).toEqual({
+    expect(await saveBrainstormElements(ownerId, id, save(0, [box("a"), box("b")]))).toEqual({
       ok: true,
-      version: 2,
+      clock: 1,
+      behind: false,
     });
-    expect(await saveBrainstormScene(ownerId, id, save(1, [box("b")]))).toEqual({
+    // A second device, still at clock 0: its own element is kept beside them,
+    // and it is told it has missed a save.
+    expect(await saveBrainstormElements(ownerId, id, save(0, [box("c")]))).toEqual({
+      ok: true,
+      clock: 2,
+      behind: true,
+    });
+    await saveBrainstormElements(ownerId, id, save(2, [
+      // A higher version wins.
+      box("a", { version: 2, x: 10 }),
+      // The same version wins only with a lower nonce.
+      box("b", { versionNonce: 9, x: 20 }),
+      box("c", { versionNonce: 1, x: 30 }),
+    ]));
+    // An older copy changes nothing, and is no change to the board's clock.
+    expect(await saveBrainstormElements(ownerId, id, save(3, [box("a", { x: 99 })]))).toEqual({
+      ok: true,
+      clock: 3,
+      behind: false,
+    });
+    const now = await drawing(ownerId, id);
+    expect([now.a.x, now.b.x, now.c.x]).toEqual([10, 0, 30]);
+  });
+
+  it("deletes an element as a mark an older copy cannot undo, and tells a device what changed since its clock", async () => {
+    const id = await made(ownerId, "Ideas");
+    await saveBrainstormElements(ownerId, id, save(0, [box("a"), box("b")]));
+    await saveBrainstormElements(ownerId, id, save(1, [box("a", { version: 2, isDeleted: true })]));
+    await saveBrainstormElements(ownerId, id, save(2, [box("a")]));
+    expect(Object.keys(await drawing(ownerId, id))).toEqual(["b"]);
+    const changes = await brainstormChanges(ownerId, id, { since: 1 });
+    expect(changes).toMatchObject({ clock: 2, next: null });
+    expect(changes && "elements" in changes && changes.elements).toEqual([
+      expect.objectContaining({ id: "a", isDeleted: true }),
+    ]);
+    expect(await getBrainstorm(ownerId, id)).toMatchObject({ live: 1 });
+  });
+
+  it("clears away elements deleted over 30 days ago, and has a device that last looked before then load again", async () => {
+    const id = await made(ownerId, "Ideas");
+    await saveBrainstormElements(ownerId, id, save(0, [box("a"), box("b")]));
+    await saveBrainstormElements(ownerId, id, save(1, [box("a", { version: 2, isDeleted: true })]));
+    await pruneBrainstorm(ownerId, id);
+    expect(await brainstormChanges(ownerId, id, { since: 1 })).toMatchObject({ clock: 2 });
+    await db
+      .update(brainstormElements)
+      .set({ updatedAt: new Date(Date.now() - 31 * 86_400_000) })
+      .where(eq(brainstormElements.elementId, "a"));
+    await pruneBrainstorm(ownerId, id);
+    expect(await brainstormChanges(ownerId, id, { since: 1 })).toEqual({ reset: true });
+    expect(await brainstormChanges(ownerId, id, { since: 2 })).toMatchObject({ elements: [] });
+    expect(Object.keys(await drawing(ownerId, id))).toEqual(["b"]);
+  });
+
+  it("moves a drawing kept the old way into a row an element (migration 0034)", async () => {
+    const id = await made(ownerId, "Ideas");
+    const before = [box("a", { version: 7, versionNonce: 70 }), box("b", { version: 2 })];
+    await db
+      .update(brainstormBoards)
+      .set({ scene: { elements: before }, clock: 0 })
+      .where(eq(brainstormBoards.id, id));
+    const migration = readFileSync("src/db/migrations/0034_brainstorm_elements.sql", "utf8");
+    const moves = migration
+      .slice(migration.indexOf("-- Each board's drawing"))
+      .split("--> statement-breakpoint");
+    for (const move of moves) await db.execute(sql.raw(move));
+
+    expect(await drawing(ownerId, id)).toEqual({ a: before[0], b: before[1] });
+    expect(await getBrainstorm(ownerId, id)).toMatchObject({
+      clock: 1,
+      live: 2,
+      scene: { elements: [] },
+    });
+    const [row] = await db
+      .select({ version: brainstormElements.version, nonce: brainstormElements.versionNonce })
+      .from(brainstormElements)
+      .where(eq(brainstormElements.elementId, "a"));
+    expect(row).toEqual({ version: 7, nonce: 70 });
+    // A device that loaded the board after the move saves on from clock 1.
+    expect(await saveBrainstormElements(ownerId, id, save(1, [box("a", { version: 8 })]))).toMatchObject({
+      ok: true,
+      clock: 2,
+      behind: false,
+    });
+  });
+
+  it("gives a big board a page at a time", async () => {
+    const id = await made(ownerId, "Ideas");
+    const ink = "x".repeat(100_000);
+    const strokes = Array.from({ length: 50 }, (_, index) =>
+      box(`s${String(index).padStart(2, "0")}`, { type: "freedraw", ink }),
+    );
+    await saveBrainstormElements(ownerId, id, save(0, strokes));
+    const seen: string[] = [];
+    let after: string | undefined;
+    let pages = 0;
+    do {
+      const page = await brainstormChanges(ownerId, id, { since: 0, after });
+      if (!page || "reset" in page) throw new Error("no page");
+      seen.push(...page.elements.map((element) => element.id as string));
+      after = page.next ?? undefined;
+      pages += 1;
+    } while (after);
+    expect(pages).toBe(3);
+    expect(seen).toEqual(strokes.map(({ id }) => id));
+  });
+
+  it(`holds at most ${MAX_BOARD_ELEMENTS} elements, and lets a full board be cleared`, async () => {
+    const id = await made(ownerId, "Ideas");
+    await saveBrainstormElements(ownerId, id, save(0, [box("a")]));
+    await db
+      .update(brainstormBoards)
+      .set({ live: MAX_BOARD_ELEMENTS })
+      .where(eq(brainstormBoards.id, id));
+    expect(await saveBrainstormElements(ownerId, id, save(1, [box("b")]))).toEqual({
       ok: false,
-      reason: "conflict",
+      reason: "full",
     });
-    const board = await getBrainstorm(ownerId, id);
-    expect(board!.version).toBe(2);
-    expect(board!.scene.elements.map(({ id }) => id)).toEqual(["a"]);
+    expect(
+      await saveBrainstormElements(ownerId, id, save(1, [box("a", { version: 2, isDeleted: true })])),
+    ).toMatchObject({ ok: true });
   });
 
   it("sets and clears an icon from the list in code", async () => {
@@ -172,7 +304,7 @@ describe("brainstorm boards", () => {
   it("lists the board drawn on last first, finds by name and pages", async () => {
     const first = await made(ownerId, "Garden plans");
     await made(ownerId, "Book notes");
-    await saveBrainstormScene(ownerId, first, save(1, [box("a")]));
+    await saveBrainstormElements(ownerId, first, save(0, [box("a")]));
     let page = await listBrainstorms(ownerId);
     expect(page.rows.map(({ name }) => name)).toEqual(["Garden plans", "Book notes"]);
     page = await listBrainstorms(ownerId, { q: "book" });
@@ -201,16 +333,17 @@ describe("brainstorm boards", () => {
       ok: false,
       reason: "not_found",
     });
-    expect(await saveBrainstormScene(stranger, id, save(1, [box("a")]))).toEqual({
+    expect(await saveBrainstormElements(stranger, id, save(0, [box("a")]))).toEqual({
       ok: false,
       reason: "not_found",
     });
+    expect(await brainstormChanges(stranger, id, { since: 0 })).toBeNull();
     expect(await setBrainstormIcon(stranger, { boardId: id, icon: null })).toBe(false);
     expect(await deleteBrainstorm(stranger, id)).toBe(false);
     const [row] = await db
-      .select({ name: brainstormBoards.name, version: brainstormBoards.version })
+      .select({ name: brainstormBoards.name, clock: brainstormBoards.clock })
       .from(brainstormBoards)
       .where(eq(brainstormBoards.id, id));
-    expect(row).toEqual({ name: "Ideas", version: 1 });
+    expect(row).toEqual({ name: "Ideas", clock: 0 });
   });
 });

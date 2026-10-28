@@ -1052,6 +1052,12 @@
 - [2026-10-28] e2e/26-reports.spec.ts places a March 2025 of follow-ups, activities and proposal sends in the database and checks the three rates, their rows and records, Not enough data and the phone width
 - [2026-10-28] plan.md ticks Step 4 part 2 and Step 4, docs/PRD.md sections 6 and 10 describe the three reports as built, and security.md's reports rule covers them
 - [2026-10-28] Added a trail learning on how the three activity reports count (on time in the owner's zone, a follow-up not yet late left out, a reply only after the first outbound)
+- [2026-10-28] The board saver rounds every point and pen pressure to two decimals in the copy it sends, so a board of handwriting (the owner's "Touchpoint" brainstorm board: 2.99 MB, all freedraw) is stored in about half the bytes (1.57 MB)
+- [2026-10-28] A save the server refuses as too big (413) now shows "Board is full. Remove some drawings to keep saving." in words on every width and is not retried every 10 seconds; the next change, a stroke rubbed out, saves as usual
+- [2026-10-28] Leaving a board while it is full warns about unsaved work, as it does while a save has failed
+- [2026-10-28] e2e/19-brainstorm.spec.ts checks a pen stroke drawn at 110% is stored to a hundredth, and that a 413 shows the full message, is sent once and clears with the next change
+- [2026-10-28] Added a trail learning on why boards filled up (17-digit freedraw points) and what 413 now means
+- [2026-10-28] Added a trail learning that a single e2e spec must be run with e2e/01-foundation.spec.ts, which creates the owner
 - [2026-10-28] deleteInvoice deletes an invoice whatever its status; with payments, the owner's choice keeps them (only this invoice's allocations removed, the money left unallocated) or deletes them too, payments locked before the invoice in one transaction
 - [2026-10-28] Added src/modules/payments/records.ts (paymentSnapshot, removePayment), shared by deletePayment and deleteInvoice so the invoices and payments services do not import each other
 - [2026-10-28] deleteInvoiceAction reads the payments choice as keep or delete (anything else keeps them)
@@ -1062,3 +1068,14 @@
 - [2026-10-28] Added a trail learning replacing l-3ef49b50: any invoice can be deleted, with the keep-or-delete payments choice and the lock order
 - [2026-10-28] The new deleteInvoice unit tests compare the two audit actions in any order, since rows written in one transaction share a timestamp (CI saw them reversed)
 - [2026-10-28] Added a trail learning: audit rows from one transaction share a timestamp, so tests compare them in any order
+- [2026-10-28] Migration 0034: brainstorm_elements (one row per element of a brainstorm board, with its version, nonce, deleted mark, size and clock) and clock, live, bytes and pruned on brainstorm_boards; every board's scene moved into rows at clock 1 and emptied
+- [2026-10-28] saveBrainstormElements merges a device's changed elements by Excalidraw's rule (higher version, or same version and lower nonce), refuses past 100,000 elements or 50 MB unless the board gets smaller, and says whether another device saved in between
+- [2026-10-28] brainstormChanges gives what changed after a clock in pages of about 2 MB, and pruneBrainstorm clears deletion marks over 30 days old as a board opens, sending a device that looked before then to load again
+- [2026-10-28] /api/brainstorm/[id]/scene replaced by /api/brainstorm/[id]/elements: GET for changes since a clock, PATCH for a device's changes
+- [2026-10-28] boardPictures takes a `shown` check, so a brainstorm board's pictures are kept while a row in brainstorm_elements shows them
+- [2026-10-28] New board-sync.ts on the brainstorm whiteboard: sends only elements whose version moved, in batches under 2 MB, looks for other devices' changes every 10 seconds while in view and merges them with Excalidraw's restoreElements and reconcileElements outside undo
+- [2026-10-28] board-pictures.ts fetches pictures shown by elements another device drew (fetchShown)
+- [2026-10-28] The brainstorm editor loads a board a page at a time, saves through board-sync, and no longer shows "Changed somewhere else": two devices never stop each other saving
+- [2026-10-28] Unit tests for the merge rule, deletion marks, pruning and reset, paging, the element limit and migration 0034's copy; e2e/19 moved to the new route and checks a board over 3 MB opening in pages and two windows staying in step
+- [2026-10-28] security.md's brainstorm rule, docs/PRD.md's data model and plan.md describe the per-element storage
+- [2026-10-28] Added a trail learning on brainstorm per-element storage: the merge rule, polling over WebSockets, restoreElements with null, the sendable hash, tombstones and reset

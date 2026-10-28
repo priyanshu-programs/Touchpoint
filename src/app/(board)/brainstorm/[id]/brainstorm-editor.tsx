@@ -5,16 +5,11 @@ import {
   convertToExcalidrawElements,
   Excalidraw,
   FONT_FAMILY,
-  getNonDeletedElements,
-  hashElementsVersion,
   MainMenu,
   viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
-import type {
-  ExcalidrawElement,
-  NonDeletedExcalidrawElement,
-} from "@excalidraw/excalidraw/element/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { ChevronDown, Loader2, StickyNote } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -47,10 +42,11 @@ import {
 } from "../../workflows/[id]/board-chrome";
 import { ColorGrid, samePicked, type Picked } from "../../workflows/[id]/color-grid";
 import { createBoardPictures } from "../../workflows/[id]/board-pictures";
-import { createBoardSaver, type SaveState } from "../../workflows/[id]/board-saver";
+import type { SaveState } from "../../workflows/[id]/board-saver";
 import { openBrainstormAction } from "@/app/(app)/brainstorm/actions";
 import type { Paper } from "../../workflows/[id]/paper";
 import { StickySheen, StickyShadows } from "../../workflows/[id]/sticky-notes";
+import { createBoardSync, loadBoard } from "./board-sync";
 
 // A sticky note comes in the grid's light and bright colours, light yellow first.
 const STICKY_COLORS = [...LIGHT_COLORS, ...BRIGHT_COLORS];
@@ -194,7 +190,7 @@ function StickyButton({
 }
 
 type Drawing = {
-  version: number;
+  clock: number;
   elements: Record<string, unknown>[];
   pictures: string[];
 };
@@ -224,11 +220,11 @@ export function BrainstormEditor({
   useEffect(() => {
     let wanted = true;
     const load = async (): Promise<Drawing | "failed"> => {
-      const [response, apart] = await Promise.all([
-        fetch(`/api/brainstorm/${boardId}/scene`),
+      const [board, apart] = await Promise.all([
+        loadBoard(`/api/brainstorm/${boardId}/elements`),
         openBrainstormAction(boardId),
       ]);
-      return response.ok ? { ...(await response.json()), ...apart } : "failed";
+      return { ...board, ...apart };
     };
     load()
       .catch(() => "failed" as const)
@@ -270,7 +266,7 @@ function Whiteboard({
   boardId,
   name,
   opensOn,
-  version,
+  clock,
   elements,
   pictures: held,
 }: Drawing & { boardId: string; name: string; opensOn: Paper }) {
@@ -285,21 +281,18 @@ function Whiteboard({
   const shadows = useRef<HTMLDivElement>(null);
   const sheen = useRef<HTMLDivElement>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
-  const [saver] = useState(() =>
-    createBoardSaver<NonDeletedExcalidrawElement>({
-      endpoint: `/api/brainstorm/${boardId}/scene`,
-      version,
-      hash: hashElementsVersion,
-      report: setSaveState,
-    }),
-  );
   const unfitted = useRef(elements.length > 0);
   // Notes put down before they carried a mark are given it, and square
-  // corners, as the board opens; the drawing's next save keeps them.
+  // corners, as the board opens, as a change of their own the next save keeps.
   const [opening] = useState(() =>
     (elements as unknown as ExcalidrawElement[]).map((element) =>
       unmarkedSticky(element)
-        ? { ...element, roundness: null, customData: { sticky: true } }
+        ? {
+            ...element,
+            roundness: null,
+            customData: { sticky: true },
+            version: element.version + 1,
+          }
         : element,
     ),
   );
@@ -319,20 +312,40 @@ function Whiteboard({
     return pictures.stop;
   }, [api, pictures]);
 
+  const [sync] = useState(() =>
+    createBoardSync({
+      address: `/api/brainstorm/${boardId}/elements`,
+      clock,
+      // As they were stored, so a note given its mark above is sent.
+      elements: elements as unknown as ExcalidrawElement[],
+      // A picture is sent with the drawing once its bytes are stored.
+      sendable: (element) =>
+        oneOf(ELEMENT_TYPES, element) &&
+        (element.type !== "image" || pictures.has(element.fileId)),
+      report: setSaveState,
+      received: pictures.fetchShown,
+    }),
+  );
   useEffect(() => {
-    const hidden = () => document.visibilityState === "hidden" && saver.flush();
+    if (!api) return;
+    sync.attach(api);
+    const hidden = () => document.visibilityState === "hidden" && sync.flush();
     document.addEventListener("visibilitychange", hidden);
     return () => {
       document.removeEventListener("visibilitychange", hidden);
-      saver.flush();
+      sync.flush();
+      sync.stop();
     };
-  }, [saver]);
+  }, [api, sync]);
 
   // A picture still on its way is not stored, nor the drawing that shows it.
   const shownState: SaveState =
     sending && saveState === "saved" ? "saving" : saveState;
   const unstored =
-    shownState === "unsaved" || shownState === "saving" || shownState === "error";
+    shownState === "unsaved" ||
+    shownState === "saving" ||
+    shownState === "error" ||
+    shownState === "full";
   useEffect(() => {
     if (!unstored) return;
     const ask = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -402,14 +415,7 @@ function Whiteboard({
           const now = pickedColors(all, appState);
           setPicked((before) => (samePicked(before, now) ? before : now));
           pictures.look(all, files);
-          // A picture is sent with the drawing once its bytes are stored.
-          saver.changed(
-            getNonDeletedElements(all).filter(
-              (element) =>
-                oneOf(ELEMENT_TYPES, element) &&
-                (element.type !== "image" || pictures.has(element.fileId)),
-            ),
-          );
+          sync.changed(all);
         }}
         renderTopRightUI={() => (
           <div className="flex items-center gap-2">

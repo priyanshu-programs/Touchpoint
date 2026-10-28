@@ -443,7 +443,10 @@ function Whiteboard({
   const shownState: SaveState =
     sending && saveState === "saved" ? "saving" : saveState;
   const unstored =
-    shownState === "unsaved" || shownState === "saving" || shownState === "error";
+    shownState === "unsaved" ||
+    shownState === "saving" ||
+    shownState === "error" ||
+    shownState === "full";
   useEffect(() => {
     if (!unstored) return;
     const ask = (event: BeforeUnloadEvent) => event.preventDefault();
