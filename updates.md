@@ -1057,3 +1057,4 @@
 - [2026-10-28] Leaving a board while it is full warns about unsaved work, as it does while a save has failed
 - [2026-10-28] e2e/19-brainstorm.spec.ts checks a pen stroke drawn at 110% is stored to a hundredth, and that a 413 shows the full message, is sent once and clears with the next change
 - [2026-10-28] Added a trail learning on why boards filled up (17-digit freedraw points) and what 413 now means
+- [2026-10-28] Added a trail learning that a single e2e spec must be run with e2e/01-foundation.spec.ts, which creates the owner
