@@ -372,11 +372,53 @@ describe("payments", () => {
     expect(await balance(id)).toBe(10_000_000);
     expect(await updateInvoice(ownerId, id, edit)).toEqual({ ok: true, id });
     expect(await voidInvoice(ownerId, id)).toEqual({ ok: true });
-    expect(await deleteInvoice(ownerId, id)).toEqual({ ok: true });
+    expect(await deleteInvoice(ownerId, id, "keep")).toEqual({ ok: true });
     const [entry] = (await listAudit(ownerId, { limit: 4 })).rows.filter(
       (row) => row.action === "payment.delete",
     );
     expect(entry).toMatchObject({ entityId: payment });
+  });
+
+  it("deletes a paid invoice and keeps its payments, with that money unallocated", async () => {
+    const id = await invoice();
+    const second = await invoice({ number: "INV-002" });
+    const payment = await record({
+      amount: "60,000",
+      allocations: [
+        { invoiceId: id, amount: "40,000" },
+        { invoiceId: second, amount: "20,000" },
+      ],
+    });
+
+    expect(await deleteInvoice(ownerId, id, "keep")).toEqual({ ok: true });
+    expect(await getInvoice(ownerId, id)).toBeNull();
+    expect(await getPayment(ownerId, payment)).toMatchObject({
+      amountMinor: 6_000_000,
+      unallocated: 4_000_000,
+      allocations: [{ invoiceId: second, amountMinor: 2_000_000 }],
+    });
+    // Written in one transaction, so both carry the same time and come in either order.
+    const actions = (await listAudit(ownerId, { limit: 2 })).rows.map((row) => row.action);
+    expect(actions.sort()).toEqual(["invoice.delete", "payment.allocate"]);
+  });
+
+  it("deletes a paid invoice with its payments, so other invoices they paid owe that again", async () => {
+    const id = await invoice();
+    const second = await invoice({ number: "INV-002" });
+    const payment = await record({
+      amount: "60,000",
+      allocations: [
+        { invoiceId: id, amount: "40,000" },
+        { invoiceId: second, amount: "20,000" },
+      ],
+    });
+
+    expect(await deleteInvoice(ownerId, id, "delete")).toEqual({ ok: true });
+    expect(await getInvoice(ownerId, id)).toBeNull();
+    expect(await getPayment(ownerId, payment)).toBeNull();
+    expect(await balance(second)).toBe(10_000_000);
+    const actions = (await listAudit(ownerId, { limit: 2 })).rows.map((row) => row.action);
+    expect(actions.sort()).toEqual(["invoice.delete", "payment.delete"]);
   });
 
   it("keeps a client with payments from being deleted, and moves with a merge", async () => {

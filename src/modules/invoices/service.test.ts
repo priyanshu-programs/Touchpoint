@@ -286,7 +286,7 @@ describe("invoices", () => {
     expect(await getInvoice(stranger, id)).toBeNull();
     expect((await listInvoices(stranger)).rows).toEqual([]);
     expect(await issueInvoice(stranger, id)).toEqual(refused("not_found"));
-    expect(await deleteInvoice(stranger, id)).toEqual(refused("not_found"));
+    expect(await deleteInvoice(stranger, id, "keep")).toEqual(refused("not_found"));
     expect(await attachInvoiceFile(stranger, id, { name: "a.pdf", bytes: pdf() })).toEqual(
       refused("not_found"),
     );
@@ -333,8 +333,6 @@ describe("invoices", () => {
         parse({ ...baseForm(`organization:${acme}`), status: "issued", notes: "Sent by email" }),
       )).ok,
     ).toBe(true);
-    expect(await deleteInvoice(ownerId, id)).toEqual(refused("status"));
-
     expect(await voidInvoice(ownerId, id)).toEqual({ ok: true });
     expect((await getInvoice(ownerId, id))?.status).toBe("void");
     expect(
@@ -344,21 +342,26 @@ describe("invoices", () => {
     expect(actions).toEqual(["invoice.void", "invoice.update", "invoice.issue"]);
 
     // Void, it can be deleted.
-    expect(await deleteInvoice(ownerId, id)).toEqual({ ok: true });
+    expect(await deleteInvoice(ownerId, id, "keep")).toEqual({ ok: true });
     expect(await getInvoice(ownerId, id)).toBeNull();
     const [entry] = (await listAudit(ownerId, { limit: 1 })).rows;
     expect(entry).toMatchObject({ action: "invoice.delete", before: { status: "void" } });
   });
 
-  it("is deleted as a draft or once void, with its file if nothing else uses it", async () => {
+  it("is deleted whatever its status, with its file if nothing else uses it", async () => {
     const id = await make();
     expect(await attachInvoiceFile(ownerId, id, { name: "INV-001.pdf", bytes: pdf("one") })).toEqual(
       { ok: true },
     );
     expect(await stored()).toHaveLength(1);
-    expect(await deleteInvoice(ownerId, id)).toEqual({ ok: true });
+    expect(await deleteInvoice(ownerId, id, "keep")).toEqual({ ok: true });
     expect(await getInvoice(ownerId, id)).toBeNull();
     expect(await stored()).toEqual([]);
+
+    const issued = await make();
+    expect(await issueInvoice(ownerId, issued)).toEqual({ ok: true });
+    expect(await deleteInvoice(ownerId, issued, "keep")).toEqual({ ok: true });
+    expect(await getInvoice(ownerId, issued)).toBeNull();
   });
 
   it("keeps the exported PDF or picture, and refuses other files", async () => {

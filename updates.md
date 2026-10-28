@@ -1052,3 +1052,13 @@
 - [2026-10-28] e2e/26-reports.spec.ts places a March 2025 of follow-ups, activities and proposal sends in the database and checks the three rates, their rows and records, Not enough data and the phone width
 - [2026-10-28] plan.md ticks Step 4 part 2 and Step 4, docs/PRD.md sections 6 and 10 describe the three reports as built, and security.md's reports rule covers them
 - [2026-10-28] Added a trail learning on how the three activity reports count (on time in the owner's zone, a follow-up not yet late left out, a reply only after the first outbound)
+- [2026-10-28] deleteInvoice deletes an invoice whatever its status; with payments, the owner's choice keeps them (only this invoice's allocations removed, the money left unallocated) or deletes them too, payments locked before the invoice in one transaction
+- [2026-10-28] Added src/modules/payments/records.ts (paymentSnapshot, removePayment), shared by deletePayment and deleteInvoice so the invoices and payments services do not import each other
+- [2026-10-28] deleteInvoiceAction reads the payments choice as keep or delete (anything else keeps them)
+- [2026-10-28] The invoice page's menu offers Delete for every invoice: beside Void on an unpaid one, alone on one with payments, whose confirmation asks "Keep the payments" or "Delete the payments too"
+- [2026-10-28] payment_allocations.invoice_id's comment says why the no-action key stays: deleting an invoice removes its allocations first
+- [2026-10-28] Unit tests: an issued invoice is deleted, a paid one with its payments kept (money unallocated) or deleted (another invoice owes that again); e2e/23 and e2e/24 delete an unpaid, a partly paid (keep) and a paid (delete) invoice; 01, 23 and 24 pass 26 of 26
+- [2026-10-28] security.md's invoices rule, plan.md Steps 1 and 2 and docs/PRD.md sections on invoices and payments say any invoice can be deleted (owner's choice)
+- [2026-10-28] Added a trail learning replacing l-3ef49b50: any invoice can be deleted, with the keep-or-delete payments choice and the lock order
+- [2026-10-28] The new deleteInvoice unit tests compare the two audit actions in any order, since rows written in one transaction share a timestamp (CI saw them reversed)
+- [2026-10-28] Added a trail learning: audit rows from one transaction share a timestamp, so tests compare them in any order

@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
 import {
   auditLog,
@@ -13,6 +13,7 @@ import {
 import { audit } from "@/modules/audit/service";
 import { dropUnusedFiles, storeFile } from "@/modules/files/service";
 import { fileType } from "@/modules/files/sniff";
+import { paymentSnapshot, removePayment } from "@/modules/payments/records";
 import { MAX_FILE_BYTES } from "@/modules/workflows/drawing";
 import {
   INVOICE_FILE_TYPES,
@@ -269,13 +270,58 @@ export const issueInvoice = (ownerId: string, id: string) =>
 export const voidInvoice = (ownerId: string, id: string) =>
   moveStatus(ownerId, id, "issued", "void");
 
-// Only a draft is deleted; an issued invoice was sent, so it is voided instead.
-export async function deleteInvoice(ownerId: string, id: string): Promise<StatusResult> {
+// Any invoice is deleted. The payments put towards it are kept, with that money left
+// unallocated, or deleted with it, as the owner chooses.
+export async function deleteInvoice(
+  ownerId: string,
+  id: string,
+  paymentsChoice: "keep" | "delete",
+): Promise<StatusResult> {
   return db.transaction(async (tx) => {
+    // Payments before the invoice, the order allocatePayment locks them in.
+    const paid = await tx
+      .select()
+      .from(payments)
+      .where(
+        and(
+          eq(payments.ownerId, ownerId),
+          inArray(
+            payments.id,
+            tx
+              .select({ id: paymentAllocations.paymentId })
+              .from(paymentAllocations)
+              .where(eq(paymentAllocations.invoiceId, id)),
+          ),
+        ),
+      )
+      .orderBy(asc(payments.id))
+      .for("update");
     const before = await lockInvoice(tx, ownerId, id);
     if (!before) return { ok: false, reason: "not_found" };
-    if (before.status === "issued") return { ok: false, reason: "status" };
     const was = await snapshot(tx, before);
+
+    for (const payment of paid) {
+      if (paymentsChoice === "delete") {
+        await removePayment(tx, ownerId, payment);
+        continue;
+      }
+      const paymentBefore = await paymentSnapshot(tx, payment);
+      await tx
+        .delete(paymentAllocations)
+        .where(
+          and(eq(paymentAllocations.paymentId, payment.id), eq(paymentAllocations.invoiceId, id)),
+        );
+      await audit(tx, {
+        ownerId,
+        actor: "user",
+        action: "payment.allocate",
+        entityType: "payment",
+        entityId: payment.id,
+        before: paymentBefore,
+        after: await paymentSnapshot(tx, payment),
+      });
+    }
+
     await tx.delete(invoices).where(eq(invoices.id, id));
     if (before.fileId) await dropUnusedFiles(tx, ownerId);
     await audit(tx, {

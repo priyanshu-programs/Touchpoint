@@ -122,7 +122,7 @@ export default async function InvoicePage({ params }: PageProps<"/money/invoices
           id={invoice.id}
           number={invoice.number}
           status={invoice.status}
-          paid={invoice.allocations.length > 0}
+          payments={invoice.allocations.length}
           editHref={`/money/invoices/${invoice.id}/edit`}
         />
       </header>
