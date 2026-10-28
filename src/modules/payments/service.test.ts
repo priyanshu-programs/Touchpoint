@@ -397,8 +397,9 @@ describe("payments", () => {
       unallocated: 4_000_000,
       allocations: [{ invoiceId: second, amountMinor: 2_000_000 }],
     });
+    // Written in one transaction, so both carry the same time and come in either order.
     const actions = (await listAudit(ownerId, { limit: 2 })).rows.map((row) => row.action);
-    expect(actions).toEqual(["invoice.delete", "payment.allocate"]);
+    expect(actions.sort()).toEqual(["invoice.delete", "payment.allocate"]);
   });
 
   it("deletes a paid invoice with its payments, so other invoices they paid owe that again", async () => {
@@ -417,7 +418,7 @@ describe("payments", () => {
     expect(await getPayment(ownerId, payment)).toBeNull();
     expect(await balance(second)).toBe(10_000_000);
     const actions = (await listAudit(ownerId, { limit: 2 })).rows.map((row) => row.action);
-    expect(actions).toEqual(["invoice.delete", "payment.delete"]);
+    expect(actions.sort()).toEqual(["invoice.delete", "payment.delete"]);
   });
 
   it("keeps a client with payments from being deleted, and moves with a merge", async () => {

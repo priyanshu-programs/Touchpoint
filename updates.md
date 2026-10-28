@@ -1060,3 +1060,4 @@
 - [2026-10-28] Unit tests: an issued invoice is deleted, a paid one with its payments kept (money unallocated) or deleted (another invoice owes that again); e2e/23 and e2e/24 delete an unpaid, a partly paid (keep) and a paid (delete) invoice; 01, 23 and 24 pass 26 of 26
 - [2026-10-28] security.md's invoices rule, plan.md Steps 1 and 2 and docs/PRD.md sections on invoices and payments say any invoice can be deleted (owner's choice)
 - [2026-10-28] Added a trail learning replacing l-3ef49b50: any invoice can be deleted, with the keep-or-delete payments choice and the lock order
+- [2026-10-28] The new deleteInvoice unit tests compare the two audit actions in any order, since rows written in one transaction share a timestamp (CI saw them reversed)
