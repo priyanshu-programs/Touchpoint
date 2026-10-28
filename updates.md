@@ -1043,3 +1043,12 @@
 - [2026-10-27] e2e/26-reports.spec.ts: an invoice of two services paid in two parts, then the month, client, service and time-to-payment rows, another period, Not enough data for dates with nothing, Not found for a wrong report, and every page at phone width; 01 and 26 pass 13 of 13
 - [2026-10-27] docs/PRD.md: Reports in section 6 and the money reports as built in section 10; plan.md: Step 4 split into two parts, part 1 ticked with its Not built list; security.md: a rule for the reports' address and sums
 - [2026-10-27] Saved a trail learning: revenue by service splits each allocation across its invoice's lines by amount, and the reports' not-found answers 200 (.trail/learnings/2026-10-27-revenue-by-service-splits-each-allocation-l.md)
+- [2026-10-28] Added src/modules/reports/activity.ts: follow-up compliance, reply rate and proposal acceptance with their rows (Phase 4 Step 4 part 2), each owner-scoped, with the period's dates turned into instants in the owner's zone in code
+- [2026-10-28] within() in src/modules/revenue/queries.ts also takes a task's due date, so follow-ups are bounded by the period as invoices and payments are
+- [2026-10-28] REPORT_DETAILS gains follow-ups, replies and proposals, so each new report's rows have a page under /money/reports/<report>
+- [2026-10-28] /money/reports shows the three rates under "Follow-ups and sales", each saying what it counts out of or "Not enough data", and opening its rows
+- [2026-10-28] /money/reports/[report] lists follow-ups (on time, days late or not done, opening the task), people reached (first outbound and first reply, opening their Activity tab) and proposal sends (opening the material)
+- [2026-10-28] Added src/modules/reports/activity.test.ts (9 tests): zone edges in Asia/Tokyo, late and cancelled follow-ups, due today, replies before the first outbound, non-proposal and superseded sends, other owners, zero denominators
+- [2026-10-28] e2e/26-reports.spec.ts places a March 2025 of follow-ups, activities and proposal sends in the database and checks the three rates, their rows and records, Not enough data and the phone width
+- [2026-10-28] plan.md ticks Step 4 part 2 and Step 4, docs/PRD.md sections 6 and 10 describe the three reports as built, and security.md's reports rule covers them
+- [2026-10-28] Added a trail learning on how the three activity reports count (on time in the owner's zone, a follow-up not yet late left out, a reply only after the first outbound)

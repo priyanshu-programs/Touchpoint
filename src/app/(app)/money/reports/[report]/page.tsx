@@ -14,7 +14,16 @@ import {
 } from "@/components/ui/table";
 import { formatMoney } from "@/lib/money";
 import { requireOwner } from "@/lib/session";
-import { dateIn, formatDate } from "@/lib/time";
+import { dateIn, formatDate, formatDateTime } from "@/lib/time";
+import { SEND_STATUS_LABELS } from "@/modules/materials/schema";
+import {
+  followUpCompliance,
+  followUpRows,
+  proposalAcceptance,
+  proposalRows,
+  replyRate,
+  replyRows,
+} from "@/modules/reports/activity";
 import {
   revenueByClient,
   serviceRows,
@@ -26,6 +35,7 @@ import { REPORT_DETAILS, reportParams, type ReportDetail } from "@/modules/repor
 import { chosenRange, PERIOD_LABELS, PERIODS } from "@/modules/revenue/period";
 import { getSettings } from "@/modules/settings/service";
 import { ListCard, ListFooter } from "../../../people/(lists)/list-card";
+import { contactHref, labelFor } from "../../../people/labels";
 import { clientParams } from "../../figure-links";
 import { OverviewControls } from "../../overview-controls";
 import { paymentHref, paymentsHref } from "../../payments/labels";
@@ -40,6 +50,9 @@ const TITLES: Record<ReportDetail, string> = {
   services: "Revenue by service",
   unallocated: "Not put towards an invoice yet",
   "time-to-payment": "Time to payment",
+  "follow-ups": "Follow-up compliance",
+  replies: "Reply rate",
+  proposals: "Proposal acceptance",
 };
 
 export async function generateMetadata({ params }: PageProps<"/money/reports/[report]">): Promise<Metadata> {
@@ -62,7 +75,9 @@ export default async function ReportRowsPage({ params, searchParams }: PageProps
 
   const settings = await getSettings(owner.id);
   const base = settings?.baseCurrency ?? "INR";
-  const today = dateIn(settings?.timezone ?? "UTC");
+  const timezone = settings?.timezone ?? "UTC";
+  const today = dateIn(timezone);
+  const zoned = { today, timezone };
   const { period, range } = chosenRange(query, today);
   const keep = periodKeep(period, range);
   const which = report === "services" ? (service === null ? { unnamed: "1" as const } : { service }) : {};
@@ -194,7 +209,7 @@ export default async function ReportRowsPage({ params, searchParams }: PageProps
         </TableBody>
       </Table>
     );
-  } else {
+  } else if (report === "time-to-payment") {
     const [page, mean] = await Promise.all([
       timeToPaymentRows(owner.id, range, today, paging),
       timeToPayment(owner.id, range, today),
@@ -233,6 +248,153 @@ export default async function ReportRowsPage({ params, searchParams }: PageProps
                 <TableCell className="hidden md:table-cell">{formatDate(row.issueDate)}</TableCell>
                 <TableCell className="hidden sm:table-cell">{formatDate(row.paidOn)}</TableCell>
                 <TableCell className="text-right tabular-nums">{row.days}</TableCell>
+              </ClickableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+  } else if (report === "follow-ups") {
+    const [page, rate] = await Promise.all([
+      followUpRows(owner.id, range, { ...zoned, ...paging }),
+      followUpCompliance(owner.id, range, zoned),
+    ]);
+    ({ total } = page);
+    shown = page.rows.length;
+    summary = `${rate.onTime} of ${counted(rate.count, "follow-up")} due ${when} done by the due date. One due today counts once it is done.`;
+    table = (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Follow-up</TableHead>
+            <TableHead className="hidden sm:table-cell">With</TableHead>
+            <TableHead className="hidden sm:table-cell">Due</TableHead>
+            <TableHead className="text-right">Done</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {page.rows.map((row) => {
+            const href = `/tasks/${row.id}`;
+            const outcome =
+              row.outcome.done === "on-time"
+                ? "On time"
+                : row.outcome.done === "late"
+                  ? `${counted(row.outcome.days, "day")} late`
+                  : "Not done";
+            const who = [row.contactName, row.organizationName].filter(Boolean).join(", ");
+            return (
+              <ClickableRow key={row.id} href={href}>
+                <TableCell className="max-w-56">
+                  <div className="grid gap-1">
+                    <Link href={href} className="truncate font-medium underline-offset-4 hover:underline">
+                      {row.title}
+                    </Link>
+                    <span className="truncate text-xs text-muted-foreground sm:hidden">
+                      Due {formatDate(row.dueOn)}
+                      {who && ` · ${who}`}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell className="hidden max-w-48 truncate sm:table-cell">{who || "—"}</TableCell>
+                <TableCell className="hidden sm:table-cell">{formatDate(row.dueOn)}</TableCell>
+                <TableCell className={row.outcome.done ? "text-right" : "text-right text-destructive"}>
+                  {outcome}
+                </TableCell>
+              </ClickableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+  } else if (report === "replies") {
+    const [page, rate] = await Promise.all([
+      replyRows(owner.id, range, { ...zoned, ...paging }),
+      replyRate(owner.id, range, zoned),
+    ]);
+    ({ total } = page);
+    shown = page.rows.length;
+    summary = `${rate.replied} of ${rate.count === 1 ? "1 person" : `${rate.count} people`} you reached out to ${when} wrote back afterwards. Only activities logged as outbound and inbound count.`;
+    table = (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Person</TableHead>
+            <TableHead className="hidden sm:table-cell">Reached out</TableHead>
+            <TableHead className="text-right">Reply</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {page.rows.map((row) => {
+            const href = contactHref(row.contactId, "activity");
+            return (
+              <ClickableRow key={row.contactId} href={href}>
+                <TableCell className="max-w-56">
+                  <div className="grid gap-1">
+                    <Link href={href} className="truncate font-medium underline-offset-4 hover:underline">
+                      {row.name}
+                    </Link>
+                    {row.company && <span className="truncate text-xs text-muted-foreground">{row.company}</span>}
+                  </div>
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  {labelFor(row.outKind)}, {formatDateTime(row.outAt, timezone)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {row.replyAt ? (
+                    <>
+                      {labelFor(row.replyKind!)}, {formatDateTime(row.replyAt, timezone)}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">No reply yet</span>
+                  )}
+                </TableCell>
+              </ClickableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+  } else {
+    const [page, rate] = await Promise.all([
+      proposalRows(owner.id, range, { ...zoned, ...paging }),
+      proposalAcceptance(owner.id, range, zoned),
+    ]);
+    ({ total } = page);
+    shown = page.rows.length;
+    const aside = [
+      rate.waiting > 0 && `${rate.waiting} waiting for an answer`,
+      rate.superseded > 0 && `${rate.superseded} replaced by a newer version`,
+    ]
+      .filter(Boolean)
+      .join(" and ");
+    summary = `${rate.accepted} of ${counted(rate.answered, "proposal")} sent ${when} and answered were accepted.${aside ? ` Listed but not counted: ${aside}.` : ""}`;
+    table = (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Proposal</TableHead>
+            <TableHead className="hidden sm:table-cell">To</TableHead>
+            <TableHead className="hidden md:table-cell">Sent</TableHead>
+            <TableHead className="text-right">Answer</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {page.rows.map((row) => {
+            const href = `/materials/${row.materialId}`;
+            const to = [row.people, row.organizationName].filter(Boolean).join(", ");
+            return (
+              <ClickableRow key={row.id} href={href}>
+                <TableCell className="max-w-56">
+                  <div className="grid gap-1">
+                    <Link href={href} className="truncate font-medium underline-offset-4 hover:underline">
+                      {row.material}
+                    </Link>
+                    <span className="truncate text-xs text-muted-foreground">{row.version}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="hidden max-w-48 truncate sm:table-cell">{to || "—"}</TableCell>
+                <TableCell className="hidden md:table-cell">{formatDateTime(row.sentAt, timezone)}</TableCell>
+                <TableCell className="text-right">{SEND_STATUS_LABELS[row.status]}</TableCell>
               </ClickableRow>
             );
           })}

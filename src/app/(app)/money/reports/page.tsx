@@ -13,6 +13,7 @@ import {
 import { formatMoney, formatMoneyCompact } from "@/lib/money";
 import { requireOwner } from "@/lib/session";
 import { dateIn } from "@/lib/time";
+import { followUpCompliance, proposalAcceptance, replyRate } from "@/modules/reports/activity";
 import { revenueByClient, revenueByMonth, revenueByService, timeToPayment } from "@/modules/reports/revenue";
 import { reportParams } from "@/modules/reports/schema";
 import { chosenRange, PERIOD_LABELS, PERIODS } from "@/modules/revenue/period";
@@ -74,6 +75,30 @@ function Headline({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
+const percent = (rate: number) => `${Math.round(rate * 100)}%`;
+
+// A share of something counted, with what it was counted out of.
+function Rate({
+  rate,
+  href,
+  label,
+  children,
+}: {
+  rate: number;
+  href: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid gap-1">
+      <Headline href={href}>
+        {percent(rate)} <span className="text-base font-normal text-muted-foreground">{label}</span>
+      </Headline>
+      <p className="text-sm text-muted-foreground">{children}</p>
+    </div>
+  );
+}
+
 // What a sum in the base currency took in from other currencies, and left out.
 function Conversions({ sum, base, href }: { sum: BaseSum; base: string; href: (currency: string) => string }) {
   return (
@@ -101,15 +126,20 @@ export default async function ReportsPage({ searchParams }: PageProps<"/money/re
   const params = reportParams.parse(await searchParams);
   const settings = await getSettings(owner.id);
   const base = settings?.baseCurrency ?? "INR";
-  const today = dateIn(settings?.timezone ?? "UTC");
+  const timezone = settings?.timezone ?? "UTC";
+  const today = dateIn(timezone);
   const { period, range } = chosenRange(params, today);
   const keep = periodKeep(period, range);
   const money = { baseCurrency: base };
-  const [byMonth, byClient, byService, paidIn] = await Promise.all([
+  const zoned = { today, timezone };
+  const [byMonth, byClient, byService, paidIn, followUps, replies, proposals] = await Promise.all([
     revenueByMonth(owner.id, range, { today, ...money }),
     revenueByClient(owner.id, range, { ...money, limit: TOP_CLIENTS }),
     revenueByService(owner.id, range, money),
     timeToPayment(owner.id, range, today),
+    followUpCompliance(owner.id, range, zoned),
+    replyRate(owner.id, range, zoned),
+    proposalAcceptance(owner.id, range, zoned),
   ]);
   const received = byMonth.total;
   const dates = rangeText(range);
@@ -125,7 +155,10 @@ export default async function ReportsPage({ searchParams }: PageProps<"/money/re
 
   return (
     <div className="grid gap-6">
-      <MoneyHeader title="Reports" subtitle="When the money came in, who it came from and what it paid for." />
+      <MoneyHeader
+        title="Reports"
+        subtitle="When the money came in, who it came from and what it paid for, and how your follow-ups and proposals went."
+      />
 
       <OverviewControls
         path="/money/reports"
@@ -330,6 +363,46 @@ export default async function ReportsPage({ searchParams }: PageProps<"/money/re
                 On average from issue to paid in full, across {counted(paidIn.count, "invoice")} paid in full {when}.
               </p>
             </div>
+          )}
+        </ReportCard>
+      </div>
+
+      <h2 className="text-lg font-semibold tracking-tight">Follow-ups and sales</h2>
+
+      <div className="grid items-start gap-4 md:grid-cols-3">
+        <ReportCard title="Follow-up compliance">
+          {followUps.rate === null ? (
+            <NotEnoughData>No follow-up was due {when}.</NotEnoughData>
+          ) : (
+            <Rate rate={followUps.rate} href={reportsHref(keep, "follow-ups")} label="on time">
+              {followUps.onTime} of {counted(followUps.count, "follow-up")} due {when} done by the due date.
+            </Rate>
+          )}
+        </ReportCard>
+
+        <ReportCard title="Reply rate">
+          {replies.rate === null ? (
+            <NotEnoughData>You reached out to nobody {when}.</NotEnoughData>
+          ) : (
+            <Rate rate={replies.rate} href={reportsHref(keep, "replies")} label="replied">
+              {replies.replied} of {replies.count === 1 ? "1 person" : `${replies.count} people`} you reached out
+              to {when} wrote back afterwards.
+            </Rate>
+          )}
+        </ReportCard>
+
+        <ReportCard title="Proposal acceptance">
+          {proposals.rate === null ? (
+            <NotEnoughData>
+              No proposal sent {when} has been accepted or rejected
+              {proposals.waiting > 0 && `; ${proposals.waiting} waiting for an answer`}.
+            </NotEnoughData>
+          ) : (
+            <Rate rate={proposals.rate} href={reportsHref(keep, "proposals")} label="accepted">
+              {proposals.accepted} of {counted(proposals.answered, "proposal")} sent {when} and answered.
+              {proposals.waiting > 0 && ` ${proposals.waiting} waiting for an answer.`}
+              {proposals.superseded > 0 && ` ${proposals.superseded} replaced by a newer version.`}
+            </Rate>
           )}
         </ReportCard>
       </div>
