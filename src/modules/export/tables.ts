@@ -47,8 +47,9 @@ export const EXPORTED_TABLES: readonly PgTable[] = [
   schema.auditLog,
 ];
 
-// Sign-in (passwords, sessions, tokens) and the app's own bookkeeping. The owner's
-// name and email are written at the top of data.json instead of the user row.
+// Sign-in (passwords, sessions, tokens), Google's client secret and the access it
+// granted, and the app's own bookkeeping. The owner's name and email are written at
+// the top of data.json instead of the user row.
 export const LEFT_OUT_TABLES = [
   "user",
   "session",
@@ -56,6 +57,8 @@ export const LEFT_OUT_TABLES = [
   "verification",
   "rate_limit",
   "jobs",
+  "integration_clients",
+  "integration_connections",
 ] as const;
 
 // A file's or a picture's bytes, and the search index built from the other columns.

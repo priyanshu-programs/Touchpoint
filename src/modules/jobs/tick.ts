@@ -3,6 +3,11 @@ import { db } from "@/db/client";
 import { jobs } from "@/db/schema";
 import { fetchPhoto, PHOTO_JOB } from "@/modules/enrichment/photos";
 import { ENRICHMENT_JOB, runEnrichment } from "@/modules/enrichment/service";
+import {
+  checkGoogleConnection,
+  enqueueGoogleChecks,
+  GOOGLE_CHECK_JOB,
+} from "@/modules/integrations/service";
 import { REMINDER_JOB, sendReminder } from "@/modules/tasks/service";
 import { enqueue, runDueJobs, type JobHandlers } from "./service";
 
@@ -14,10 +19,12 @@ export const handlers: JobHandlers = {
   [REMINDER_JOB]: sendReminder,
   [ENRICHMENT_JOB]: (job) => runEnrichment(job),
   [PHOTO_JOB]: (job) => fetchPhoto(job),
+  [GOOGLE_CHECK_JOB]: checkGoogleConnection,
 };
 
 export async function tick(budgetMs: number) {
   await enqueue({ kind: HEARTBEAT, dedupeKey: HEARTBEAT });
+  await enqueueGoogleChecks();
   return runDueJobs(handlers, budgetMs);
 }
 

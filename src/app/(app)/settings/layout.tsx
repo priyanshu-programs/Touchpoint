@@ -2,6 +2,7 @@ import { TabNav } from "@/components/tab-nav";
 
 const TABS = [
   { href: "/settings/profile", label: "Profile" },
+  { href: "/settings/integrations", label: "Integrations" },
   { href: "/settings/security", label: "Security" },
   { href: "/settings/system", label: "System status" },
   { href: "/settings/audit", label: "Audit log" },

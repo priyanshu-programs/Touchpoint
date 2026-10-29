@@ -28,6 +28,7 @@ export default defineConfig({
       DATABASE_URL: testDatabaseUrl,
       AUTH_SECRET: "test-auth-secret-0123456789abcdef0123",
       CRON_SECRET: "test-cron-secret-0123456789abcdef0123",
+      APP_ENCRYPTION_KEY: "test-encryption-key-0123456789abcdef0123",
     },
   },
 });

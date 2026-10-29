@@ -12,6 +12,8 @@ const schema = z.object({
   WEBSITE_RENDERER: z.enum(["jina", "off"]).default("jina"),
   // Without it, nobody's name is sent out to look for their profile links.
   TAVILY_API_KEY: z.string().min(1).optional(),
+  // Without it, Google's client secret and tokens cannot be stored, so Connect is not offered.
+  APP_ENCRYPTION_KEY: z.string().min(32).optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -29,6 +31,7 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
       source.APP_URL || (platformUrl ? `https://${platformUrl}` : undefined),
     // Left blank in an env file means not set.
     TAVILY_API_KEY: source.TAVILY_API_KEY || undefined,
+    APP_ENCRYPTION_KEY: source.APP_ENCRYPTION_KEY || undefined,
   });
   if (!result.success) {
     // Names only: the values may be secrets.
