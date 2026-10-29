@@ -1116,3 +1116,4 @@
 - [2026-10-29] docs/PRD.md: v0.2 scope, Settings, the integration tables, the Phase 5 row and the token risk updated for Calendar first and Gmail with the assistant
 - [2026-10-29] plan.md: Phase 5 section with its six steps and owner's choices; Current Phase and Active Work Items point at Step 1
 - [2026-10-29] Vercel: APP_ENCRYPTION_KEY set as sensitive, one value for Production and a different one for Preview; .env.local has its own for local development
+- [2026-10-29] e2e/22-journeys.spec.ts: the phone's panel-fit check measures only the record's side panel, so a client picker's dialog still closing on Money no longer times it out (journey 7 on a phone had failed CI on main since #21)

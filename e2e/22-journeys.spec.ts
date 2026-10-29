@@ -31,12 +31,11 @@ const fits = (page: Page) =>
     () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
   );
 // The panel eases in from the right and is wider than itself while it does.
+const sheet = (page: Page) => page.locator('[data-slot="sheet-content"]');
 const panelFits = (page: Page) =>
   expect
     .poll(() =>
-      page
-        .locator('[data-slot="sheet-content"]')
-        .evaluate((sheet) => sheet.scrollWidth <= sheet.clientWidth),
+      sheet(page).evaluate((sheet) => sheet.scrollWidth <= sheet.clientWidth),
     )
     .toBe(true);
 
@@ -113,7 +112,8 @@ for (const device of devices) {
     async function checkFits(page: Page, where: string) {
       if (!device.phone) return;
       expect(await fits(page), where).toBe(true);
-      if ((await panel(page).count()) > 0) await panelFits(page);
+      // Only the record's side panel: a picker's dialog still closing is not one.
+      if ((await sheet(page).count()) > 0) await panelFits(page);
     }
 
     async function openCompany(page: Page) {
