@@ -1091,3 +1091,11 @@
 - [2026-10-29] Settings has an Export tab after Audit log with Download export, what is in the file and left out, and the time of the last export
 - [2026-10-29] Unit tests for the export (csv, every schema table exported or left out, a full export unzipped for one owner and nobody else's rows, amounts in each currency's digits, the rate limit); e2e/27-export.spec.ts downloads and unzips one, checks the refusals and the rate-limit message, and the phone width; 01 and 27 pass 13 of 13, and 01, 13, 19 and 23 pass 42 of 42 after the Origin helper
 - [2026-10-29] security.md: a Data export rule; docs/PRD.md: Settings and data rights describe the export as built; plan.md: Step 5 ticked with its Not built list
+- [2026-10-29] e2e/22-journeys.spec.ts: journey 7 (an invoice issued from a company, paid in part and in full, Money showing what is owed fall and what came in rise for that client and month, the same payment again stopped with Record anyway) on a desktop and a phone
+- [2026-10-29] e2e/22-journeys.spec.ts: journey 9 (Reports for that month showing the month, client, both services and 22 days to payment, Not enough data for follow-ups, replies and proposals, the client and the time to payment opening their rows) on a desktop and a phone, each device in a past month no other spec writes to
+- [2026-10-29] e2e/22-journeys.spec.ts: goTo reaches Money through Go to on a phone, as it does Workflows, Materials and Brainstorming
+- [2026-10-29] Payments unit test: two payments recorded at once against one invoice never take it past what it owes (one is refused as over_balance)
+- [2026-10-29] package.json: test:money runs the financial suite (money maths, invoices, payments, revenue, reports); 131 of 131 pass
+- [2026-10-29] plan.md: Step 6 ticked, Phase 4 accepted (2026-10-29), Current Phase set to Phase 5 (integrations), whose plan starts on the owner's word
+- [2026-10-29] docs/PRD.md: section 15 names journeys 7 and 9 in e2e/22 and pnpm test:money; section 16 says Phase 4 was accepted, with journey 9's Opportunities reports waiting
+- [2026-10-29] Added a trail learning: money e2e checks exact figures in a past month no other spec writes to; a backdated part-paid invoice reads Overdue; the phone Payments list hides Reference

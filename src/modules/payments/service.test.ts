@@ -287,6 +287,19 @@ describe("payments", () => {
     expect((await listPayments(ownerId)).total).toBe(0);
   });
 
+  it("never takes an invoice past what it owes when two payments arrive at once", async () => {
+    const id = await invoice();
+    const results = await Promise.all(
+      ["UTR-A", "UTR-B"].map((reference) =>
+        pay({ amount: "70,000", reference, allocations: [{ invoiceId: id, amount: "70,000" }] }),
+      ),
+    );
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results).toContainEqual(refused("over_balance"));
+    expect(await balance(id)).toBe(3_000_000);
+    expect((await listPayments(ownerId)).total).toBe(1);
+  });
+
   it("checks the client, the date and the rate", async () => {
     const stranger = await createTestOwner("stranger@example.com");
     const strangers = await createOrg(stranger, "Elsewhere Ltd");

@@ -601,9 +601,9 @@ Known trade-offs accepted with this choice:
 
 ## 15. Testing
 
-- **Unit (Vitest):** money maths and allocation limits, duplicate-payment guard, revenue definitions, workflow stage order and save rules, template and copy isolation, recurrence, time-zone handling, encryption round-trip, AI tier policy.
+- **Unit (Vitest):** money maths and allocation limits, duplicate-payment guard, revenue definitions, workflow stage order and save rules, template and copy isolation, recurrence, time-zone handling, encryption round-trip, AI tier policy. `pnpm test:money` runs the financial suite on its own: money maths, invoices, payments (two at once included), revenue and reports (2026-10-29).
 - **Integration (Vitest + real Postgres):** every module service, owner scoping, migrations from empty.
-- **End to end (Playwright):** the ten journeys in section 5, on desktop and mobile widths. Journeys 2, 3, 4 and 8 are in `e2e/22-journeys.spec.ts`, each told as one story at 1280 px and at 390 px (2026-10-26); the others join it with the phases that build them.
+- **End to end (Playwright):** the ten journeys in section 5, on desktop and mobile widths. Journeys 2, 3, 4 and 8 are in `e2e/22-journeys.spec.ts`, each told as one story at 1280 px and at 390 px (2026-10-26), and journeys 7 and 9 since 2026-10-29; the others join it with the phases that build them.
 - **Integrations:** adapters tested against recorded fixtures; one manual checklist against a real Google account. Nothing is reported as working without a real run.
 
 ---
@@ -628,6 +628,8 @@ Dependencies: workflows need opportunities and tasks; revenue reports need invoi
 **Changed order (owner's decision, 2026-10-13).** Opportunities, and saved views for the two lists, are deferred until Phases 4 to 8 are done. Phase 3 goes on without them: workflows run on companies and people (section 9), and a record's own board shows where it is. Engagements are deferred with them (owner's decision, 2026-10-16). Phase 3 is accepted on journeys 2–4 and 8; journeys 5 and 6 are accepted with the deferred work. What waits with opportunities in later phases: the Pipeline and Weighted pipeline figures and the win rate, lost reasons and meetings booked reports of section 10 (left out until then, not shown as zero), "stalled opportunities" in journey 3, and the assistant's questions about deals.
 
 **Phase 3 accepted (2026-10-26).** Journeys 2, 3, 4 and 8 pass end to end on a desktop and a phone, and a workflow's copy, its template and sibling copies do not change each other. Journey 3 is accepted on what Today shows now (owner's choice): overdue and due-today follow-ups, the week ahead and recent activity, each opening its record. Its meetings wait for the calendar (Phase 5), its suggested next actions for the assistant (Phase 6) and its stalled opportunities for Opportunities.
+
+**Phase 4 accepted (2026-10-29).** Journeys 7 and 9 pass end to end on a desktop and a phone, `pnpm test:money` is green, and every figure on the money overview, Today and Reports opens the rows it counts. Journey 9 is accepted on the reports that exist: revenue by month, client and service, time to payment, follow-up compliance, reply rate and proposal acceptance, each saying "Not enough data" when nothing counts. Its conversion by stage and lost reasons wait for Opportunities, with the Pipeline and Weighted pipeline figures.
 
 ---
 
