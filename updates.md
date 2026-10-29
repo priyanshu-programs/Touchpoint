@@ -1079,3 +1079,15 @@
 - [2026-10-28] Unit tests for the merge rule, deletion marks, pruning and reset, paging, the element limit and migration 0034's copy; e2e/19 moved to the new route and checks a board over 3 MB opening in pages and two windows staying in step
 - [2026-10-28] security.md's brainstorm rule, docs/PRD.md's data model and plan.md describe the per-element storage
 - [2026-10-28] Added a trail learning on brainstorm per-element storage: the merge rule, polling over WebSockets, restoreElements with null, the sendable hash, tombstones and reset
+- [2026-10-29] Owner's choices for Phase 4 step 5 (data export): one zip, records only (not the bytes of uploaded files), spreadsheets readable in Excel; branch feat/data-export made from main
+- [2026-10-29] Added fflate 0.8.3 (MIT, no dependencies, pinned) to write the export's zip as it streams; pnpm audit finds nothing
+- [2026-10-29] src/lib/upload.ts: fromThisApp, the Origin check the upload guard, the whiteboard scene route and the brainstorm elements route each repeated, now one helper they and the export share
+- [2026-10-29] src/modules/export/tables.ts: the owner's tables in data.json's order, read a page of 1,000 rows at a time by primary key, leaving out sign-in tables, jobs, bytea and tsvector columns and a website read's page text
+- [2026-10-29] src/modules/export/csv.ts: RFC 4180 cells with a ' before text that would run as a spreadsheet formula, CRLF lines and a UTF-8 byte order mark for Excel
+- [2026-10-29] src/modules/export/sheets.ts: twelve spreadsheets (companies and people with custom field columns, tasks, activities, materials, material sends, invoices with paid, still owed and the app's status, invoice lines, payments, workflows, brainstorm boards, files) with names in place of ids
+- [2026-10-29] src/modules/export/stream.ts: exportZip reads everything in one read-only snapshot and writes README.txt, data.json and the CSVs into a zip as it goes; a pull keeps going until the zip gives out a chunk, since a stream asks again only after one that did
+- [2026-10-29] src/modules/export/service.ts: startExport allows 5 exports an hour, counted from data.export audit rows under a lock on the owner; lastExport for the page
+- [2026-10-29] POST /api/export: the owner's session, an Origin of this app's own, the rate limit (back to the page with a message past it), then the zip as an attachment with no-store
+- [2026-10-29] Settings has an Export tab after Audit log with Download export, what is in the file and left out, and the time of the last export
+- [2026-10-29] Unit tests for the export (csv, every schema table exported or left out, a full export unzipped for one owner and nobody else's rows, amounts in each currency's digits, the rate limit); e2e/27-export.spec.ts downloads and unzips one, checks the refusals and the rate-limit message, and the phone width; 01 and 27 pass 13 of 13, and 01, 13, 19 and 23 pass 42 of 42 after the Origin helper
+- [2026-10-29] security.md: a Data export rule; docs/PRD.md: Settings and data rights describe the export as built; plan.md: Step 5 ticked with its Not built list
