@@ -2,8 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { Pool } from "pg";
 import { OWNER_SESSION } from "./support";
 
-// PRD journeys 2, 3, 4 and 8, each told as one story, on a desktop and on a phone.
-// Phase 3 is accepted on these. Prospecting comes from e2e/13 and Acme Design from e2e/02.
+// PRD journeys 2, 3, 4, 7, 8 and 9, each told as one story, on a desktop and on a phone.
+// Phase 3 is accepted on 2 to 4 and 8, Phase 4 on 7 and 9. Prospecting comes from e2e/13
+// and Acme Design from e2e/02.
 test.use({ storageState: OWNER_SESSION });
 
 const ID = "[0-9a-f-]{36}";
@@ -16,6 +17,9 @@ const localDate = (offsetDays = 0) =>
   );
 
 const main = (page: Page) => page.getByRole("main");
+const header = (page: Page) => main(page).locator("header");
+const card = (page: Page, title: string) =>
+  main(page).locator("[data-slot=card]").filter({ has: page.getByText(title, { exact: true }) });
 const panel = (page: Page) => page.getByRole("dialog");
 const companyTabs = (page: Page) =>
   page.getByRole("navigation", { name: "Company", exact: true });
@@ -47,6 +51,9 @@ const devices = [
     domain: "kulkarni-labs.invalid",
     found: "Sunil Varma",
     material: "Kulkarni Labs proposal",
+    invoice: "KL-2024-05",
+    month: "2024-05",
+    monthName: "May 2024",
   },
   {
     label: "phone",
@@ -58,6 +65,9 @@ const devices = [
     domain: "qureshi-works.invalid",
     found: "Lata Bose",
     material: "Qureshi Works proposal",
+    invoice: "QW-2024-06",
+    month: "2024-06",
+    monthName: "June 2024",
   },
 ];
 
@@ -68,6 +78,8 @@ for (const device of devices) {
 
     const person = `${device.first} ${device.last}`;
     let companyUrl = "";
+    let invoiceUrl = "";
+    let overviewUrl = "";
     let consoleErrors: string[] = [];
 
     test.beforeEach(({ page }) => {
@@ -88,7 +100,7 @@ for (const device of devices) {
         await expect(panel(page)).toHaveCount(0);
       }
       const bar = page.getByRole("navigation", { name: "Main" });
-      if (device.phone && ["Workflows", "Materials", "Brainstorming"].includes(label)) {
+      if (device.phone && ["Workflows", "Materials", "Money", "Brainstorming"].includes(label)) {
         await bar.last().getByRole("button", { name: "Go to" }).click();
         await page.getByRole("option", { name: label, exact: true }).click();
       } else {
@@ -316,6 +328,146 @@ for (const device of devices) {
         await expect(send).toContainText("Email");
         await checkFits(page, `the send on ${name}`);
       }
+    });
+
+    // Other files leave money behind, so 7 and 9 work in a past month nobody else writes to.
+    const day = (n: number) => `${device.month}-${String(n).padStart(2, "0")}`;
+
+    async function setDates(page: Page) {
+      await page.getByLabel("From").fill(day(1));
+      await page.getByLabel("To").fill(day(28));
+      await page.getByRole("button", { name: "Show", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Your dates" })).toBeVisible();
+    }
+
+    async function recordPayment(page: Page, receivedOn: string, amount: string, reference: string) {
+      await page.goto(invoiceUrl);
+      await main(page).getByRole("link", { name: "Record payment" }).click();
+      // The client's open invoices load after the form; the amount is typed once they are there.
+      await expect(page.getByLabel(`Amount for ${device.invoice}`)).not.toHaveValue("");
+      await checkFits(page, "the payment form");
+      await page.getByLabel("Received on").fill(receivedOn);
+      await page.getByLabel("Amount", { exact: true }).fill(amount);
+      await expect(page.getByLabel(`Amount for ${device.invoice}`)).toHaveValue(amount.replace(",", ""));
+      await page.getByLabel("Reference (optional)").fill(reference);
+      await page.getByRole("button", { name: "Record payment" }).click();
+    }
+
+    test("journey 7: an invoice is paid, what is owed falls and what came in rises", async ({ page }) => {
+      await page.goto("/");
+      await openCompany(page);
+      await companyTabs(page).getByRole("link", { name: "Invoices" }).click();
+      await panel(page).getByRole("link", { name: "New invoice" }).click();
+      await expect(page).toHaveURL(new RegExp(`/money/invoices/new\\?company=${ID}$`));
+      await expect(page.getByRole("button", { name: `client: ${device.company}. Change` })).toBeVisible();
+      await page.getByLabel("Invoice number").fill(device.invoice);
+      await page.getByLabel("Issued on").fill(day(6));
+      await page.getByLabel("Due on").fill(day(21));
+      await page.getByLabel("Line 1 description").fill("Brand identity");
+      await page.getByLabel("Line 1 service").fill("Branding");
+      await page.getByLabel("Line 1 price").fill("60,000");
+      await page.getByRole("button", { name: "Add line" }).click();
+      await page.getByLabel("Line 2 description").fill("Company website");
+      await page.getByLabel("Line 2 service").fill("Websites");
+      await page.getByLabel("Line 2 price").fill("40,000");
+      await expect(page.getByLabel("Invoice total")).toHaveText("₹1,00,000");
+      await checkFits(page, "the invoice form");
+      await page.getByRole("button", { name: "Save as issued" }).click();
+      await expect(page).toHaveURL(new RegExp(`/money/invoices/${ID}$`), { timeout: 15_000 });
+      invoiceUrl = page.url();
+      // Its due date is long past, and stays so while it is partly paid.
+      await expect(header(page).getByText("Overdue", { exact: true })).toBeVisible();
+      await checkFits(page, "the invoice");
+
+      await goTo(page, "Money");
+      await expect(page).toHaveURL(/\/money$/);
+      await setDates(page);
+      await page.getByRole("button", { name: "Choose client" }).click();
+      await page.getByPlaceholder("Search companies and people…").fill(device.company);
+      await page.getByRole("option", { name: new RegExp(device.company) }).click();
+      await expect(page).toHaveURL(new RegExp(`/money\\?from=${day(1)}&to=${day(28)}&company=${ID}$`));
+      overviewUrl = page.url();
+      await expect(card(page, "Received")).toContainText("₹0");
+      await expect(card(page, "Received")).toContainText("0 payments");
+      await expect(card(page, "Invoiced")).toContainText("₹1,00,000");
+      await expect(card(page, "Outstanding today")).toContainText("₹1,00,000 overdue (1 invoice)");
+      await checkFits(page, "the overview");
+
+      // What is owed opens the invoice behind it.
+      await card(page, "Outstanding today").getByRole("link", { name: "₹1,00,000", exact: true }).click();
+      await expect(page).toHaveURL(/\/money\/invoices\?status=outstanding/);
+      await main(page).getByRole("link", { name: device.invoice }).click();
+      await expect(page).toHaveURL(invoiceUrl);
+
+      const reference = `UTR-${device.invoice}`;
+      await recordPayment(page, day(15), "40,000", reference);
+      await expect(page).toHaveURL(invoiceUrl, { timeout: 15_000 });
+      await expect(main(page).locator("dl")).toContainText("₹60,000");
+      await expect(header(page).getByText("Overdue", { exact: true })).toBeVisible();
+
+      await page.goto(overviewUrl);
+      await expect(card(page, "Received")).toContainText("₹40,000");
+      await expect(card(page, "Received")).toContainText("1 payment");
+      await expect(card(page, "Outstanding today")).toContainText("₹60,000 overdue (1 invoice)");
+
+      // The same payment again is stopped before it is saved.
+      await recordPayment(page, day(15), "40,000", reference);
+      await expect(page.getByText("This looks like a payment you have already recorded")).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.getByRole("button", { name: "Record anyway" })).toBeVisible();
+      await page.getByRole("link", { name: "Cancel" }).click();
+      await page.goto(overviewUrl);
+      await expect(card(page, "Received")).toContainText("1 payment");
+      await card(page, "Received").getByRole("link", { name: "₹40,000" }).click();
+      // A phone leaves out the reference column.
+      await expect(main(page).getByRole("row", { name: new RegExp(device.company) })).toContainText("₹40,000");
+      await expect(main(page).getByText("Showing 1–1 of 1")).toBeVisible();
+
+      await recordPayment(page, day(28), "60,000", `${reference}-2`);
+      await expect(page).toHaveURL(invoiceUrl, { timeout: 15_000 });
+      await expect(header(page).getByText("Paid", { exact: true })).toBeVisible();
+      await expect(main(page).getByRole("list", { name: "Payments" }).getByRole("listitem")).toHaveCount(2);
+
+      await page.goto(overviewUrl);
+      await expect(card(page, "Received")).toContainText("₹1,00,000");
+      await expect(card(page, "Received")).toContainText("2 payments");
+      await expect(card(page, "Outstanding today")).toContainText("Nothing is owed");
+    });
+
+    test("journey 9: the month's money in reports, and Not enough data where nothing counts", async ({
+      page,
+    }) => {
+      await page.goto(overviewUrl);
+      await main(page).getByRole("navigation", { name: "Money" }).getByRole("link", { name: "Reports" }).click();
+      await expect(page).toHaveURL(/\/money\/reports/);
+      await setDates(page);
+      const reports = page.url();
+      await checkFits(page, "the reports");
+
+      const month = card(page, "Revenue by month").getByRole("row", { name: new RegExp(device.monthName) });
+      await expect(month).toContainText("₹1,00,000");
+      // Each payment is split across the invoice's lines by their amounts.
+      const services = card(page, "Revenue by service");
+      await expect(services.getByRole("row", { name: /Branding/ })).toContainText("₹60,000");
+      await expect(services.getByRole("row", { name: /Websites/ })).toContainText("₹40,000");
+      // Issued on the 6th, paid in full on the 28th.
+      await expect(card(page, "Time to payment").getByRole("link", { name: "22 days" })).toBeVisible();
+      for (const title of ["Follow-up compliance", "Reply rate", "Proposal acceptance"]) {
+        await expect(card(page, title)).toContainText("Not enough data.");
+      }
+
+      const client = card(page, "Revenue by client").getByRole("row", { name: new RegExp(device.company) });
+      await expect(client).toContainText("₹1,00,000");
+      await client.getByRole("link", { name: device.company }).click();
+      await expect(page).toHaveURL(new RegExp(`/money/payments\\?.*company=${ID}`));
+      await expect(main(page).getByText("Showing 1–2 of 2")).toBeVisible();
+      await checkFits(page, "the client's payments");
+
+      await page.goto(reports);
+      await card(page, "Time to payment").getByRole("link", { name: "22 days" }).click();
+      await expect(page).toHaveURL(/\/money\/reports\/time-to-payment/);
+      await expect(main(page).getByRole("row", { name: new RegExp(device.invoice) })).toContainText(/22$/);
     });
   });
 }
