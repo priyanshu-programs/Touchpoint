@@ -1098,3 +1098,4 @@
 - [2026-10-29] package.json: test:money runs the financial suite (money maths, invoices, payments, revenue, reports); 131 of 131 pass
 - [2026-10-29] plan.md: Step 6 ticked, Phase 4 accepted (2026-10-29), Current Phase set to Phase 5 (integrations), whose plan starts on the owner's word
 - [2026-10-29] docs/PRD.md: section 15 names journeys 7 and 9 in e2e/22 and pnpm test:money; section 16 says Phase 4 was accepted, with journey 9's Opportunities reports waiting
+- [2026-10-29] Added a trail learning: money e2e checks exact figures in a past month no other spec writes to; a backdated part-paid invoice reads Overdue; the phone Payments list hides Reference
