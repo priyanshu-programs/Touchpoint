@@ -32,6 +32,16 @@ describe("parseEnv", () => {
     );
   });
 
+  it("treats the encryption key as optional, and refuses a short one", () => {
+    expect(parseEnv({ ...valid, APP_ENCRYPTION_KEY: "" }).APP_ENCRYPTION_KEY).toBeUndefined();
+    expect(() => parseEnv({ ...valid, APP_ENCRYPTION_KEY: "short" })).toThrow(
+      /APP_ENCRYPTION_KEY/,
+    );
+    expect(parseEnv({ ...valid, APP_ENCRYPTION_KEY: "k".repeat(32) }).APP_ENCRYPTION_KEY).toBe(
+      "k".repeat(32),
+    );
+  });
+
   it("names every missing variable", () => {
     expect(() => parseEnv({ APP_URL: valid.APP_URL })).toThrow(
       /DATABASE_URL, AUTH_SECRET, CRON_SECRET/,

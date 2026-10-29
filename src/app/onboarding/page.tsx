@@ -16,14 +16,14 @@ export const metadata: Metadata = { title: "Set up your workspace" };
 
 const OPTIONAL = [
   {
-    name: "Gmail and Google Calendar",
+    name: "Google Calendar",
     enables:
-      "Email threads and meetings linked to contacts, sending approved drafts, meeting briefings.",
+      "Your meetings beside the people and companies they're with. Connect it any time in Settings → Integrations.",
   },
   {
-    name: "AI assistant",
+    name: "AI assistant (coming later)",
     enables:
-      "Questions answered from your own records, summaries, drafts and suggested next actions.",
+      "Questions answered from your own records, your Gmail read on request, summaries and suggested next actions.",
   },
   {
     name: "Contact enrichment",
@@ -67,8 +67,8 @@ export default async function OnboardingPage() {
         <CardHeader>
           <CardTitle>Optional integrations</CardTitle>
           <CardDescription>
-            Touchpoint works without any of these. They are not built yet; each
-            will be opt-in and use your own free credentials.
+            Touchpoint works without any of these. Each is opt-in and uses your
+            own free credentials.
           </CardDescription>
         </CardHeader>
         <CardContent>

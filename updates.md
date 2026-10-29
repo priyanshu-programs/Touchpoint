@@ -1099,3 +1099,19 @@
 - [2026-10-29] plan.md: Step 6 ticked, Phase 4 accepted (2026-10-29), Current Phase set to Phase 5 (integrations), whose plan starts on the owner's word
 - [2026-10-29] docs/PRD.md: section 15 names journeys 7 and 9 in e2e/22 and pnpm test:money; section 16 says Phase 4 was accepted, with journey 9's Opportunities reports waiting
 - [2026-10-29] Added a trail learning: money e2e checks exact figures in a past month no other spec writes to; a backdated part-paid invoice reads Overdue; the phone Payments list hides Reference
+- [2026-10-29] Planned Phase 5 with the owner: Connect Google and Calendar in six steps; Gmail reading and sending moved to Phase 6 (the assistant reads Gmail on request and saves only what the owner picks); the OAuth client typed in Settings and stored encrypted
+- [2026-10-29] package.json: arctic 3.7.0 (pinned, pnpm audit clean) for the Google OAuth exchange with PKCE
+- [2026-10-29] src/lib/env.ts: optional APP_ENCRYPTION_KEY (at least 32 characters, blank = unset); .env.example documents it; Vitest and Playwright set a test value
+- [2026-10-29] src/lib/crypto.ts: encryptSecret/decryptSecret (AES-256-GCM, key by HKDF-SHA256 from APP_ENCRYPTION_KEY, random IV, key version), with UnreadableSecretError for another key or a tampered value; unit tests
+- [2026-10-29] Migration 0035 (additive): integration_clients (the owner's Google client, secret sealed) and integration_connections (account, scopes, status, sealed tokens, last refresh)
+- [2026-10-29] Export leaves integration_clients and integration_connections out, and the README and Export tab say the Google client and its access are not included
+- [2026-10-29] src/integrations/google/oauth.ts: consent URL (openid email calendar.readonly, offline, consent shown), code exchange, refresh (invalid_grant becomes GrantRevokedError), revoke, and a read of the primary calendar's name
+- [2026-10-29] src/modules/integrations: save, replace and remove the client, connect, refresh on use, expire on a refused refresh, disconnect with revoke, test connection, and a daily google.check job queued by the tick; unit tests with Google mocked
+- [2026-10-29] GET /api/integrations/google/connect and /callback: owner session, PKCE verifier and state in a SameSite=Lax httpOnly cookie, state compared in constant time, outcomes back to Settings as one word
+- [2026-10-29] Settings has an Integrations tab after Profile: the Google account (Connect, Test connection, Disconnect, Reconnect), the client (save, Replace, Remove after a confirmation) and the setup steps with the redirect address to copy
+- [2026-10-29] Every page shows a banner while the Google connection is expired or unreadable, linking to Settings
+- [2026-10-29] Onboarding's optional integrations name Google Calendar as available in Settings and the assistant as coming later
+- [2026-10-29] e2e/28-integrations.spec.ts: saving, refusing, replacing and removing the client, Connect's redirect to Google read without following it, a denied and a forged answer, the phone width; 01, 27 and 28 pass 16 of 16
+- [2026-10-29] security.md: a Connecting Google rule, previews' own APP_ENCRYPTION_KEY, the two tables left out of the export
+- [2026-10-29] docs/PRD.md: v0.2 scope, Settings, the integration tables, the Phase 5 row and the token risk updated for Calendar first and Gmail with the assistant
+- [2026-10-29] plan.md: Phase 5 section with its six steps and owner's choices; Current Phase and Active Work Items point at Step 1

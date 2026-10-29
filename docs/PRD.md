@@ -71,7 +71,7 @@ It must answer five questions at any time:
 - Global search, command palette, quick add
 - Data export (JSON + CSV), audit log
 
-**v0.2 — integrations:** Gmail read and send, Google Calendar read and create, thread-to-contact matching, sent-material detection, meeting links.
+**v0.2 — integrations:** Google Calendar read and create, meeting links. Gmail read and send, thread-to-contact matching and sent-material detection moved to v0.3 with the assistant (owner's choice, 2026-10-29: the assistant reads Gmail on request, and only the emails the owner picks are saved to a record).
 
 **v0.3 — AI assistant:** chat with tools, summaries, drafting, task creation, inspectable memory, meeting briefings, suggested next actions.
 
@@ -135,7 +135,7 @@ Left sidebar on desktop, bottom bar on mobile. The account menu (the owner's nam
 | Money | Overview (revenue), invoices, invoice detail, payments, reports |
 | Reports | Pipeline, outreach, revenue, follow-up compliance. Built so far (Phase 4 Step 4 part 1, 2026-10-27): a Reports tab under Money (`/money/reports`, the owner's choice), after Overview, Invoices and Payments, with the overview's period menu and From and To, and four cards: revenue by month (a bar chart and a table), by client (the top ten, all of them on a page of their own), by service, and time to payment, defined in section 10. Each states what it counts, says "Not enough data" when nothing does, and opens its rows: the Payments list for a month or a client, or a page of rows (`/money/reports/<report>`, pages of 50) for a service, money not yet put towards an invoice and the invoices paid in full. Part 2 (2026-10-28) added three cards under "Follow-ups and sales": follow-up compliance, reply rate and proposal acceptance, each a percentage with what it was counted out of, opening its rows (`/money/reports/follow-ups`, `/replies`, `/proposals`), each row opening the task, the person or the material |
 | Assistant | Side panel everywhere, full-page history |
-| Settings | Profile, integrations, AI providers, enrichment providers, memory, custom fields, data export, security, audit log. Built so far: Profile, Security, System status, Audit log and Export. Export (2026-10-29, Phase 4 step 5) is a tab after Audit log (`/settings/export`) with "Download export": one zip, `touchpoint-export-<date>.zip`, holding a README, `data.json` (every table of the owner's data as stored, drawings and the audit log included, under a `format`, `formatVersion`, time zone, base currency and the owner's name and email) and a `csv` folder of spreadsheets readable in Excel or Google Sheets (companies and people with their custom fields as columns, tasks, activities, materials (a row per version), material sends, invoices (total, paid, still owed and the status the app shows), invoice lines and adjustments, payments, workflows, brainstorm boards and the files in use), names written in instead of ids, amounts as plain decimals beside their currency, times in the owner's zone. Left out: sign-in (password, sessions, tokens), the job queue, the bytes of files, pictures, logos and photos (files.csv lists them), search indexes and the page text a website read kept. The tab says when the last export was made; at most 5 an hour |
+| Settings | Profile, integrations, AI providers, enrichment providers, memory, custom fields, data export, security, audit log. Built so far: Profile, Integrations, Security, System status, Audit log and Export. Integrations (2026-10-29, Phase 5 step 1, `/settings/integrations`) takes the owner's Google OAuth client (stored encrypted, shown by the end of its ID), connects and disconnects Google Calendar, tests the connection and guides the client's setup with the redirect address to copy; an expired connection shows a banner on every page. Export (2026-10-29, Phase 4 step 5) is a tab after Audit log (`/settings/export`) with "Download export": one zip, `touchpoint-export-<date>.zip`, holding a README, `data.json` (every table of the owner's data as stored, drawings and the audit log included, under a `format`, `formatVersion`, time zone, base currency and the owner's name and email) and a `csv` folder of spreadsheets readable in Excel or Google Sheets (companies and people with their custom fields as columns, tasks, activities, materials (a row per version), material sends, invoices (total, paid, still owed and the status the app shows), invoice lines and adjustments, payments, workflows, brainstorm boards and the files in use), names written in instead of ids, amounts as plain decimals beside their currency, times in the owner's zone. Left out: sign-in (password, sessions, tokens), the job queue, the bytes of files, pictures, logos and photos (files.csv lists them), search indexes and the page text a website read kept. The tab says when the last export was made; at most 5 an hour |
 | Onboarding | First-run wizard, re-openable from settings |
 
 Every workspace page (contact, organization, opportunity, engagement) uses the same tabs: Timeline, Tasks, Roadmap, Materials, Money, Emails. This is what makes records feel connected instead of living in separate modules.
@@ -278,7 +278,8 @@ Encryption is AES-256-GCM with a key derived from `APP_ENCRYPTION_KEY`, a random
 | `user`, `session`, `account`, `verification` | Managed by Better Auth | Sign-up disabled after the first owner exists |
 | `settings` | base_currency, timezone, week_start, fiscal_year_start | One row per owner |
 | `secrets` | kind, provider, ciphertext, iv, tag, key_version, last_test_status | AI and enrichment keys |
-| `integration_connections` | provider, account_email, scopes[], status (connected/expired/revoked/error), encrypted tokens, sync_cursor, last_sync_at, last_error | Drives the integration status page |
+| `integration_clients` | provider, client_id, client_secret_enc, key_version | The owner's own OAuth client, typed in Settings (owner's choice, 2026-10-29); unique (owner, provider). Migration 0035 |
+| `integration_connections` | provider, account_email, scopes[], status (connected/expired/revoked/error), encrypted tokens (refresh_token_enc, access_token_enc, access_expires_at, key_version), sync_cursor, last_sync_at, last_refresh_at, last_error, connected_at | Drives the integration status page; unique (owner, provider). Migration 0035 |
 | `audit_log` | actor (user/ai/job/system), action, entity_type, entity_id, before, after, tool_execution_id | Append-only |
 | `jobs` | See 7.5 | |
 
@@ -618,7 +619,7 @@ Each phase gets a detailed implementation plan when it starts. Outline:
 | 2 Foundation | Scaffold, schema and migrations, auth, app shell, design system, onboarding, settings, jobs runner, audit log | Fresh clone → `docker compose up` → create owner → sign in; tick runs a test job; CI green |
 | 3 Core business | Contacts, organizations, search, timeline, opportunities, workflows (editor, instances, board), engagements, tasks and reminders, materials | Journeys 2–6 and 8 pass end to end; editing one instance leaves the template and others unchanged |
 | 4 Revenue and reports | Invoices, payments, allocations, dashboard, reports, filters | Journey 7 and 9 pass; financial test suite green; every dashboard number drills down to rows |
-| 5 Integrations | Google OAuth, Gmail sync and send, Calendar sync and create | Token survives 8+ days; revoked token shows expired state; send is recorded only with a Gmail message ID |
+| 5 Integrations | Google OAuth and Calendar: sync, meetings on Today and the Activity tab, a Calendar view, scheduling a meeting (Gmail moved to phase 6, owner's choice, 2026-10-29) | Token survives 8+ days; revoked token shows expired state; a meeting is recorded only with a Google event ID; journey 3 shows meetings on Today |
 | 6 AI | Chat, tools, tiers, memory, briefings | The PRD's example questions answered from real rows with links; tier 3 never runs unconfirmed |
 | 7 Open-source readiness | Compose file, `.env.example`, docs, backup/restore, licence | A second person deploys from the README alone |
 | 8 Validation | Accessibility, responsive, error states, data integrity pass | No broken journeys; no dead buttons |
@@ -637,7 +638,7 @@ Dependencies: workflows need opportunities and tasks; revenue reports need invoi
 
 | Risk | Mitigation |
 |---|---|
-| Google token expiry for unverified restricted-scope apps | Spike first in phase 5; fallback is a clear weekly reconnect prompt |
+| Google token expiry for unverified apps | Phase 5 asks only for calendar (sensitive) scopes; a daily `google.check` records each refresh, so 8+ days is shown by a real connection. The restricted `gmail.readonly` scope arrives with phase 6, and its own check with it; fallback is a clear weekly reconnect prompt |
 | Free-tier limits change (Oracle halved its ARM allowance in June 2026) | App stays portable: plain Postgres, plain Docker, no host-specific APIs |
 | Vercel Hobby terms | Stated plainly in docs; option A or C avoids it |
 | Workflow editor complexity | A maintained whiteboard component (Excalidraw) instead of an editor of our own |

@@ -5,6 +5,7 @@ export * from "./core";
 export * from "./enrichment";
 export * from "./fields";
 export * from "./files";
+export * from "./integrations";
 export * from "./materials";
 export * from "./money";
 export * from "./people";
