@@ -17,6 +17,11 @@ export const disposition = (contentType: string, title: string) =>
     (mark) => `%${mark.charCodeAt(0).toString(16).toUpperCase()}`,
   )}`;
 
+// A server action checks where a request came from by itself; a route that changes
+// data, or reads all of it, has to.
+export const fromThisApp = (request: Request) =>
+  request.headers.get("origin") === new URL(env.APP_URL).origin;
+
 export const refused = (status: number, reason?: string) =>
   reason ? Response.json({ reason }, { status }) : new Response(null, { status });
 
@@ -27,10 +32,7 @@ export const refused = (status: number, reason?: string) =>
 export async function upload<const F extends string>(request: Request, fields: readonly F[]) {
   const owner = await getOwner();
   if (!owner) return refused(401);
-  // A server action checks where a request came from by itself; a route has to.
-  if (request.headers.get("origin") !== new URL(env.APP_URL).origin) {
-    return refused(403);
-  }
+  if (!fromThisApp(request)) return refused(403);
 
   // Turned away by its stated size, before any of it is read.
   const length = Number(request.headers.get("content-length"));

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { env } from "@/lib/env";
 import { getOwner } from "@/lib/session";
+import { fromThisApp } from "@/lib/upload";
 import { saveScene } from "@/modules/workflows/boards";
 import { getBoard } from "@/modules/workflows/queries";
 import { MAX_SCENE_BYTES, sceneSave } from "@/modules/workflows/schema";
@@ -36,10 +36,7 @@ export async function PUT(
 ) {
   const owner = await getOwner();
   if (!owner) return refused(401);
-  // A server action checks where a request came from by itself; a route has to.
-  if (request.headers.get("origin") !== new URL(env.APP_URL).origin) {
-    return refused(403);
-  }
+  if (!fromThisApp(request)) return refused(403);
 
   const id = z.uuid().safeParse((await params).id);
   if (!id.success) return refused(404);

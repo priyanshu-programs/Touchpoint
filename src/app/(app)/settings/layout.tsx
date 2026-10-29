@@ -5,6 +5,7 @@ const TABS = [
   { href: "/settings/security", label: "Security" },
   { href: "/settings/system", label: "System status" },
   { href: "/settings/audit", label: "Audit log" },
+  { href: "/settings/export", label: "Export" },
 ];
 
 export default function SettingsLayout({

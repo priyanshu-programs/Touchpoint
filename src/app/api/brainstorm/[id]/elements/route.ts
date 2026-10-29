@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { env } from "@/lib/env";
 import { getOwner } from "@/lib/session";
+import { fromThisApp } from "@/lib/upload";
 import {
   brainstormChangesQuery,
   brainstormElementsSave,
@@ -40,9 +40,7 @@ export async function PATCH(
 ) {
   const owner = await getOwner();
   if (!owner) return refused(401);
-  if (request.headers.get("origin") !== new URL(env.APP_URL).origin) {
-    return refused(403);
-  }
+  if (!fromThisApp(request)) return refused(403);
 
   const id = z.uuid().safeParse((await params).id);
   if (!id.success) return refused(404);
