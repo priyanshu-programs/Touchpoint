@@ -1115,3 +1115,4 @@
 - [2026-10-29] security.md: a Connecting Google rule, previews' own APP_ENCRYPTION_KEY, the two tables left out of the export
 - [2026-10-29] docs/PRD.md: v0.2 scope, Settings, the integration tables, the Phase 5 row and the token risk updated for Calendar first and Gmail with the assistant
 - [2026-10-29] plan.md: Phase 5 section with its six steps and owner's choices; Current Phase and Active Work Items point at Step 1
+- [2026-10-29] Vercel: APP_ENCRYPTION_KEY set as sensitive, one value for Production and a different one for Preview; .env.local has its own for local development
