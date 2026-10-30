@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { BrandLockup } from "@/components/brand-mark";
 import { SettingsForm } from "@/components/settings-form";
 import {
   Card,
@@ -37,6 +38,7 @@ export default async function OnboardingPage() {
 
   return (
     <main className="mx-auto grid w-full max-w-xl gap-6 p-4 py-10">
+      <BrandLockup />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Set up your workspace

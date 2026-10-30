@@ -21,7 +21,7 @@ export default async function SignInPage() {
     <Card>
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
-        <CardDescription>Touchpoint</CardDescription>
+        <CardDescription>Your personal business operating system</CardDescription>
       </CardHeader>
       <CardContent>
         <AuthForm mode="sign-in" />

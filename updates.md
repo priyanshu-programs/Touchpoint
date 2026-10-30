@@ -1117,3 +1117,7 @@
 - [2026-10-29] plan.md: Phase 5 section with its six steps and owner's choices; Current Phase and Active Work Items point at Step 1
 - [2026-10-29] Vercel: APP_ENCRYPTION_KEY set as sensitive, one value for Production and a different one for Preview; .env.local has its own for local development
 - [2026-10-29] e2e/22-journeys.spec.ts: the phone's panel-fit check measures only the record's side panel, so a client picker's dialog still closing on Money no longer times it out (journey 7 on a phone had failed CI on main since #21)
+- [2026-10-30] scripts/brand-assets.mjs: generates a centred square mark, icon.svg, apple-icon.png and a 16/32/48 favicon.ico from the supplied SVG; the favicon falls from 15 KB to 1.4 KB and no package was added
+- [2026-10-30] src/components/brand-mark.tsx: BrandMark (the exact ivory + lime mark on a dark rounded tile) and BrandLockup; the top bar and the workflow and brainstorm board headers replace the lime T placeholder
+- [2026-10-30] Sign-in, setup and onboarding show the brand lockup; sign-in's duplicate Touchpoint description becomes the product line
+- [2026-10-30] package.json: brand:assets script; src/app/layout.tsx sets applicationName; e2e/01-foundation checks the icons and the mark

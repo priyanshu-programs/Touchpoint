@@ -9,6 +9,7 @@
     "dev": "node scripts/copy-board-fonts.mjs && next dev",
     "build": "node scripts/copy-board-fonts.mjs && next build",
     "start": "next start",
+    "brand:assets": "node scripts/brand-assets.mjs",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",

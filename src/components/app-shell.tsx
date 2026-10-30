@@ -25,6 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import { signOutAction } from "@/app/(app)/settings/actions";
+import { BrandMark } from "@/components/brand-mark";
 import { ButtonLink } from "@/components/button-link";
 import { CommandPalette } from "@/components/command-palette";
 import {
@@ -260,12 +261,7 @@ export function AppShell({
       </a>
 
       <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
-        <span
-          aria-hidden
-          className="flex size-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
-        >
-          T
-        </span>
+        <BrandMark className="size-7" />
         <p className="min-w-0 flex-1 truncate font-semibold tracking-tight">
           <Greeting name={ownerName} timezone={timezone} initial={greeting} />
         </p>

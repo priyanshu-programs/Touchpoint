@@ -24,6 +24,8 @@ Accepted when PRD journeys 2–4 and 8 pass end to end on desktop and phone widt
 
 Each step is a vertical slice: migration, module (zod schema, service, queries, tests), screens and server actions, nav entry, Playwright coverage. A step is done when lint, typecheck, Vitest and Playwright pass and it is deployed, which since 2026-10-26 means merged into `main` through a pull request (see `CONTRIBUTING.md`).
 
+**Branding (owner's request, 2026-10-30).** The supplied mark is the app's logo. It appears on a dark rounded tile in the top bar and the workflow and brainstorm board headers, and as a lockup above sign-in, setup and onboarding. The original stays at `public/Images/touchpoint-logo-transparent.svg`; `pnpm brand:assets` regenerates the centred square mark, `icon.svg`, `apple-icon.png` and a 16/32/48 `favicon.ico` from it. No PWA manifest, social image or error-page branding in this pass.
+
 - [x] Step 1: People — organizations, contacts, emails, links, tags; duplicate detection (exact email or domain refused, similar name warned); `/people/contacts` and `/people/organizations`
 - [x] Step 2: Tasks and reminders — Today, Week and All views, recurrence, snooze, in-app reminders through the jobs runner; Today dashboard shows what is due; Tasks tab on contacts and organizations. The Calendar view in PRD section 6 is left for the calendar integration (phase 5)
 - [x] Step 3: Activities and timeline — log an interaction (one or more contacts, optional organization) with an optional follow-up task; `timeline` view; Timeline tab on contacts and organizations; "Log activity" in the command palette. There is no Activities item in the navigation because the PRD has no such area

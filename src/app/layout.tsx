@@ -18,6 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "Touchpoint", template: "%s · Touchpoint" },
   description: "Personal business operating system",
+  applicationName: "Touchpoint",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
