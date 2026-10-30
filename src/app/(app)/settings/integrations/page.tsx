@@ -12,6 +12,7 @@ import { db } from "@/db/client";
 import type { ConnectionStatus } from "@/db/schema";
 import { CALENDAR_READ } from "@/integrations/google/oauth";
 import { canEncrypt } from "@/lib/crypto";
+import { env } from "@/lib/env";
 import { requireOwner } from "@/lib/session";
 import { formatDateTime } from "@/lib/time";
 import {
@@ -108,6 +109,8 @@ export default async function IntegrationsPage({
     ownerTimezone(db, owner.id),
   ]);
   const redirectUri = googleRedirectUri();
+  const homePage = `${env.APP_URL}/about`;
+  const privacyPage = `${env.APP_URL}/privacy`;
   const canConnect = client?.readable === true;
 
   return (
@@ -218,11 +221,41 @@ export default async function IntegrationsPage({
             </li>
             <li>
               Under Google Auth Platform, set up the consent screen as{" "}
-              <span className="font-medium">External</span>, then under Audience press{" "}
-              <span className="font-medium">Publish app</span> so its status reads In
-              production. Don&apos;t send it for verification. Left in Testing, Google ends
-              the connection every 7 days. When you connect, Google warns that the app
-              isn&apos;t verified: it is your own, so choose Advanced, then go on.
+              <span className="font-medium">External</span>, and under Audience add your own
+              Gmail as a test user. That is enough to connect now, but in Testing Google ends
+              the connection every 7 days, so publish it next.
+            </li>
+            <li className="grid gap-2">
+              <span>
+                Prove the site is yours: in Google Search Console (search.google.com/search-console)
+                add a URL-prefix property for{" "}
+                <span className="font-mono">{env.APP_URL}</span>, pick{" "}
+                <span className="font-medium">HTML tag</span>, and set the code it shows as{" "}
+                <span className="font-mono">GOOGLE_SITE_VERIFICATION</span> in the app&apos;s
+                environment, then press Verify.
+                {env.GOOGLE_SITE_VERIFICATION ? " (It is set on this site.)" : ""}
+              </span>
+            </li>
+            <li className="grid gap-2">
+              <span>
+                Under Branding, give these as the home page and privacy policy, and{" "}
+                <span className="font-mono">{new URL(env.APP_URL).host}</span> as the authorised
+                domain:
+              </span>
+              {[homePage, privacyPage].map((address) => (
+                <span key={address} className="flex flex-wrap items-center gap-2">
+                  <code className="rounded bg-muted px-2 py-1 font-mono text-xs break-all">
+                    {address}
+                  </code>
+                  <CopyButton text={address} label="Copy" />
+                </span>
+              ))}
+              <span>
+                Then under Audience press <span className="font-medium">Publish app</span>.
+                Google checks the pages, which can take a few days; don&apos;t send it for
+                verification. When you connect, Google warns that the app isn&apos;t verified:
+                it is your own, so choose Advanced, then go on.
+              </span>
             </li>
             <li className="grid gap-2">
               <span>

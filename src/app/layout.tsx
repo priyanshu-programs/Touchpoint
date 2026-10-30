@@ -3,6 +3,7 @@ import { Geist_Mono, Inter } from "next/font/google";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { NavigationProgress } from "@/components/navigation-progress";
+import { env } from "@/lib/env";
 import "./globals.css";
 
 const inter = Inter({
@@ -18,6 +19,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "Touchpoint", template: "%s · Touchpoint" },
   description: "Personal business operating system",
+  // Proves to Google that the owner runs this site, so their own OAuth client can be published.
+  verification: env.GOOGLE_SITE_VERIFICATION
+    ? { google: env.GOOGLE_SITE_VERIFICATION }
+    : undefined,
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

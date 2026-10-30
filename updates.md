@@ -1117,3 +1117,9 @@
 - [2026-10-29] plan.md: Phase 5 section with its six steps and owner's choices; Current Phase and Active Work Items point at Step 1
 - [2026-10-29] Vercel: APP_ENCRYPTION_KEY set as sensitive, one value for Production and a different one for Preview; .env.local has its own for local development
 - [2026-10-29] e2e/22-journeys.spec.ts: the phone's panel-fit check measures only the record's side panel, so a client picker's dialog still closing on Money no longer times it out (journey 7 on a phone had failed CI on main since #21)
+- [2026-10-30] Public /about and /privacy pages (src/app/(public)), open without signing in: what Touchpoint is and how it uses Google, what it keeps, and Google's Limited Use statement; Google requires both before the owner's OAuth client can be published
+- [2026-10-30] src/lib/env.ts: optional GOOGLE_SITE_VERIFICATION (put on every page as Search Console's ownership meta tag) and CONTACT_EMAIL (shown on /privacy); .env.example documents both; env tests
+- [2026-10-30] The sign-in page links to About and Privacy
+- [2026-10-30] Settings → Integrations setup steps: Testing with a test user first, the Search Console step, and the About and Privacy addresses to copy for Branding before publishing
+- [2026-10-30] e2e/29-public-pages.spec.ts: both pages open signed out and link to each other and to sign-in, the verification tag is on every page, both fit a phone; 01, 28 and 29 pass 16 of 16
+- [2026-10-30] security.md: a Public About and Privacy pages rule; docs/PRD.md section 6: the public pages; plan.md: Step 1 ticked and the public pages added under it

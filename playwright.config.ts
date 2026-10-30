@@ -39,6 +39,7 @@ export default defineConfig({
       // profile links section on screen. No test presses "Find profile links".
       TAVILY_API_KEY: "e2e-not-a-key",
       APP_ENCRYPTION_KEY: "e2e-encryption-key-0123456789abcdef0123",
+      GOOGLE_SITE_VERIFICATION: "e2e-site-token",
     },
   },
 });
