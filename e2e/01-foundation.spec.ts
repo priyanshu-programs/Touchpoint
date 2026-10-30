@@ -42,9 +42,19 @@ test("the brand mark and its icons are served", async ({ page, request }) => {
   }
   expect((await request.get("/favicon.ico")).status()).toBe(200);
 
-  await page.goto("/sign-in");
-  await expect(page.getByText("Touchpoint", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Email")).toBeVisible();
+  const mark = await request.get("/Images/touchpoint-mark.svg");
+  expect(mark.status()).toBe(200);
+  expect(mark.headers()["cache-control"]).toBe("public, max-age=86400");
+
+  for (const path of ["/sign-in", "/about", "/privacy", "/no-such-page"]) {
+    await page.goto(path);
+    const image = page.locator('img[src*="touchpoint-mark"]');
+    await expect(image).toBeVisible();
+    expect(
+      await image.evaluate((img: HTMLImageElement) => img.naturalWidth),
+    ).toBeGreaterThan(0);
+    await expect(page.getByText("Touchpoint", { exact: true })).toBeVisible();
+  }
 });
 
 test("sign-up is closed once the owner exists", async ({

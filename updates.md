@@ -1127,3 +1127,9 @@
 - [2026-10-30] Settings → Integrations setup steps: Testing with a test user first, the Search Console step, and the About and Privacy addresses to copy for Branding before publishing
 - [2026-10-30] e2e/29-public-pages.spec.ts: both pages open signed out and link to each other and to sign-in, the verification tag is on every page, both fit a phone; 01, 28 and 29 pass 16 of 16
 - [2026-10-30] security.md: a Public About and Privacy pages rule; docs/PRD.md section 6: the public pages; plan.md: Step 1 ticked and the public pages added under it
+- [2026-10-30] Stopped a leftover test server on port 3100 from the terminated session, which would have made the next e2e run fail; merged main (public About and Privacy pages) into the logo branch, keeping both sides in the root layout's metadata
+- [2026-10-30] scripts/brand-assets.mjs: the square mark drops its title, description and role, since it is only shown as decoration; 521 B to 315 B
+- [2026-10-30] next.config.ts: files under /Images get a one-day browser cache, so a page load doesn't ask for the logo again
+- [2026-10-30] The logo lockup on the About and Privacy header and the board's not-found page; src/app/not-found.tsx gives an unknown address a page with the logo in place of the framework's plain 404
+- [2026-10-30] e2e/01-foundation: the mark is checked as really loaded on sign-in, About, Privacy and an unknown address, and the logo's cache header
+- [2026-10-30] plan.md: the branding paragraph says what was built, and that leaving out a PWA manifest and a social image was a decision made while building and not the owner's

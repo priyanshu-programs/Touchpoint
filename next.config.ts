@@ -22,6 +22,11 @@ const nextConfig: NextConfig = {
     return [
       { source: "/:path*", headers: securityHeaders },
       {
+        // A day, not longer: the filename carries no version.
+        source: "/Images/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400" }],
+      },
+      {
         // Pages get a per-request nonce CSP from src/proxy.ts, which skips /api.
         source: "/api/:path*",
         headers: [

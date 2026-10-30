@@ -14,17 +14,15 @@ const VIEWBOX = "9.85 -3.4 316 316";
 const CORNER = 70;
 
 const source = await readFile(sourcePath, "utf8");
-const inner = source
+const art = source
   .replace(/^[\s\S]*?<svg[^>]*>/, "")
   .replace(/<\/svg>\s*$/, "")
-  .replace(/\s+/g, " ")
-  .trim();
-const art = inner
   .replace(/<title[\s\S]*?<\/title>/g, "")
   .replace(/<desc[\s\S]*?<\/desc>/g, "")
+  .replace(/>\s+</g, "><")
   .trim();
 
-const square = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEWBOX}" fill="none" role="img" aria-labelledby="title desc">${inner}</svg>\n`;
+const square = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEWBOX}">${art}</svg>\n`;
 const icon = (radius) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEWBOX}" width="316" height="316"><rect x="9.85" y="-3.4" width="316" height="316" rx="${radius}" fill="${TILE}"/>${art}</svg>\n`;
 
