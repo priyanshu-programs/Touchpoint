@@ -13,15 +13,25 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { disconnectGoogleAction, testGoogleConnectionAction } from "./actions";
+import {
+  disconnectGoogleAction,
+  syncCalendarAction,
+  testGoogleConnectionAction,
+} from "./actions";
 
 export function AccountActions({ email }: { email: string }) {
   const [state, test, testing] = useActionState(testGoogleConnectionAction, null);
+  const [synced, sync, syncing] = useActionState(syncCalendarAction, null);
   const [confirming, setConfirming] = useState(false);
 
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap gap-2">
+        <form action={sync}>
+          <Button type="submit" variant="outline" size="sm" disabled={syncing}>
+            {syncing ? "Syncing…" : "Sync now"}
+          </Button>
+        </form>
         <form action={test}>
           <Button type="submit" variant="outline" size="sm" disabled={testing}>
             {testing ? "Testing…" : "Test connection"}
@@ -31,6 +41,7 @@ export function AccountActions({ email }: { email: string }) {
           Disconnect
         </Button>
       </div>
+      <FormMessage state={synced} />
       <FormMessage state={state} />
 
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
@@ -38,8 +49,9 @@ export function AccountActions({ email }: { email: string }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect {email}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Touchpoint gives the access back to Google and stops reading your calendar.
-              Your client stays saved, so you can connect again.
+              Touchpoint gives the access back to Google, stops reading your calendar and
+              removes the meetings it copied. Your client stays saved, and connecting again
+              brings them back.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -2,6 +2,7 @@ import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
 import {
   activities,
+  calendarEvents,
   contactOrganizations,
   enrichmentRuns,
   fieldProvenance,
@@ -229,6 +230,12 @@ export async function mergeOrganizations(
         );
     }
 
+    await tx
+      .update(calendarEvents)
+      .set({ organizationId: keep.id })
+      .where(
+        and(eq(calendarEvents.ownerId, ownerId), eq(calendarEvents.organizationId, other.id)),
+      );
     await tx
       .update(activities)
       .set({ organizationId: keep.id })

@@ -2,6 +2,7 @@ import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { db, type Tx } from "@/db/client";
 import {
   activityContacts,
+  calendarEventContacts,
   contactEmails,
   contactLinks,
   contactOrganizations,
@@ -247,6 +248,15 @@ export async function mergeContacts(
     await tx
       .delete(materialSendRecipients)
       .where(eq(materialSendRecipients.contactId, other.id));
+    await tx.execute(sql`
+      insert into calendar_event_contacts (event_id, contact_id, owner_id)
+      select event_id, ${keep.id}, owner_id from calendar_event_contacts
+      where contact_id = ${other.id}
+      on conflict do nothing
+    `);
+    await tx
+      .delete(calendarEventContacts)
+      .where(eq(calendarEventContacts.contactId, other.id));
 
     await tx
       .update(tasks)

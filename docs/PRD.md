@@ -351,8 +351,8 @@ Migration 0021 added `workflow_pictures`. The whiteboard gives each picture an i
 |---|---|---|
 | `tasks` | title, notes, search (generated tsvector of title and notes), status (open/done/cancelled), priority (low/normal/high), due_on (the owner's calendar date, set for every task with a due date), due_at (the instant, set as well when the task has a time), snoozed_until, completed_at, recurrence_rule (RRULE: FREQ, INTERVAL, BYMONTHDAY), origin (manual/follow_up/workflow/ai/meeting), optional contact_id, organization_id, opportunity_id, engagement_id, instance_stage_id, milestone_id | One row, many optional links: appears everywhere, counted once. A CHECK requires due_on whenever due_at is set; due_on of open timed tasks is recomputed if the owner changes time zone. Link columns are added in the phase step that builds their target |
 | `reminders` | task_id (calendar_event_id comes with the calendar), remind_at, channel (in_app; push and email are added when they can deliver), status (scheduled/sent/cancelled), sent_at, dismissed_at | Status reflects what actually happened. The job is found by its dedupe key `reminder:<id>` |
-| `calendar_events` | connection_id, external_id, title, starts_at, ends_at, timezone, location, meeting_url, attendees, optional organization/opportunity/engagement links | Unique (connection, external_id) |
-| `calendar_event_contacts` | | |
+| `calendar_events` | connection_id, external_id, title, all_day, starts_at and ends_at (timed) or starts_on and ends_on (all-day), timezone, location, meeting_url, html_link, attendees, optional organization link (opportunity and engagement links come with those modules) | Unique (connection, external_id). A copy of the primary calendar's meetings, without descriptions; deleted on disconnect and when another account connects |
+| `calendar_event_contacts` | event_id, contact_id | Worked out from the attendees on every sync |
 
 All instants are stored in UTC and displayed in the owner's time zone; all-day items keep a date without a time. Time zone arithmetic is done in application code and never in SQL: stock Postgres images do not ship legacy zone names such as `Asia/Calcutta`, which browsers and Node still report. Recurrence creates the next task when the current one is completed, in the same transaction, skipping occurrences that are already in the past and carrying the reminder forward at the same lead time. An in-app reminder is delivered by the `reminder.send` job and shown on Today until it is dismissed or its task is closed.
 
@@ -502,7 +502,7 @@ Drafts are stored in Touchpoint, which avoids the restricted `gmail.compose` sco
 
 **Failure states.** `invalid_grant` or a revoked token sets the connection to `expired`, shows a banner, and pauses sync jobs. Nothing else in the app stops working.
 
-**Calendar.** Events from 30 days back to 90 days ahead are synced with Google's sync token. Attendees are matched to contacts. Creating or changing an event always needs confirmation.
+**Calendar.** Events on the primary calendar from 30 days back to 90 days ahead are synced with Google's sync token, and the window is read whole once a day, because a token never reports an old recurring meeting that has just come within it. Cancelled and declined events, focus time, out of office, working location and birthdays are not kept. Older meetings stay as history until the owner disconnects, which deletes the copy, as does connecting another account; an expired connection keeps it and pauses. Attendees are matched to contacts on every sync. Creating or changing an event always needs confirmation.
 
 ### 11.2 Enrichment
 

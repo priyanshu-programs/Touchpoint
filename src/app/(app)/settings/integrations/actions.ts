@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/app/(app)/settings/actions";
 import { canEncrypt } from "@/lib/crypto";
 import { requireOwner } from "@/lib/session";
+import { syncCalendarNow } from "@/modules/integrations/calendar";
 import { googleClientInput } from "@/modules/integrations/schema";
 import {
   disconnectGoogle,
@@ -44,6 +45,13 @@ export async function disconnectGoogleAction() {
   const owner = await requireOwner();
   await disconnectGoogle(owner.id);
   revalidatePath("/", "layout");
+}
+
+export async function syncCalendarAction(): Promise<FormState> {
+  const owner = await requireOwner();
+  const result = await syncCalendarNow(owner.id);
+  revalidatePath("/", "layout");
+  return result;
 }
 
 export async function testGoogleConnectionAction(): Promise<FormState> {

@@ -113,8 +113,8 @@ export function ClientCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove your Google client?</AlertDialogTitle>
             <AlertDialogDescription>
-              Touchpoint disconnects your Google account and forgets the client ID and
-              secret. You can enter them again at any time.
+              Touchpoint disconnects your Google account, removes the meetings it copied
+              and forgets the client ID and secret. You can enter them again at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

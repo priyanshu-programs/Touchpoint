@@ -45,6 +45,14 @@ export default function PrivacyPage() {
         myaccount.google.com/permissions, ends it at once.
       </p>
       <p>
+        To show meetings, Touchpoint keeps a copy of each one from the owner&apos;s main
+        calendar: its title, times, location, meeting link, and the names and email addresses
+        of the people invited. It doesn&apos;t keep the event&apos;s description. Disconnecting
+        in Settings, or connecting a different Google account, deletes that copy. After access
+        is removed at Google, Touchpoint stops reading the calendar and the copy stays until
+        the owner disconnects in Settings.
+      </p>
+      <p>
         Touchpoint&apos;s use and transfer of information received from Google APIs adheres to
         the{" "}
         <a
