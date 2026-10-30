@@ -14,24 +14,31 @@ export function TimelineEvent({
   event,
   when,
   hrefFor,
+  meetingHref,
 }: {
   event: TimelineRow;
   when: string;
   // Where an entry opens: its own page, unless the panel showing it says otherwise.
   hrefFor?: (id: string) => string;
+  meetingHref?: (id: string) => string;
 }) {
   // A send opens its material, and is removed here if it was logged by mistake.
   const send = event.eventType === "material_send" && event.materialId;
+  const meeting = event.eventType === "calendar_event";
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{send ? "Sent material" : labelFor(event.kind)}</Badge>
+        <Badge variant="secondary">
+          {send ? "Sent material" : meeting ? "Meeting" : labelFor(event.kind)}
+        </Badge>
         <Link
           href={
             send
               ? materialHref(send)
-              : (hrefFor?.(event.eventId) ?? `/activities/${event.eventId}`)
+              : meeting
+                ? (meetingHref?.(event.eventId) ?? `/meetings/${event.eventId}`)
+                : (hrefFor?.(event.eventId) ?? `/activities/${event.eventId}`)
           }
           // A panel changes in place; a page of its own starts at its top.
           scroll={Boolean(send) || !hrefFor}

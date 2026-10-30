@@ -33,7 +33,7 @@ import {
   hiddenColumns,
 } from "../columns";
 import { ContactPanel } from "../contact-panel";
-import { EntryPanel, entryKey, entryTab, findEntry } from "../entry-panel";
+import { EntryPanel, entryKey, entryMeetingId, entryTab, findEntry } from "../entry-panel";
 import { FieldsPanel } from "../fields-panel";
 import { ListCard, ListFooter } from "../list-card";
 import {
@@ -56,6 +56,7 @@ const NO_ENTRY = {
   activity: undefined,
   task: undefined,
   send: undefined,
+  event: undefined,
   merge: undefined,
 };
 const NO_PANEL = {
@@ -104,6 +105,7 @@ export default async function ContactsPage({
     sort: customSort ? typed.sort : undefined,
     activity: entry?.kind === "activity" ? typed.activity : undefined,
     task: entry?.kind === "task" ? typed.task : undefined,
+    event: entryMeetingId(entry),
   };
   const pageNumber = params.page ?? 1;
   const [page, tags, open] = await Promise.all([
@@ -409,6 +411,9 @@ export default async function ContactsPage({
                 }),
                 label: `Back to ${open.fullName}`,
               }}
+              notesHref={(id) =>
+                contactsHref(params, { ...NO_ENTRY, activity: "new", event: id })
+              }
             />
           ) : params.merge ? (
             <MergePanel

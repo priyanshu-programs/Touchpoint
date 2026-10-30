@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   activities,
@@ -24,7 +24,7 @@ export async function listTimeline(
     | { contactId: string; organizationId?: undefined }
     | { organizationId: string; contactId?: undefined }
     | { contactId?: undefined; organizationId?: undefined }
-  ) & { after?: string; limit?: number } = {},
+  ) & { after?: string; limit?: number; withoutMeetings?: boolean } = {},
 ) {
   const limit = Math.min(options.limit ?? 30, 100);
   const events = await db
@@ -33,6 +33,7 @@ export async function listTimeline(
     .where(
       and(
         eq(timeline.ownerId, ownerId),
+        options.withoutMeetings ? ne(timeline.eventType, "calendar_event") : undefined,
         options.contactId
           ? sql`${options.contactId} = any(${timeline.contactIds})`
           : options.organizationId

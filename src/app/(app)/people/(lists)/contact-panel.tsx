@@ -61,7 +61,9 @@ export async function ContactPanel({
   after?: string;
   hrefFor: (change: { tab: Tab; after?: string }) => string;
   // An activity or a task, new or existing, opened in place of this person.
-  entryHref: (entry: { activity: string } | { task: string } | { send: "new" }) => string;
+  entryHref: (
+    entry: { activity: string } | { task: string } | { send: "new" } | { event: string },
+  ) => string;
   // The Fields panel, opened over this person.
   fieldsHref: string;
 }) {
@@ -237,6 +239,7 @@ export async function ContactPanel({
             newHref={entryHref({ activity: "new" })}
             sendHref={entryHref({ send: "new" })}
             openHref={(id) => entryHref({ activity: id })}
+            meetingHref={(id) => entryHref({ event: id })}
             after={after}
           />
         )}

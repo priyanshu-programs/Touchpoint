@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import { getContact } from "@/modules/contacts/queries";
+import { getMeeting } from "@/modules/integrations/meetings";
 import { getOrganization } from "@/modules/organizations/queries";
 import { getSettings } from "@/modules/settings/service";
 import { NewActivity } from "../new-activity";
@@ -17,10 +18,12 @@ export default async function NewActivityPage({
   const query = await searchParams;
   const contactId = z.uuid().safeParse(query.contact);
   const organizationId = z.uuid().safeParse(query.organization);
-  const [settings, contact, organization] = await Promise.all([
+  const eventId = z.uuid().safeParse(query.event);
+  const [settings, contact, organization, meeting] = await Promise.all([
     getSettings(owner.id),
     contactId.success ? getContact(owner.id, contactId.data) : null,
     organizationId.success ? getOrganization(owner.id, organizationId.data) : null,
+    eventId.success ? getMeeting(owner.id, eventId.data) : null,
   ]);
 
   return (
@@ -34,13 +37,16 @@ export default async function NewActivityPage({
         <NewActivity
           contact={contact}
           organization={organization}
+          meeting={meeting}
           timezone={settings?.timezone ?? "UTC"}
           cancelHref={
-            contact
-              ? contactHref(contact.id, "activity")
-              : organization
-                ? companyHref(organization.id, "activity")
-                : "/people/contacts"
+            meeting
+              ? `/meetings/${meeting.id}`
+              : contact
+                ? contactHref(contact.id, "activity")
+                : organization
+                  ? companyHref(organization.id, "activity")
+                  : "/people/contacts"
           }
         />
       </CardContent>

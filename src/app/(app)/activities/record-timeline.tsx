@@ -20,6 +20,7 @@ export async function RecordTimeline({
   newHref,
   sendHref,
   openHref,
+  meetingHref,
   after,
 }: {
   ownerId: string;
@@ -29,6 +30,7 @@ export async function RecordTimeline({
   // Logs that a material went to this record.
   sendHref: string;
   openHref: (id: string) => string;
+  meetingHref: (id: string) => string;
   after?: string;
 }) {
   const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
@@ -72,8 +74,13 @@ export async function RecordTimeline({
                 <li key={event.eventId} className="grid min-w-0 gap-1">
                   <TimelineEvent
                     event={event}
-                    when={formatTime(event.occurredAt, timezone)}
+                    when={
+                      event.kind === "all_day"
+                        ? "All day"
+                        : formatTime(event.occurredAt, timezone)
+                    }
                     hrefFor={openHref}
+                    meetingHref={meetingHref}
                   />
                   {event.outcome && (
                     <p className="text-sm break-words">

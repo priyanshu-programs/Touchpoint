@@ -18,8 +18,9 @@ export const listParams = z.object({
 });
 
 // `activity` and `task` put one entry in place of the open record: a new one, or the
-// one with that id; `send` only a new one, since a send opens its material. They come
-// last, so an address reads record, tab, entry.
+// one with that id; `send` only a new one, since a send opens its material. `event` is a
+// meeting, and with `activity=new` the meeting that new entry is filled in from. They
+// come last, so an address reads record, tab, entry.
 const entry = optional(z.union([z.literal("new"), z.uuid()]));
 export type EntryParam = z.infer<typeof entry>;
 // `merge` puts the open person beside another, to be merged into them.
@@ -27,6 +28,7 @@ const entryParams = {
   activity: entry,
   task: entry,
   send: optional(z.literal("new")),
+  event: optional(z.uuid()),
   merge: optional(z.uuid()),
 };
 const customSort = z.string().regex(CUSTOM_SORT);

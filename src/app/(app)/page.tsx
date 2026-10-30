@@ -13,6 +13,9 @@ import { formatMoney } from "@/lib/money";
 import { requireOwner } from "@/lib/session";
 import { addDays, dateIn, formatDateTime } from "@/lib/time";
 import { listTimeline } from "@/modules/activities/queries";
+import { meetingsBetween } from "@/modules/integrations/meetings";
+import { googleConnection } from "@/modules/integrations/service";
+import { MeetingsCard } from "./meetings/meetings-card";
 import { countContacts } from "@/modules/contacts/queries";
 import { countOrganizations } from "@/modules/organizations/queries";
 import { periodRange } from "@/modules/revenue/period";
@@ -76,19 +79,30 @@ export default async function TodayPage() {
   const settings = await getSettings(owner.id);
   const timezone = settings?.timezone ?? "UTC";
   const today = dateIn(timezone);
-  const [tasks, reminders, upcoming, recent, contactCount, organizationCount, money] =
-    await Promise.all([
-      listDueTasks(owner.id, { through: today, hideSnoozed: true }),
-      listDeliveredReminders(owner.id),
-      listDueTasks(owner.id, {
-        from: addDays(today, 1),
-        through: addDays(today, 6),
-      }),
-      listTimeline(owner.id, { limit: 5 }),
-      countContacts(owner.id),
-      countOrganizations(owner.id),
-      moneyTiles(owner.id, today, settings?.baseCurrency ?? "INR"),
-    ]);
+  const [
+    tasks,
+    reminders,
+    upcoming,
+    recent,
+    contactCount,
+    organizationCount,
+    money,
+    google,
+    meetings,
+  ] = await Promise.all([
+    listDueTasks(owner.id, { through: today, hideSnoozed: true }),
+    listDeliveredReminders(owner.id),
+    listDueTasks(owner.id, {
+      from: addDays(today, 1),
+      through: addDays(today, 6),
+    }),
+    listTimeline(owner.id, { limit: 5, withoutMeetings: true }),
+    countContacts(owner.id),
+    countOrganizations(owner.id),
+    moneyTiles(owner.id, today, settings?.baseCurrency ?? "INR"),
+    googleConnection(owner.id),
+    meetingsBetween(owner.id, today, addDays(today, 6), timezone),
+  ]);
   const people = [
     { href: "/people/contacts", label: "Contacts", count: contactCount },
     {
@@ -193,6 +207,10 @@ export default async function TodayPage() {
           <DueToday tasks={tasks} timezone={timezone} />
         </CardContent>
       </Card>
+
+      {google && google.status !== "revoked" && (
+        <MeetingsCard meetings={meetings} today={today} timezone={timezone} />
+      )}
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <Card>

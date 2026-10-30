@@ -38,7 +38,7 @@ import {
   hiddenColumns,
 } from "../columns";
 import { ContactPanel } from "../contact-panel";
-import { EntryPanel, entryKey, entryTab, findEntry } from "../entry-panel";
+import { EntryPanel, entryKey, entryMeetingId, entryTab, findEntry } from "../entry-panel";
 import { FieldsPanel } from "../fields-panel";
 import { ListCard, ListFooter } from "../list-card";
 import {
@@ -81,6 +81,7 @@ const NO_ENTRY = {
   activity: undefined,
   task: undefined,
   send: undefined,
+  event: undefined,
   merge: undefined,
 };
 const NO_CONTACT = {
@@ -151,6 +152,7 @@ export default async function OrganizationsPage({
     sort: standard ?? (customSort ? typed.sort : undefined),
     activity: entry?.kind === "activity" ? typed.activity : undefined,
     task: entry?.kind === "task" ? typed.task : undefined,
+    event: entryMeetingId(entry),
   };
   const pageNumber = params.page ?? 1;
   const [page, tags, settings, open, person] = await Promise.all([
@@ -495,6 +497,9 @@ export default async function OrganizationsPage({
                 }),
                 label: `Back to ${contact?.fullName ?? open.name}`,
               }}
+              notesHref={(id) =>
+                companiesHref(params, { ...NO_ENTRY, activity: "new", event: id })
+              }
             />
           ) : contact && params.merge ? (
             <MergePanel
