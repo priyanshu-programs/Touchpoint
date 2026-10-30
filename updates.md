@@ -1117,9 +1117,19 @@
 - [2026-10-29] plan.md: Phase 5 section with its six steps and owner's choices; Current Phase and Active Work Items point at Step 1
 - [2026-10-29] Vercel: APP_ENCRYPTION_KEY set as sensitive, one value for Production and a different one for Preview; .env.local has its own for local development
 - [2026-10-29] e2e/22-journeys.spec.ts: the phone's panel-fit check measures only the record's side panel, so a client picker's dialog still closing on Money no longer times it out (journey 7 on a phone had failed CI on main since #21)
+- [2026-10-30] scripts/brand-assets.mjs: generates a centred square mark, icon.svg, apple-icon.png and a 16/32/48 favicon.ico from the supplied SVG; the favicon falls from 15 KB to 1.4 KB and no package was added
+- [2026-10-30] src/components/brand-mark.tsx: BrandMark (the exact ivory + lime mark on a dark rounded tile) and BrandLockup; the top bar and the workflow and brainstorm board headers replace the lime T placeholder
+- [2026-10-30] Sign-in, setup and onboarding show the brand lockup; sign-in's duplicate Touchpoint description becomes the product line
+- [2026-10-30] package.json: brand:assets script; src/app/layout.tsx sets applicationName; e2e/01-foundation checks the icons and the mark
 - [2026-10-30] Public /about and /privacy pages (src/app/(public)), open without signing in: what Touchpoint is and how it uses Google, what it keeps, and Google's Limited Use statement; Google requires both before the owner's OAuth client can be published
 - [2026-10-30] src/lib/env.ts: optional GOOGLE_SITE_VERIFICATION (put on every page as Search Console's ownership meta tag) and CONTACT_EMAIL (shown on /privacy); .env.example documents both; env tests
 - [2026-10-30] The sign-in page links to About and Privacy
 - [2026-10-30] Settings → Integrations setup steps: Testing with a test user first, the Search Console step, and the About and Privacy addresses to copy for Branding before publishing
 - [2026-10-30] e2e/29-public-pages.spec.ts: both pages open signed out and link to each other and to sign-in, the verification tag is on every page, both fit a phone; 01, 28 and 29 pass 16 of 16
 - [2026-10-30] security.md: a Public About and Privacy pages rule; docs/PRD.md section 6: the public pages; plan.md: Step 1 ticked and the public pages added under it
+- [2026-10-30] Stopped a leftover test server on port 3100 from the terminated session, which would have made the next e2e run fail; merged main (public About and Privacy pages) into the logo branch, keeping both sides in the root layout's metadata
+- [2026-10-30] scripts/brand-assets.mjs: the square mark drops its title, description and role, since it is only shown as decoration; 521 B to 315 B
+- [2026-10-30] next.config.ts: files under /Images get a one-day browser cache, so a page load doesn't ask for the logo again
+- [2026-10-30] The logo lockup on the About and Privacy header and the board's not-found page; src/app/not-found.tsx gives an unknown address a page with the logo in place of the framework's plain 404
+- [2026-10-30] e2e/01-foundation: the mark is checked as really loaded on sign-in, About, Privacy and an unknown address, and the logo's cache header
+- [2026-10-30] plan.md: the branding paragraph says what was built, and that leaving out a PWA manifest and a social image was a decision made while building and not the owner's

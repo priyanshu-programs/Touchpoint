@@ -31,6 +31,32 @@ test("first run: create the owner and finish onboarding", async ({ page }) => {
   await page.context().storageState({ path: OWNER_SESSION });
 });
 
+test("the brand mark and its icons are served", async ({ page, request }) => {
+  for (const [path, type] of [
+    ["/icon.svg", "image/svg+xml"],
+    ["/apple-icon.png", "image/png"],
+  ]) {
+    const answer = await request.get(path);
+    expect(answer.status()).toBe(200);
+    expect(answer.headers()["content-type"]).toContain(type);
+  }
+  expect((await request.get("/favicon.ico")).status()).toBe(200);
+
+  const mark = await request.get("/Images/touchpoint-mark.svg");
+  expect(mark.status()).toBe(200);
+  expect(mark.headers()["cache-control"]).toBe("public, max-age=86400");
+
+  for (const path of ["/sign-in", "/about", "/privacy", "/no-such-page"]) {
+    await page.goto(path);
+    const image = page.locator('img[src*="touchpoint-mark"]');
+    await expect(image).toBeVisible();
+    expect(
+      await image.evaluate((img: HTMLImageElement) => img.naturalWidth),
+    ).toBeGreaterThan(0);
+    await expect(page.getByText("Touchpoint", { exact: true })).toBeVisible();
+  }
+});
+
 test("sign-up is closed once the owner exists", async ({
   page,
   request,
@@ -90,6 +116,13 @@ test("security headers are set on pages", async ({ request }) => {
 
 test.describe("signed in", () => {
   test.use({ storageState: OWNER_SESSION });
+
+  test("the brand mark is in the top bar", async ({ page }) => {
+    await page.goto("/");
+    await expect(
+      page.getByRole("banner").locator('img[src*="touchpoint-mark"]'),
+    ).toBeVisible();
+  });
 
   test("settings persist and are audited", async ({ page }) => {
     await page.goto("/settings/profile");

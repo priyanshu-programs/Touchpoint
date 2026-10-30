@@ -1,12 +1,13 @@
 import Link from "next/link";
+import { BrandLockup } from "@/components/brand-mark";
 
 // Pages anyone can open without signing in. They show nothing from the database.
 export default function PublicLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-10">
       <header className="mb-8">
-        <Link href="/about" className="text-lg font-semibold tracking-tight">
-          Touchpoint
+        <Link href="/about" className="inline-block">
+          <BrandLockup />
         </Link>
       </header>
       <main className="grid flex-1 content-start gap-6 text-sm leading-6">{children}</main>

@@ -19,6 +19,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "Touchpoint", template: "%s · Touchpoint" },
   description: "Personal business operating system",
+  applicationName: "Touchpoint",
   // Proves to Google that the owner runs this site, so their own OAuth client can be published.
   verification: env.GOOGLE_SITE_VERIFICATION
     ? { google: env.GOOGLE_SITE_VERIFICATION }

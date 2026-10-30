@@ -22,7 +22,7 @@ export default async function SignInPage() {
     <Card>
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
-        <CardDescription>Touchpoint</CardDescription>
+        <CardDescription>Your personal business operating system</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         <AuthForm mode="sign-in" />

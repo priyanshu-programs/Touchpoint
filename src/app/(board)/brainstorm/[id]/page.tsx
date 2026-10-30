@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { BrandMark } from "@/components/brand-mark";
 import { requireOwner } from "@/lib/session";
 import { getBrainstorm } from "@/modules/brainstorm/queries";
 import { PAPER_COOKIE, paperOf } from "../../workflows/[id]/paper";
@@ -24,12 +25,7 @@ export default async function BrainstormBoardPage({
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/90 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <span
-          aria-hidden
-          className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
-        >
-          T
-        </span>
+        <BrandMark className="size-7" />
         <Link
           href="/brainstorm"
           className="inline-flex max-w-[40%] shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
