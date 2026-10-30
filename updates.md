@@ -1146,3 +1146,5 @@
 - [2026-10-30] /privacy says what Touchpoint keeps of each meeting and when that copy is deleted
 - [2026-10-30] e2e/28-integrations.spec.ts: a seeded connection shows its sync on a phone, and disconnecting removes its meetings
 - [2026-10-30] security.md: a Calendar sync rule; docs/PRD.md sections 8.5 and 11.1: the tables and the sync's rules; plan.md: Step 2 ticked with the owner's choices
+- [2026-10-31] src/modules/integrations/calendar.ts: when Google answers 401 during a sync, ask for a new token once and read again, because the owner's first sync on production was turned down with a token 27 seconds old
+- [2026-10-31] Settings → Integrations: a 401 that survives the retry, or one on Test connection, says Google didn't accept the access and what to do, in place of "could not be reached"; tests for both

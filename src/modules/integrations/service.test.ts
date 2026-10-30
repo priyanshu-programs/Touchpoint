@@ -290,6 +290,12 @@ describe("using the connection", () => {
       ok: false,
       message: expect.stringMatching(/Calendar API is enabled/),
     });
+    google.primaryCalendarName.mockRejectedValueOnce(new GoogleApiError(401));
+    expect(await testGoogleConnection(ownerId)).toEqual({
+      ok: false,
+      message:
+        "Google didn't accept this connection's access. Press Test connection, or disconnect and connect again.",
+    });
   });
 
   it("disconnecting gives the access back and clears the tokens", async () => {

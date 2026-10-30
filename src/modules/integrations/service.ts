@@ -33,6 +33,9 @@ const EXPIRY_MARGIN_MS = 60_000;
 export const googleRedirectUri = () =>
   `${env.APP_URL}/api/integrations/google/callback`;
 
+export const ACCESS_NOT_ACCEPTED =
+  "Google didn't accept this connection's access. Press Test connection, or disconnect and connect again.";
+
 // Not connected, expired at Google, or sealed with another key: the owner has to act.
 export class ConnectionUnavailableError extends Error {}
 
@@ -348,6 +351,9 @@ export async function testGoogleConnection(ownerId: string) {
       };
     }
     logger.error("integration.test_failed", { ownerId, error });
+    if (error instanceof GoogleApiError && error.status === 401) {
+      return { ok: false as const, message: ACCESS_NOT_ACCEPTED };
+    }
     return {
       ok: false as const,
       message: "Google could not be reached. Try again in a moment.",
