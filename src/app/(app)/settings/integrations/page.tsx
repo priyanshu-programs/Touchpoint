@@ -15,6 +15,7 @@ import { canEncrypt } from "@/lib/crypto";
 import { env } from "@/lib/env";
 import { requireOwner } from "@/lib/session";
 import { formatDateTime } from "@/lib/time";
+import { calendarSummary } from "@/modules/integrations/calendar";
 import {
   googleClientStatus,
   googleConnection,
@@ -103,9 +104,10 @@ export default async function IntegrationsPage({
     );
   }
 
-  const [client, connection, timezone] = await Promise.all([
+  const [client, connection, meetings, timezone] = await Promise.all([
     googleClientStatus(owner.id),
     googleConnection(owner.id),
+    calendarSummary(owner.id),
     ownerTimezone(db, owner.id),
   ]);
   const redirectUri = googleRedirectUri();
@@ -157,7 +159,22 @@ export default async function IntegrationsPage({
                     ? formatDateTime(connection.lastRefreshAt, timezone)
                     : "Not yet"}
                 </dd>
+                <dt className="text-muted-foreground">Last synced</dt>
+                <dd>
+                  {connection.lastSyncAt
+                    ? formatDateTime(connection.lastSyncAt, timezone)
+                    : "Not yet"}
+                </dd>
+                <dt className="text-muted-foreground">Meetings kept</dt>
+                <dd>
+                  {meetings.kept}, {meetings.linked} linked to your people or companies
+                </dd>
               </dl>
+              {connection.status === "connected" && connection.lastError && (
+                <p role="alert" className="text-destructive">
+                  {connection.lastError}
+                </p>
+              )}
               {connection.status === "connected" ? (
                 <AccountActions email={connection.accountEmail} />
               ) : (

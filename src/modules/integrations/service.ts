@@ -1,6 +1,6 @@
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { integrationClients, integrationConnections } from "@/db/schema";
+import { calendarEvents, integrationClients, integrationConnections } from "@/db/schema";
 import {
   CALENDAR_READ,
   consentUrl,
@@ -99,6 +99,7 @@ export async function googleConnection(ownerId: string) {
     status: row.status,
     connectedAt: row.connectedAt,
     lastRefreshAt: row.lastRefreshAt,
+    lastSyncAt: row.lastSyncAt,
     lastError: row.lastError,
   };
 }
@@ -201,6 +202,9 @@ export async function completeGoogleConnect(
       .from(integrationConnections)
       .where(ownConnection(ownerId))
       .for("update");
+    if (previous && previous.accountEmail !== email) {
+      await tx.delete(calendarEvents).where(eq(calendarEvents.ownerId, ownerId));
+    }
     const values = {
       accountEmail: email,
       scopes: granted.scopes,
@@ -366,6 +370,10 @@ export async function disconnectGoogle(ownerId: string) {
     }
   }
   await db.transaction(async (tx) => {
+    const meetings = await tx
+      .delete(calendarEvents)
+      .where(eq(calendarEvents.ownerId, ownerId))
+      .returning({ id: calendarEvents.id });
     await tx
       .update(integrationConnections)
       .set({
@@ -382,7 +390,11 @@ export async function disconnectGoogle(ownerId: string) {
       actor: "user",
       action: "integration.disconnect",
       entityType: "integration",
-      before: { provider: GOOGLE, accountEmail: row.accountEmail },
+      before: {
+        provider: GOOGLE,
+        accountEmail: row.accountEmail,
+        meetingsRemoved: meetings.length,
+      },
     });
   });
 }

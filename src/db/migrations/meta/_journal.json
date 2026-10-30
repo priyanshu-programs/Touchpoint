@@ -253,6 +253,13 @@
       "when": 1793284824580,
       "tag": "0035_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793372889081,
+      "tag": "0036_calendar_events",
+      "breakpoints": true
     }
   ]
 }

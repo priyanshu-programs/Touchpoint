@@ -1,0 +1,23 @@
+// An address at one of these says nothing about the company a person works for.
+export const FREE_MAIL_DOMAINS = [
+  "aol.com",
+  "fastmail.com",
+  "gmail.com",
+  "gmx.com",
+  "googlemail.com",
+  "hotmail.com",
+  "icloud.com",
+  "live.com",
+  "mac.com",
+  "mail.com",
+  "me.com",
+  "msn.com",
+  "outlook.com",
+  "proton.me",
+  "protonmail.com",
+  "rediffmail.com",
+  "yahoo.co.in",
+  "yahoo.com",
+  "ymail.com",
+  "zoho.com",
+] as const;

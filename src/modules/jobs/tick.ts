@@ -4,6 +4,11 @@ import { jobs } from "@/db/schema";
 import { fetchPhoto, PHOTO_JOB } from "@/modules/enrichment/photos";
 import { ENRICHMENT_JOB, runEnrichment } from "@/modules/enrichment/service";
 import {
+  CALENDAR_SYNC_JOB,
+  enqueueCalendarSyncs,
+  runCalendarSync,
+} from "@/modules/integrations/calendar";
+import {
   checkGoogleConnection,
   enqueueGoogleChecks,
   GOOGLE_CHECK_JOB,
@@ -20,11 +25,13 @@ export const handlers: JobHandlers = {
   [ENRICHMENT_JOB]: (job) => runEnrichment(job),
   [PHOTO_JOB]: (job) => fetchPhoto(job),
   [GOOGLE_CHECK_JOB]: checkGoogleConnection,
+  [CALENDAR_SYNC_JOB]: runCalendarSync,
 };
 
 export async function tick(budgetMs: number) {
   await enqueue({ kind: HEARTBEAT, dedupeKey: HEARTBEAT });
   await enqueueGoogleChecks();
+  await enqueueCalendarSyncs();
   return runDueJobs(handlers, budgetMs);
 }
 

@@ -1133,3 +1133,16 @@
 - [2026-10-30] The logo lockup on the About and Privacy header and the board's not-found page; src/app/not-found.tsx gives an unknown address a page with the logo in place of the framework's plain 404
 - [2026-10-30] e2e/01-foundation: the mark is checked as really loaded on sign-in, About, Privacy and an unknown address, and the logo's cache header
 - [2026-10-30] plan.md: the branding paragraph says what was built, and that leaving out a PWA manifest and a social image was a decision made while building and not the owner's
+- [2026-10-30] Vercel: GOOGLE_SITE_VERIFICATION set for Production, the owner's Search Console ownership tag; it takes effect on the next production deployment
+- [2026-10-30] Migration 0036 (additive): calendar_events and calendar_event_contacts, and last_full_sync_at and last_sync_attempt_at on integration_connections
+- [2026-10-30] src/integrations/google/calendar.ts: lists the primary calendar's events by window or sync token, and reads each answer through zod, keeping https meeting links and Google's own calendar links, and dropping cancelled, declined and non-meeting events
+- [2026-10-30] src/lib/free-mail.ts: the mail providers whose domain says nothing about a person's company
+- [2026-10-30] src/modules/integrations/calendar.ts: syncCalendar (a daily full read of 30 days back to 90 ahead, otherwise by sync token, page by page), matching attendees to people and companies on every sync, and syncCalendarNow limited to once a minute; unit tests with Google mocked
+- [2026-10-30] src/modules/jobs/tick.ts: a calendar.sync job for each connected owner on each tick
+- [2026-10-30] Disconnecting, removing the client or connecting a different Google account deletes the synced meetings (owner's choice); an expired connection keeps them; the audit row says how many went
+- [2026-10-30] Merging two people or two companies moves their meetings to the one kept
+- [2026-10-30] The data export's data.json includes calendar_events and calendar_event_contacts
+- [2026-10-30] Settings → Integrations: Last synced, Meetings kept, the last sync problem and a Sync now button; the Disconnect and Remove dialogs say the copied meetings are removed
+- [2026-10-30] /privacy says what Touchpoint keeps of each meeting and when that copy is deleted
+- [2026-10-30] e2e/28-integrations.spec.ts: a seeded connection shows its sync on a phone, and disconnecting removes its meetings
+- [2026-10-30] security.md: a Calendar sync rule; docs/PRD.md sections 8.5 and 11.1: the tables and the sync's rules; plan.md: Step 2 ticked with the owner's choices
