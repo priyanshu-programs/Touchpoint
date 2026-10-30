@@ -42,6 +42,21 @@ describe("parseEnv", () => {
     );
   });
 
+  it("takes a site verification token and a contact email, refusing anything else", () => {
+    const parsed = parseEnv({
+      ...valid,
+      GOOGLE_SITE_VERIFICATION: "aB3_dE-9",
+      CONTACT_EMAIL: "owner@maple.test",
+    });
+    expect(parsed.GOOGLE_SITE_VERIFICATION).toBe("aB3_dE-9");
+    expect(parsed.CONTACT_EMAIL).toBe("owner@maple.test");
+    expect(parseEnv({ ...valid, GOOGLE_SITE_VERIFICATION: "" }).GOOGLE_SITE_VERIFICATION).toBeUndefined();
+    expect(() => parseEnv({ ...valid, GOOGLE_SITE_VERIFICATION: '"><script>' })).toThrow(
+      /GOOGLE_SITE_VERIFICATION/,
+    );
+    expect(() => parseEnv({ ...valid, CONTACT_EMAIL: "not an email" })).toThrow(/CONTACT_EMAIL/);
+  });
+
   it("names every missing variable", () => {
     expect(() => parseEnv({ APP_URL: valid.APP_URL })).toThrow(
       /DATABASE_URL, AUTH_SECRET, CRON_SECRET/,
