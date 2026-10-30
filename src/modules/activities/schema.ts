@@ -4,6 +4,8 @@ import { blankToNull, text } from "@/lib/form";
 
 export { ACTIVITY_DIRECTIONS, ACTIVITY_KINDS };
 
+export const ACTIVITY_LIMITS = { title: 300, people: 20 } as const;
+
 const fields = {
   kind: z.enum(ACTIVITY_KINDS),
   direction: blankToNull(z.enum(ACTIVITY_DIRECTIONS)),
@@ -13,12 +15,12 @@ const fields = {
     precision: -1,
     error: "Enter when it happened",
   }),
-  title: z.string().trim().min(1, "Enter a short summary").max(300),
+  title: z.string().trim().min(1, "Enter a short summary").max(ACTIVITY_LIMITS.title),
   body: blankToNull(text(10_000)),
   outcome: blankToNull(text(500)),
   contactIds: z
     .array(z.uuid())
-    .max(20, "An activity can involve at most 20 contacts")
+    .max(ACTIVITY_LIMITS.people, "An activity can involve at most 20 contacts")
     .transform((ids) => [...new Set(ids)]),
   organizationId: blankToNull(z.uuid()),
 };

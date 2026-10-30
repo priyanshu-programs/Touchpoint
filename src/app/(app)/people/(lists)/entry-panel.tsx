@@ -2,11 +2,13 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { getActivity } from "@/modules/activities/queries";
+import { getMeeting } from "@/modules/integrations/meetings";
 import { getSettings } from "@/modules/settings/service";
 import { getTask } from "@/modules/tasks/queries";
 import { ActivityEditor } from "@/app/(app)/activities/activity-editor";
 import { NewActivity } from "@/app/(app)/activities/new-activity";
 import { NewSend } from "@/app/(app)/materials/new-send";
+import { MeetingDetails } from "@/app/(app)/meetings/meeting-details";
 import { NewTask } from "@/app/(app)/tasks/new-task";
 import { TaskEditor } from "@/app/(app)/tasks/task-editor";
 import type { EntryParam } from "./list-controls";
@@ -15,7 +17,7 @@ import type { EntryParam } from "./list-controls";
 // theirs, or is gone, is no entry, and the record is shown as if it had not been asked for.
 export async function findEntry(
   ownerId: string,
-  params: { activity?: EntryParam; task?: EntryParam; send?: "new" },
+  params: { activity?: EntryParam; task?: EntryParam; send?: "new"; event?: string },
 ) {
   if (params.send === "new") return { kind: "send" } as const;
   if (params.task === "new") return { kind: "task", task: null } as const;
@@ -23,13 +25,15 @@ export async function findEntry(
     const task = await getTask(ownerId, params.task);
     if (task) return { kind: "task", task } as const;
   }
+  const meeting = params.event ? await getMeeting(ownerId, params.event) : null;
   if (params.activity === "new") {
-    return { kind: "activity", activity: null } as const;
+    return { kind: "activity", activity: null, meeting } as const;
   }
   if (params.activity) {
     const activity = await getActivity(ownerId, params.activity);
-    if (activity) return { kind: "activity", activity } as const;
+    if (activity) return { kind: "activity", activity, meeting: null } as const;
   }
+  if (meeting) return { kind: "meeting", meeting } as const;
   return null;
 }
 export type Entry = NonNullable<Awaited<ReturnType<typeof findEntry>>>;
@@ -39,7 +43,15 @@ export const entryKey = (entry: Entry) =>
     ? "send:new"
     : entry.kind === "task"
       ? `task:${entry.task?.id ?? "new"}`
-      : `activity:${entry.activity?.id ?? "new"}`;
+      : entry.kind === "meeting"
+        ? `meeting:${entry.meeting.id}`
+        : `activity:${entry.activity?.id ?? "new"}:${entry.meeting?.id ?? ""}`;
+
+// The meeting an address names, once it is found to be the owner's.
+export const entryMeetingId = (entry: Entry | null) =>
+  entry && (entry.kind === "meeting" || entry.kind === "activity")
+    ? entry.meeting?.id
+    : undefined;
 
 // The tab of the record that an entry of this kind is listed on, and goes back to.
 export const entryTab = (entry: Entry) =>
@@ -53,6 +65,7 @@ export async function EntryPanel({
   contact,
   organization,
   back,
+  notesHref,
 }: {
   ownerId: string;
   entry: Entry;
@@ -64,6 +77,8 @@ export async function EntryPanel({
   } | null;
   organization: { id: string; name: string } | null;
   back: { href: string; label: string };
+  // Log activity, in this panel, filled in from a meeting.
+  notesHref: (meetingId: string) => string;
 }) {
   const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
   const from = contact ? "contact" : "organization";
@@ -73,7 +88,9 @@ export async function EntryPanel({
       ? "Log a send"
       : entry.kind === "task"
         ? (entry.task?.title ?? "Add task")
-        : (entry.activity?.title ?? "Log activity");
+        : entry.kind === "meeting"
+          ? entry.meeting.title
+          : (entry.activity?.title ?? "Log activity");
 
   return (
     <>
@@ -95,7 +112,13 @@ export async function EntryPanel({
       </header>
 
       <div className="p-4">
-        {entry.kind === "send" ? (
+        {entry.kind === "meeting" ? (
+          <MeetingDetails
+            meeting={entry.meeting}
+            timezone={timezone}
+            notesHref={notesHref(entry.meeting.id)}
+          />
+        ) : entry.kind === "send" ? (
           <NewSend
             ownerId={ownerId}
             contact={contact}
@@ -132,6 +155,7 @@ export async function EntryPanel({
           <NewActivity
             contact={contact}
             organization={organization}
+            meeting={entry.meeting}
             timezone={timezone}
             inside={inside}
             cancelHref={back.href}

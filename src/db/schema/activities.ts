@@ -89,13 +89,17 @@ export const activityContacts = pgTable(
   ],
 );
 
-// One row per thing that happened to a record: activities, and materials sent (whose
-// kind is the channel, title the material and version, and body the note). Payments
+// One row per thing that happened to a record: activities, materials sent (whose
+// kind is the channel, title the material and version, and body the note) and meetings
+// that have started (whose kind is meeting or all_day, and body the location). Payments
 // join the union when their table exists, so system events are never copied into the
-// activities table.
+// activities table. An all-day meeting has a date and no zone: noon UTC keeps it on that
+// date in nearly every zone the page turns it into.
 export const timeline = pgView("timeline", {
   ownerId: uuid("owner_id").notNull(),
-  eventType: text("event_type").$type<"activity" | "material_send">().notNull(),
+  eventType: text("event_type")
+    .$type<"activity" | "material_send" | "calendar_event">()
+    .notNull(),
   eventId: uuid("event_id").notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   kind: text("kind").notNull(),
@@ -146,4 +150,26 @@ export const timeline = pgView("timeline", {
   from material_sends s
   join material_versions v on v.id = s.version_id
   join materials m on m.id = v.material_id
+  union all
+  select
+    e.owner_id,
+    'calendar_event'::text as event_type,
+    e.id as event_id,
+    case
+      when e.all_day then (e.starts_on + time '12:00') at time zone 'UTC'
+      else e.starts_at
+    end as occurred_at,
+    case when e.all_day then 'all_day' else 'meeting' end as kind,
+    null::text as direction,
+    e.title,
+    e.location as body,
+    null::text as outcome,
+    e.organization_id,
+    array(
+      select ec.contact_id from calendar_event_contacts ec where ec.event_id = e.id
+    ) as contact_ids,
+    null::uuid as material_id,
+    null::text as status
+  from calendar_events e
+  where e.starts_at <= now() or e.starts_on <= current_date
 `);

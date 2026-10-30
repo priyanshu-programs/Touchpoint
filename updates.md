@@ -1146,3 +1146,11 @@
 - [2026-10-30] /privacy says what Touchpoint keeps of each meeting and when that copy is deleted
 - [2026-10-30] e2e/28-integrations.spec.ts: a seeded connection shows its sync on a phone, and disconnecting removes its meetings
 - [2026-10-30] security.md: a Calendar sync rule; docs/PRD.md sections 8.5 and 11.1: the tables and the sync's rules; plan.md: Step 2 ticked with the owner's choices
+- [2026-10-31] Migration 0037 (not additive, approved with the plan): the timeline view gains a calendar_event branch, so meetings that have started appear on a person's and a company's Activity tab; an all-day meeting sits at noon UTC on its date
+- [2026-10-31] src/modules/integrations/meetings.ts: getMeeting and meetingsBetween, filtered by owner, with the owner's days worked out in code; unit tests for the view, paging, zones and owner isolation
+- [2026-10-31] src/app/(app)/page.tsx: a Meetings card on Today for today and the next 6 days, shown once Google is connected; Recent activity leaves meetings out through a withoutMeetings option on listTimeline
+- [2026-10-31] Activity tab: a meeting's entry shows a Meeting badge, All day where so, and opens in the panel (event= on both lists, findEntry and EntryPanel)
+- [2026-10-31] /meetings/<id> and the panel share MeetingDetails: when, where, company, people and guests as plain text, with Open in Google Calendar, Join meeting and, once it has started, Log notes
+- [2026-10-31] Log notes: NewActivity fills in the type, time, title, people and company from the meeting, in a panel (activity=new&event=) and on /activities/new?event=; nothing is kept until it is saved
+- [2026-10-31] e2e/30-meetings.spec.ts: the card, the Activity tab and the panel on a desktop and a phone, Log notes filled in and saved, a missing meeting opening nothing
+- [2026-10-31] security.md: a Meetings rule; docs/PRD.md: the timeline includes meetings; plan.md: Step 3 and the public pages' item ticked
