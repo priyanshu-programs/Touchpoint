@@ -14,6 +14,13 @@ const schema = z.object({
   TAVILY_API_KEY: z.string().min(1).optional(),
   // Without it, Google's client secret and tokens cannot be stored, so Connect is not offered.
   APP_ENCRYPTION_KEY: z.string().min(32).optional(),
+  // The token Google Search Console gives for its HTML-tag check, shown on every page.
+  GOOGLE_SITE_VERIFICATION: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{1,100}$/)
+    .optional(),
+  // Shown on the public privacy page; without it the page names no address.
+  CONTACT_EMAIL: z.email().optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -32,6 +39,8 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     // Left blank in an env file means not set.
     TAVILY_API_KEY: source.TAVILY_API_KEY || undefined,
     APP_ENCRYPTION_KEY: source.APP_ENCRYPTION_KEY || undefined,
+    GOOGLE_SITE_VERIFICATION: source.GOOGLE_SITE_VERIFICATION || undefined,
+    CONTACT_EMAIL: source.CONTACT_EMAIL || undefined,
   });
   if (!result.success) {
     // Names only: the values may be secrets.
