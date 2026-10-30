@@ -14,7 +14,11 @@ import { GoogleApiError } from "@/integrations/google/oauth";
 import { FREE_MAIL_DOMAINS } from "@/lib/free-mail";
 import { logger } from "@/lib/logger";
 import { enqueue, type ClaimedJob } from "@/modules/jobs/service";
-import { ConnectionUnavailableError, googleAccessToken } from "./service";
+import {
+  ACCESS_NOT_ACCEPTED,
+  ConnectionUnavailableError,
+  googleAccessToken,
+} from "./service";
 
 export const CALENDAR_SYNC_JOB = "calendar.sync";
 const DAY_MS = 24 * 60 * 60_000;
@@ -251,7 +255,17 @@ function problemWith(error: unknown) {
   if (error instanceof GoogleApiError && error.status === 403) {
     return "Google refused to show your calendar. Check that the Google Calendar API is enabled in your Google Cloud project.";
   }
+  if (error instanceof GoogleApiError && error.status === 401) return ACCESS_NOT_ACCEPTED;
   return "Google could not be reached on the last try.";
+}
+
+async function readCalendar(connection: Connection, token: string, full: boolean) {
+  try {
+    await runSync(connection, token, full);
+  } catch (error) {
+    if (!(error instanceof SyncTokenExpiredError)) throw error;
+    await runSync(connection, token, true);
+  }
 }
 
 // Throws what can be tried again; a connection the owner has to fix just stops here,
@@ -269,10 +283,16 @@ export async function syncCalendar(ownerId: string) {
       !connection.lastFullSyncAt ||
       Date.now() - connection.lastFullSyncAt.getTime() >= FULL_SYNC_EVERY_MS;
     try {
-      await runSync(connection, token, dueFull);
+      await readCalendar(connection, token, dueFull);
     } catch (error) {
-      if (!(error instanceof SyncTokenExpiredError)) throw error;
-      await runSync(connection, token, true);
+      if (!(error instanceof GoogleApiError && error.status === 401)) throw error;
+      // Google has turned down a token it issued seconds earlier, so its expiry date
+      // doesn't settle it: ask for a new one, once.
+      await readCalendar(
+        connection,
+        await googleAccessToken(ownerId, { force: true }),
+        dueFull,
+      );
     }
     return true;
   } catch (error) {

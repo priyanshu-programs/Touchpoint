@@ -358,6 +358,39 @@ describe("syncing the calendar", () => {
     expect((await connection(ownerId)).syncCursor).toBeNull();
   });
 
+  it("asks for a new token when Google turns one down, and syncs", async () => {
+    oauth.refreshAccess.mockResolvedValueOnce({
+      accessToken: "ya29.fresh",
+      expiresAt: inDays(1),
+      scopes: [CALENDAR_READ],
+    });
+    google.listEvents
+      .mockRejectedValueOnce(new GoogleApiError(401))
+      .mockResolvedValueOnce(answer([event("a")]));
+    await syncCalendar(ownerId);
+    expect(google.listEvents.mock.lastCall?.[0]).toBe("ya29.fresh");
+    expect(await titles(ownerId)).toEqual(["Meeting a"]);
+    expect((await connection(ownerId)).lastError).toBeNull();
+  });
+
+  it("says so when Google turns down the new token too, and asks only once", async () => {
+    oauth.refreshAccess.mockResolvedValueOnce({
+      accessToken: "ya29.fresh",
+      expiresAt: inDays(1),
+      scopes: [CALENDAR_READ],
+    });
+    google.listEvents
+      .mockRejectedValueOnce(new GoogleApiError(401))
+      .mockRejectedValueOnce(new GoogleApiError(401));
+    await expect(syncCalendar(ownerId)).rejects.toThrow("401");
+    expect(oauth.refreshAccess).toHaveBeenCalledTimes(1);
+    const row = await connection(ownerId);
+    expect(row.status).toBe("connected");
+    expect(row.lastError).toBe(
+      "Google didn't accept this connection's access. Press Test connection, or disconnect and connect again.",
+    );
+  });
+
   it("says what went wrong in its own words, and tries again", async () => {
     google.listEvents.mockRejectedValueOnce(new GoogleApiError(403));
     await expect(syncCalendar(ownerId)).rejects.toThrow();
