@@ -404,7 +404,7 @@ Built so far (migration 0026): `materials` (name as citext, unique per owner; ty
 | `ai_conversations` | title, context_entity | |
 | `ai_messages` | conversation_id, role, parts, provider, model, token counts | |
 | `ai_tool_executions` | tool_name, input, risk_tier, status (proposed/approved/denied/executed/failed), result, error | The traceable record of every AI action |
-| `ai_memories` | scope (preference/business/contact/organization/engagement), subject, content, created_by (user/ai_proposed), status | Listed, editable and deletable in settings |
+| `ai_memories` | scope (preference/business/contact/organization), contact_id and organization_id (foreign keys that delete with the record), content, search terms, created_by (user/ai), status (active/awaiting confirmation) | Listed, editable and deletable in settings. The engagement scope waits with Engagements |
 | `embeddings` | entity_type, entity_id, chunk, content, embedding, model | Added in the later semantic-search release |
 
 ---
@@ -486,11 +486,13 @@ Step 3 is not explicitly documented by Google for restricted scopes, so the firs
 | Scope | Class | Enables |
 |---|---|---|
 | `gmail.readonly` | Restricted | Read and search threads |
-| `gmail.send` | Sensitive | Send approved drafts |
+| `gmail.compose` | Restricted | Save drafts in Gmail and send them after confirmation (Phase 6 plan, 2026-10-31, in place of `gmail.send`) |
 | `calendar.readonly` | Sensitive | Read events, detect conflicts |
-| `calendar.events` | Sensitive | Create meetings after confirmation. Asked for only by Allow scheduling; Touchpoint never changes or deletes an event |
+| `calendar.events` | Sensitive | Create meetings after confirmation. Asked for only by Allow scheduling. Touchpoint doesn't change or delete an event until Phase 6 step 3, which adds both behind confirmation |
 
-Drafts are stored in Touchpoint, which avoids the restricted `gmail.compose` scope.
+Drafts are saved in Gmail, so the owner can finish them there. Reading mail already needs a restricted scope, so `gmail.compose` adds no new kind of Google review for a personal client. Gmail has no official way to read templates: Phase 6 step 6 tests whether they appear among drafts, and otherwise adds an Email template type to Materials.
+
+**Phase 6 plan (2026-10-31), in place of Sync and Matching below where they differ.** The assistant reads Gmail on request. Nothing is copied from Gmail except what the owner chooses to save to a record, so there's no sync job and threads aren't stored by contact.
 
 **Sync.** The mailbox is not mirrored. For each known contact email address, matching threads are fetched; afterwards the Gmail history cursor gives incremental changes on each sync job. Bodies are stored as size-capped plain text; attachments as metadata only.
 
@@ -522,26 +524,30 @@ Interface: `enrich(input) → candidates[{field, value, source, confidence}]`.
 
 ## 12. AI assistant (v0.3)
 
-**Provider layer.** The AI SDK gives one interface over Anthropic, OpenAI, Google and OpenAI-compatible endpoints such as Ollama. The user picks provider and model in settings and supplies a key. With no provider configured, the assistant UI explains how to add one and the rest of the app is unaffected.
+**Provider layer.** One agent holding every tool, on the Vercel AI SDK, with helper model calls only for reading a lot of raw material. The default is free models through OpenRouter, a main model, a helper and a backup, each a setting, chosen by a test of about 20 real requests; any other provider the AI SDK supports stays possible for self-hosters. The person setting it up supplies a key, stored sealed. With no provider configured, the assistant UI explains how to add one and the rest of the app is unaffected.
+
+**The free limit.** OpenRouter allows 50 free requests a day, so one-tap buttons and the morning brief run existing queries with no model call, each request loads only the tools its words call for, a question takes at most 5 model steps, a confirmed action needs no further call, and the panel shows what is left today.
+
+**Who decides about data use.** Free models may keep or train on what they receive. Settings shows what is known about the chosen model, and the person setting it up decides. Before any email text can reach a model they tick an acknowledgement that the provider may keep or train on it and that this may break Google's rules on Gmail data.
 
 **Tools and permission tiers.** Enforcement is in server code, not in the prompt.
 
 | Tier | Examples | Behaviour |
 |---|---|---|
 | 0 Read | search contacts, get timeline, list tasks, revenue summary, pipeline summary, search materials, search emails, read calendar | Runs automatically |
-| 1 Small internal write | create task, add note, save email draft, propose memory | Runs, shows a card with undo, logged |
+| 1 Small internal write | create task, add note, save email draft, save memory | Runs, shows a card with undo, logged |
 | 2 Consequential internal write | move stage, change opportunity value or status, record payment, edit contact fields, archive | Shows a before/after preview, needs confirmation |
-| 3 External | send email, create or change calendar event | Always needs explicit confirmation |
+| 3 External | send email, create, change or cancel a calendar event | Always needs explicit confirmation |
 
 Approval is a server action tied to the `ai_tool_executions` row; the model cannot approve its own call.
 
 **Grounding.** Financial answers come from the same SQL functions as the dashboard, never from model arithmetic. Answers link to the records used. If a tool fails, the failure is reported as a failure.
 
-**Untrusted content.** Email bodies, attachments and fetched web pages are passed to the model as labelled data. Once a conversation has read such content, tier 1 actions also require confirmation for the rest of that conversation. No tool can read secrets or tokens.
+**Untrusted content.** Email bodies, attachments, fetched web pages and calendar text are passed to the model as labelled data. Once a conversation has read such content, tier 1 actions also require confirmation for the rest of that conversation, except a Gmail draft, which keeps its undo card because nothing leaves the account and the card shows recipient and subject. Replies are plain text with links built only by the server from tool results, and no outside images. No tool can read secrets or tokens.
 
-**Memory.** Five kinds: preferences, business context, contact or organization context, engagement context, and short-term conversation state (the message history). The assistant may propose a long-term memory; it is saved only when accepted. Settings has a Memory page to view, edit and delete. Emails are never bulk-stored as memory.
+**Memory.** Kinds: preferences, business context, contact or organization context, and short-term conversation state (the message history). The assistant saves long-term memories on its own, showing "I remembered X" with undo; after untrusted content it asks first. Settings has a Memory page to view, edit and delete. A nightly job merges duplicates, only when there are 10 or more new memories, and logs what it changes. Emails are never bulk-stored as memory, and conversations keep message ids and summaries, not email bodies.
 
-**Retrieval.** Full-text search first. Embeddings with pgvector are added only if an embedding provider is configured.
+**Retrieval.** In order: an "about you" profile always included, memories on the record by its id, then Postgres full-text and fuzzy search, none of which uses a model request. Embeddings with pgvector are added to the same table only if the test set's memory questions keep missing.
 
 ---
 
@@ -621,7 +627,7 @@ Each phase gets a detailed implementation plan when it starts. Outline:
 | 3 Core business | Contacts, organizations, search, timeline, opportunities, workflows (editor, instances, board), engagements, tasks and reminders, materials | Journeys 2–6 and 8 pass end to end; editing one instance leaves the template and others unchanged |
 | 4 Revenue and reports | Invoices, payments, allocations, dashboard, reports, filters | Journey 7 and 9 pass; financial test suite green; every dashboard number drills down to rows |
 | 5 Integrations | Google OAuth and Calendar: sync, meetings on Today and the Activity tab, a Calendar view, scheduling a meeting (Gmail moved to phase 6, owner's choice, 2026-10-29) | Token survives 8+ days; revoked token shows expired state; a meeting is recorded only with a Google event ID; journey 3 shows meetings on Today |
-| 6 AI | Chat, tools, tiers, memory, briefings | The PRD's example questions answered from real rows with links; tier 3 never runs unconfirmed |
+| 6 AI | Chat, tools, tiers, memory, Gmail reading, drafts and sending, briefings | The PRD's example questions answered from real rows with links; tier 3 never runs unconfirmed |
 | 7 Open-source readiness | Compose file, `.env.example`, docs, backup/restore, licence | A second person deploys from the README alone |
 | 8 Validation | Accessibility, responsive, error states, data integrity pass | No broken journeys; no dead buttons |
 
@@ -644,6 +650,7 @@ Dependencies: workflows need opportunities and tasks; revenue reports need invoi
 | Vercel Hobby terms | Stated plainly in docs; option A or C avoids it |
 | Workflow editor complexity | A maintained whiteboard component (Excalidraw) instead of an editor of our own |
 | Version claims from secondary sources (Drizzle, AI SDK) | Pin from official docs at scaffold time |
-| Free AI tiers and client privacy | Assistant is off by default; onboarding states what each provider does with data |
+| Free AI tiers and client privacy | Assistant is off by default; Settings states what is known about the chosen model's data use, and an acknowledgement is required before email text reaches a model. Nothing forces a no-training model, so the risk, including under Google's rules on Gmail data, sits with whoever sets it up |
+| Free models may not call tools reliably, and can disappear | Phase 6 step 1's test decides before anything is built on them; the model is a setting with a backup |
 
 Open question for the owner: licence choice before phase 7.

@@ -1185,3 +1185,9 @@
 - [2026-10-31] security.md: a rule for the fake server and the recording script; docs/PRD.md: where they live
 - [2026-10-31] plan.md: Step 6 ticked as built, and the Phase 5 close-out waits on the checklist, 2026-11-08 at the earliest
 - [2026-10-31] Schedule meeting form: a press Google didn't answer stays on the confirmation with the reason, because "press Schedule again" named a button the form had taken away, found by e2e/33
+- [2026-10-31] plan.md: Phase 6 (the assistant) planned with the owner as seven steps, none started; the plan and its choices recorded under its own heading
+- [2026-10-31] docs/PRD.md: section 12 describes one agent, free OpenRouter models under the 50-a-day limit, memories saved with undo and retrieval from Postgres, as the owner chose in place of approval for every memory and the Gemini and Ollama defaults
+- [2026-10-31] docs/PRD.md: section 11 has the assistant read Gmail on request and save drafts in Gmail with gmail.compose in place of gmail.send, and notes that Gmail has no official way to read templates
+- [2026-10-31] docs/PRD.md: `ai_memories` columns and sections 16 and 17 updated, with free models that may not call tools reliably named as a risk
+- [2026-10-31] security.md: planned rules for email text and free models (a known conflict with Google's data policy, left to the person setting the app up by the owner's choice) and for the assistant's handling of outside text
+- [2026-10-31] Added a trail learning: whoever sets up Touchpoint decides whether a model may train on email text, after a required acknowledgement, and what was ruled out
