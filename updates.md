@@ -1158,3 +1158,8 @@
 - [2026-10-31] Settings → Integrations: a 401 that survives the retry, or one on Test connection, says Google didn't accept the access and what to do, in place of "could not be reached"; tests for both
 - [2026-10-31] Vercel: Preview gets its own DATABASE_URL on the Neon preview branch, set by the owner; a test build moved that branch from 35 to 37 migrations and left production at 37
 - [2026-10-31] security.md: the Preview deployments rule says what is true: one shared preview branch, and AUTH_SECRET and CRON_SECRET still shared with production until the owner separates them
+- [2026-10-31] src/lib/time.ts: startOfWeek, the first day of a date's week from the owner's "Week starts on"; tests
+- [2026-10-31] src/modules/integrations/meetings.ts: meetingsBetween takes an optional limit (Today's stays 20) and returns endsOn, so a view can place an all-day meeting on each of its days; tests
+- [2026-10-31] /tasks/calendar and a Calendar tab under Tasks: a week of open tasks and meetings by the owner's days, in the address as ?week=, each entry opening its own page; on a phone a list of the days that have something
+- [2026-10-31] e2e/31-calendar.spec.ts: the week on a desktop and a phone, moving between weeks, entries opening, a bad address, and without Google; e2e/03-tasks.spec.ts: the phone check includes the Calendar tab
+- [2026-10-31] security.md: a Calendar view rule; docs/PRD.md: the Tasks row says what Calendar is; plan.md: Step 4 ticked

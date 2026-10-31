@@ -6,6 +6,7 @@ import {
   formatDate,
   formatTime,
   fromLocalInput,
+  startOfWeek,
   toLocalInput,
 } from "./time";
 
@@ -65,6 +66,22 @@ describe("calendar dates", () => {
   it("counts days between two dates, negative when the second is earlier", () => {
     expect(daysBetween("2026-10-11", "2026-10-14")).toBe(3);
     expect(daysBetween("2026-10-11", "2026-10-10")).toBe(-1);
+  });
+
+  it("finds the start of the week from the owner's first day", () => {
+    expect(startOfWeek("2026-10-14", 1)).toBe("2026-10-12");
+    expect(startOfWeek("2026-10-14", 0)).toBe("2026-10-11");
+    expect(startOfWeek("2026-10-14", 6)).toBe("2026-10-10");
+  });
+
+  it("leaves a date that already starts the week", () => {
+    expect(startOfWeek("2026-10-12", 1)).toBe("2026-10-12");
+    expect(startOfWeek("2026-10-11", 0)).toBe("2026-10-11");
+  });
+
+  it("finds the start of the week across month and year ends", () => {
+    expect(startOfWeek("2026-11-01", 1)).toBe("2026-10-26");
+    expect(startOfWeek("2027-01-01", 1)).toBe("2026-12-28");
   });
 
   it("formats a date without shifting it", () => {
