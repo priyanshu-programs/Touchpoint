@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { calendarEvents, integrationClients, integrationConnections } from "@/db/schema";
 import {
   CALENDAR_READ,
+  CALENDAR_WRITE,
   consentUrl,
   exchangeCode,
   GoogleApiError,
@@ -166,9 +167,13 @@ export async function removeGoogleClient(ownerId: string) {
 }
 
 // Null when there is no client to connect with.
-export async function startGoogleConnect(ownerId: string) {
+export async function startGoogleConnect(
+  ownerId: string,
+  { scheduling = false }: { scheduling?: boolean } = {},
+) {
   const client = await openClient(ownerId);
-  return client ? consentUrl(client, [CALENDAR_READ]) : null;
+  if (!client) return null;
+  return consentUrl(client, scheduling ? [CALENDAR_READ, CALENDAR_WRITE] : [CALENDAR_READ]);
 }
 
 export type ConnectRefusal = "no_client" | "calendar_not_granted" | "incomplete";
@@ -177,7 +182,7 @@ export async function completeGoogleConnect(
   ownerId: string,
   code: string,
   verifier: string,
-): Promise<{ ok: true } | { ok: false; reason: ConnectRefusal }> {
+): Promise<{ ok: true; canSchedule: boolean } | { ok: false; reason: ConnectRefusal }> {
   const client = await openClient(ownerId);
   if (!client) return { ok: false, reason: "no_client" };
   const granted = await exchangeCode(client, code, verifier);
@@ -237,7 +242,7 @@ export async function completeGoogleConnect(
       after: { provider: GOOGLE, accountEmail: email, scopes: granted.scopes },
     });
   });
-  return { ok: true };
+  return { ok: true, canSchedule: granted.scopes.includes(CALENDAR_WRITE) };
 }
 
 async function markUnavailable(

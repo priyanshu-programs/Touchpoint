@@ -7,6 +7,7 @@ import {
 } from "arctic";
 
 export const CALENDAR_READ = "https://www.googleapis.com/auth/calendar.readonly";
+export const CALENDAR_WRITE = "https://www.googleapis.com/auth/calendar.events";
 // Who connected, read from the id token Google's own token endpoint returns.
 const IDENTITY = ["openid", "email"];
 

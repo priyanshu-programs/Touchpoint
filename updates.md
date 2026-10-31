@@ -1163,3 +1163,14 @@
 - [2026-10-31] /tasks/calendar and a Calendar tab under Tasks: a week of open tasks and meetings by the owner's days, in the address as ?week=, each entry opening its own page; on a phone a list of the days that have something
 - [2026-10-31] e2e/31-calendar.spec.ts: the week on a desktop and a phone, moving between weeks, entries opening, a bad address, and without Google; e2e/03-tasks.spec.ts: the phone check includes the Calendar tab
 - [2026-10-31] security.md: a Calendar view rule; docs/PRD.md: the Tasks row says what Calendar is; plan.md: Step 4 ticked
+- [2026-10-31] .claude/skills/security-audit: added Cloudflare's security-audit skill (c1c8a8c) for local security reviews; left untracked
+- [2026-10-31] src/integrations/google/oauth.ts and calendar.ts: the calendar.events permission and insertEvent, with the form's key as Google's event id so a form sent twice makes one meeting; tests with fetch stubbed
+- [2026-10-31] Connect and callback routes: ?for=scheduling asks Google for calendar.events as well, and the state cookie remembers it; declining keeps the read connection and revokes nothing
+- [2026-10-31] src/modules/integrations/calendar.ts: upsertMeetings split out of writePage, so a scheduled meeting and a synced one share one copy
+- [2026-10-31] src/modules/integrations/schema.ts and scheduling.ts: meetingInput, schedulingState, checkMeeting, meetingSummary and scheduleMeeting; tests for each refusal, the 401 retry, the second send, a disconnect during the call and the audit row
+- [2026-10-31] Schedule meeting form (src/app/(app)/meetings): checks first, shows what Google will do, and calls Google only on the second press; the boxes for emailing guests and a Meet link start on, at the owner's choice
+- [2026-10-31] Schedule meeting beside Log activity on a person's and a company's Activity tab (schedule=new in the panel) and on the Calendar tab (/meetings/new), once Google is connected
+- [2026-10-31] Settings → Integrations: Allow scheduling, its two outcomes, what's allowed, and a setup step for adding calendar.events under Data Access
+- [2026-10-31] /privacy: names calendar.events and what Touchpoint sends to Google when it schedules
+- [2026-10-31] e2e/32-schedule-meeting.spec.ts: the button's states, the form and its sentence on a desktop and a phone, each refusal; the created meeting itself waits for Step 6's fake Google server
+- [2026-10-31] security.md: a Scheduling a meeting rule and the Connecting Google rule corrected; docs/PRD.md: calendar.events; plan.md: Step 5 ticked

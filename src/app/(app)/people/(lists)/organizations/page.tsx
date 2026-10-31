@@ -81,6 +81,7 @@ const NO_ENTRY = {
   activity: undefined,
   task: undefined,
   send: undefined,
+  schedule: undefined,
   event: undefined,
   merge: undefined,
 };

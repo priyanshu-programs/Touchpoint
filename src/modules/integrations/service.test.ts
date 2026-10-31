@@ -180,7 +180,7 @@ describe("connecting", () => {
   it("stores the tokens sealed and audits who connected, never the tokens", async () => {
     await saveGoogleClient(ownerId, CLIENT);
     google.exchangeCode.mockResolvedValueOnce(granted());
-    expect(await completeGoogleConnect(ownerId, "code", "verifier")).toEqual({ ok: true });
+    expect(await completeGoogleConnect(ownerId, "code", "verifier")).toEqual({ ok: true, canSchedule: false });
     expect(google.exchangeCode).toHaveBeenCalledWith(
       expect.objectContaining({ clientSecret: CLIENT.clientSecret }),
       "code",

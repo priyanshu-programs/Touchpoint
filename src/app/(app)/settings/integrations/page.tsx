@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { db } from "@/db/client";
 import type { ConnectionStatus } from "@/db/schema";
-import { CALENDAR_READ } from "@/integrations/google/oauth";
+import { CALENDAR_READ, CALENDAR_WRITE } from "@/integrations/google/oauth";
 import { canEncrypt } from "@/lib/crypto";
 import { env } from "@/lib/env";
 import { requireOwner } from "@/lib/session";
@@ -30,6 +30,15 @@ export const metadata: Metadata = { title: "Integrations" };
 // Where Google's redirect sends the owner back, by the outcome the callback names.
 const OUTCOMES: Record<string, { ok: boolean; message: string }> = {
   connected: { ok: true, message: "Google Calendar is connected." },
+  scheduling_allowed: {
+    ok: true,
+    message: "You can now schedule meetings from Touchpoint.",
+  },
+  scheduling_not_granted: {
+    ok: false,
+    message:
+      "Google didn't allow adding meetings, so Touchpoint can still only read your calendar. To change that, press Allow scheduling and leave the box ticked.",
+  },
   denied: {
     ok: false,
     message: "You chose not to allow access at Google, so nothing was connected.",
@@ -73,6 +82,7 @@ const STATUS: Record<
 
 const SCOPE_WORDS: Record<string, string> = {
   [CALENDAR_READ]: "See your calendar events",
+  [CALENDAR_WRITE]: "Add meetings to your calendar",
   "https://www.googleapis.com/auth/userinfo.email": "See your email address",
 };
 
@@ -176,7 +186,26 @@ export default async function IntegrationsPage({
                 </p>
               )}
               {connection.status === "connected" ? (
-                <AccountActions email={connection.accountEmail} />
+                <>
+                  {!connection.scopes.includes(CALENDAR_WRITE) && canConnect && (
+                    <div className="grid gap-2">
+                      <p>
+                        Touchpoint can only read your calendar for now. Allow scheduling to add
+                        meetings from here; it adds one only after you confirm it.
+                      </p>
+                      <a
+                        href="/api/integrations/google/connect?for=scheduling"
+                        className={buttonVariants({
+                          variant: "outline",
+                          className: "justify-self-start",
+                        })}
+                      >
+                        Allow scheduling
+                      </a>
+                    </div>
+                  )}
+                  <AccountActions email={connection.accountEmail} />
+                </>
               ) : (
                 <div className="grid gap-3">
                   <p role="alert" className="text-destructive">
@@ -288,6 +317,11 @@ export default async function IntegrationsPage({
               </span>
             </li>
             <li>Paste the client ID and secret under Your Google client, then connect.</li>
+            <li>
+              To schedule meetings from Touchpoint, add{" "}
+              <span className="font-mono break-all">{CALENDAR_WRITE}</span> under Data Access, then
+              press Allow scheduling above.
+            </li>
           </ol>
         </CardContent>
       </Card>

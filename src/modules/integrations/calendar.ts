@@ -9,6 +9,7 @@ import {
   listEvents,
   SyncTokenExpiredError,
   type ListedEvent,
+  type Meeting,
 } from "@/integrations/google/calendar";
 import { GoogleApiError } from "@/integrations/google/oauth";
 import { FREE_MAIL_DOMAINS } from "@/lib/free-mail";
@@ -23,7 +24,7 @@ import {
 export const CALENDAR_SYNC_JOB = "calendar.sync";
 const DAY_MS = 24 * 60 * 60_000;
 const WINDOW_BACK_MS = 30 * DAY_MS;
-const WINDOW_AHEAD_MS = 90 * DAY_MS;
+export const WINDOW_AHEAD_MS = 90 * DAY_MS;
 // A sync token never reports an old recurring meeting that has just come within the
 // window, so the window is read whole once a day. That also repairs a missed deletion.
 const FULL_SYNC_EVERY_MS = DAY_MS;
@@ -33,14 +34,14 @@ const SYNC_NOW_GAP_MS = 60_000;
 type Connection = typeof integrationConnections.$inferSelect;
 type SyncWindow = { from: Date; to: Date };
 
-const ownConnection = (ownerId: string) =>
+export const ownConnection = (ownerId: string) =>
   and(
     eq(integrationConnections.ownerId, ownerId),
     eq(integrationConnections.provider, "google"),
   );
 
 // Taken first in every write, so a disconnect during a sync can't bring meetings back.
-async function stillConnected(tx: Tx, connection: Connection) {
+export async function stillConnected(tx: Tx, connection: Connection) {
   const [row] = await tx
     .select({ id: integrationConnections.id })
     .from(integrationConnections)
@@ -53,6 +54,43 @@ async function stillConnected(tx: Tx, connection: Connection) {
     )
     .for("update");
   return Boolean(row);
+}
+
+// One copy per Google id, whichever of sync and scheduling gets there first.
+export async function upsertMeetings(
+  tx: Tx,
+  connection: Connection,
+  meetings: { externalId: string; meeting: Meeting }[],
+) {
+  if (meetings.length === 0) return [];
+  return tx
+    .insert(calendarEvents)
+    .values(
+      meetings.map(({ externalId, meeting }) => ({
+        ownerId: connection.ownerId,
+        connectionId: connection.id,
+        externalId,
+        ...meeting,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [calendarEvents.connectionId, calendarEvents.externalId],
+      set: {
+        title: sql`excluded.title`,
+        location: sql`excluded.location`,
+        meetingUrl: sql`excluded.meeting_url`,
+        htmlLink: sql`excluded.html_link`,
+        allDay: sql`excluded.all_day`,
+        startsAt: sql`excluded.starts_at`,
+        endsAt: sql`excluded.ends_at`,
+        startsOn: sql`excluded.starts_on`,
+        endsOn: sql`excluded.ends_on`,
+        timezone: sql`excluded.timezone`,
+        attendees: sql`excluded.attendees`,
+        updatedAt: new Date(),
+      },
+    })
+    .returning({ id: calendarEvents.id });
 }
 
 async function writePage(
@@ -85,35 +123,7 @@ async function writePage(
           ),
         );
     }
-    if (kept.length > 0) {
-      await tx
-        .insert(calendarEvents)
-        .values(
-          kept.map(({ externalId, meeting }) => ({
-            ownerId: connection.ownerId,
-            connectionId: connection.id,
-            externalId,
-            ...meeting,
-          })),
-        )
-        .onConflictDoUpdate({
-          target: [calendarEvents.connectionId, calendarEvents.externalId],
-          set: {
-            title: sql`excluded.title`,
-            location: sql`excluded.location`,
-            meetingUrl: sql`excluded.meeting_url`,
-            htmlLink: sql`excluded.html_link`,
-            allDay: sql`excluded.all_day`,
-            startsAt: sql`excluded.starts_at`,
-            endsAt: sql`excluded.ends_at`,
-            startsOn: sql`excluded.starts_on`,
-            endsOn: sql`excluded.ends_on`,
-            timezone: sql`excluded.timezone`,
-            attendees: sql`excluded.attendees`,
-            updatedAt: new Date(),
-          },
-        });
-    }
+    await upsertMeetings(tx, connection, kept);
     return true;
   });
 }

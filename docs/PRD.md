@@ -488,7 +488,7 @@ Step 3 is not explicitly documented by Google for restricted scopes, so the firs
 | `gmail.readonly` | Restricted | Read and search threads |
 | `gmail.send` | Sensitive | Send approved drafts |
 | `calendar.readonly` | Sensitive | Read events, detect conflicts |
-| `calendar.events` | Sensitive | Create meetings after confirmation |
+| `calendar.events` | Sensitive | Create meetings after confirmation. Asked for only by Allow scheduling; Touchpoint never changes or deletes an event |
 
 Drafts are stored in Touchpoint, which avoids the restricted `gmail.compose` scope.
 
