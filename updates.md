@@ -1190,3 +1190,4 @@
 - [2026-10-31] docs/PRD.md: section 11 has the assistant read Gmail on request and save drafts in Gmail with gmail.compose in place of gmail.send, and notes that Gmail has no official way to read templates
 - [2026-10-31] docs/PRD.md: `ai_memories` columns and sections 16 and 17 updated, with free models that may not call tools reliably named as a risk
 - [2026-10-31] security.md: planned rules for email text and free models (a known conflict with Google's data policy, left to the person setting the app up by the owner's choice) and for the assistant's handling of outside text
+- [2026-10-31] Added a trail learning: whoever sets up Touchpoint decides whether a model may train on email text, after a required acknowledgement, and what was ruled out
