@@ -134,6 +134,7 @@ export function ScheduleForm({
           <p role="status" className="rounded-lg border p-4 text-sm break-words">
             {state?.confirm}
           </p>
+          {state?.message && <FormOutcome state={state} />}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" name="confirmed" value="yes" disabled={pending}>
               {pending ? "Scheduling…" : "Schedule"}

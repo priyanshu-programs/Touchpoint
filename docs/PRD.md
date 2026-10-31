@@ -606,7 +606,7 @@ Known trade-offs accepted with this choice:
 - **Unit (Vitest):** money maths and allocation limits, duplicate-payment guard, revenue definitions, workflow stage order and save rules, template and copy isolation, recurrence, time-zone handling, encryption round-trip, AI tier policy. `pnpm test:money` runs the financial suite on its own: money maths, invoices, payments (two at once included), revenue and reports (2026-10-29).
 - **Integration (Vitest + real Postgres):** every module service, owner scoping, migrations from empty.
 - **End to end (Playwright):** the ten journeys in section 5, on desktop and mobile widths. Journeys 2, 3, 4 and 8 are in `e2e/22-journeys.spec.ts`, each told as one story at 1280 px and at 390 px (2026-10-26), and journeys 7 and 9 since 2026-10-29; the others join it with the phases that build them.
-- **Integrations:** adapters tested against recorded fixtures; one manual checklist against a real Google account. Nothing is reported as working without a real run.
+- **Integrations:** adapters tested against recorded fixtures (`src/integrations/google/fixtures`, each marked recorded or documented, recorded and scrubbed by `pnpm fixtures:google`); connect, sync, journey 3 with meetings, scheduling and a revoked token run end to end against a fake Google server (`e2e/33-google.spec.ts`, `e2e/fake-google`); one manual checklist against a real Google account (`docs/GOOGLE-CHECKLIST.md`). Nothing is reported as working without a real run.
 
 ---
 

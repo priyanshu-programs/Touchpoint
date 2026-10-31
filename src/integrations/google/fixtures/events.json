@@ -1,0 +1,108 @@
+{
+  "source": "documented",
+  "note": "Written from Google Calendar's API reference until `pnpm fixtures:google` records real answers.",
+  "timed": {
+    "kind": "calendar#event",
+    "etag": "\"3421000000000000\"",
+    "id": "redacted1",
+    "status": "confirmed",
+    "htmlLink": "https://www.google.com/calendar/event?eid=redacted2",
+    "created": "2030-01-07T00:00:00.000Z",
+    "updated": "2030-01-07T00:10:00.000Z",
+    "summary": "redacted-3",
+    "description": "redacted-4",
+    "location": "redacted-5",
+    "creator": { "email": "person1@example.test", "self": true },
+    "organizer": { "email": "person1@example.test", "self": true },
+    "start": { "dateTime": "2030-01-08T10:00:00+05:30", "timeZone": "Asia/Kolkata" },
+    "end": { "dateTime": "2030-01-08T10:30:00+05:30", "timeZone": "Asia/Kolkata" },
+    "iCalUID": "redacted6@google.com",
+    "sequence": 0,
+    "attendees": [
+      { "email": "person1@example.test", "organizer": true, "self": true, "responseStatus": "accepted" },
+      { "email": "person2@example.test", "displayName": "redacted-7", "responseStatus": "needsAction" },
+      { "email": "redacted8@resource.calendar.google.com", "resource": true, "responseStatus": "accepted" }
+    ],
+    "reminders": { "useDefault": true },
+    "eventType": "default"
+  },
+  "allDay": {
+    "kind": "calendar#event",
+    "id": "redacted9",
+    "status": "confirmed",
+    "htmlLink": "https://www.google.com/calendar/event?eid=redacted10",
+    "summary": "redacted-11",
+    "start": { "date": "2030-01-09" },
+    "end": { "date": "2030-01-10" },
+    "eventType": "default"
+  },
+  "withMeet": {
+    "kind": "calendar#event",
+    "id": "redacted12",
+    "status": "confirmed",
+    "htmlLink": "https://www.google.com/calendar/event?eid=redacted13",
+    "summary": "redacted-14",
+    "start": { "dateTime": "2030-01-08T15:00:00+05:30", "timeZone": "Asia/Kolkata" },
+    "end": { "dateTime": "2030-01-08T16:00:00+05:30", "timeZone": "Asia/Kolkata" },
+    "hangoutLink": "https://meet.google.com/aaa-bbbb-ccc",
+    "conferenceData": {
+      "entryPoints": [
+        { "entryPointType": "video", "uri": "https://meet.google.com/aaa-bbbb-ccc", "label": "meet.google.com/aaa-bbbb-ccc" },
+        { "entryPointType": "more", "uri": "https://tel.meet/aaa-bbbb-ccc?pin=1", "pin": "1" }
+      ],
+      "conferenceSolution": { "key": { "type": "hangoutsMeet" }, "name": "Google Meet" },
+      "conferenceId": "aaa-bbbb-ccc"
+    },
+    "eventType": "default"
+  },
+  "otherVideo": {
+    "kind": "calendar#event",
+    "id": "redacted15",
+    "status": "confirmed",
+    "summary": "redacted-16",
+    "start": { "dateTime": "2030-01-08T17:00:00+05:30" },
+    "end": { "dateTime": "2030-01-08T18:00:00+05:30" },
+    "conferenceData": {
+      "entryPoints": [{ "entryPointType": "video", "uri": "https://example.test/j/1" }]
+    },
+    "eventType": "default"
+  },
+  "recurringInstance": {
+    "kind": "calendar#event",
+    "id": "redacted17_20300108T043000Z",
+    "status": "confirmed",
+    "summary": "redacted-18",
+    "start": { "dateTime": "2030-01-08T10:00:00+05:30", "timeZone": "Asia/Kolkata" },
+    "end": { "dateTime": "2030-01-08T10:30:00+05:30", "timeZone": "Asia/Kolkata" },
+    "recurringEventId": "redacted17",
+    "originalStartTime": { "dateTime": "2030-01-08T10:00:00+05:30", "timeZone": "Asia/Kolkata" },
+    "eventType": "default"
+  },
+  "cancelled": {
+    "kind": "calendar#event",
+    "id": "redacted19",
+    "status": "cancelled"
+  },
+  "declined": {
+    "kind": "calendar#event",
+    "id": "redacted20",
+    "status": "confirmed",
+    "summary": "redacted-21",
+    "start": { "dateTime": "2030-01-08T12:00:00+05:30" },
+    "end": { "dateTime": "2030-01-08T13:00:00+05:30" },
+    "attendees": [
+      { "email": "person1@example.test", "self": true, "responseStatus": "declined" },
+      { "email": "person2@example.test", "responseStatus": "accepted" }
+    ],
+    "eventType": "default"
+  },
+  "focusTime": {
+    "kind": "calendar#event",
+    "id": "redacted22",
+    "status": "confirmed",
+    "summary": "redacted-23",
+    "start": { "dateTime": "2030-01-08T14:00:00+05:30" },
+    "end": { "dateTime": "2030-01-08T15:00:00+05:30" },
+    "eventType": "focusTime"
+  }
+}
