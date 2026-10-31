@@ -62,7 +62,7 @@ test("the reports split one client's money by month, client and service, and tim
   await expect(page.getByRole("button", { name: "This month" })).toBeVisible();
   reports = page.url();
 
-  const month = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+  const month = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "Asia/Kolkata" }).format(
     new Date(),
   );
   await expect(card(page, "Revenue by month").getByRole("row", { name: new RegExp(month) })).toBeVisible();
