@@ -26,7 +26,9 @@ Delete "Checklist call", "Checklist with Maple" and "Checklist invite" in Google
 | 5 | **Do this last, because it ends the connection.** At https://myaccount.google.com/connections, remove Touchpoint's access. Then, on the live site, open Settings → Integrations and press Test connection or Sync now. | The Expired state, and a banner on every page. Today, Tasks and your records all work, and the meetings are still there. Nothing new arrives from Google. | | |
 | 6 | Press Reconnect and allow access, including adding meetings. | The banner goes, and Sync now works again. | | |
 
-If step 4 fails, Phase 5 isn't accepted. Write down what happened and what the page said. A connection made while the client was still in Testing ends after 7 days, so an expired banner around 2026-11-07 would point there. In that case, reconnect once and start the 8 days again.
+The owner's client is in production, so Google's 7-day limit for apps in Testing shouldn't apply. It's still unverified, and Google doesn't spell out what happens to tokens for an unverified app, which is what step 4 shows.
+
+If step 4 fails, Phase 5 isn't accepted. Write down what happened and what the page said. An expired banner around 2026-11-07 would mean the 7-day limit applies anyway, and Phase 5 then needs a decision on weekly reconnecting or verifying the app. Anyone setting up their own client: a connection made while it was in Testing ends after 7 days, so publish first, reconnect once, and start the 8 days again.
 
 ## Recording Google's answers
 

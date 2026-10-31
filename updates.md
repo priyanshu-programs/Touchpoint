@@ -1191,3 +1191,7 @@
 - [2026-10-31] docs/PRD.md: `ai_memories` columns and sections 16 and 17 updated, with free models that may not call tools reliably named as a risk
 - [2026-10-31] security.md: planned rules for email text and free models (a known conflict with Google's data policy, left to the person setting the app up by the owner's choice) and for the assistant's handling of outside text
 - [2026-10-31] Added a trail learning: whoever sets up Touchpoint decides whether a model may train on email text, after a required acknowledgement, and what was ruled out
+- [2026-10-31] Installed the Blast Radius mod for all projects (outside this repo), patched with absolute paths to Git for Windows because bash and sleep are not on the Windows PATH
+- [2026-11-01] plan.md: Phase 5 records that the owner's Google client is in production and unverified, why the 8-day check still stands, and that the owner chose to finish this phase before any work on Phase 6
+- [2026-11-01] docs/GOOGLE-CHECKLIST.md: the note on step 4 failing no longer assumes the owner's client is in Testing, and says what an expired banner around 2026-11-07 would mean
+- [2026-11-01] Added a trail learning replacing the one on publishing the Google client: the owner's client is in production
