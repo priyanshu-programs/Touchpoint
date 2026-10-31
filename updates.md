@@ -1174,3 +1174,14 @@
 - [2026-10-31] /privacy: names calendar.events and what Touchpoint sends to Google when it schedules
 - [2026-10-31] e2e/32-schedule-meeting.spec.ts: the button's states, the form and its sentence on a desktop and a phone, each refusal; the created meeting itself waits for Step 6's fake Google server
 - [2026-10-31] security.md: a Scheduling a meeting rule and the Connecting Google rule corrected; docs/PRD.md: calendar.events; plan.md: Step 5 ticked
+- [2026-10-31] e2e/fake-google/server.mjs: a stand-in for Google's token and Calendar endpoints on loopback, with control routes for tests, so the real Google code can run end to end
+- [2026-10-31] e2e/fake-google/reroute.mjs and playwright.config.ts: Playwright alone moves the app's Google calls to the fake through NODE_OPTIONS, because an address setting in the app could send tokens elsewhere
+- [2026-10-31] e2e/33-google.spec.ts: connect, sync, journey 3 with meetings, scheduling (a failure, a lost answer) and a revoked token on a desktop and a phone; the created meeting e2e/32 left for this step is now tested
+- [2026-10-31] src/integrations/google/fixtures: Google's answers for each kind of event and call, marked documented until the owner records real ones
+- [2026-10-31] src/integrations/google/fixtures/scrub.ts: an allowlist scrubber for recorded answers, with a test that fails if a planted name, email or unknown field survives, because the repository will be public
+- [2026-10-31] calendar.fixtures.test.ts and oauth.fixtures.test.ts: the adapters tested on those answers, reading what they expect from the files so a recording can replace them
+- [2026-10-31] scripts/record-google-fixtures.ts and pnpm fixtures:google: the owner's one-time recording, reading the calendar and making and deleting one guest-free test event
+- [2026-10-31] docs/GOOGLE-CHECKLIST.md: the manual checklist for the live site, ordered so that removing access comes last and nothing restarts the 8 days
+- [2026-10-31] security.md: a rule for the fake server and the recording script; docs/PRD.md: where they live
+- [2026-10-31] plan.md: Step 6 ticked as built, and the Phase 5 close-out waits on the checklist, 2026-11-08 at the earliest
+- [2026-10-31] Schedule meeting form: a press Google didn't answer stays on the confirmation with the reason, because "press Schedule again" named a button the form had taken away, found by e2e/33

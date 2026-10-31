@@ -17,7 +17,8 @@
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "worker": "tsx --env-file-if-exists=.env.local worker.ts"
+    "worker": "tsx --env-file-if-exists=.env.local worker.ts",
+    "fixtures:google": "tsx --env-file-if-exists=.env.local scripts/record-google-fixtures.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

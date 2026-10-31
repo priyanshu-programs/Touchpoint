@@ -9,6 +9,7 @@ const databaseUrl =
   process.env.TEST_DATABASE_URL ??
   "postgres://postgres:postgres@localhost:5432/touchpoint_test";
 
+const FAKE_GOOGLE = "http://127.0.0.1:3101";
 export const CRON_SECRET = "e2e-cron-secret-0123456789abcdef01234";
 // Global setup runs in this process and resets this database.
 process.env.DATABASE_URL = databaseUrl;
@@ -23,23 +24,32 @@ export default defineConfig({
   // On GitHub the failures become annotations on the commit, readable without downloading logs.
   reporter: process.env.GITHUB_ACTIONS ? [["list"], ["github"]] : "list",
   use: { baseURL, trace: "retain-on-failure" },
-  webServer: {
-    command: `pnpm build && pnpm exec next start -p ${PORT}`,
-    url: `${baseURL}/sign-in`,
-    timeout: 300_000,
-    reuseExistingServer: false,
-    env: {
-      APP_URL: baseURL,
-      DATABASE_URL: databaseUrl,
-      AUTH_SECRET: "e2e-auth-secret-0123456789abcdef01234",
-      CRON_SECRET,
-      // The suite never sends an address to an outside service.
-      WEBSITE_RENDERER: "off",
-      // Not a real key, whatever the developer's own file holds: it only puts the
-      // profile links section on screen. No test presses "Find profile links".
-      TAVILY_API_KEY: "e2e-not-a-key",
-      APP_ENCRYPTION_KEY: "e2e-encryption-key-0123456789abcdef0123",
-      GOOGLE_SITE_VERIFICATION: "e2e-site-token",
+  webServer: [
+    {
+      command: "node e2e/fake-google/server.mjs",
+      url: `${FAKE_GOOGLE}/__fake/health`,
+      reuseExistingServer: false,
     },
-  },
+    {
+      command: `pnpm build && pnpm exec next start -p ${PORT}`,
+      url: `${baseURL}/sign-in`,
+      timeout: 300_000,
+      reuseExistingServer: false,
+      env: {
+        // Google's addresses are fixed in the app, so the suite's calls are moved from outside it.
+        NODE_OPTIONS: "--import ./e2e/fake-google/reroute.mjs",
+        APP_URL: baseURL,
+        DATABASE_URL: databaseUrl,
+        AUTH_SECRET: "e2e-auth-secret-0123456789abcdef01234",
+        CRON_SECRET,
+        // The suite never sends an address to an outside service.
+        WEBSITE_RENDERER: "off",
+        // Not a real key, whatever the developer's own file holds: it only puts the
+        // profile links section on screen. No test presses "Find profile links".
+        TAVILY_API_KEY: "e2e-not-a-key",
+        APP_ENCRYPTION_KEY: "e2e-encryption-key-0123456789abcdef0123",
+        GOOGLE_SITE_VERIFICATION: "e2e-site-token",
+      },
+    },
+  ],
 });

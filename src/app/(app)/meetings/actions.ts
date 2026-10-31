@@ -79,7 +79,17 @@ export async function scheduleMeetingAction(
   }
 
   const result = await scheduleMeeting(owner.id, parsed.data);
-  if (!result.ok) return { ok: false, message: result.message, values };
+  if (!result.ok) {
+    // Stays on the confirmation while it can still go through, so "press Schedule again" is
+    // there to press, with the same details that may already have reached Google.
+    const again = await checkMeeting(owner.id, parsed.data);
+    return {
+      ok: false,
+      message: result.message,
+      values,
+      ...(again.ok && { confirm: again.summary }),
+    };
+  }
 
   revalidatePath("/", "layout");
   if (result.meetingId === null) return { ok: true, message: result.message };
