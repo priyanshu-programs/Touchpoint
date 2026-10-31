@@ -9,6 +9,7 @@ import { ActivityEditor } from "@/app/(app)/activities/activity-editor";
 import { NewActivity } from "@/app/(app)/activities/new-activity";
 import { NewSend } from "@/app/(app)/materials/new-send";
 import { MeetingDetails } from "@/app/(app)/meetings/meeting-details";
+import { NewMeeting } from "@/app/(app)/meetings/new-meeting";
 import { NewTask } from "@/app/(app)/tasks/new-task";
 import { TaskEditor } from "@/app/(app)/tasks/task-editor";
 import type { EntryParam } from "./list-controls";
@@ -17,8 +18,15 @@ import type { EntryParam } from "./list-controls";
 // theirs, or is gone, is no entry, and the record is shown as if it had not been asked for.
 export async function findEntry(
   ownerId: string,
-  params: { activity?: EntryParam; task?: EntryParam; send?: "new"; event?: string },
+  params: {
+    activity?: EntryParam;
+    task?: EntryParam;
+    send?: "new";
+    schedule?: "new";
+    event?: string;
+  },
 ) {
+  if (params.schedule === "new") return { kind: "schedule" } as const;
   if (params.send === "new") return { kind: "send" } as const;
   if (params.task === "new") return { kind: "task", task: null } as const;
   if (params.task) {
@@ -41,7 +49,9 @@ export type Entry = NonNullable<Awaited<ReturnType<typeof findEntry>>>;
 export const entryKey = (entry: Entry) =>
   entry.kind === "send"
     ? "send:new"
-    : entry.kind === "task"
+    : entry.kind === "schedule"
+      ? "schedule:new"
+      : entry.kind === "task"
       ? `task:${entry.task?.id ?? "new"}`
       : entry.kind === "meeting"
         ? `meeting:${entry.meeting.id}`
@@ -86,7 +96,9 @@ export async function EntryPanel({
   const title =
     entry.kind === "send"
       ? "Log a send"
-      : entry.kind === "task"
+      : entry.kind === "schedule"
+        ? "Schedule meeting"
+        : entry.kind === "task"
         ? (entry.task?.title ?? "Add task")
         : entry.kind === "meeting"
           ? entry.meeting.title
@@ -120,6 +132,15 @@ export async function EntryPanel({
           />
         ) : entry.kind === "send" ? (
           <NewSend
+            ownerId={ownerId}
+            contact={contact}
+            organization={organization}
+            timezone={timezone}
+            inside={inside}
+            cancelHref={back.href}
+          />
+        ) : entry.kind === "schedule" ? (
+          <NewMeeting
             ownerId={ownerId}
             contact={contact}
             organization={organization}

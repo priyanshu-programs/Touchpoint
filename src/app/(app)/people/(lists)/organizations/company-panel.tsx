@@ -459,6 +459,7 @@ export async function CompanyPanel({
               }
               newHref={companiesHref(params, { activity: "new" })}
               sendHref={companiesHref(params, { send: "new" })}
+              scheduleHref={companiesHref(params, { schedule: "new" })}
               openHref={(id) => companiesHref(params, { activity: id })}
               meetingHref={(id) => companiesHref(params, { event: id })}
               after={params.after}

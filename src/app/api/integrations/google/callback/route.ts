@@ -5,7 +5,7 @@ import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { getOwner } from "@/lib/session";
 import { completeGoogleConnect } from "@/modules/integrations/service";
-import { settingsPage, STATE_COOKIE, STATE_COOKIE_OPTIONS } from "../cookie";
+import { SCHEDULING, settingsPage, STATE_COOKIE, STATE_COOKIE_OPTIONS } from "../cookie";
 
 // Google adds parameters of its own (scope, authuser, prompt); only these are read.
 const callbackQuery = z.object({
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   };
 
   const saved = request.cookies.get(STATE_COOKIE)?.value ?? "";
-  const [state, verifier] = saved.split(".");
+  const [state, verifier, wish] = saved.split(".");
   const query = callbackQuery.safeParse(
     Object.fromEntries(request.nextUrl.searchParams),
   );
@@ -45,7 +45,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await completeGoogleConnect(owner.id, query.data.code, verifier);
-    return back(result.ok ? "connected" : result.reason);
+    if (!result.ok) return back(result.reason);
+    if (wish !== SCHEDULING) return back("connected");
+    return back(result.canSchedule ? "scheduling_allowed" : "scheduling_not_granted");
   } catch (error) {
     logger.error("integration.connect_failed", { ownerId: owner.id, error });
     return back("failed");

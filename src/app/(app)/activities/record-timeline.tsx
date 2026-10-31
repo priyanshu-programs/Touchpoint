@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { dateIn, formatDate, formatTime } from "@/lib/time";
 import { listTimeline, type TimelineRow } from "@/modules/activities/queries";
+import { schedulingState } from "@/modules/integrations/scheduling";
 import { getSettings } from "@/modules/settings/service";
 import { TimelineEvent } from "./timeline-event";
 
@@ -19,6 +20,7 @@ export async function RecordTimeline({
   moreHref,
   newHref,
   sendHref,
+  scheduleHref,
   openHref,
   meetingHref,
   after,
@@ -29,12 +31,17 @@ export async function RecordTimeline({
   newHref: string;
   // Logs that a material went to this record.
   sendHref: string;
+  // Offered once Google is connected. The form says if a permission is still needed.
+  scheduleHref: string;
   openHref: (id: string) => string;
   meetingHref: (id: string) => string;
   after?: string;
 }) {
   const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
-  const page = await listTimeline(ownerId, { ...filter, after });
+  const [page, scheduling] = await Promise.all([
+    listTimeline(ownerId, { ...filter, after }),
+    schedulingState(ownerId),
+  ]);
   const today = dateIn(timezone);
 
   // Days are the owner's calendar days, worked out here so no zone name reaches the database.
@@ -50,6 +57,11 @@ export async function RecordTimeline({
       <CardHeader>
         <CardTitle>Timeline</CardTitle>
         <CardAction className="flex flex-wrap justify-end gap-2">
+          {scheduling !== "off" && (
+            <ButtonLink href={scheduleHref} scroll={false} variant="outline" size="sm">
+              Schedule meeting
+            </ButtonLink>
+          )}
           <ButtonLink href={sendHref} scroll={false} variant="outline" size="sm">
             Log a send
           </ButtonLink>

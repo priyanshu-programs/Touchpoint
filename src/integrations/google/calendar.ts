@@ -195,3 +195,74 @@ export async function listEvents(
     nextSyncToken: body.nextSyncToken,
   };
 }
+
+export type NewEvent = {
+  // Made once per form, so a form sent twice can't make two meetings or two invitations.
+  key: string;
+  title: string;
+  startsAt: Date;
+  endsAt: Date;
+  timezone: string;
+  guests: { email: string; name: string }[];
+  location: string | null;
+  notes: string | null;
+  emailGuests: boolean;
+  addMeet: boolean;
+};
+
+async function getEvent(accessToken: string, id: string): Promise<ListedEvent> {
+  const response = await fetch(`${EVENTS_URL}/${id}`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(10_000),
+    redirect: "error",
+  });
+  if (!response.ok) throw new GoogleApiError(response.status);
+  return parseEvent(await response.json()) ?? { externalId: id, meeting: null };
+}
+
+export async function insertEvent(
+  accessToken: string,
+  event: NewEvent,
+): Promise<{ created: boolean; event: ListedEvent }> {
+  // Google's ids are base32hex, which a uuid's hex digits already are.
+  const id = event.key.replaceAll("-", "");
+  const url = new URL(EVENTS_URL);
+  url.searchParams.set("sendUpdates", event.emailGuests ? "all" : "none");
+  if (event.addMeet) url.searchParams.set("conferenceDataVersion", "1");
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      id,
+      summary: event.title,
+      start: { dateTime: event.startsAt.toISOString(), timeZone: event.timezone },
+      end: { dateTime: event.endsAt.toISOString(), timeZone: event.timezone },
+      attendees: event.guests.map(({ email, name }) => ({ email, displayName: name })),
+      ...(event.location && { location: event.location }),
+      ...(event.notes && { description: event.notes }),
+      ...(event.addMeet && {
+        conferenceData: {
+          createRequest: {
+            requestId: id,
+            conferenceSolutionKey: { type: "hangoutsMeet" },
+          },
+        },
+      }),
+    }),
+    signal: AbortSignal.timeout(10_000),
+    redirect: "error",
+  });
+  // That id is taken: this same form got through before, even if its answer never arrived.
+  if (response.status === 409) {
+    return { created: false, event: await getEvent(accessToken, id) };
+  }
+  if (!response.ok) throw new GoogleApiError(response.status);
+  return {
+    created: true,
+    event: parseEvent(await response.json()) ?? { externalId: id, meeting: null },
+  };
+}

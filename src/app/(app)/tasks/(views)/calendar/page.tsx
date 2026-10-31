@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { z } from "zod";
+import { ButtonLink } from "@/components/button-link";
 import { requireOwner } from "@/lib/session";
 import { addDays, dateIn, startOfWeek } from "@/lib/time";
 import { meetingsBetween } from "@/modules/integrations/meetings";
+import { schedulingState } from "@/modules/integrations/scheduling";
 import { googleConnection } from "@/modules/integrations/service";
 import { getSettings } from "@/modules/settings/service";
 import { listDueTasks } from "@/modules/tasks/queries";
@@ -33,15 +35,26 @@ export default async function TasksCalendarPage({
   const today = dateIn(timezone);
   const start = startOfWeek(week ?? today, settings?.weekStart ?? 1);
   const through = addDays(start, 6);
-  const [tasks, google, meetings] = await Promise.all([
+  const [tasks, google, meetings, scheduling] = await Promise.all([
     listDueTasks(owner.id, { from: start, through }),
     googleConnection(owner.id),
     meetingsBetween(owner.id, start, through, timezone, LISTED),
+    schedulingState(owner.id),
   ]);
   const connected = google && google.status !== "revoked";
 
   return (
     <div className="grid gap-4">
+      {scheduling !== "off" && (
+        <ButtonLink
+          href="/meetings/new"
+          variant="outline"
+          size="sm"
+          className="justify-self-end"
+        >
+          Schedule meeting
+        </ButtonLink>
+      )}
       <CalendarWeek
         start={start}
         today={today}

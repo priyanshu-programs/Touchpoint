@@ -33,9 +33,12 @@ export default function PrivacyPage() {
         </li>
       </ul>
       <p>
-        If the owner later turns on scheduling, Touchpoint asks Google for permission to create
-        events, and creates one only after the owner confirms it. Touchpoint doesn&apos;t read,
-        send or store email.
+        If the owner turns on scheduling, Touchpoint asks Google for permission to add events (
+        <span className="font-mono">calendar.events</span>). It adds one only after the owner
+        confirms it, with the title, times, location and guests they chose, and with Google
+        sending the invitation if they ask for that. It never changes or removes an event. Notes
+        written for an invitation go to Google and aren&apos;t kept in Touchpoint. Touchpoint
+        doesn&apos;t read, send or store email itself.
       </p>
       <p>
         Calendar data is used only to show the owner their own meetings in Touchpoint. It is
