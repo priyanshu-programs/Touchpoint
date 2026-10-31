@@ -187,7 +187,7 @@ test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test("task screens fit the screen", async ({ page }) => {
-    for (const path of ["/", "/tasks", "/tasks/week", "/tasks/all", "/tasks/new"]) {
+    for (const path of ["/", "/tasks", "/tasks/week", "/tasks/all", "/tasks/calendar", "/tasks/new"]) {
       await page.goto(path);
       await expect(page.getByRole("main")).toBeVisible();
       const overflows = await page.evaluate(

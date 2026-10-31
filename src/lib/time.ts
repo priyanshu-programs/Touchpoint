@@ -94,3 +94,9 @@ export function addDays(date: string, days: number) {
   next.setUTCDate(next.getUTCDate() + days);
   return next.toISOString().slice(0, 10);
 }
+
+// The first day of the week holding this date. weekStart counts from Sunday, as 0.
+export function startOfWeek(date: string, weekStart: number) {
+  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return addDays(date, -((day - weekStart + 7) % 7));
+}

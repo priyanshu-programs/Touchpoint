@@ -52,6 +52,7 @@ export async function meetingsBetween(
   from: string,
   through: string,
   timezone: string,
+  limit = MAX_LISTED,
 ) {
   return db
     .select({
@@ -60,6 +61,7 @@ export async function meetingsBetween(
       allDay: calendarEvents.allDay,
       startsAt: calendarEvents.startsAt,
       startsOn: calendarEvents.startsOn,
+      endsOn: calendarEvents.endsOn,
     })
     .from(calendarEvents)
     .where(
@@ -81,6 +83,6 @@ export async function meetingsBetween(
       sql`coalesce(${calendarEvents.startsOn}::timestamptz, ${calendarEvents.startsAt})`,
       asc(calendarEvents.id),
     )
-    .limit(MAX_LISTED);
+    .limit(limit);
 }
 export type ListedMeeting = Awaited<ReturnType<typeof meetingsBetween>>[number];

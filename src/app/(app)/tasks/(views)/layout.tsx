@@ -6,6 +6,7 @@ const TABS = [
   { href: "/tasks", label: "Today" },
   { href: "/tasks/week", label: "Week" },
   { href: "/tasks/all", label: "All" },
+  { href: "/tasks/calendar", label: "Calendar" },
 ];
 
 export default function TaskViewsLayout({ children }: { children: ReactNode }) {

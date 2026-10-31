@@ -289,6 +289,18 @@ describe("meetings", () => {
         });
       }
       expect(await meetingsBetween(ownerId, "2026-03-04", "2026-03-04", "UTC")).toHaveLength(20);
+      expect(
+        await meetingsBetween(ownerId, "2026-03-04", "2026-03-04", "UTC", 21),
+      ).toHaveLength(21);
+    });
+
+    it("says when an all-day meeting ends, for a meeting begun before the range", async () => {
+      await seed(ownerId, connectionId, {
+        title: "Offsite",
+        ...allDay("2026-03-04", "2026-03-06"),
+      });
+      const [meeting] = await meetingsBetween(ownerId, "2026-03-05", "2026-03-11", "UTC");
+      expect(meeting).toMatchObject({ startsOn: "2026-03-04", endsOn: "2026-03-06" });
     });
   });
 });
