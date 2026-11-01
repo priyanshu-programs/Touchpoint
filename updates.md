@@ -1270,3 +1270,4 @@
 - [2026-11-01] e2e/39-board-pan.spec.ts: renumbered from 38, because the auto-links pull request took 38 first
 - [2026-11-01] board-sync.ts: everything that arrives counts as known here whichever copy is kept, because a renumbered note deleted in the moment before it was sent on counted as never known, so its delete went nowhere and the other device kept the box
 - [2026-11-01] e2e/36-live-board.spec.ts: the test for that deletes from inside the page the moment the note shows, because a keypress from outside came too late on a slow machine and hid the bug
+- [2026-11-01] plan.md: noted for later that the owner found about 9 pen strokes taking 14 s to reach the other device, so the live board's speed is not fixed; cause not yet known
