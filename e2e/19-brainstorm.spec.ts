@@ -366,64 +366,15 @@ test("a board far past what one save could carry is stored and opens again", asy
 test("two windows on one board draw together: each sees the other's notes, and what is rubbed out", async ({
   browser,
 }) => {
-  const frames: [number, string, Buffer][] = [];
-  const open = async (who: string) => {
+  const open = async () => {
     const context = await browser.newContext({ storageState: OWNER_SESSION });
     const page = await context.newPage();
-    page.on("websocket", (socket) => {
-      socket.on("framesent", ({ payload }) => {
-        if (typeof payload !== "string") frames.push([Date.now(), who, payload]);
-      });
-    });
     await page.goto(`/brainstorm/${boardId}`);
     await expect(whiteboard(page)).toBeVisible();
     return page;
   };
-  const laptop = await open("laptop");
-  const phone = await open("phone");
-  const dump = async () => {
-    const { createDecipheriv } = await import("node:crypto");
-    const pass = (await (
-      await laptop.request.post(`/api/brainstorm/${boardId}/live`, {
-        headers: { origin: new URL(laptop.url()).origin },
-      })
-    ).json()) as { key: string };
-    const key = Buffer.from(pass.key, "base64url");
-    const start = frames[0]?.[0] ?? 0;
-    for (const [at, who, frame] of frames) {
-      const d = createDecipheriv("aes-256-gcm", key, frame.subarray(0, 12));
-      d.setAuthTag(frame.subarray(frame.length - 16));
-      const m = JSON.parse(
-        Buffer.concat([d.update(frame.subarray(12, frame.length - 16)), d.final()]).toString(),
-      );
-      console.log(
-        "FRAME",
-        at - start,
-        who,
-        m.t,
-        JSON.stringify(
-          m.t === "changes"
-            ? m.elements.map((e: Record<string, unknown>) => [
-                String(e.id).slice(0, 5),
-                String(e.type).slice(0, 3),
-                e.version,
-                e.versionNonce,
-                e.isDeleted ? "DEL" : "",
-                e.index,
-                e.text ?? "",
-              ])
-            : m.stored?.map(([id, v]: [string, number]) => [id.slice(0, 5), v]),
-        ),
-      );
-    }
-    const rows = (await stored(laptop, boardId)).elements as unknown as Record<string, unknown>[];
-    console.log(
-      "ROWS",
-      JSON.stringify(
-        rows.map((e) => [String(e.id).slice(0, 5), String(e.type).slice(0, 3), e.version, e.versionNonce, e.index]),
-      ),
-    );
-  };
+  const laptop = await open();
+  const phone = await open();
   const notes = (page: Page) => page.locator(".sticky-shadow");
   const before = await notes(laptop).count();
   await expect(notes(phone)).toHaveCount(before);
@@ -445,23 +396,7 @@ test("two windows on one board draw together: each sees the other's notes, and w
   await laptop.keyboard.press("Delete");
   await expect(notes(laptop)).toHaveCount(0);
   await expect(laptop.getByText("Saved", { exact: true })).toBeVisible();
-  try {
-    await expect(notes(phone)).toHaveCount(0, { timeout: 20_000 });
-  } catch (error) {
-    await dump();
-    for (const [name, page] of [["laptop", laptop], ["phone", phone]] as const) {
-      console.log("DBG", name, JSON.stringify(await page.evaluate(() => (window as unknown as { dbg: unknown }).dbg)));
-      console.log(
-        "SCENE",
-        name,
-        JSON.stringify(
-          await page.evaluate(() => (window as unknown as { dbgScene?: () => unknown }).dbgScene?.()),
-        ),
-      );
-    }
-    throw error;
-  }
-  console.log("RACE-OK");
+  await expect(notes(phone)).toHaveCount(0, { timeout: 20_000 });
   await expect(phone.getByText("Changed somewhere else")).toHaveCount(0);
   expect((await stored(laptop, boardId)).elements).toEqual([]);
 
