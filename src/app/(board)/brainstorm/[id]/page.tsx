@@ -13,7 +13,14 @@ import { PAPER_COOKIE, paperOf } from "../../workflows/[id]/paper";
 import { BrainstormCanvas } from "./brainstorm-canvas";
 import { BrainstormMenu } from "./brainstorm-menu";
 
-export const metadata: Metadata = { title: "Brainstorm" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/brainstorm/[id]">): Promise<Metadata> {
+  const owner = await requireOwner();
+  const id = z.uuid().safeParse((await params).id);
+  const board = id.success ? await getBrainstorm(owner.id, id.data) : null;
+  return { title: { absolute: `${board?.name ?? "Board"} · Brainstorming` } };
+}
 
 export default async function BrainstormBoardPage({
   params,
