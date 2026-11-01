@@ -35,6 +35,7 @@ import {
   type StickyNote as NoteOnBoard,
 } from "@/modules/workflows/sticky";
 import "../../workflows/[id]/board.css";
+import { createTypedLinks } from "../../workflows/[id]/typed-links";
 import {
   createPaperFollower,
   PaperChoices,
@@ -287,6 +288,7 @@ function Whiteboard({
   const [paper, setPaper] = useState(opensOn);
   const isDark = useDarkTheme();
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  const [typedLinks] = useState(createTypedLinks);
   const [color, setColor] = useState(FIRST_STICKY);
   const [picked, setPicked] = useState<Picked>({ stroke: "", fill: null });
   const board = useRef<HTMLDivElement>(null);
@@ -414,7 +416,12 @@ function Whiteboard({
             toggleTheme: false,
           },
         }}
+        onPaste={() => {
+          typedLinks.pasted(api);
+          return true;
+        }}
         onChange={(all, appState, files) => {
+          typedLinks.watch(api, appState);
           const zoom = appState.zoom.value;
           const view = { zoom, scrollX: appState.scrollX, scrollY: appState.scrollY };
           const moved = sawView(view);

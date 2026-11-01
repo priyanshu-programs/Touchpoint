@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { LinkedText } from "@/components/linked-text";
 import { Badge } from "@/components/ui/badge";
 import { requireOwner } from "@/lib/session";
 import { dateIn, formatDate } from "@/lib/time";
@@ -56,7 +57,7 @@ export default async function MaterialPage({ params }: PageProps<"/materials/[id
           </div>
           {material.description ? (
             <p className="max-w-prose break-words whitespace-pre-wrap">
-              {material.description}
+              <LinkedText text={material.description} />
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">No description.</p>

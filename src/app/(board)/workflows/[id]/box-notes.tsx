@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useState } from "react";
+import { LinkedText } from "@/components/linked-text";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,7 +65,9 @@ export function BoxNotes({
                 <p className="text-xs text-muted-foreground">
                   <time dateTime={createdAt}>{when(createdAt)}</time>
                 </p>
-                <p className="break-words whitespace-pre-wrap">{body}</p>
+                <p className="break-words whitespace-pre-wrap">
+                  <LinkedText text={body} />
+                </p>
               </div>
               <button
                 type="button"
