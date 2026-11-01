@@ -1214,3 +1214,6 @@
 - [2026-11-01] board.css: the whiteboard's own controls take the same scale, so its smaller corners stay 4px
 - [2026-11-01] e2e/34-corners.spec.ts: a card, a list table and a dialog have 6px corners, and a circle stays a circle
 - [2026-11-01] plan.md: the owner's three requests of 2026-11-01 (tablet speed, drag to order, 6px corners) with their order and targets
+- [2026-11-01] patches/@excalidraw__excalidraw@0.18.1.patch: pen strokes are drawn straight onto the screen, the path Excalidraw uses for exports, because making a canvas per stroke and rebuilding them all after a zoom is what freezes a tablet; opening a 4,200-stroke board went from 8,403 canvases to 3
+- [2026-11-01] e2e/35-board-speed.spec.ts: fails if opening or zooming makes more than 100 canvases, so a lost patch is caught, and measures panning with most of the board on screen
+- [2026-11-01] security.md: a rule for the Excalidraw patch; plan.md: stage 3B with what was measured
