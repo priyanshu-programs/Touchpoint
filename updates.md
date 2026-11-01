@@ -1227,3 +1227,9 @@
 - [2026-11-01] e2e/36-fullscreen.spec.ts: entering and leaving, moving page, both boards, a browser that can't or refuses, the installed app, a phone, and the manifest
 - [2026-11-01] security.md: a rule for the manifest and the fullscreen button; plan.md: the request recorded and the Branding entry corrected
 - [2026-11-01] Added a trail learning replacing the one on the logo: the owner has now asked for a manifest, and an iPhone can only go fullscreen from the Home Screen
+- [2026-11-01] Moved board-view.ts to workflows/[id], because workflows now use it too and brainstorm already takes its shared board code from there
+- [2026-11-01] Boards: a remembered view is always restored, even over an empty part of the board or on an empty board, because the owner wants a board to reopen exactly where it was left; the way back is the whiteboard's Scroll back to content
+- [2026-11-01] Boards: a view still waiting to be written is written as the page is hidden or goes (useRememberedView), because closing a tab or a tablet dropping the page unmounts nothing and lost a move made in the last half second
+- [2026-11-01] Workflows: reopen where this device left them, with the opening view worked out before the first draw in place of fitting afterwards, which would have been remembered as a move
+- [2026-11-01] e2e/37-board-view.spec.ts: brainstorm boards and workflows reopen at the exact zoom and position, straight after moving, over empty space and when empty, and a first open still fits; board-view.test.ts follows
+- [2026-11-01] security.md: the remembered view's rule covers workflows; plan.md: an entry for boards reopening where they were left
