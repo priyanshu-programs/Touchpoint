@@ -267,19 +267,38 @@ export function createBoardSync({
       parts.push(part);
       bytes += part.length;
     }
+    ((window as unknown as { dbg: unknown[] }).dbg ??= []).push({
+      at: Math.round(performance.now()),
+      relay: parts.length,
+      scene: api.getSceneElementsIncludingDeleted().slice(-6).map((e) => [e.id.slice(0, 5), e.version, e.isDeleted, relayed.get(e.id), sent.get(e.id)]),
+    });
     if (parts.length > 0) void live.send(`{"t":"changes","elements":[${parts.join(",")}]}`);
   }
 
   // What the room brought. It cannot read or check what it forwards, so a change
   // has to pass here what a save has to pass on the server.
   function heard(message: unknown) {
+    ((window as unknown as { dbg: unknown[] }).dbg ??= []).push({
+      at: Math.round(performance.now()),
+      heard: (message as { t?: string }).t,
+      stored: (message as { stored?: unknown }).stored,
+      els: ((message as { elements?: Record<string, unknown>[] }).elements ?? []).map((e) => [
+        String(e.id).slice(0, 5),
+        e.version,
+        e.versionNonce,
+        e.isDeleted,
+      ]),
+    });
     if (!api || typeof message !== "object" || message === null) return;
     const { t, elements, stored } = message as { t?: unknown; elements?: unknown; stored?: unknown };
     if (t === "look") {
       void look();
     } else if (t === "changes") {
       const checked = brainstormElementsSave.safeParse({ since: 0, elements });
-      if (!checked.success) return;
+      if (!checked.success) {
+        (window as unknown as { dbg: unknown[] }).dbg.push({ refused: JSON.stringify(checked.error.issues).slice(0, 600) });
+        return;
+      }
       for (const element of checked.data.elements) {
         const waiting = inbox.get(element.id);
         if (!waiting || (waiting.version as number) <= element.version) {
@@ -353,11 +372,40 @@ export function createBoardSync({
     // renumbered element is a change of this device's own, to send on like any
     // other. Counted as received, the devices would hold two copies at one version.
     const arrived = restored.map(({ id, version, versionNonce }) => ({ id, version, versionNonce }));
+    const beforeDbg = new Map(
+      api.getSceneElementsIncludingDeleted().map((e) => [e.id, [e.version, e.versionNonce, e.isDeleted, e.index]]),
+    );
+    const stateDbg = api.getAppState();
     const merged = reconcileElements(
       api.getSceneElementsIncludingDeleted(),
       restored,
       api.getAppState(),
     );
+    ((window as unknown as { dbg: unknown[] }).dbg ??= []).push({
+      at: Math.round(performance.now()),
+      merge: fromRoom ? "room" : "look",
+      state: [
+        stateDbg.editingTextElement?.id?.slice(0, 5),
+        stateDbg.resizingElement?.id?.slice(0, 5),
+        stateDbg.newElement?.id?.slice(0, 5),
+      ],
+      items: arrived.map((r) => {
+        const k = merged.find((m) => m.id === r.id);
+        return [r.id.slice(0, 5), "remote", r.version, r.versionNonce, "local", beforeDbg.get(r.id), "kept", k?.version, k?.versionNonce, k?.isDeleted, k?.index];
+      }),
+    });
+    (window as unknown as { dbgScene: unknown }).dbgScene = () =>
+      api?.getSceneElementsIncludingDeleted().map((e) => [
+        e.id.slice(0, 5),
+        e.type.slice(0, 3),
+        e.version,
+        e.versionNonce,
+        e.isDeleted,
+        e.index,
+        sent.get(e.id),
+        relayed.get(e.id),
+        held.get(e.id)?.version,
+      ]);
     // Not a step of this board's undo: it was drawn somewhere else.
     api.updateScene({ elements: merged, captureUpdate: CaptureUpdateAction.NEVER });
     // Where the server's copy was kept, this board now has what the server
