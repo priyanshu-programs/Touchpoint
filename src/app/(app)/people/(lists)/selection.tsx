@@ -97,7 +97,7 @@ export function Selection({
       {children}
 
       {kept && selected.length === 0 && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 md:bottom-6">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 md:bottom-6">
           <div
             role="status"
             className="pointer-events-auto flex items-center gap-2 rounded-xl border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
@@ -112,7 +112,7 @@ export function Selection({
 
       {selected.length > 0 && (
         // Clear of the bar a phone has along its foot.
-        <div className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 md:bottom-6">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 md:bottom-6">
           <div
             role="region"
             aria-label="Selected rows"

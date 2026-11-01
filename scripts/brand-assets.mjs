@@ -7,6 +7,9 @@ const squarePath = "public/Images/touchpoint-mark.svg";
 const iconPath = "src/app/icon.svg";
 const applePath = "src/app/apple-icon.png";
 const faviconPath = "src/app/favicon.ico";
+const icon192Path = "public/Images/touchpoint-icon-192.png";
+const icon512Path = "public/Images/touchpoint-icon-512.png";
+const maskablePath = "public/Images/touchpoint-icon-maskable-512.png";
 
 const TILE = "#171717";
 // The mark's 271.7 x 258.2 bounds centred in a 316 square, with an even margin.
@@ -26,8 +29,13 @@ const square = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEWBOX}">${a
 const icon = (radius) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEWBOX}" width="316" height="316"><rect x="9.85" y="-3.4" width="316" height="316" rx="${radius}" fill="${TILE}"/>${art}</svg>\n`;
 
+// A phone may crop an icon to any shape inside the middle 80%, so the mark's corners sit
+// within that circle, on a square tile with no rounding of its own.
+const maskable = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-72.15 -85.4 480 480" width="316" height="316"><rect x="-72.15" y="-85.4" width="480" height="480" fill="${TILE}"/>${art}</svg>\n`;
+
+// The SVGs are 316 wide, so a larger icon is drawn at a higher density and not stretched.
 const png = (svg, size) =>
-  sharp(Buffer.from(svg))
+  sharp(Buffer.from(svg), { density: Math.max(72, Math.ceil((72 * size) / 316)) })
     .resize(size, size)
     .png({ compressionLevel: 9, palette: true, quality: 90, effort: 10 })
     .toBuffer();
@@ -66,11 +74,17 @@ const favicon = ico(
   ),
 );
 const apple = await png(icon(0), 180);
+const icon192 = await png(icon(CORNER), 192);
+const icon512 = await png(icon(CORNER), 512);
+const maskable512 = await png(maskable, 512);
 
 await writeFile(squarePath, square);
 await writeFile(iconPath, icon(CORNER));
 await writeFile(applePath, apple);
 await writeFile(faviconPath, favicon);
+await writeFile(icon192Path, icon192);
+await writeFile(icon512Path, icon512);
+await writeFile(maskablePath, maskable512);
 
 const outputs = [
   [sourcePath, Buffer.byteLength(source)],
@@ -78,6 +92,9 @@ const outputs = [
   [iconPath, Buffer.byteLength(icon(CORNER))],
   [applePath, apple.length],
   [faviconPath, favicon.length],
+  [icon192Path, icon192.length],
+  [icon512Path, icon512.length],
+  [maskablePath, maskable512.length],
 ];
 
 for (const [file, bytes] of outputs) {

@@ -1217,3 +1217,13 @@
 - [2026-11-01] patches/@excalidraw__excalidraw@0.18.1.patch: pen strokes are drawn straight onto the screen, the path Excalidraw uses for exports, because making a canvas per stroke and rebuilding them all after a zoom is what freezes a tablet; opening a 4,200-stroke board went from 8,403 canvases to 3
 - [2026-11-01] e2e/35-board-speed.spec.ts: fails if opening or zooming makes more than 100 canvases, so a lost patch is caught, and measures panning with most of the board on screen
 - [2026-11-01] security.md: a rule for the Excalidraw patch; plan.md: stage 3B with what was measured
+- [2026-11-01] fullscreen-button.tsx: a button that fullscreens the whole page, and on a browser that can't (an iPhone) gives the Add to Home Screen steps, because the owner wants fullscreen on every device
+- [2026-11-01] Top bar and both board headers: the fullscreen button, hidden when Touchpoint is already running as an installed app
+- [2026-11-01] src/app/manifest.ts: a web app manifest so Touchpoint can be installed and opens fullscreen, reversing the 2026-10-30 choice to leave it out; no service worker, so nothing is cached on the device
+- [2026-11-01] scripts/brand-assets.mjs: also makes the 192, 512 and maskable app icons, drawn at a higher density so the large ones stay sharp
+- [2026-11-01] src/app/layout.tsx: the iPhone's Home Screen settings and viewport-fit=cover, so the installed app uses the whole screen
+- [2026-11-01] src/app/layout.tsx: a dark strip behind the status bar, because an installed iPhone app's clock is always white and would be unreadable over the light theme
+- [2026-11-01] App shell, board pages, side panels and the list's selection bar: spacing for notches and the home bar, which is 0 on devices without them
+- [2026-11-01] e2e/36-fullscreen.spec.ts: entering and leaving, moving page, both boards, a browser that can't or refuses, the installed app, a phone, and the manifest
+- [2026-11-01] security.md: a rule for the manifest and the fullscreen button; plan.md: the request recorded and the Branding entry corrected
+- [2026-11-01] Added a trail learning replacing the one on the logo: the owner has now asked for a manifest, and an iPhone can only go fullscreen from the Home Screen
