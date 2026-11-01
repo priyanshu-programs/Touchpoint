@@ -18,7 +18,11 @@ import type {
   ExcalidrawElement,
   NonDeletedExcalidrawElement,
 } from "@excalidraw/excalidraw/element/types";
-import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type {
+  AppState,
+  ExcalidrawImperativeAPI,
+  NormalizedZoomValue,
+} from "@excalidraw/excalidraw/types";
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { BoardStage, StageStatus } from "@/db/schema";
@@ -37,6 +41,7 @@ import "./board.css";
 import { followPaper, PaperChoices, SaveStatus, useDarkTheme } from "./board-chrome";
 import { createBoardPictures } from "./board-pictures";
 import { createBoardSaver, type SaveState } from "./board-saver";
+import { HEADER_PX, openingView, useRememberedView, type Placed } from "./board-view";
 import { ColorGrid, samePicked, type Picked } from "./color-grid";
 import { pickedColors } from "@/modules/workflows/colors";
 import { closedShape } from "@/modules/workflows/sketch";
@@ -422,10 +427,14 @@ function Whiteboard({
     return pictures.stop;
   }, [api, pictures]);
 
-  // The whole drawing is brought into view once, when it has been put on the
-  // whiteboard, and made smaller if the window is. An empty whiteboard is left
-  // alone, or the first box drawn on it would jump to the middle.
-  const unfitted = useRef(elements.length > 0);
+  // Worked out before the first draw, so the board is drawn once and not moved after.
+  const [opensAt] = useState(() =>
+    openingView(boardId, elements as unknown as Placed[], {
+      width: window.innerWidth,
+      height: window.innerHeight - HEADER_PX,
+    }),
+  );
+  const sawView = useRememberedView(boardId);
 
   useEffect(() => {
     const hidden = () => document.visibilityState === "hidden" && saver.flush();
@@ -597,8 +606,12 @@ function Whiteboard({
             currentItemFontFamily: FONT_FAMILY.Nunito,
             currentItemFillStyle: "solid",
             viewBackgroundColor: "transparent",
+            ...(opensAt && {
+              zoom: { value: opensAt.zoom as NormalizedZoomValue },
+              scrollX: opensAt.scrollX,
+              scrollY: opensAt.scrollY,
+            }),
           },
-          scrollToContent: true,
         }}
         UIOptions={{
           canvasActions: {
@@ -610,25 +623,13 @@ function Whiteboard({
           },
         }}
         onChange={(all, appState, files) => {
-          if (unfitted.current && api && all.length > 0) {
-            unfitted.current = false;
-            // After this redraw, which the whiteboard is still in the middle of.
-            requestAnimationFrame(() =>
-              api.scrollToContent(undefined, {
-                fitToViewport: true,
-                // Clear of the window's edges, and never larger than drawn.
-                viewportZoomFactor: 0.9,
-                maxZoom: 1,
-                animate: false,
-              }),
-            );
-          }
           const now = selection(all, appState);
           setSelected((before) => (sameSelected(before, now) ? before : now));
           // The glows go where the drawing goes. Moving and zooming it changes
           // no box, so the layer is moved here and nothing is drawn again. The
           // question about a shape stands at a point of the drawing as well.
           const zoom = appState.zoom.value;
+          sawView({ zoom, scrollX: appState.scrollX, scrollY: appState.scrollY });
           const placed = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
           if (halos.current) halos.current.style.transform = placed;
           if (shadows.current) shadows.current.style.transform = placed;
