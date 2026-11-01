@@ -22,6 +22,13 @@ export const brainstormIcon = z.strictObject({
 });
 export type BrainstormIcon = z.infer<typeof brainstormIcon>;
 
+// The boards of one page of the list in the order they are wanted, each once.
+export const brainstormOrder = z
+  .array(z.uuid())
+  .min(1)
+  .max(BRAINSTORM_PAGE_SIZE)
+  .refine((ids) => new Set(ids).size === ids.length);
+
 export const brainstormListParams = z.object({
   q: z.string().trim().max(100).optional().catch(undefined),
   page: z.coerce.number().int().min(1).max(1000).optional().catch(undefined),

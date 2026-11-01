@@ -1196,6 +1196,12 @@
 - [2026-11-01] docs/GOOGLE-CHECKLIST.md: the note on step 4 failing no longer assumes the owner's client is in Testing, and says what an expired banner around 2026-11-07 would mean
 - [2026-11-01] Added a trail learning replacing the one on publishing the Google client: the owner's client is in production
 - [2026-11-01] e2e/26-reports.spec.ts: the month is worked out in the owner's zone as the app does, because in UTC the test failed for the last 5.5 hours of every month, India time
+- [2026-11-01] Migration 0038 (additive): position on brainstorm_boards, filled from the current newest-edited-first order so nothing moves on the day, with an index on owner and position
+- [2026-11-01] src/modules/brainstorm: boards list by position, a new board goes first, and reorderBrainstorms swaps only the places the named boards hold, keeps Last edited and is audited; tests
+- [2026-11-01] Brainstorming page: brainstorm-list.tsx gives each row a drag handle that also takes the arrow keys, because the owner wanted to put boards in their own order; a move is saved by reorderBrainstormsAction
+- [2026-11-01] e2e/19-brainstorm.spec.ts: dragging, arrow keys, a reload keeping the order, Last edited unchanged, a new board first, a row still opening, and a phone
+- [2026-11-01] security.md: a rule for the order of brainstorm boards; plan.md: the drag order marked built
+- [2026-11-01] plan.md and docs/PRD.md: the board list's order is the owner's, set by dragging
 - [2026-11-01] src/app/globals.css: --radius is 6px and every card-sized step of the scale follows it, because the owner found cards too rounded; buttons and inputs are 3 to 4px in step, and circles and the logo tile are unchanged
 - [2026-11-01] board.css: the whiteboard's own controls take the same scale, so its smaller corners stay 4px
 - [2026-11-01] e2e/34-corners.spec.ts: a card, a list table and a dialog have 6px corners, and a circle stays a circle

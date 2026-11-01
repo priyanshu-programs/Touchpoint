@@ -49,9 +49,13 @@ export async function createBrainstorm(
     if (count >= MAX_BRAINSTORM_BOARDS) return { ok: false, reason: "limit" };
     if (await nameTaken(tx, ownerId, name)) return { ok: false, reason: "name_taken" };
 
+    const [{ first }] = await tx
+      .select({ first: sql<number>`coalesce(min(${brainstormBoards.position}), 0)` })
+      .from(brainstormBoards)
+      .where(eq(brainstormBoards.ownerId, ownerId));
     const [row] = await tx
       .insert(brainstormBoards)
-      .values({ ownerId, name })
+      .values({ ownerId, name, position: first - 1 })
       .returning({ id: brainstormBoards.id });
     await audit(tx, {
       ownerId,
@@ -96,6 +100,43 @@ export async function renameBrainstorm(
       after: { name },
     });
     return { ok: true, id };
+  });
+}
+
+// The boards named are put in the order given, in the places they already hold
+// among them: the list comes in pages, so boards on other pages stay where they
+// are. Moving a board is not editing it, so its "Last edited" stays.
+export async function reorderBrainstorms(ownerId: string, ids: string[]) {
+  return db.transaction(async (tx) => {
+    await lockOwner(tx, ownerId);
+    const before = await tx
+      .select({ id: brainstormBoards.id, position: brainstormBoards.position })
+      .from(brainstormBoards)
+      .where(and(eq(brainstormBoards.ownerId, ownerId), inArray(brainstormBoards.id, ids)))
+      .orderBy(asc(brainstormBoards.position), asc(brainstormBoards.id))
+      .for("update");
+    if (before.length !== ids.length) return false;
+
+    const place = sql.join(
+      ids.map((id, at) => sql`when ${id}::uuid then ${before[at].position}::int`),
+      sql` `,
+    );
+    await tx
+      .update(brainstormBoards)
+      .set({
+        position: sql`case ${brainstormBoards.id} ${place} end`,
+        updatedAt: sql`${brainstormBoards.updatedAt}`,
+      })
+      .where(and(eq(brainstormBoards.ownerId, ownerId), inArray(brainstormBoards.id, ids)));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "brainstorm.reorder",
+      entityType: "brainstorm",
+      before: before.map(({ id }) => id),
+      after: ids,
+    });
+    return true;
   });
 }
 

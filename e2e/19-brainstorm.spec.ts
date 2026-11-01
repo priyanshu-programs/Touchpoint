@@ -562,8 +562,102 @@ test("pictures are kept on a brainstorm board: stored, fetched again and refused
   expect(seen.errors.filter((error) => !error.includes("415"))).toEqual([]);
 });
 
+const boardNames = (page: Page) => main(page).locator("tbody tr td:nth-child(3)").allInnerTexts();
+const handle = (page: Page, name: string) =>
+  main(page).getByRole("button", { name: `Move ${name}`, exact: true });
+
+async function newBoard(page: Page, name: string) {
+  await page.goto("/brainstorm");
+  await main(page).getByRole("button", { name: "New board" }).click();
+  const dialog = page.getByRole("dialog", { name: "New brainstorm board" });
+  await dialog.getByLabel("Name").fill(name);
+  await dialog.getByRole("button", { name: "Create board" }).click();
+  await expect(page).toHaveURL(BOARD);
+}
+
+// Waits for the page's own refresh after a move has been saved.
+const movedAndSaved = (page: Page) =>
+  page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/brainstorm",
+  );
+
+async function drag(page: Page, from: string, onto: string) {
+  const start = (await handle(page, from).boundingBox())!;
+  const end = (await handle(page, onto).boundingBox())!;
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2 + 4, { steps: 12 });
+  await page.mouse.up();
+}
+
+test("boards are dragged into order, moved by keys, and the order holds", async ({ page }) => {
+  for (const name of ["Order one", "Order two", "Order three"]) await newBoard(page, name);
+  await page.goto("/brainstorm");
+  const first = await boardNames(page);
+  expect(first.slice(0, 3)).toEqual(["Order three", "Order two", "Order one"]);
+  const lastEdited = () =>
+    main(page).locator("tbody tr", { hasText: "Order three" }).locator("td").last().innerText();
+  const edited = await lastEdited();
+
+  const dragged = movedAndSaved(page);
+  await drag(page, "Order three", "Order one");
+  await dragged;
+  // The drag did not open the board.
+  await expect(page).toHaveURL(/\/brainstorm$/);
+  await expect.poll(() => boardNames(page).then((names) => names.slice(0, 3))).toEqual([
+    "Order two",
+    "Order one",
+    "Order three",
+  ]);
+
+  await page.reload();
+  expect((await boardNames(page)).slice(0, 3)).toEqual(["Order two", "Order one", "Order three"]);
+  expect(await lastEdited()).toBe(edited);
+
+  const keyed = movedAndSaved(page);
+  await handle(page, "Order one").focus();
+  await page.keyboard.press("ArrowUp");
+  await keyed;
+  await expect(page.getByRole("status").filter({ hasText: "Order one moved to place 1" })).toBeAttached();
+  await page.reload();
+  expect((await boardNames(page)).slice(0, 3)).toEqual(["Order one", "Order two", "Order three"]);
+  await expect(handle(page, "Order one")).toBeVisible();
+
+  // Drawing on a board no longer moves it; a new one goes first.
+  await newBoard(page, "Order four");
+  await page.goto("/brainstorm");
+  expect((await boardNames(page)).slice(0, 4)).toEqual([
+    "Order four",
+    "Order one",
+    "Order two",
+    "Order three",
+  ]);
+
+  // The row still opens its board.
+  await main(page).locator("tbody tr", { hasText: "Order two" }).locator("td").last().click();
+  await expect(page).toHaveURL(BOARD);
+
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
+
+  test("boards are put in order on a phone too, and the list fits", async ({ page }) => {
+    await page.goto("/brainstorm");
+    const before = await boardNames(page);
+    const [top, second] = before;
+    const dragged = movedAndSaved(page);
+    await drag(page, top, second);
+    await dragged;
+    await expect.poll(() => boardNames(page).then((names) => names.slice(0, 2))).toEqual([second, top]);
+    await page.reload();
+    expect((await boardNames(page)).slice(0, 2)).toEqual([second, top]);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
 
   test("Brainstorming is reached through Go to, and the board fits the screen", async ({
     page,

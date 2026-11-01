@@ -11,6 +11,7 @@ import {
   brainstormIcon,
   brainstormElementsSave,
   brainstormName,
+  brainstormOrder,
   MAX_BOARD_ELEMENTS,
   MAX_BRAINSTORM_BOARDS,
 } from "./schema";
@@ -18,6 +19,7 @@ import {
   brainstormChanges,
   createBrainstorm,
   deleteBrainstorm,
+  reorderBrainstorms,
   pruneBrainstorm,
   renameBrainstorm,
   saveBrainstormElements,
@@ -301,12 +303,12 @@ describe("brainstorm boards", () => {
     });
   });
 
-  it("lists the board drawn on last first, finds by name and pages", async () => {
+  it("lists a new board first, keeps the order when one is drawn on, finds by name and pages", async () => {
     const first = await made(ownerId, "Garden plans");
     await made(ownerId, "Book notes");
     await saveBrainstormElements(ownerId, first, save(0, [box("a")]));
     let page = await listBrainstorms(ownerId);
-    expect(page.rows.map(({ name }) => name)).toEqual(["Garden plans", "Book notes"]);
+    expect(page.rows.map(({ name }) => name)).toEqual(["Book notes", "Garden plans"]);
     page = await listBrainstorms(ownerId, { q: "book" });
     expect(page.rows.map(({ name }) => name)).toEqual(["Book notes"]);
     // A % typed is a percent sign, not a pattern.
@@ -322,6 +324,52 @@ describe("brainstorm boards", () => {
     expect(page.rows).toHaveLength(BRAINSTORM_PAGE_SIZE);
     expect(page.hasMore).toBe(true);
     expect(page.total).toBe(BRAINSTORM_PAGE_SIZE + 2);
+  });
+
+  it("puts boards in the order given and leaves Last edited alone", async () => {
+    const [a, b, c] = [await made(ownerId, "A"), await made(ownerId, "B"), await made(ownerId, "C")];
+    const edited = async () =>
+      (await listBrainstorms(ownerId)).rows.map(({ id, updatedAt }) => [id, updatedAt.getTime()]);
+    const before = new Map((await edited()) as [string, number][]);
+
+    expect(await reorderBrainstorms(ownerId, [a, c, b])).toBe(true);
+    const page = await listBrainstorms(ownerId);
+    expect(page.rows.map(({ id }) => id)).toEqual([a, c, b]);
+    for (const { id, updatedAt } of page.rows) expect(updatedAt.getTime()).toBe(before.get(id));
+
+    const { rows: entries } = await listAudit(ownerId);
+    const entry = entries.find(({ action }) => action === "brainstorm.reorder");
+    expect(entry?.after).toEqual([a, c, b]);
+  });
+
+  it("moves only the boards named, among the places they hold", async () => {
+    const [a, b, c] = [await made(ownerId, "A"), await made(ownerId, "B"), await made(ownerId, "C")];
+    // Shown first to last: C, B, A. Swapping C and A leaves B between them.
+    expect(await reorderBrainstorms(ownerId, [a, c])).toBe(true);
+    expect((await listBrainstorms(ownerId)).rows.map(({ id }) => id)).toEqual([a, b, c]);
+    // A new board still goes first.
+    const d = await made(ownerId, "D");
+    expect((await listBrainstorms(ownerId)).rows[0].id).toBe(d);
+  });
+
+  it("moves nothing when any board is not the owner's", async () => {
+    const [a, b] = [await made(ownerId, "A"), await made(ownerId, "B")];
+    const stranger = await createTestOwner("stranger@example.com");
+    const theirs = await made(stranger, "Theirs");
+    expect(await reorderBrainstorms(ownerId, [a, b, theirs])).toBe(false);
+    expect(await reorderBrainstorms(stranger, [b, a])).toBe(false);
+    expect((await listBrainstorms(ownerId)).rows.map(({ id }) => id)).toEqual([b, a]);
+    expect((await listBrainstorms(stranger)).rows.map(({ id }) => id)).toEqual([theirs]);
+  });
+
+  it("takes an order only as unique ids, at most a page of them", () => {
+    const id = "6f1c1f6e-5d7a-4b7a-9f3e-0a1b2c3d4e5f";
+    expect(brainstormOrder.safeParse([id]).success).toBe(true);
+    expect(brainstormOrder.safeParse([]).success).toBe(false);
+    expect(brainstormOrder.safeParse([id, id]).success).toBe(false);
+    expect(brainstormOrder.safeParse(["not-a-uuid"]).success).toBe(false);
+    const tooMany = Array.from({ length: BRAINSTORM_PAGE_SIZE + 1 }, () => crypto.randomUUID());
+    expect(brainstormOrder.safeParse(tooMany).success).toBe(false);
   });
 
   it("never reaches another owner's board", async () => {
