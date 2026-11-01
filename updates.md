@@ -1227,3 +1227,10 @@
 - [2026-11-01] e2e/36-fullscreen.spec.ts: entering and leaving, moving page, both boards, a browser that can't or refuses, the installed app, a phone, and the manifest
 - [2026-11-01] security.md: a rule for the manifest and the fullscreen button; plan.md: the request recorded and the Branding entry corrected
 - [2026-11-01] Added a trail learning replacing the one on the logo: the owner has now asked for a manifest, and an iPhone can only go fullscreen from the Home Screen
+- [2026-11-01] Added a trail learning: Phase 6 will copy 12 months of Gmail into Neon with a 600 MB cap, and borrows Hindsight's ideas without running it
+- [2026-11-01] Installed Anthropic's skill-creator as a global Claude Code skill in ~/.claude/skills/skill-creator (outside this repo), so it is available in every project
+- [2026-11-01] Installed tt-a1i's Archify as a global Claude Code skill in ~/.claude/skills/archify (outside this repo), exactly per its llms.txt; doctor passes
+- [2026-11-01] Boards: holding the right mouse button and dragging moves the board, on workflows and brainstorm boards, because the owner asked for it; a right click without a drag still opens the menu (right-drag-pan.ts)
+- [2026-11-01] e2e/37-board-pan.spec.ts: right-drag on both kinds of board, a drag starting on a box, a plain and a shaky right click, letting go over the header, a menu asked for on press as on Mac and Linux, and the middle button still panning
+- [2026-11-01] plan.md: the right-button pan and what was left out
+- [2026-11-01] Added a trail learning: why the right-button pan sits outside Excalidraw, how the menu's timing differs by system, and that parallel e2e runs clash on ports
