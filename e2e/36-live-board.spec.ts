@@ -303,6 +303,40 @@ test("a message that would not pass a save is not drawn", async ({ browser }) =>
   await tablet.context().close();
 });
 
+test("something renumbered on arrival and rubbed out straight away is gone everywhere", async ({
+  browser,
+}) => {
+  const laptop = await device(browser);
+  const tablet = await device(browser);
+  await connected(laptop);
+  await connected(tablet);
+  await note(tablet, "Holds a place");
+  await expect(tablet.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(notes(laptop)).toHaveCount(await notes(tablet).count(), { timeout: 2_000 });
+  const pass = await passFor(tablet);
+
+  const { elements } = (await (
+    await tablet.request.get(`/api/brainstorm/${boardId}/elements?since=0`)
+  ).json()) as { elements: { index: string | null; isDeleted: boolean }[] };
+  const taken = elements.find(({ index, isDeleted }) => index && !isDeleted)!;
+  const before = await notes(tablet).count();
+
+  // Arrives on both windows, sorted after what is at that place, so both renumber it.
+  await sendAsAnotherDevice(tablet, pass, [{ ...sticky("zzzzzz-soon-gone"), index: taken.index }]);
+  await expect(notes(tablet)).toHaveCount(before + 1, { timeout: 2_000 });
+  await expect(notes(laptop)).toHaveCount(before + 1, { timeout: 2_000 });
+
+  // Before either has saved its copy.
+  await tablet.keyboard.press("Escape");
+  await tablet.keyboard.press("Control+a");
+  await tablet.keyboard.press("Delete");
+  await expect(notes(tablet)).toHaveCount(0);
+  await expect(notes(laptop)).toHaveCount(0, { timeout: 2_000 });
+
+  await laptop.context().close();
+  await tablet.context().close();
+});
+
 // Otherwise the two devices hold different copies at one version, and a delete
 // from the other device can lose to this one's copy by the toss of a nonce.
 test("an element the whiteboard renumbers on arrival is sent on and saved", async ({ browser }) => {
