@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { DetailList } from "@/components/detail-list";
+import { LinkedText } from "@/components/linked-text";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -208,7 +209,9 @@ export function TaskEditor({
                 {
                   label: "Notes",
                   value: task.notes && (
-                    <span className="whitespace-pre-wrap">{task.notes}</span>
+                    <span className="whitespace-pre-wrap">
+                      <LinkedText text={task.notes} />
+                    </span>
                   ),
                 },
               ]}

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { LinkedText } from "@/components/linked-text";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import { CompanyLogo, ContactAvatar } from "@/components/company-logo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -175,7 +176,9 @@ export default async function PaymentPage({ params }: PageProps<"/money/payments
             <CardTitle>Notes</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="max-w-prose break-words whitespace-pre-wrap">{payment.notes}</p>
+            <p className="max-w-prose break-words whitespace-pre-wrap">
+              <LinkedText text={payment.notes} />
+            </p>
           </CardContent>
         </Card>
       )}

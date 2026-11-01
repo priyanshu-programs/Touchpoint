@@ -1227,6 +1227,16 @@
 - [2026-11-01] e2e/36-fullscreen.spec.ts: entering and leaving, moving page, both boards, a browser that can't or refuses, the installed app, a phone, and the manifest
 - [2026-11-01] security.md: a rule for the manifest and the fullscreen button; plan.md: the request recorded and the Branding entry corrected
 - [2026-11-01] Added a trail learning replacing the one on the logo: the owner has now asked for a manifest, and an iPhone can only go fullscreen from the Home Screen
+- [2026-11-01] src/lib/autolink.ts: finds addresses in text (http, https, www and bare domains on a short list of endings), because typed notes and whiteboards both need the same answer; tests
+- [2026-11-01] src/modules/workflows/typed-link.ts: decides what writing does to a text's link and colour, so a link removed or set by hand and a chosen colour are kept; tests
+- [2026-11-01] Whiteboards: text that is only an address, typed or pasted, becomes a blue link by itself, on the box when written in a box or sticky note, because the owner should not need the link option (typed-links.ts, both board editors)
+- [2026-11-01] Added LinkedText: addresses in typed notes are blue links in a new tab, on activity notes and outcomes, task, invoice and payment notes, material descriptions and a box's notes
+- [2026-11-01] Activity timeline: a meeting's line stays plain text, because it is the location Google sent and anyone can fill it through an invite
+- [2026-11-01] e2e/38-auto-links.spec.ts: typing, pasting, sticky notes, undo, reload, a workflow box, typed notes, a phone, and the website and meeting text that must stay plain
+- [2026-11-01] security.md: a rule for addresses as links, and that Phase 6 emails must not be drawn through LinkedText
+- [2026-11-01] plan.md: addresses becoming links, with what was left out and why
+- [2026-11-01] Added a trail learning: on a board only address-only text becomes a link, and meeting locations stay plain
+- [2026-11-01] Added a trail learning: a private e2e database needs TEST_DATABASE_URL set in the shell, because 01-foundation imports the real Playwright config
 - [2026-11-01] Moved board-view.ts to workflows/[id], because workflows now use it too and brainstorm already takes its shared board code from there
 - [2026-11-01] Boards: a remembered view is always restored, even over an empty part of the board or on an empty board, because the owner wants a board to reopen exactly where it was left; the way back is the whiteboard's Scroll back to content
 - [2026-11-01] Boards: a view still waiting to be written is written as the page is hidden or goes (useRememberedView), because closing a tab or a tablet dropping the page unmounts nothing and lost a move made in the last half second
