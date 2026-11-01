@@ -1239,3 +1239,9 @@
 - [2026-11-01] ?perf=1 also shows whether the board is connected to its room and the time there and back
 - [2026-11-01] e2e/36-live-board.spec.ts: two windows against a real local room, for the time taken with asking turned off, delete and undo, what the room can read, a device dying before saving, the room being out of reach, opening from the list, bad tickets and a message that wouldn't pass a save
 - [2026-11-01] security.md: the three approved deviations for the live room and its controls; plan.md: the work and why Vercel's WebSockets and Neon Realtime were ruled out; .env.example and live-room/README.md: how to set it up
+- [2026-11-01] Moved board-view.ts to workflows/[id], because workflows now use it too and brainstorm already takes its shared board code from there
+- [2026-11-01] Boards: a remembered view is always restored, even over an empty part of the board or on an empty board, because the owner wants a board to reopen exactly where it was left; the way back is the whiteboard's Scroll back to content
+- [2026-11-01] Boards: a view still waiting to be written is written as the page is hidden or goes (useRememberedView), because closing a tab or a tablet dropping the page unmounts nothing and lost a move made in the last half second
+- [2026-11-01] Workflows: reopen where this device left them, with the opening view worked out before the first draw in place of fitting afterwards, which would have been remembered as a move
+- [2026-11-01] e2e/37-board-view.spec.ts: brainstorm boards and workflows reopen at the exact zoom and position, straight after moving, over empty space and when empty, and a first open still fits; board-view.test.ts follows
+- [2026-11-01] security.md: the remembered view's rule covers workflows; plan.md: an entry for boards reopening where they were left
