@@ -66,6 +66,7 @@ import { BoxNotes } from "./box-notes";
 import { createTypedLinks } from "./typed-links";
 import type { Paper } from "./paper";
 import { RecordChips, type BoardRecord, type ChipSpot } from "./record-chip";
+import { useRightDragPan } from "./right-drag-pan";
 import { StageAsk } from "./stage-ask";
 import { StageHalos, type StageBox } from "./stage-halos";
 import { StickySheen, StickyShadows } from "./sticky-notes";
@@ -399,6 +400,7 @@ function Whiteboard({
   };
   const page = useRef<HTMLDivElement>(null);
   const board = useRef<HTMLDivElement>(null);
+  useRightDragPan(board, api);
   const [picked, setPicked] = useState<Picked>({ stroke: "", fill: null });
   const [ask, setAsk] = useState<Ask | null>(null);
   const asks = useRef<HTMLDivElement>(null);

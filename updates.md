@@ -1239,6 +1239,13 @@
 - [2026-11-01] ?perf=1 also shows whether the board is connected to its room and the time there and back
 - [2026-11-01] e2e/36-live-board.spec.ts: two windows against a real local room, for the time taken with asking turned off, delete and undo, what the room can read, a device dying before saving, the room being out of reach, opening from the list, bad tickets and a message that wouldn't pass a save
 - [2026-11-01] security.md: the three approved deviations for the live room and its controls; plan.md: the work and why Vercel's WebSockets and Neon Realtime were ruled out; .env.example and live-room/README.md: how to set it up
+- [2026-11-01] Added a trail learning: Phase 6 will copy 12 months of Gmail into Neon with a 600 MB cap, and borrows Hindsight's ideas without running it
+- [2026-11-01] Installed Anthropic's skill-creator as a global Claude Code skill in ~/.claude/skills/skill-creator (outside this repo), so it is available in every project
+- [2026-11-01] Installed tt-a1i's Archify as a global Claude Code skill in ~/.claude/skills/archify (outside this repo), exactly per its llms.txt; doctor passes
+- [2026-11-01] Boards: holding the right mouse button and dragging moves the board, on workflows and brainstorm boards, because the owner asked for it; a right click without a drag still opens the menu (right-drag-pan.ts)
+- [2026-11-01] e2e/39-board-pan.spec.ts: right-drag on both kinds of board, a drag starting on a box, a plain and a shaky right click, letting go over the header, a menu asked for on press as on Mac and Linux, and the middle button still panning
+- [2026-11-01] plan.md: the right-button pan and what was left out
+- [2026-11-01] Added a trail learning: why the right-button pan sits outside Excalidraw, how the menu's timing differs by system, and that parallel e2e runs clash on ports
 - [2026-11-01] src/lib/autolink.ts: finds addresses in text (http, https, www and bare domains on a short list of endings), because typed notes and whiteboards both need the same answer; tests
 - [2026-11-01] src/modules/workflows/typed-link.ts: decides what writing does to a text's link and colour, so a link removed or set by hand and a chosen colour are kept; tests
 - [2026-11-01] Whiteboards: text that is only an address, typed or pasted, becomes a blue link by itself, on the box when written in a box or sticky note, because the owner should not need the link option (typed-links.ts, both board editors)
@@ -1259,3 +1266,5 @@
 - [2026-11-01] brainstorm-editor.tsx: adding a sticky note keeps deleted elements in the scene, because without them a new note reused a place in the drawing order that another device still held, which is what set off that renumbering
 - [2026-11-01] board-sync.ts: a look asked for during a save now runs when the save ends, instead of being lost if that save wasn't behind
 - [2026-11-01] e2e/36-live-board.spec.ts: an element renumbered on arrival is sent on and saved
+- [2026-11-01] e2e/19-brainstorm.spec.ts: the phone order test waits for the first row before reading the names, because it could read an empty list and wait forever for a button called "Move undefined"
+- [2026-11-01] e2e/39-board-pan.spec.ts: renumbered from 38, because the auto-links pull request took 38 first

@@ -44,6 +44,7 @@ import {
 } from "../../workflows/[id]/board-chrome";
 import { ColorGrid, samePicked, type Picked } from "../../workflows/[id]/color-grid";
 import { createBoardPictures } from "../../workflows/[id]/board-pictures";
+import { useRightDragPan } from "../../workflows/[id]/right-drag-pan";
 import {
   HEADER_PX,
   openingView,
@@ -292,6 +293,7 @@ function Whiteboard({
   const [color, setColor] = useState(FIRST_STICKY);
   const [picked, setPicked] = useState<Picked>({ stroke: "", fill: null });
   const board = useRef<HTMLDivElement>(null);
+  useRightDragPan(board, api);
   const page = useRef<HTMLDivElement>(null);
   const [notes, setNotes] = useState<NoteOnBoard[]>([]);
   const shadows = useRef<HTMLDivElement>(null);
