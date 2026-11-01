@@ -44,20 +44,22 @@ import {
 } from "../../workflows/[id]/board-chrome";
 import { ColorGrid, samePicked, type Picked } from "../../workflows/[id]/color-grid";
 import { createBoardPictures } from "../../workflows/[id]/board-pictures";
+import {
+  HEADER_PX,
+  openingView,
+  useRememberedView,
+  type Placed,
+} from "../../workflows/[id]/board-view";
 import type { SaveState } from "../../workflows/[id]/board-saver";
 import { openBrainstormAction } from "@/app/(app)/brainstorm/actions";
 import type { Paper } from "../../workflows/[id]/paper";
 import { StickySheen, StickyShadows } from "../../workflows/[id]/sticky-notes";
 import { createBoardSync, loadBoard } from "./board-sync";
-import { openingView, rememberView, type BoardView } from "./board-view";
 import { PerfReadout, wantsPerfReadout } from "./perf-readout";
 
 // How often a moving view or a pen stroke looks over every element of the board:
 // a board of handwriting holds thousands, and these run many times a second.
 const SCAN_MS = 250;
-const REMEMBER_MS = 500;
-// The board's own header, above the whiteboard.
-const HEADER_PX = 56;
 
 // A sticky note comes in the grid's light and bright colours, light yellow first.
 const STICKY_COLORS = [...LIGHT_COLORS, ...BRIGHT_COLORS];
@@ -270,8 +272,6 @@ export function BrainstormEditor({
   return <Whiteboard boardId={boardId} name={name} opensOn={paper} {...drawing} />;
 }
 
-type Placed = Parameters<typeof openingView>[1][number];
-
 const oneOf = (types: readonly string[], element: ExcalidrawElement) =>
   types.includes(element.type);
 
@@ -304,21 +304,10 @@ function Whiteboard({
     }),
   );
   const [paperFollows] = useState(createPaperFollower);
-  const lastView = useRef<BoardView | null>(null);
-  // Only a view the owner moved to is remembered, not the one a board opened at:
-  // an empty board's would otherwise hide what is drawn on it from elsewhere.
-  const viewToKeep = useRef<BoardView | null>(null);
-  const toRemember = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const sawView = useRememberedView(boardId);
   const scanTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const toScan = useRef<(() => void) | null>(null);
-  useEffect(
-    () => () => {
-      clearTimeout(scanTimer.current);
-      clearTimeout(toRemember.current);
-      if (viewToKeep.current) rememberView(boardId, viewToKeep.current);
-    },
-    [boardId],
-  );
+  useEffect(() => () => clearTimeout(scanTimer.current), []);
   // Notes put down before they carried a mark are given it, and square
   // corners, as the board opens, as a change of their own the next save keeps.
   const [opening] = useState(() =>
@@ -432,17 +421,8 @@ function Whiteboard({
           typedLinks.watch(api, appState);
           const zoom = appState.zoom.value;
           const view = { zoom, scrollX: appState.scrollX, scrollY: appState.scrollY };
-          const moved =
-            lastView.current?.zoom !== zoom ||
-            lastView.current.scrollX !== view.scrollX ||
-            lastView.current.scrollY !== view.scrollY;
+          const moved = sawView(view);
           if (moved) {
-            if (lastView.current) {
-              viewToKeep.current = view;
-              clearTimeout(toRemember.current);
-              toRemember.current = setTimeout(() => rememberView(boardId, view), REMEMBER_MS);
-            }
-            lastView.current = view;
             paperFollows(page.current, view, appState);
             // The notes' shadows and shading go where the drawing goes.
             const placed = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;

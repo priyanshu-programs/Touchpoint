@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
+
 export type BoardView = { zoom: number; scrollX: number; scrollY: number };
 
 type Size = { width: number; height: number };
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 
-type Placed = {
+export type Placed = {
   x: number;
   y: number;
   width: number;
@@ -16,6 +18,9 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 30;
 // As the whiteboard's own "fit to screen" leaves a margin.
 const FIT = 0.9;
+const REMEMBER_MS = 500;
+// The board's own header, above the whiteboard.
+export const HEADER_PX = 56;
 // A stroke's points run from its start, so they can reach left of and above it.
 // Rotation is left out: this only has to bring the drawing into view.
 export function boundsOf(elements: readonly Placed[]): Bounds | null {
@@ -49,12 +54,6 @@ export function fittedView({ minX, minY, maxX, maxY }: Bounds, size: Size): Boar
     scrollY: size.height / (2 * zoom) - (minY + maxY) / 2,
   };
 }
-
-const sees = ({ zoom, scrollX, scrollY }: BoardView, bounds: Bounds, size: Size) =>
-  -scrollX < bounds.maxX &&
-  -scrollX + size.width / zoom > bounds.minX &&
-  -scrollY < bounds.maxY &&
-  -scrollY + size.height / zoom > bounds.minY;
 
 const storageKey = (boardId: string) => `board-view:${boardId}`;
 
@@ -90,16 +89,65 @@ export function rememberView(boardId: string, { zoom, scrollX, scrollY }: BoardV
   }
 }
 
-// Where a board opens: where this device left it, unless that shows nothing of
-// the drawing any more, else the whole drawing in view. An empty board stays
-// where it is, or the first box drawn on it would jump to the middle.
+// Where a board opens: exactly where this device left it, whatever is on screen
+// there (the whiteboard offers a way back to the drawing), else the whole drawing
+// in view. An empty board stays where it is, or the first box drawn on it would
+// jump to the middle.
 export function openingView(
   boardId: string,
   elements: readonly Placed[],
   size: Size,
 ): BoardView | null {
-  const bounds = boundsOf(elements);
-  if (!bounds) return null;
   const remembered = rememberedView(boardId);
-  return remembered && sees(remembered, bounds, size) ? remembered : fittedView(bounds, size);
+  if (remembered) return remembered;
+  const bounds = boundsOf(elements);
+  return bounds && fittedView(bounds, size);
+}
+
+// Only a view the owner moved to is kept, not the one a board opened at: an empty
+// board's would otherwise hide what is drawn on it from elsewhere.
+export function createViewMemory(boardId: string) {
+  let last: BoardView | null = null;
+  let waiting: BoardView | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const write = () => {
+    clearTimeout(timer);
+    if (waiting) rememberView(boardId, waiting);
+    waiting = null;
+  };
+  const saw = (view: BoardView) => {
+    const moved =
+      last?.zoom !== view.zoom ||
+      last.scrollX !== view.scrollX ||
+      last.scrollY !== view.scrollY;
+    if (!moved) return false;
+    if (last) {
+      waiting = view;
+      clearTimeout(timer);
+      timer = setTimeout(write, REMEMBER_MS);
+    }
+    last = view;
+    return true;
+  };
+  return { saw, write };
+}
+
+// Closing a tab or a tablet dropping the page unmounts nothing, so a view still
+// waiting is written as the page is hidden too. Gives the function to tell it each
+// view, which says whether the view moved.
+export function useRememberedView(boardId: string) {
+  const [memory] = useState(() => createViewMemory(boardId));
+  useEffect(() => {
+    const hidden = () => {
+      if (document.visibilityState === "hidden") memory.write();
+    };
+    document.addEventListener("visibilitychange", hidden);
+    window.addEventListener("pagehide", memory.write);
+    return () => {
+      document.removeEventListener("visibilitychange", hidden);
+      window.removeEventListener("pagehide", memory.write);
+      memory.write();
+    };
+  }, [memory]);
+  return memory.saw;
 }

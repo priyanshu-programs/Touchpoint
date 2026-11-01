@@ -1,5 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { boundsOf, fittedView, openingView, rememberView } from "./board-view";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  boundsOf,
+  createViewMemory,
+  fittedView,
+  openingView,
+  rememberView,
+} from "./board-view";
 
 const box = (x: number, y: number, width = 100, height = 50) => ({ x, y, width, height });
 const SIZE = { width: 1000, height: 800 };
@@ -36,19 +42,21 @@ describe("fittedView", () => {
   });
 });
 
-describe("openingView", () => {
-  const ID = "board-1";
-  beforeEach(() => {
-    const kept = new Map<string, string>();
-    vi.stubGlobal("localStorage", {
-      getItem: (key: string) => kept.get(key) ?? null,
-      setItem: (key: string, value: string) => void kept.set(key, value),
-    });
+const ID = "board-1";
+beforeEach(() => {
+  const kept = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => kept.get(key) ?? null,
+    setItem: (key: string, value: string) => void kept.set(key, value),
   });
+});
 
-  it("leaves an empty board alone", () => {
-    rememberView(ID, { zoom: 2, scrollX: 5, scrollY: 5 });
+describe("openingView", () => {
+  it("leaves an empty board alone until the owner has moved it", () => {
     expect(openingView(ID, [], SIZE)).toBeNull();
+    const left = { zoom: 2, scrollX: 5, scrollY: 5 };
+    rememberView(ID, left);
+    expect(openingView(ID, [], SIZE)).toEqual(left);
   });
 
   it("fits the drawing on a first open", () => {
@@ -62,9 +70,10 @@ describe("openingView", () => {
     expect(openingView("another-board", [box(0, 0)], SIZE)).not.toEqual(left);
   });
 
-  it("fits the drawing when the place left shows none of it", () => {
-    rememberView(ID, { zoom: 2, scrollX: -90_000, scrollY: 0 });
-    expect(openingView(ID, [box(0, 0)], SIZE)?.scrollX).toBe(450);
+  it("opens at the place left even if it shows none of the drawing", () => {
+    const left = { zoom: 2, scrollX: -90_000, scrollY: 0 };
+    rememberView(ID, left);
+    expect(openingView(ID, [box(0, 0)], SIZE)).toEqual(left);
   });
 
   it.each([
@@ -77,5 +86,40 @@ describe("openingView", () => {
   ])("ignores a stored view that is not one: %s", (stored) => {
     localStorage.setItem(`board-view:${ID}`, stored);
     expect(openingView(ID, [box(0, 0)], SIZE)?.zoom).toBe(1);
+  });
+});
+
+describe("createViewMemory", () => {
+  const opened = { zoom: 1, scrollX: 0, scrollY: 0 };
+  const moved = { zoom: 2, scrollX: 30, scrollY: 40 };
+  const kept = () => openingView(ID, [], SIZE);
+
+  beforeEach(() => void vi.useFakeTimers());
+  afterEach(() => void vi.useRealTimers());
+
+  it("does not keep the view a board opened at", () => {
+    const memory = createViewMemory(ID);
+    expect(memory.saw(opened)).toBe(true);
+    expect(memory.saw({ ...opened })).toBe(false);
+    vi.runAllTimers();
+    memory.write();
+    expect(kept()).toBeNull();
+  });
+
+  it("keeps a move once the view has stopped", () => {
+    const memory = createViewMemory(ID);
+    memory.saw(opened);
+    expect(memory.saw(moved)).toBe(true);
+    expect(kept()).toBeNull();
+    vi.advanceTimersByTime(500);
+    expect(kept()).toEqual(moved);
+  });
+
+  it("keeps a move at once when the page goes, before the wait is over", () => {
+    const memory = createViewMemory(ID);
+    memory.saw(opened);
+    memory.saw(moved);
+    memory.write();
+    expect(kept()).toEqual(moved);
   });
 });
