@@ -1240,3 +1240,4 @@
 - [2026-11-01] Workflows: reopen where this device left them, with the opening view worked out before the first draw in place of fitting afterwards, which would have been remembered as a move
 - [2026-11-01] e2e/37-board-view.spec.ts: brainstorm boards and workflows reopen at the exact zoom and position, straight after moving, over empty space and when empty, and a first open still fits; board-view.test.ts follows
 - [2026-11-01] security.md: the remembered view's rule covers workflows; plan.md: an entry for boards reopening where they were left
+- [2026-11-01] e2e/19-brainstorm.spec.ts: the phone order test waits for the first row before reading the names, because it could read an empty list and wait forever for a button called "Move undefined"

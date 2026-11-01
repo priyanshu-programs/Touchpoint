@@ -645,6 +645,7 @@ test.describe("on a phone", () => {
 
   test("boards are put in order on a phone too, and the list fits", async ({ page }) => {
     await page.goto("/brainstorm");
+    await expect(main(page).locator("tbody tr").first()).toBeVisible();
     const before = await boardNames(page);
     const [top, second] = before;
     const dragged = movedAndSaved(page);
