@@ -41,6 +41,8 @@ export const brainstormBoards = pgTable(
     // The clock when deleted elements were last cleared away. A device that
     // last saw an older one cannot be told of those, so it loads the board again.
     pruned: bigint("pruned", { mode: "number" }).notNull().default(0),
+    // Where the owner has put it on the Brainstorming page, lowest first.
+    position: integer("position").notNull().default(0),
     createdAt,
     updatedAt,
   },
@@ -48,6 +50,7 @@ export const brainstormBoards = pgTable(
     check("brainstorm_boards_icon_check", sql`${table.icon} ~ '^[a-z0-9-]{1,32}$'`),
     uniqueIndex("brainstorm_boards_owner_name_idx").on(table.ownerId, table.name),
     index("brainstorm_boards_owner_updated_idx").on(table.ownerId, table.updatedAt),
+    index("brainstorm_boards_owner_position_idx").on(table.ownerId, table.position),
   ],
 );
 

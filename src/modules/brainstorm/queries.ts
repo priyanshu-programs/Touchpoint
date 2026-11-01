@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { brainstormBoards } from "@/db/schema";
 import { BRAINSTORM_PAGE_SIZE } from "./schema";
@@ -26,7 +26,7 @@ export async function listBrainstorms(
       })
       .from(brainstormBoards)
       .where(matching)
-      .orderBy(desc(brainstormBoards.updatedAt), asc(brainstormBoards.id))
+      .orderBy(asc(brainstormBoards.position), asc(brainstormBoards.id))
       .limit(BRAINSTORM_PAGE_SIZE + 1)
       .offset(options.offset ?? 0),
     db.$count(brainstormBoards, matching),

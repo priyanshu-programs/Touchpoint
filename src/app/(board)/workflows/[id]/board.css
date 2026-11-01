@@ -382,7 +382,7 @@
   --popup-secondary-bg-color: var(--muted);
   --text-primary-color: var(--foreground);
   --color-on-surface: var(--foreground);
-  --border-radius-md: calc(var(--radius) - 4px);
+  --border-radius-md: var(--radius-md);
   --border-radius-lg: var(--radius);
   --shadow-island: var(--shadow-lg);
   /* Lime like the rest of the site, instead of the whiteboard's purple. */
