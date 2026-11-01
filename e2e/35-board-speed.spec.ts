@@ -181,6 +181,9 @@ test("a board of 4,200 pen strokes opens, moves, zooms and still saves on a slow
   const newLevel = await zoom(page, -40, 2);
   levels.push(await zoomLevel(page));
 
+  // Moving around with most of the board on screen, each stroke drawn every frame.
+  const pannedWide = await pan(page);
+
   // A new stroke goes on and is saved after all that.
   const saved = page.waitForResponse(
     (response) => response.request().method() === "PATCH" && response.url().endsWith("/elements"),
@@ -227,9 +230,16 @@ test("a board of 4,200 pen strokes opens, moves, zooms and still saves on a slow
     panned,
     zoomedOut,
     newLevel,
+    pannedWide,
   };
   test.info().annotations.push({ type: "speed", description: JSON.stringify(numbers) });
   console.log(`board speed at ${SLOWER}x slower, ms: ${JSON.stringify(numbers)}`);
+
+  // Pen strokes are drawn straight onto the screen (patches/, for Excalidraw):
+  // a canvas for each stroke is what froze a tablet. This fails if the patch is lost.
+  expect(openCanvases).toBeLessThan(100);
+  expect(zoomedIn.canvases).toBeLessThan(100);
+  expect(newLevel.canvases).toBeLessThan(100);
 
   // The readout, asked for by its address and absent without it.
   await expect(page.getByRole("complementary", { name: "Board speed" })).toHaveCount(0);
