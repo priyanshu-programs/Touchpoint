@@ -1202,3 +1202,7 @@
 - [2026-11-01] e2e/19-brainstorm.spec.ts: dragging, arrow keys, a reload keeping the order, Last edited unchanged, a new board first, a row still opening, and a phone
 - [2026-11-01] security.md: a rule for the order of brainstorm boards; plan.md: the drag order marked built
 - [2026-11-01] plan.md and docs/PRD.md: the board list's order is the owner's, set by dragging
+- [2026-11-01] src/app/globals.css: --radius is 6px and every card-sized step of the scale follows it, because the owner found cards too rounded; buttons and inputs are 3 to 4px in step, and circles and the logo tile are unchanged
+- [2026-11-01] board.css: the whiteboard's own controls take the same scale, so its smaller corners stay 4px
+- [2026-11-01] e2e/34-corners.spec.ts: a card, a list table and a dialog have 6px corners, and a circle stays a circle
+- [2026-11-01] plan.md: the owner's three requests of 2026-11-01 (tablet speed, drag to order, 6px corners) with their order and targets
