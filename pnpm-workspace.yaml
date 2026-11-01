@@ -2,6 +2,7 @@ allowBuilds:
   esbuild: true
   sharp: false
   unrs-resolver: false
+  workerd: false
 # Excalidraw 0.18.1 pins versions with open advisories. sass is a build tool it
 # lists by mistake and never loads, and its braces has no fixed release.
 overrides:

@@ -350,6 +350,7 @@ function Whiteboard({
   const [sync] = useState(() =>
     createBoardSync({
       address: `/api/brainstorm/${boardId}/elements`,
+      liveAddress: `/api/brainstorm/${boardId}`,
       clock,
       // As they were stored, so a note given its mark above is sent.
       elements: elements as unknown as ExcalidrawElement[],
@@ -460,9 +461,10 @@ function Whiteboard({
             pictures.look(all, files);
             sync.changed(all);
           };
-          // Moving the view and writing with the pen change nothing these need
-          // at once. Anything else, like dragging a note, is followed exactly.
-          if (moved || appState.newElement?.type === "freedraw") {
+          // Moving the view, writing with the pen and what another device sent
+          // change nothing these need at once. Anything else, like dragging a
+          // note, is followed exactly.
+          if (moved || appState.newElement?.type === "freedraw" || sync.justMerged()) {
             toScan.current = scan;
             scanTimer.current ??= setTimeout(() => {
               scanTimer.current = undefined;
@@ -496,7 +498,7 @@ function Whiteboard({
         </MainMenu>
       </Excalidraw>
       <StickySheen layer={sheen} notes={notes} dark={isDark} />
-      {perf && <PerfReadout api={api} />}
+      {perf && <PerfReadout api={api} liveStatus={sync.liveStatus} />}
       <ColorGrid board={board} api={api} picked={picked} />
       {/* On a phone the tools fill the top row, so the note waits above the bar
           at the foot of the board instead. */}

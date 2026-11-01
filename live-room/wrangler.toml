@@ -1,0 +1,39 @@
+# The live room for brainstorm boards (see README.md beside this file).
+# LIVE_ROOM_SECRET is set with `wrangler secret put`, never written here.
+# With no --env this is the local room the end-to-end tests run against.
+name = "touchpoint-live-room"
+main = "room.ts"
+compatibility_date = "2026-10-01"
+send_metrics = false
+
+[vars]
+ALLOWED_ORIGIN = "^http://localhost:[0-9]+$"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "BoardRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["BoardRoom"]
+
+[env.production]
+name = "touchpoint-live-room"
+
+[env.production.vars]
+ALLOWED_ORIGIN = "^https://touchpoint-sandy\\.vercel\\.app$"
+
+[[env.production.durable_objects.bindings]]
+name = "ROOMS"
+class_name = "BoardRoom"
+
+# A Worker and secret of its own, so a preview never shares a room with production.
+[env.preview]
+name = "touchpoint-live-room-preview"
+
+[env.preview.vars]
+ALLOWED_ORIGIN = "^https://touchpoint-[a-z0-9-]+\\.vercel\\.app$"
+
+[[env.preview.durable_objects.bindings]]
+name = "ROOMS"
+class_name = "BoardRoom"

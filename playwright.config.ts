@@ -10,6 +10,8 @@ const databaseUrl =
   "postgres://postgres:postgres@localhost:5432/touchpoint_test";
 
 const FAKE_GOOGLE = "http://127.0.0.1:3101";
+const LIVE_ROOM = "127.0.0.1:3102";
+export const LIVE_ROOM_SECRET = "e2e-live-room-secret-0123456789abcdef0";
 export const CRON_SECRET = "e2e-cron-secret-0123456789abcdef01234";
 // Global setup runs in this process and resets this database.
 process.env.DATABASE_URL = databaseUrl;
@@ -31,6 +33,13 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
+      // The real room, run on this machine. It reaches nothing outside.
+      command: `pnpm exec wrangler dev --config live-room/wrangler.toml --ip 127.0.0.1 --port 3102 --var LIVE_ROOM_SECRET:${LIVE_ROOM_SECRET}`,
+      url: `http://${LIVE_ROOM}/health`,
+      timeout: 120_000,
+      reuseExistingServer: false,
+    },
+    {
       command: `pnpm build && pnpm exec next start -p ${PORT}`,
       url: `${baseURL}/sign-in`,
       timeout: 300_000,
@@ -49,6 +58,8 @@ export default defineConfig({
         TAVILY_API_KEY: "e2e-not-a-key",
         APP_ENCRYPTION_KEY: "e2e-encryption-key-0123456789abcdef0123",
         GOOGLE_SITE_VERIFICATION: "e2e-site-token",
+        LIVE_ROOM_URL: `ws://${LIVE_ROOM}`,
+        LIVE_ROOM_SECRET,
       },
     },
   ],

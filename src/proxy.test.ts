@@ -22,4 +22,11 @@ describe("buildCsp", () => {
       buildCsp("abc123", { isDev: false, isHttps: false }),
     ).not.toContain("upgrade-insecure-requests");
   });
+
+  it("reaches only this app unless the page is given the live room", () => {
+    expect(buildCsp("abc123", { isDev: false, isHttps: true })).toContain("connect-src 'self';");
+    expect(
+      buildCsp("abc123", { isDev: false, isHttps: true, liveRoom: "wss://room.example" }),
+    ).toContain("connect-src 'self' wss://room.example;");
+  });
 });

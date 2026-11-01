@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
     ".claude/**",
     "graft/**",
     ".trail/**",
+    "**/.wrangler/**",
   ]),
 ]);
 

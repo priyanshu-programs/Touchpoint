@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { liveRoomOrigin } from "@/lib/live-room";
 import { BrandMark } from "@/components/brand-mark";
 import { FullscreenButton } from "@/components/fullscreen-button";
 import { requireOwner } from "@/lib/session";
@@ -47,6 +48,7 @@ export default async function BrainstormBoardPage({
           boardId={board.id}
           name={board.name}
           paper={paperOf((await cookies()).get(PAPER_COOKIE)?.value)}
+          liveRoom={liveRoomOrigin() !== undefined}
         />
       </main>
     </div>

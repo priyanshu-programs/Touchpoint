@@ -7,17 +7,35 @@ import {
 import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconcile";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { z } from "zod";
+import { brainstormElementsSave } from "@/modules/brainstorm/schema";
 import { trimmed, type SaveState } from "../../workflows/[id]/board-saver";
+import { createBoardLive } from "./board-live";
 
 const QUIET_MS = 2_000;
 const RETRY_MS = 10_000;
 // How often an open board asks what other devices drew on it.
 const LOOK_MS = 10_000;
+// How often it asks anyway while the live room is telling it of every change.
+const SAFETY_LOOK_MS = 60_000;
+// How long changes are gathered before they are sent to the room.
+const RELAY_MS = 50;
+// How long what the room brings is gathered before it is drawn: each merge
+// goes through the whole board, which a tablet feels.
+const MERGE_MS = 100;
+// How long a change another device sent is kept for it before this device saves
+// it instead, should that device have gone before it could.
+const HOLD_MS = 15_000;
+// The most sent to the room at once. Anything more goes by the database.
+const RELAY_BYTES = 200_000;
+const MAX_NAMED = 2_000;
 // A browser sends a request that outlives its page only if the body is small.
 const KEEPALIVE_BYTES = 60_000;
 // The bytes sent at once, well under what one request may carry: a big paste
 // goes in a few saves, one after another.
 const BATCH_BYTES = 2_000_000;
+
+const storedList = z.array(z.tuple([z.string().min(1).max(100), z.number().int()])).max(MAX_NAMED);
 
 type Page =
   | { clock: number; elements: Record<string, unknown>[]; next: string | null }
@@ -60,6 +78,7 @@ export async function loadBoard(address: string) {
 // another device saved is merged in by the whiteboard's own rule.
 export function createBoardSync({
   address,
+  liveAddress,
   clock,
   elements: opened,
   sendable,
@@ -67,6 +86,8 @@ export function createBoardSync({
   received,
 }: {
   address: string;
+  // Where a device asks to join the board's live room.
+  liveAddress: string;
   // The board's clock and elements as the whiteboard opened them.
   clock: number;
   elements: readonly ExcalidrawElement[];
@@ -86,9 +107,32 @@ export function createBoardSync({
   let busy = false;
   let full = false;
   let seen: number | null = null;
+  let lookAgain = false;
+  let lastLook = 0;
+  let mergedAt = -Infinity;
+  // The version of each element as the live room last had it from or gave to
+  // this board. Delivered is not stored, so it is counted apart from `sent`.
+  const relayed = new Map(sent);
+  // Changes the room brought, kept in case the device that made them never saves them.
+  const held = new Map<string, { version: number; at: number }>();
+  const inbox = new Map<string, Record<string, unknown>>();
+  let relaying: ReturnType<typeof setTimeout> | undefined;
+  let merging: ReturnType<typeof setTimeout> | undefined;
+  let holding: ReturnType<typeof setTimeout> | undefined;
+
+  const live = createBoardLive({
+    address: liveAddress,
+    received: heard,
+    opened() {
+      void look();
+      relaySoon();
+    },
+    closed() {},
+  });
 
   const unsent = (element: ExcalidrawElement) =>
     (sent.get(element.id) ?? 0) < element.version &&
+    held.get(element.id)?.version !== element.version &&
     // One deleted before it was ever stored needs no saving.
     !(element.isDeleted && !sent.has(element.id)) &&
     sendable(element);
@@ -141,6 +185,11 @@ export function createBoardSync({
       for (const [id, version] of versions) {
         if ((sent.get(id) ?? 0) < version) sent.set(id, version);
       }
+      void live.send(
+        versions.length > MAX_NAMED
+          ? '{"t":"look"}'
+          : JSON.stringify({ t: "stored", stored: versions }),
+      );
       // Nothing else was saved in between, so nothing has been missed.
       if (!saved.behind) since = saved.clock;
       else void look();
@@ -169,18 +218,129 @@ export function createBoardSync({
 
   // Merges in what other devices saved since this board last looked.
   async function look() {
-    if (!api || busy) return;
+    if (!api) return;
+    if (busy) {
+      lookAgain = true;
+      return;
+    }
     busy = true;
+    lastLook = performance.now();
     const changes = await changesSince(address, since).catch(() => null);
     busy = false;
     if (!api || !changes) return;
     if (changes === "reset") return reload();
     if (changes.elements.length > 0) merge(changes.elements);
     since = Math.max(since, changes.clock);
+    if (lookAgain) {
+      lookAgain = false;
+      void look();
+    }
   }
 
-  function merge(remote: Record<string, unknown>[]) {
+  function relaySoon() {
+    relaying ??= setTimeout(() => {
+      relaying = undefined;
+      relay();
+    }, RELAY_MS);
+  }
+
+  // Sends the room what changed since it was last told. What does not fit goes
+  // by the database, and the other device fetches it when told it is stored.
+  function relay() {
+    if (!api || !live.isOpen()) return;
+    const parts: string[] = [];
+    let bytes = 0;
+    for (const element of api.getSceneElementsIncludingDeleted()) {
+      if (
+        (relayed.get(element.id) ?? 0) >= element.version ||
+        (element.isDeleted && !relayed.has(element.id)) ||
+        !sendable(element)
+      ) {
+        continue;
+      }
+      relayed.set(element.id, element.version);
+      const part = JSON.stringify(element, trimmed);
+      if (bytes + part.length > RELAY_BYTES) continue;
+      parts.push(part);
+      bytes += part.length;
+    }
+    if (parts.length > 0) void live.send(`{"t":"changes","elements":[${parts.join(",")}]}`);
+  }
+
+  // What the room brought. It cannot read or check what it forwards, so a change
+  // has to pass here what a save has to pass on the server.
+  function heard(message: unknown) {
+    if (!api || typeof message !== "object" || message === null) return;
+    const { t, elements, stored } = message as { t?: unknown; elements?: unknown; stored?: unknown };
+    if (t === "look") {
+      void look();
+    } else if (t === "changes") {
+      const checked = brainstormElementsSave.safeParse({ since: 0, elements });
+      if (!checked.success) return;
+      for (const element of checked.data.elements) {
+        const waiting = inbox.get(element.id);
+        if (!waiting || (waiting.version as number) <= element.version) {
+          inbox.set(element.id, element);
+        }
+      }
+      merging ??= setTimeout(mergeInbox, MERGE_MS);
+    } else if (t === "stored") {
+      const checked = storedList.safeParse(stored);
+      if (checked.success) markStored(checked.data);
+    }
+  }
+
+  function mergeInbox() {
+    clearTimeout(merging);
+    merging = undefined;
+    if (inbox.size === 0) return;
+    const remote = [...inbox.values()];
+    inbox.clear();
+    merge(remote, true);
+  }
+
+  // Another device has stored these, so this one need not. One this board does
+  // not have yet was too large for the room, and is fetched.
+  function markStored(stored: [string, number][]) {
     if (!api) return;
+    mergeInbox();
+    const here = new Map(api.getSceneElementsIncludingDeleted().map((element) => [element.id, element]));
+    let behind = false;
+    for (const [id, version] of stored) {
+      const element = here.get(id);
+      if (!element || element.version < version) behind = true;
+      else if (element.version === version && (sent.get(id) ?? 0) < version) sent.set(id, version);
+      const kept = held.get(id);
+      if (kept && kept.version <= version) held.delete(id);
+    }
+    if (behind) void look();
+  }
+
+  function hold(id: string, version: number) {
+    held.set(id, { version, at: performance.now() });
+    holding ??= setTimeout(releaseHeld, HOLD_MS);
+  }
+
+  function releaseHeld() {
+    holding = undefined;
+    const cutoff = performance.now() - HOLD_MS;
+    let released = false;
+    let oldest = Infinity;
+    for (const [id, { at }] of held) {
+      if (at <= cutoff) {
+        held.delete(id);
+        released = true;
+      } else {
+        oldest = Math.min(oldest, at);
+      }
+    }
+    if (oldest !== Infinity) holding = setTimeout(releaseHeld, oldest - cutoff);
+    if (released) later(0);
+  }
+
+  function merge(remote: Record<string, unknown>[], fromRoom = false) {
+    if (!api) return;
+    mergedAt = performance.now();
     const restored = restoreElements(
       remote as unknown as ExcalidrawElement[],
       null,
@@ -199,7 +359,16 @@ export function createBoardSync({
       const kept = now.get(element.id);
       return kept?.version === element.version && kept.versionNonce === element.versionNonce;
     });
-    for (const { id, version } of taken) sent.set(id, version);
+    for (const { id, version } of taken) {
+      relayed.set(id, version);
+      if (fromRoom) {
+        if ((sent.get(id) ?? 0) < version) hold(id, version);
+      } else {
+        sent.set(id, version);
+        const kept = held.get(id);
+        if (kept && kept.version <= version) held.delete(id);
+      }
+    }
     received(taken);
   }
 
@@ -244,6 +413,7 @@ export function createBoardSync({
       const now = hashElementsVersion(elements.filter(sendable));
       if (now === seen) return;
       seen = now;
+      relaySoon();
       if (!elements.some(unsent)) {
         // What was waiting was taken back, a stroke undone before it was stored.
         if (!busy) {
@@ -256,21 +426,35 @@ export function createBoardSync({
       report("unsaved");
       later(QUIET_MS);
     },
-    // Saves at once what is waiting: the page is being hidden or left.
-    flush: () => void save(true),
+    // Saves at once what is waiting, what is held for another device too: the
+    // page is being hidden or left.
+    flush() {
+      held.clear();
+      void save(true);
+    },
+    // Whether a merge has just happened, so what it sets off can wait for a quiet moment.
+    justMerged: () => performance.now() - mergedAt < MERGE_MS,
+    liveStatus: () => live.status(),
     // Called with the whiteboard once it is there: starts looking for what
     // other devices draw while the page is in view.
     attach(board: ExcalidrawImperativeAPI) {
       api = board;
       looking = setInterval(() => {
-        if (document.visibilityState === "visible") void look();
+        if (document.visibilityState !== "visible") return;
+        if (!live.isOpen() || performance.now() - lastLook >= SAFETY_LOOK_MS) void look();
       }, LOOK_MS);
       document.addEventListener("visibilitychange", shown);
+      live.start();
     },
     stop() {
       clearTimeout(timer);
       clearInterval(looking);
+      clearTimeout(relaying);
+      clearTimeout(merging);
+      clearTimeout(holding);
+      relaying = merging = holding = undefined;
       document.removeEventListener("visibilitychange", shown);
+      live.stop();
       api = null;
     },
   };

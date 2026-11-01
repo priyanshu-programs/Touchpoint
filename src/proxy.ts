@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { BOARD_PAGE } from "@/lib/board-page";
 import { env } from "@/lib/env";
+import { liveRoomOrigin } from "@/lib/live-room";
 
 export function buildCsp(
   nonce: string,
-  { isDev, isHttps }: { isDev: boolean; isHttps: boolean },
+  { isDev, isHttps, liveRoom }: { isDev: boolean; isHttps: boolean; liveRoom?: string },
 ) {
   return [
     "default-src 'self'",
@@ -13,7 +15,7 @@ export function buildCsp(
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self'",
-    "connect-src 'self'",
+    liveRoom ? `connect-src 'self' ${liveRoom}` : "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -28,6 +30,8 @@ export function proxy(request: NextRequest) {
   const csp = buildCsp(nonce, {
     isDev: process.env.NODE_ENV === "development",
     isHttps: env.APP_URL.startsWith("https://"),
+    // Only a brainstorm board's own page may reach the live room.
+    liveRoom: BOARD_PAGE.test(request.nextUrl.pathname) ? liveRoomOrigin() : undefined,
   });
 
   const requestHeaders = new Headers(request.headers);

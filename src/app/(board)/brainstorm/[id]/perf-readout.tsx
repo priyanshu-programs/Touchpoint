@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 
 const LONG_GAP_MS = 200;
 
+type LiveStatus = { state: string; roundTrip: number | null };
+
 type Numbers = {
   openedAt: number;
   framesASecond: number;
@@ -12,6 +14,7 @@ type Numbers = {
   strokes: number;
   onScreen: number;
   zoom: number;
+  live: LiveStatus;
 };
 
 export const wantsPerfReadout = () =>
@@ -20,7 +23,13 @@ export const wantsPerfReadout = () =>
 // A board's speed in numbers, shown on the device itself when the address ends
 // in ?perf=1, so a tablet can be measured with no cable and no developer tools.
 // It reads the frames of this page and sends nothing anywhere.
-export function PerfReadout({ api }: { api: ExcalidrawImperativeAPI | null }) {
+export function PerfReadout({
+  api,
+  liveStatus,
+}: {
+  api: ExcalidrawImperativeAPI | null;
+  liveStatus: () => LiveStatus;
+}) {
   const [numbers, setNumbers] = useState<Numbers | null>(null);
   const longest = useRef(0);
   const apiNow = useRef(api);
@@ -71,6 +80,7 @@ export function PerfReadout({ api }: { api: ExcalidrawImperativeAPI | null }) {
             x < right && x + width > left && y < bottom && y + height > top,
         ).length,
         zoom,
+        live: liveStatus(),
       });
       frames = 0;
     }, 1000);
@@ -81,7 +91,7 @@ export function PerfReadout({ api }: { api: ExcalidrawImperativeAPI | null }) {
       window.removeEventListener("pointerdown", touch, { capture: true });
       window.removeEventListener("wheel", touch, { capture: true });
     };
-  }, []);
+  }, [liveStatus]);
 
   const row = (label: string, value: string) => (
     <div className="flex justify-between gap-3">
@@ -104,6 +114,12 @@ export function PerfReadout({ api }: { api: ExcalidrawImperativeAPI | null }) {
           {row("On screen", String(numbers.onScreen))}
           {row("Zoom", `${Math.round(numbers.zoom * 100)}%`)}
           {row("Pixels", String(window.devicePixelRatio))}
+          {row(
+            "Live",
+            numbers.live.state === "open" && numbers.live.roundTrip !== null
+              ? `open ${numbers.live.roundTrip} ms`
+              : numbers.live.state,
+          )}
         </dl>
       ) : (
         "Measuring…"

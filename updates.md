@@ -1227,3 +1227,15 @@
 - [2026-11-01] e2e/36-fullscreen.spec.ts: entering and leaving, moving page, both boards, a browser that can't or refuses, the installed app, a phone, and the manifest
 - [2026-11-01] security.md: a rule for the manifest and the fullscreen button; plan.md: the request recorded and the Branding entry corrected
 - [2026-11-01] Added a trail learning replacing the one on the logo: the owner has now asked for a manifest, and an iPhone can only go fullscreen from the Home Screen
+- [2026-11-01] live-room/: a Cloudflare Durable Object per brainstorm board that forwards encrypted messages between the owner's devices and stores nothing, because a device only learned of changes by asking every 10 seconds
+- [2026-11-01] wrangler and @cloudflare/workers-types added as development packages, to run and deploy the room and test it locally
+- [2026-11-01] POST /api/brainstorm/<id>/live and src/modules/brainstorm/live.ts: a 15-minute signed ticket and a per-board key derived from APP_ENCRYPTION_KEY, so the room's host can't read what it forwards; tests
+- [2026-11-01] LIVE_ROOM_URL and LIVE_ROOM_SECRET: optional settings; without them a board keeps asking the server as before
+- [2026-11-01] src/proxy.ts: a brainstorm board's own page may also reach the live room, and no other page may; test
+- [2026-11-01] brainstorm-canvas.tsx: a board reached from another page inside the app reloads once, because a browser keeps the security policy of the page it first loaded
+- [2026-11-01] board-live.ts: the board's encrypted connection to its room, with reconnecting, ticket renewal and a ping to notice a socket that died while a device slept
+- [2026-11-01] board-sync.ts: changes go to the room at once and what it brings is checked like a save and merged; asks the server once a minute while connected; a device holds a change it received and saves it after 15 seconds if the sender never confirmed it
+- [2026-11-01] brainstorm-editor.tsx: what another device sent takes the slower scan, so a tablet doesn't rescan a whole board for every incoming change
+- [2026-11-01] ?perf=1 also shows whether the board is connected to its room and the time there and back
+- [2026-11-01] e2e/36-live-board.spec.ts: two windows against a real local room, for the time taken with asking turned off, delete and undo, what the room can read, a device dying before saving, the room being out of reach, opening from the list, bad tickets and a message that wouldn't pass a save
+- [2026-11-01] security.md: the three approved deviations for the live room and its controls; plan.md: the work and why Vercel's WebSockets and Neon Realtime were ruled out; .env.example and live-room/README.md: how to set it up
