@@ -51,3 +51,6 @@ next-env.d.ts
 
 # the whiteboard's fonts, copied from its package before dev and build
 /public/excalidraw/
+
+# Cloudflare local state
+.wrangler/

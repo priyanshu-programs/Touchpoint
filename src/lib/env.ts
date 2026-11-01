@@ -21,6 +21,13 @@ const schema = z.object({
     .optional(),
   // Shown on the public privacy page; without it the page names no address.
   CONTACT_EMAIL: z.email().optional(),
+  // The live room that keeps a board's devices in step at once (live-room/). Without
+  // these and APP_ENCRYPTION_KEY, a board asks the server for changes instead.
+  LIVE_ROOM_URL: z
+    .url()
+    .regex(/^wss?:\/\/[^/?#]+$/)
+    .optional(),
+  LIVE_ROOM_SECRET: z.string().min(32).optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -41,6 +48,8 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     APP_ENCRYPTION_KEY: source.APP_ENCRYPTION_KEY || undefined,
     GOOGLE_SITE_VERIFICATION: source.GOOGLE_SITE_VERIFICATION || undefined,
     CONTACT_EMAIL: source.CONTACT_EMAIL || undefined,
+    LIVE_ROOM_URL: source.LIVE_ROOM_URL || undefined,
+    LIVE_ROOM_SECRET: source.LIVE_ROOM_SECRET || undefined,
   });
   if (!result.success) {
     // Names only: the values may be secrets.
