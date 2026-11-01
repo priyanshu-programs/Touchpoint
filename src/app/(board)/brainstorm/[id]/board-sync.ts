@@ -192,7 +192,10 @@ export function createBoardSync({
       );
       // Nothing else was saved in between, so nothing has been missed.
       if (!saved.behind) since = saved.clock;
-      else void look();
+      if (saved.behind || lookAgain) {
+        lookAgain = false;
+        void look();
+      }
       if (batch.length < pending.length) return save(leaving);
       // Drawn on while that save was on its way.
       // The board may have closed while it was on its way.
@@ -345,6 +348,11 @@ export function createBoardSync({
       remote as unknown as ExcalidrawElement[],
       null,
     ) as RemoteExcalidrawElement[];
+    // Merging can renumber an element's place in the drawing order, which raises
+    // its version and draws a new nonce in place. So these are read first: a
+    // renumbered element is a change of this device's own, to send on like any
+    // other. Counted as received, the devices would hold two copies at one version.
+    const arrived = restored.map(({ id, version, versionNonce }) => ({ id, version, versionNonce }));
     const merged = reconcileElements(
       api.getSceneElementsIncludingDeleted(),
       restored,
@@ -354,11 +362,12 @@ export function createBoardSync({
     api.updateScene({ elements: merged, captureUpdate: CaptureUpdateAction.NEVER });
     // Where the server's copy was kept, this board now has what the server
     // has. Where this board's own was kept, it is still to be sent.
-    const now = new Map(merged.map((element) => [element.id, element]));
-    const taken = restored.filter((element) => {
+    const now = new Map<string, ExcalidrawElement>(merged.map((element) => [element.id, element]));
+    const taken = arrived.filter((element) => {
       const kept = now.get(element.id);
       return kept?.version === element.version && kept.versionNonce === element.versionNonce;
     });
+    const takenIds = new Set(taken.map(({ id }) => id));
     for (const { id, version } of taken) {
       relayed.set(id, version);
       if (fromRoom) {
@@ -369,7 +378,7 @@ export function createBoardSync({
         if (kept && kept.version <= version) held.delete(id);
       }
     }
-    received(taken);
+    received(restored.filter((element) => takenIds.has(element.id) || now.get(element.id) === element));
   }
 
   // Elements deleted long ago were cleared from the server before this board

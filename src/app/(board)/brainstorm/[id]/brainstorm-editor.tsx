@@ -130,7 +130,9 @@ function addSticky(api: ExcalidrawImperativeAPI, { value: fill }: GridColor) {
     },
   ]);
   api.updateScene({
-    elements: [...api.getSceneElements(), note],
+    // Deleted elements are kept: without them, the note takes a place in the
+    // drawing order that one still holds on the owner's other devices.
+    elements: [...api.getSceneElementsIncludingDeleted(), note],
     appState: { selectedElementIds: { [note.id]: true } },
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });

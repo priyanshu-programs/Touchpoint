@@ -218,18 +218,16 @@ test("the room turns away what has no good ticket", async () => {
   expect(await handshake("not-a-board", offered(ticketFor(boardId)))).toBe(404);
 });
 
-test("a message that would not pass a save is not drawn", async ({ browser }) => {
-  const tablet = await device(browser);
-  await connected(tablet);
-  await stopAsking(tablet);
-  const before = await notes(tablet).count();
-  const origin = new URL(tablet.url()).origin;
+type Pass = { url: string; ticket: string; key: string };
 
-  const pass = (await (
-    await tablet.request.post(`/api/brainstorm/${boardId}/live`, { headers: { origin } })
-  ).json()) as { url: string; ticket: string; key: string };
+const passFor = async (page: Page) =>
+  (await (
+    await page.request.post(`/api/brainstorm/${boardId}/live`, {
+      headers: { origin: new URL(page.url()).origin },
+    })
+  ).json()) as Pass;
 
-  const sticky = (id: string) => ({
+const sticky = (id: string) => ({
     id,
     type: "rectangle",
     x: 100,
@@ -257,10 +255,11 @@ test("a message that would not pass a save is not drawn", async ({ browser }) =>
     link: null,
     locked: false,
     customData: { sticky: true },
-  });
+});
 
-  const send = (elements: unknown[]) =>
-    tablet.evaluate(
+// Joins the room as another of the owner's devices and sends these elements.
+const sendAsAnotherDevice = (page: Page, pass: Pass, elements: unknown[]) =>
+    page.evaluate(
       async ({ pass, elements }) => {
         const raw = Uint8Array.from(
           atob(pass.key.replaceAll("-", "+").replaceAll("_", "/")),
@@ -285,6 +284,14 @@ test("a message that would not pass a save is not drawn", async ({ browser }) =>
       { pass, elements },
     );
 
+test("a message that would not pass a save is not drawn", async ({ browser }) => {
+  const tablet = await device(browser);
+  await connected(tablet);
+  await stopAsking(tablet);
+  const before = await notes(tablet).count();
+  const pass = await passFor(tablet);
+  const send = (elements: unknown[]) => sendAsAnotherDevice(tablet, pass, elements);
+
   // One element of a kind a save refuses, and the whole message goes.
   await send([sticky("bad-note"), { ...sticky("bad-page"), type: "embeddable" }]);
   await tablet.waitForTimeout(1_000);
@@ -293,5 +300,35 @@ test("a message that would not pass a save is not drawn", async ({ browser }) =>
   // The same message without it is drawn, so it was the check that stopped it.
   await send([sticky("good-note")]);
   await expect(notes(tablet)).toHaveCount(before + 1, { timeout: 2_000 });
+  await tablet.context().close();
+});
+
+// Otherwise the two devices hold different copies at one version, and a delete
+// from the other device can lose to this one's copy by the toss of a nonce.
+test("an element the whiteboard renumbers on arrival is sent on and saved", async ({ browser }) => {
+  const tablet = await device(browser);
+  await connected(tablet);
+  await note(tablet, "Holds a place");
+  await expect(tablet.getByText("Saved", { exact: true })).toBeVisible();
+  const pass = await passFor(tablet);
+
+  const rows = async () =>
+    (
+      (await (await tablet.request.get(`/api/brainstorm/${boardId}/elements?since=0`)).json()) as {
+        elements: { id: string; version: number; index: string | null; isDeleted: boolean }[];
+      }
+    ).elements;
+  const taken = (await rows()).find(({ index, isDeleted }) => index && !isDeleted)!;
+
+  // Sorted after the element already at that place, so this one gets renumbered.
+  const id = "zzzzzz-clash";
+  await sendAsAnotherDevice(tablet, pass, [{ ...sticky(id), index: taken.index }]);
+
+  await expect
+    .poll(async () => (await rows()).find((row) => row.id === id)?.version ?? 0, {
+      timeout: 10_000,
+      intervals: [500],
+    })
+    .toBeGreaterThan(sticky(id).version);
   await tablet.context().close();
 });

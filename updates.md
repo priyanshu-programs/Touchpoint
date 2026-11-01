@@ -1245,3 +1245,7 @@
 - [2026-11-01] Workflows: reopen where this device left them, with the opening view worked out before the first draw in place of fitting afterwards, which would have been remembered as a move
 - [2026-11-01] e2e/37-board-view.spec.ts: brainstorm boards and workflows reopen at the exact zoom and position, straight after moving, over empty space and when empty, and a first open still fits; board-view.test.ts follows
 - [2026-11-01] security.md: the remembered view's rule covers workflows; plan.md: an entry for boards reopening where they were left
+- [2026-11-01] board-sync.ts: an element renumbered while merging counts as this device's own change and is sent on, because Excalidraw raises its version in place and the two devices then held different copies at one version, so a delete could lose by the toss of a nonce and leave a note on one screen
+- [2026-11-01] brainstorm-editor.tsx: adding a sticky note keeps deleted elements in the scene, because without them a new note reused a place in the drawing order that another device still held, which is what set off that renumbering
+- [2026-11-01] board-sync.ts: a look asked for during a save now runs when the save ends, instead of being lost if that save wasn't behind
+- [2026-11-01] e2e/36-live-board.spec.ts: an element renumbered on arrival is sent on and saved
