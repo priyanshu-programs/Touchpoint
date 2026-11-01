@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { BrandMark } from "@/components/brand-mark";
+import { FullscreenButton } from "@/components/fullscreen-button";
 import { requireOwner } from "@/lib/session";
 import { getBrainstorm } from "@/modules/brainstorm/queries";
 import { PAPER_COOKIE, paperOf } from "../../workflows/[id]/paper";
@@ -23,8 +24,8 @@ export default async function BrainstormBoardPage({
   if (!board) notFound();
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/90 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
+      <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b bg-background/90 px-3 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <BrandMark className="size-7" />
         <Link
           href="/brainstorm"
@@ -37,6 +38,7 @@ export default async function BrainstormBoardPage({
         <h1 className="min-w-0 flex-1 truncate font-semibold tracking-tight">
           {board.name}
         </h1>
+        <FullscreenButton />
         <BrainstormMenu id={board.id} name={board.name} />
       </header>
       <main className="relative min-h-0 flex-1 bg-background">

@@ -36,6 +36,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { FullscreenButton } from "@/components/fullscreen-button";
 import { Greeting } from "@/components/greeting";
 import { cn } from "@/lib/utils";
 
@@ -260,11 +261,12 @@ export function AppShell({
         Skip to content
       </a>
 
-      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
+      <header className="sticky top-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-3 border-b bg-background pt-[env(safe-area-inset-top)] pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))]">
         <BrandMark className="size-7" />
         <p className="min-w-0 flex-1 truncate font-semibold tracking-tight">
           <Greeting name={ownerName} timezone={timezone} initial={greeting} />
         </p>
+        <FullscreenButton />
         <ButtonLink
           href="/quick-add"
           size="icon"
@@ -280,11 +282,11 @@ export function AppShell({
         />
       </header>
 
-      <div className="flex flex-1">
+      <div className="flex flex-1 pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
         <aside
           style={{ width }}
           className={cn(
-            "group sticky top-14 hidden h-[calc(100dvh-3.5rem)] shrink-0 flex-col gap-1 overflow-hidden border-r bg-sidebar text-sidebar-foreground md:flex",
+            "group sticky top-[calc(3.5rem+env(safe-area-inset-top))] hidden h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] shrink-0 flex-col gap-1 overflow-hidden border-r bg-sidebar text-sidebar-foreground md:flex",
             collapsed ? "px-2 py-3" : "p-3",
             !isDragging &&
               "transition-[width] duration-150 ease-out motion-reduce:transition-none",
@@ -387,7 +389,7 @@ export function AppShell({
 
         <main
           id="main"
-          className="mx-auto w-full max-w-7xl min-w-0 flex-1 p-4 pb-24 md:p-8"
+          className="mx-auto w-full max-w-7xl min-w-0 flex-1 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] md:p-8"
         >
           {children}
         </main>
@@ -395,7 +397,7 @@ export function AppShell({
 
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 flex border-t bg-background md:hidden"
+        className="fixed inset-x-0 bottom-0 flex border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {MOBILE_NAV.map((item) => (
           <Link
