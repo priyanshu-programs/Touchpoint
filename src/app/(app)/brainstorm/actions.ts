@@ -9,6 +9,7 @@ import { openPictures } from "@/modules/brainstorm/pictures";
 import {
   brainstormIcon,
   brainstormName,
+  brainstormOrder,
   MAX_BRAINSTORM_BOARDS,
 } from "@/modules/brainstorm/schema";
 import {
@@ -16,6 +17,7 @@ import {
   deleteBrainstorm,
   pruneBrainstorm,
   renameBrainstorm,
+  reorderBrainstorms,
   setBrainstormIcon,
   type BrainstormResult,
 } from "@/modules/brainstorm/service";
@@ -71,6 +73,12 @@ export async function setBrainstormIconAction(boardId: string, icon: string | nu
   if (!(await setBrainstormIcon(owner.id, brainstormIcon.parse({ boardId, icon })))) {
     notFound();
   }
+  revalidatePath("/brainstorm", "layout");
+}
+
+export async function reorderBrainstormsAction(ids: string[]) {
+  const owner = await requireOwner();
+  if (!(await reorderBrainstorms(owner.id, brainstormOrder.parse(ids)))) notFound();
   revalidatePath("/brainstorm", "layout");
 }
 

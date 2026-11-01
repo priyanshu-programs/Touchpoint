@@ -1,14 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ClickableRow } from "@/components/clickable-row";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { requireOwner } from "@/lib/session";
 import { dateIn, formatDate } from "@/lib/time";
 import { listBrainstorms } from "@/modules/brainstorm/queries";
@@ -18,10 +9,9 @@ import {
   type BrainstormListParams,
 } from "@/modules/brainstorm/schema";
 import { getSettings } from "@/modules/settings/service";
-import { ListCard, ListFooter } from "../people/(lists)/list-card";
+import { ListFooter } from "../people/(lists)/list-card";
 import { ListToolbar } from "../people/(lists)/list-toolbar";
-import { IconPicker } from "../workflows/icon-picker";
-import { setBrainstormIconAction } from "./actions";
+import { BrainstormList } from "./brainstorm-list";
 import { NewBrainstorm } from "./name-form";
 
 export const metadata: Metadata = { title: "Brainstorming" };
@@ -82,46 +72,15 @@ export default async function BrainstormPage({
           </p>
         ) : (
           <>
-            <ListCard>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <span className="sr-only">Icon</span>
-                    </TableHead>
-                    <TableHead>Board</TableHead>
-                    <TableHead className="pr-4 text-right sm:pr-2">Last edited</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {page.rows.map((row) => {
-                    const href = `/brainstorm/${row.id}`;
-                    return (
-                      <ClickableRow key={row.id} href={href}>
-                        <TableCell>
-                          <IconPicker
-                            name={row.name}
-                            icon={row.icon}
-                            action={setBrainstormIconAction.bind(null, row.id)}
-                          />
-                        </TableCell>
-                        <TableCell className="whitespace-normal">
-                          <Link
-                            href={href}
-                            className="font-medium break-words underline-offset-4 hover:underline"
-                          >
-                            {row.name}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="pr-4 text-right sm:pr-2">
-                          {formatDate(dateIn(timezone, row.updatedAt))}
-                        </TableCell>
-                      </ClickableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </ListCard>
+            <BrainstormList
+              key={page.rows.map(({ id }) => id).sort().join()}
+              boards={page.rows.map(({ id, name, icon, updatedAt }) => ({
+                id,
+                name,
+                icon,
+                edited: formatDate(dateIn(timezone, updatedAt)),
+              }))}
+            />
 
             <ListFooter
               first={(pageNumber - 1) * BRAINSTORM_PAGE_SIZE + 1}
