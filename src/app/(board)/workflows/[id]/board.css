@@ -26,6 +26,8 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform;
   --paper-scale: 1;
   --paper-x: 0px;
   --paper-y: 0px;

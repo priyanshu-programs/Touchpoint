@@ -10,6 +10,7 @@ import {
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { NormalizedZoomValue } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { ChevronDown, Loader2, StickyNote } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -35,7 +36,7 @@ import {
 } from "@/modules/workflows/sticky";
 import "../../workflows/[id]/board.css";
 import {
-  followPaper,
+  createPaperFollower,
   PaperChoices,
   SaveStatus,
   useDarkTheme,
@@ -47,6 +48,15 @@ import { openBrainstormAction } from "@/app/(app)/brainstorm/actions";
 import type { Paper } from "../../workflows/[id]/paper";
 import { StickySheen, StickyShadows } from "../../workflows/[id]/sticky-notes";
 import { createBoardSync, loadBoard } from "./board-sync";
+import { openingView, rememberView, type BoardView } from "./board-view";
+import { PerfReadout, wantsPerfReadout } from "./perf-readout";
+
+// How often a moving view or a pen stroke looks over every element of the board:
+// a board of handwriting holds thousands, and these run many times a second.
+const SCAN_MS = 250;
+const REMEMBER_MS = 500;
+// The board's own header, above the whiteboard.
+const HEADER_PX = 56;
 
 // A sticky note comes in the grid's light and bright colours, light yellow first.
 const STICKY_COLORS = [...LIGHT_COLORS, ...BRIGHT_COLORS];
@@ -259,6 +269,8 @@ export function BrainstormEditor({
   return <Whiteboard boardId={boardId} name={name} opensOn={paper} {...drawing} />;
 }
 
+type Placed = Parameters<typeof openingView>[1][number];
+
 const oneOf = (types: readonly string[], element: ExcalidrawElement) =>
   types.includes(element.type);
 
@@ -281,7 +293,30 @@ function Whiteboard({
   const shadows = useRef<HTMLDivElement>(null);
   const sheen = useRef<HTMLDivElement>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
-  const unfitted = useRef(elements.length > 0);
+  const [perf] = useState(wantsPerfReadout);
+  // Worked out before the first draw, so the board is drawn once and not moved after.
+  const [opensAt] = useState(() =>
+    openingView(boardId, elements as unknown as Placed[], {
+      width: window.innerWidth,
+      height: window.innerHeight - HEADER_PX,
+    }),
+  );
+  const [paperFollows] = useState(createPaperFollower);
+  const lastView = useRef<BoardView | null>(null);
+  // Only a view the owner moved to is remembered, not the one a board opened at:
+  // an empty board's would otherwise hide what is drawn on it from elsewhere.
+  const viewToKeep = useRef<BoardView | null>(null);
+  const toRemember = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const scanTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const toScan = useRef<(() => void) | null>(null);
+  useEffect(
+    () => () => {
+      clearTimeout(scanTimer.current);
+      clearTimeout(toRemember.current);
+      if (viewToKeep.current) rememberView(boardId, viewToKeep.current);
+    },
+    [boardId],
+  );
   // Notes put down before they carried a mark are given it, and square
   // corners, as the board opens, as a change of their own the next save keeps.
   const [opening] = useState(() =>
@@ -371,8 +406,12 @@ function Whiteboard({
             currentItemFontFamily: FONT_FAMILY.Nunito,
             currentItemFillStyle: "solid",
             viewBackgroundColor: "transparent",
+            ...(opensAt && {
+              zoom: { value: opensAt.zoom as NormalizedZoomValue },
+              scrollX: opensAt.scrollX,
+              scrollY: opensAt.scrollY,
+            }),
           },
-          scrollToContent: true,
         }}
         UIOptions={{
           canvasActions: {
@@ -384,38 +423,56 @@ function Whiteboard({
           },
         }}
         onChange={(all, appState, files) => {
-          if (unfitted.current && api && all.length > 0) {
-            unfitted.current = false;
-            requestAnimationFrame(() =>
-              api.scrollToContent(undefined, {
-                fitToViewport: true,
-                viewportZoomFactor: 0.9,
-                maxZoom: 1,
-                animate: false,
-              }),
-            );
-          }
-          followPaper(page.current, { ...appState, zoom: appState.zoom.value });
-          // The notes' shadows and shading go where the drawing goes.
           const zoom = appState.zoom.value;
-          const placed = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
-          if (shadows.current) shadows.current.style.transform = placed;
-          if (sheen.current) sheen.current.style.transform = placed;
-          const onScreen = stickyNotes(all, {
-            x: -appState.scrollX,
-            y: -appState.scrollY,
-            width: appState.width / zoom,
-            height: appState.height / zoom,
-          });
-          setNotes((before) => (sameNotes(before, onScreen) ? before : onScreen));
-          board.current?.toggleAttribute(
-            "data-writing-on-note",
-            writingOnNote(all, appState.editingTextElement),
-          );
-          const now = pickedColors(all, appState);
-          setPicked((before) => (samePicked(before, now) ? before : now));
-          pictures.look(all, files);
-          sync.changed(all);
+          const view = { zoom, scrollX: appState.scrollX, scrollY: appState.scrollY };
+          const moved =
+            lastView.current?.zoom !== zoom ||
+            lastView.current.scrollX !== view.scrollX ||
+            lastView.current.scrollY !== view.scrollY;
+          if (moved) {
+            if (lastView.current) {
+              viewToKeep.current = view;
+              clearTimeout(toRemember.current);
+              toRemember.current = setTimeout(() => rememberView(boardId, view), REMEMBER_MS);
+            }
+            lastView.current = view;
+            paperFollows(page.current, view, appState);
+            // The notes' shadows and shading go where the drawing goes.
+            const placed = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
+            if (shadows.current) shadows.current.style.transform = placed;
+            if (sheen.current) sheen.current.style.transform = placed;
+          }
+
+          const scan = () => {
+            const onScreen = stickyNotes(all, {
+              x: -appState.scrollX,
+              y: -appState.scrollY,
+              width: appState.width / zoom,
+              height: appState.height / zoom,
+            });
+            setNotes((before) => (sameNotes(before, onScreen) ? before : onScreen));
+            board.current?.toggleAttribute(
+              "data-writing-on-note",
+              writingOnNote(all, appState.editingTextElement),
+            );
+            const now = pickedColors(all, appState);
+            setPicked((before) => (samePicked(before, now) ? before : now));
+            pictures.look(all, files);
+            sync.changed(all);
+          };
+          // Moving the view and writing with the pen change nothing these need
+          // at once. Anything else, like dragging a note, is followed exactly.
+          if (moved || appState.newElement?.type === "freedraw") {
+            toScan.current = scan;
+            scanTimer.current ??= setTimeout(() => {
+              scanTimer.current = undefined;
+              toScan.current?.();
+            }, SCAN_MS);
+          } else {
+            clearTimeout(scanTimer.current);
+            scanTimer.current = undefined;
+            scan();
+          }
         }}
         renderTopRightUI={() => (
           <div className="flex items-center gap-2">
@@ -439,6 +496,7 @@ function Whiteboard({
         </MainMenu>
       </Excalidraw>
       <StickySheen layer={sheen} notes={notes} dark={isDark} />
+      {perf && <PerfReadout api={api} />}
       <ColorGrid board={board} api={api} picked={picked} />
       {/* On a phone the tools fill the top row, so the note waits above the bar
           at the foot of the board instead. */}

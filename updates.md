@@ -1196,3 +1196,11 @@
 - [2026-11-01] docs/GOOGLE-CHECKLIST.md: the note on step 4 failing no longer assumes the owner's client is in Testing, and says what an expired banner around 2026-11-07 would mean
 - [2026-11-01] Added a trail learning replacing the one on publishing the Google client: the owner's client is in production
 - [2026-11-01] e2e/26-reports.spec.ts: the month is worked out in the owner's zone as the app does, because in UTC the test failed for the last 5.5 hours of every month, India time
+- [2026-11-01] e2e/35-board-speed.spec.ts: a made-up board of 4,200 pen strokes opened, zoomed and written on at 6x slower, printing the numbers, so each speed change can be compared
+- [2026-11-01] Brainstorm board: ?perf=1 shows opening time, frames a second, the worst freeze and strokes on screen, so the owner's tablet can be measured with no tools (perf-readout.tsx)
+- [2026-11-01] Brainstorm board: the opening view is worked out before the first draw and passed in, because fitting afterwards drew the board twice (board-view.ts); tests
+- [2026-11-01] Brainstorm board: reopens where this device left it, in localStorage, only after the owner moved the view, because remembering an empty board's view opened it at 100% once it held strokes
+- [2026-11-01] Brainstorm board: moving the view or writing with the pen scans every element at most four times a second instead of on every frame; saves are not affected, since flush reads the scene itself
+- [2026-11-01] Brainstorm board: the page behind the drawing slides and scales as one layer while the view moves, and is repainted when it stops, because repainting a full-screen pattern every frame is costly on a tablet (createPaperFollower)
+- [2026-11-01] security.md: a rule for the remembered view and the readout; plan.md: stage 3A with what was measured
+- [2026-11-01] e2e/35-board-speed.spec.ts: also counts canvases made and times a fixed sum, because times swung up to about 6x between runs of unchanged code

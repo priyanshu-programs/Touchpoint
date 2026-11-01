@@ -111,6 +111,43 @@ export const useDarkTheme = () =>
 // The page behind the drawing moves and grows with it. Zoomed far out, its
 // marks would run together, so every other one is left out, and again, until
 // they stand apart; those kept stay where they were.
+// The page moved without repainting it: what is painted is slid and scaled as
+// one layer, which costs nothing per frame, and painted afresh once the view
+// stops or has gone so far that an edge would show too much.
+const PAPER_REST_MS = 150;
+
+type PaperView = { zoom: number; scrollX: number; scrollY: number };
+
+export function createPaperFollower() {
+  let painted: PaperView | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const paint = (layer: HTMLDivElement, view: PaperView) => {
+    clearTimeout(timer);
+    painted = view;
+    followPaper(layer, view);
+    layer.style.transform = "";
+  };
+
+  return (
+    layer: HTMLDivElement | null,
+    view: PaperView,
+    { width, height }: { width: number; height: number },
+  ) => {
+    if (!layer) return;
+    if (!painted) return paint(layer, view);
+    const scale = view.zoom / painted.zoom;
+    const x = view.scrollX * view.zoom - painted.scrollX * painted.zoom * scale;
+    const y = view.scrollY * view.zoom - painted.scrollY * painted.zoom * scale;
+    if (scale < 0.7 || scale > 1.4 || Math.abs(x) > width / 3 || Math.abs(y) > height / 3) {
+      return paint(layer, view);
+    }
+    layer.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    clearTimeout(timer);
+    timer = setTimeout(() => paint(layer, view), PAPER_REST_MS);
+  };
+}
+
 export function followPaper(
   page: HTMLDivElement | null,
   { zoom, scrollX, scrollY }: { zoom: number; scrollX: number; scrollY: number },
