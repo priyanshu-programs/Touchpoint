@@ -1227,6 +1227,13 @@
 - [2026-11-01] e2e/36-fullscreen.spec.ts: entering and leaving, moving page, both boards, a browser that can't or refuses, the installed app, a phone, and the manifest
 - [2026-11-01] security.md: a rule for the manifest and the fullscreen button; plan.md: the request recorded and the Branding entry corrected
 - [2026-11-01] Added a trail learning replacing the one on the logo: the owner has now asked for a manifest, and an iPhone can only go fullscreen from the Home Screen
+- [2026-11-01] Added a trail learning: Phase 6 will copy 12 months of Gmail into Neon with a 600 MB cap, and borrows Hindsight's ideas without running it
+- [2026-11-01] Installed Anthropic's skill-creator as a global Claude Code skill in ~/.claude/skills/skill-creator (outside this repo), so it is available in every project
+- [2026-11-01] Installed tt-a1i's Archify as a global Claude Code skill in ~/.claude/skills/archify (outside this repo), exactly per its llms.txt; doctor passes
+- [2026-11-01] Boards: holding the right mouse button and dragging moves the board, on workflows and brainstorm boards, because the owner asked for it; a right click without a drag still opens the menu (right-drag-pan.ts)
+- [2026-11-01] e2e/39-board-pan.spec.ts: right-drag on both kinds of board, a drag starting on a box, a plain and a shaky right click, letting go over the header, a menu asked for on press as on Mac and Linux, and the middle button still panning
+- [2026-11-01] plan.md: the right-button pan and what was left out
+- [2026-11-01] Added a trail learning: why the right-button pan sits outside Excalidraw, how the menu's timing differs by system, and that parallel e2e runs clash on ports
 - [2026-11-01] src/lib/autolink.ts: finds addresses in text (http, https, www and bare domains on a short list of endings), because typed notes and whiteboards both need the same answer; tests
 - [2026-11-01] src/modules/workflows/typed-link.ts: decides what writing does to a text's link and colour, so a link removed or set by hand and a chosen colour are kept; tests
 - [2026-11-01] Whiteboards: text that is only an address, typed or pasted, becomes a blue link by itself, on the box when written in a box or sticky note, because the owner should not need the link option (typed-links.ts, both board editors)
@@ -1243,3 +1250,5 @@
 - [2026-11-01] Workflows: reopen where this device left them, with the opening view worked out before the first draw in place of fitting afterwards, which would have been remembered as a move
 - [2026-11-01] e2e/37-board-view.spec.ts: brainstorm boards and workflows reopen at the exact zoom and position, straight after moving, over empty space and when empty, and a first open still fits; board-view.test.ts follows
 - [2026-11-01] security.md: the remembered view's rule covers workflows; plan.md: an entry for boards reopening where they were left
+- [2026-11-01] e2e/19-brainstorm.spec.ts: the phone order test waits for the first row before reading the names, because it could read an empty list and wait forever for a button called "Move undefined"
+- [2026-11-01] e2e/39-board-pan.spec.ts: renumbered from 38, because the auto-links pull request took 38 first
