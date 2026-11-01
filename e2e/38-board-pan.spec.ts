@@ -78,8 +78,7 @@ test("holding the right button and dragging moves a brainstorm board, and it ope
 
   await page.reload();
   await expect(whiteboard(page)).toBeVisible();
-  // Without a stroke to look at, an empty board opens fresh; what matters is that
-  // what was kept is the place the view was dragged to.
+  await expect.poll(() => paperX(page)).toBeCloseTo(150, 0);
   expect(await kept()).toMatchObject({ scrollX: 150, scrollY: 80 });
 });
 

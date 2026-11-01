@@ -1231,6 +1231,12 @@
 - [2026-11-01] Installed Anthropic's skill-creator as a global Claude Code skill in ~/.claude/skills/skill-creator (outside this repo), so it is available in every project
 - [2026-11-01] Installed tt-a1i's Archify as a global Claude Code skill in ~/.claude/skills/archify (outside this repo), exactly per its llms.txt; doctor passes
 - [2026-11-01] Boards: holding the right mouse button and dragging moves the board, on workflows and brainstorm boards, because the owner asked for it; a right click without a drag still opens the menu (right-drag-pan.ts)
-- [2026-11-01] e2e/37-board-pan.spec.ts: right-drag on both kinds of board, a drag starting on a box, a plain and a shaky right click, letting go over the header, a menu asked for on press as on Mac and Linux, and the middle button still panning
+- [2026-11-01] e2e/38-board-pan.spec.ts: right-drag on both kinds of board, a drag starting on a box, a plain and a shaky right click, letting go over the header, a menu asked for on press as on Mac and Linux, and the middle button still panning
 - [2026-11-01] plan.md: the right-button pan and what was left out
 - [2026-11-01] Added a trail learning: why the right-button pan sits outside Excalidraw, how the menu's timing differs by system, and that parallel e2e runs clash on ports
+- [2026-11-01] Moved board-view.ts to workflows/[id], because workflows now use it too and brainstorm already takes its shared board code from there
+- [2026-11-01] Boards: a remembered view is always restored, even over an empty part of the board or on an empty board, because the owner wants a board to reopen exactly where it was left; the way back is the whiteboard's Scroll back to content
+- [2026-11-01] Boards: a view still waiting to be written is written as the page is hidden or goes (useRememberedView), because closing a tab or a tablet dropping the page unmounts nothing and lost a move made in the last half second
+- [2026-11-01] Workflows: reopen where this device left them, with the opening view worked out before the first draw in place of fitting afterwards, which would have been remembered as a move
+- [2026-11-01] e2e/37-board-view.spec.ts: brainstorm boards and workflows reopen at the exact zoom and position, straight after moving, over empty space and when empty, and a first open still fits; board-view.test.ts follows
+- [2026-11-01] security.md: the remembered view's rule covers workflows; plan.md: an entry for boards reopening where they were left
