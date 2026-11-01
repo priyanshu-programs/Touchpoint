@@ -321,15 +321,32 @@ test("something renumbered on arrival and rubbed out straight away is gone every
   const taken = elements.find(({ index, isDeleted }) => index && !isDeleted)!;
   const before = await notes(tablet).count();
 
+  // The moment the note shows, in the same breath, so before the window has told
+  // anyone of its renumbered copy, or saved it. A keypress from outside the page
+  // comes too late on a slow machine, which is how this hid at first.
+  const rubbedOut = tablet.evaluate(
+    (count) =>
+      new Promise<void>((resolve) => {
+        const board = document.querySelector(".excalidraw-container")!;
+        const press = (key: string, ctrlKey = false) =>
+          board.dispatchEvent(new KeyboardEvent("keydown", { key, ctrlKey, bubbles: true }));
+        const watching = new MutationObserver(() => {
+          if (document.querySelectorAll(".sticky-shadow").length <= count) return;
+          watching.disconnect();
+          press("a", true);
+          setTimeout(() => {
+            press("Delete");
+            resolve();
+          });
+        });
+        watching.observe(document.body, { childList: true, subtree: true });
+      }),
+    before,
+  );
+
   // Arrives on both windows, sorted after what is at that place, so both renumber it.
   await sendAsAnotherDevice(tablet, pass, [{ ...sticky("zzzzzz-soon-gone"), index: taken.index }]);
-  await expect(notes(tablet)).toHaveCount(before + 1, { timeout: 2_000 });
-  await expect(notes(laptop)).toHaveCount(before + 1, { timeout: 2_000 });
-
-  // Before either has saved its copy.
-  await tablet.keyboard.press("Escape");
-  await tablet.keyboard.press("Control+a");
-  await tablet.keyboard.press("Delete");
+  await rubbedOut;
   await expect(notes(tablet)).toHaveCount(0);
   await expect(notes(laptop)).toHaveCount(0, { timeout: 2_000 });
 

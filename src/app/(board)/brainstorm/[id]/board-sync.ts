@@ -368,12 +368,17 @@ export function createBoardSync({
       return kept?.version === element.version && kept.versionNonce === element.versionNonce;
     });
     const takenIds = new Set(taken.map(({ id }) => id));
+    // Whichever copy was kept, what arrived is known elsewhere, so rubbing it out
+    // here must reach the others even if this device has sent nothing of it yet.
+    for (const { id, version } of arrived) {
+      relayed.set(id, Math.max(relayed.get(id) ?? 0, version));
+      if (!fromRoom) sent.set(id, Math.max(sent.get(id) ?? 0, version));
+      else if (!sent.has(id)) sent.set(id, 0);
+    }
     for (const { id, version } of taken) {
-      relayed.set(id, version);
       if (fromRoom) {
         if ((sent.get(id) ?? 0) < version) hold(id, version);
       } else {
-        sent.set(id, version);
         const kept = held.get(id);
         if (kept && kept.version <= version) held.delete(id);
       }
