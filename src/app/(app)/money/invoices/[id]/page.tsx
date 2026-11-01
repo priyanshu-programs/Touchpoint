@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { LinkedText } from "@/components/linked-text";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import { ButtonLink } from "@/components/button-link";
 import { CompanyLogo, ContactAvatar } from "@/components/company-logo";
@@ -284,7 +285,9 @@ export default async function InvoicePage({ params }: PageProps<"/money/invoices
             <CardTitle>Notes</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="max-w-prose break-words whitespace-pre-wrap">{invoice.notes}</p>
+            <p className="max-w-prose break-words whitespace-pre-wrap">
+              <LinkedText text={invoice.notes} />
+            </p>
           </CardContent>
         </Card>
       )}

@@ -58,6 +58,7 @@ import { BoxAttachments } from "./box-attachments";
 import { BoxCard, StrokesCard } from "./box-card";
 import { BoxMarks, type BoxMark } from "./box-marks";
 import { BoxNotes } from "./box-notes";
+import { createTypedLinks } from "./typed-links";
 import type { Paper } from "./paper";
 import { RecordChips, type BoardRecord, type ChipSpot } from "./record-chip";
 import { StageAsk } from "./stage-ask";
@@ -374,6 +375,7 @@ function Whiteboard({
   const clips = useRef<HTMLDivElement>(null);
   const isDark = useDarkTheme();
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  const [typedLinks] = useState(createTypedLinks);
   const [selected, setSelected] = useState<Selected | null>(null);
   const [stages, setStages] = useState<StageBox[]>([]);
   const [flow, setFlow] = useState<Flow>(() => flowOf([]));
@@ -609,7 +611,12 @@ function Whiteboard({
             toggleTheme: false,
           },
         }}
+        onPaste={() => {
+          typedLinks.pasted(api);
+          return true;
+        }}
         onChange={(all, appState, files) => {
+          typedLinks.watch(api, appState);
           if (unfitted.current && api && all.length > 0) {
             unfitted.current = false;
             // After this redraw, which the whiteboard is still in the middle of.

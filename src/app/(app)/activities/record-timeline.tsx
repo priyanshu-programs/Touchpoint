@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ButtonLink } from "@/components/button-link";
+import { LinkedText } from "@/components/linked-text";
 import {
   Card,
   CardAction,
@@ -97,12 +98,17 @@ export async function RecordTimeline({
                   {event.outcome && (
                     <p className="text-sm break-words">
                       <span className="text-muted-foreground">Outcome: </span>
-                      {event.outcome}
+                      <LinkedText text={event.outcome} />
                     </p>
                   )}
                   {event.body && (
                     <p className="text-sm break-words whitespace-pre-wrap">
-                      {event.body}
+                      {/* A meeting's line is its location, which came from Google. */}
+                      {event.eventType === "calendar_event" ? (
+                        event.body
+                      ) : (
+                        <LinkedText text={event.body} />
+                      )}
                     </p>
                   )}
                 </li>
