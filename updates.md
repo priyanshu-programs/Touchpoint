@@ -1271,3 +1271,12 @@
 - [2026-11-01] board-sync.ts: everything that arrives counts as known here whichever copy is kept, because a renumbered note deleted in the moment before it was sent on counted as never known, so its delete went nowhere and the other device kept the box
 - [2026-11-01] e2e/36-live-board.spec.ts: the test for that deletes from inside the page the moment the note shows, because a keypress from outside came too late on a slow machine and hid the bug
 - [2026-11-01] Brainstorm board page: the tab reads "<board name> · Brainstorming" in place of "Brainstorm · Touchpoint", and follows a rename
+- [2026-11-02] Migration 0039 (additive): preferred name, job title, business name, phone, website and location on settings, for the owner's profile
+- [2026-11-02] settings module: profileInput and saveProfile write the details, the full name and one profile.update audit row in one transaction; tests
+- [2026-11-02] saveProfileAction: checks the owner and the form, keeps what was typed on a refusal and redraws the layout so the name changes at once
+- [2026-11-02] The account button opens a Your profile panel in place of its small menu, on the sidebar and a phone's top bar, because the owner wants to fill in their details there; Sign out moved to the panel's foot (profile-panel.tsx, app-shell.tsx)
+- [2026-11-02] Greeting: callName gives the name the owner asked for, whole, or the first word of their full name until they say; greeting() uses what it is given, and a saved name shows at once through a key on Greeting
+- [2026-11-02] Today's Welcome uses the same name as the greeting
+- [2026-11-02] e2e/40-profile.spec.ts: refusals, saving, the greeting, reload and a phone; e2e/99-sign-out and e2e/01-foundation follow the button
+- [2026-11-02] security.md: a rule for the owner's profile; plan.md and docs/PRD.md: the profile and what was left out
+- [2026-11-02] Added a trail learning: a saved name reaches the greeting only through its key, and two greeting lines name nobody

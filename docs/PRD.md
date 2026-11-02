@@ -277,7 +277,7 @@ Encryption is AES-256-GCM with a key derived from `APP_ENCRYPTION_KEY`, a random
 | Table | Key columns | Notes |
 |---|---|---|
 | `user`, `session`, `account`, `verification` | Managed by Better Auth | Sign-up disabled after the first owner exists |
-| `settings` | base_currency, timezone, week_start, fiscal_year_start | One row per owner |
+| `settings` | base_currency, timezone, week_start, fiscal_year_start, preferred_name, job_title, business_name, phone, website, location | One row per owner. The profile columns are filled from the account button's panel (2026-11-02, migration 0039) |
 | `secrets` | kind, provider, ciphertext, iv, tag, key_version, last_test_status | AI and enrichment keys |
 | `integration_clients` | provider, client_id, client_secret_enc, key_version | The owner's own OAuth client, typed in Settings (owner's choice, 2026-10-29); unique (owner, provider). Migration 0035 |
 | `integration_connections` | provider, account_email, scopes[], status (connected/expired/revoked/error), encrypted tokens (refresh_token_enc, access_token_enc, access_expires_at, key_version), sync_cursor, last_sync_at, last_refresh_at, last_error, connected_at | Drives the integration status page; unique (owner, provider). Migration 0035 |

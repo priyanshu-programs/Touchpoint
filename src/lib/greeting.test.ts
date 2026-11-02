@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { greeting } from "./greeting";
+import { callName, greeting } from "./greeting";
 
 const LATE = [
   "Hello, night owl",
@@ -43,7 +43,7 @@ const NIGHT = [
 
 // 2026-10-14 is a Wednesday, which has no day-specific lines.
 const at = (time: string, date = "2026-10-14") =>
-  greeting("Priyanshu Roy", "UTC", new Date(`${date}T${time}:00Z`));
+  greeting("Priyanshu", "UTC", new Date(`${date}T${time}:00Z`));
 
 describe("greeting", () => {
   it.each([
@@ -87,10 +87,23 @@ describe("greeting", () => {
     expect(LATE).toContain(at("02:00", "2026-10-17"));
   });
 
-  it("greets by first name, and without one when there is no name", () => {
-    expect(at("09:00")).not.toContain("Roy");
+  it("uses the name whole, and greets without one when there is no name", () => {
+    const monday = new Date("2026-10-12T09:00:00Z");
+    expect(greeting("Mr Roy", "UTC", monday)).toBe("A fresh week, Mr Roy");
+    expect(greeting("$& Roy", "UTC", monday)).toBe("A fresh week, $& Roy");
     const line = greeting("  ", "UTC", new Date("2026-10-14T09:00:00Z"));
     expect(line).not.toContain("{name}");
     expect(line).not.toMatch(/, ?$|, \.|\s{2}/);
+  });
+});
+
+describe("callName", () => {
+  it("is the name the owner asked for, as typed", () => {
+    expect(callName("Priyanshu Roy", "  Mr Roy ")).toBe("Mr Roy");
+  });
+
+  it("is the first word of the full name until they say", () => {
+    expect(callName("Priyanshu Roy", null)).toBe("Priyanshu");
+    expect(callName(" Priyanshu Roy", "   ")).toBe("Priyanshu");
   });
 });

@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { db, type Executor } from "@/db/client";
-import { settings } from "@/db/schema";
+import { settings, user } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { rebaseTimedTasks } from "@/modules/tasks/rebase";
-import type { SettingsInput } from "./schema";
+import type { ProfileInput, SettingsInput } from "./schema";
 
 export async function getSettings(ownerId: string) {
   const [row] = await db
@@ -57,5 +57,49 @@ export async function saveSettings(ownerId: string, input: SettingsInput) {
       after: pick(saved),
     });
     return saved;
+  });
+}
+
+// The full name lives on the sign-in row and the rest beside the settings, so one
+// transaction keeps the two and the audit row together. False before onboarding.
+export async function saveProfile(ownerId: string, input: ProfileInput) {
+  const { name, ...details } = input;
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({
+        name: user.name,
+        preferredName: settings.preferredName,
+        jobTitle: settings.jobTitle,
+        businessName: settings.businessName,
+        phone: settings.phone,
+        website: settings.website,
+        location: settings.location,
+      })
+      .from(settings)
+      .innerJoin(user, eq(user.id, settings.ownerId))
+      .where(eq(settings.ownerId, ownerId))
+      .for("update");
+    if (!existing) return false;
+
+    const now = new Date();
+    await tx
+      .update(settings)
+      .set({ ...details, updatedAt: now })
+      .where(eq(settings.ownerId, ownerId));
+    await tx
+      .update(user)
+      .set({ name, updatedAt: now })
+      .where(eq(user.id, ownerId));
+
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "profile.update",
+      entityType: "settings",
+      entityId: ownerId,
+      before: existing,
+      after: input,
+    });
+    return true;
   });
 }
