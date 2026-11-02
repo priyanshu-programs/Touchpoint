@@ -1294,3 +1294,7 @@
 - [2026-11-02] security.md: a rule for what Next up draws and links to; plan.md: the Today redesign and what was left out
 - [2026-11-02] board-sync.ts: what arrives is put in drawing order before the whiteboard restores it, because the server lists changes by id and restoring them out of order renumbered some on one device alone, raising their version with a new nonce, so a delete from the device that made them could lose and leave the note behind (e2e/19's two-window test, failing on main since #45)
 - [2026-11-02] e2e/36-live-board.spec.ts: notes the server lists out of drawing order, then deleted through the room with the largest nonce, are gone; it fails on the old code on any machine
+- [2026-11-02] highlighter.tsx: a Highlighter button and hook that turn the whiteboard's pen into a wide, see-through yellow marker (width 6, opacity 40) and give back the owner's pen when it is pressed again or another tool is chosen
+- [2026-11-02] Brainstorm boards and workflows: the Highlighter button sits beside Sticky note or the save status, and above the bottom bar on a phone
+- [2026-11-02] e2e/41-highlighter.spec.ts: a highlight is stored with the marker's colour, width and opacity on both kinds of board, the pen comes back as it was, another tool puts the highlighter away, and the button is in reach on a phone
+- [2026-11-02] plan.md: an entry for the highlighter

@@ -45,6 +45,7 @@ import {
 import { ColorGrid, samePicked, type Picked } from "../../workflows/[id]/color-grid";
 import { createBoardPictures } from "../../workflows/[id]/board-pictures";
 import { useRightDragPan } from "../../workflows/[id]/right-drag-pan";
+import { HighlighterButton, useHighlighter } from "../../workflows/[id]/highlighter";
 import {
   HEADER_PX,
   openingView,
@@ -289,6 +290,7 @@ function Whiteboard({
   const [paper, setPaper] = useState(opensOn);
   const isDark = useDarkTheme();
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  const highlighter = useHighlighter(api);
   const [typedLinks] = useState(createTypedLinks);
   const [color, setColor] = useState(FIRST_STICKY);
   const [picked, setPicked] = useState<Picked>({ stroke: "", fill: null });
@@ -469,6 +471,11 @@ function Whiteboard({
         }}
         renderTopRightUI={() => (
           <div className="flex items-center gap-2">
+            <HighlighterButton
+              on={highlighter.on}
+              onToggle={highlighter.toggle}
+              className="hidden sm:inline-flex"
+            />
             <StickyButton
               api={api}
               color={color}
@@ -498,6 +505,11 @@ function Whiteboard({
         color={color}
         onColor={setColor}
         className="absolute right-4 bottom-24 z-10 inline-flex sm:hidden"
+      />
+      <HighlighterButton
+        on={highlighter.on}
+        onToggle={highlighter.toggle}
+        className="absolute right-4 bottom-36 z-10 inline-flex sm:hidden"
       />
     </div>
   );
