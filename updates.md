@@ -1299,3 +1299,8 @@
 - [2026-11-02] e2e/41-highlighter.spec.ts: a highlight is stored with the marker's colour, width and opacity on both kinds of board, the pen comes back as it was, another tool puts the highlighter away, and the button is in reach on a phone
 - [2026-11-02] plan.md: an entry for the highlighter
 - [2026-11-02] Added a trail learning: the highlighter is the whiteboard's own pen with marker settings, given back when the tool changes
+- [2026-11-02] box-notes.tsx: a stage's notes show in its card as one line each, cut with "…" where the card ends, because long notes took over the small card
+- [2026-11-02] box-notes.tsx: clicking a note's line opens the whole note in a panel on the right (the shared Sheet), with its line breaks and its addresses as links
+- [2026-11-02] e2e/13-workflows.spec.ts: a long note's line is cut, opens whole in the panel with its line break and link, Escape and Close leave the stage chosen, and on a phone the panel fits the screen
+- [2026-11-02] security.md and plan.md: notes on a box are drawn cut short in the card and whole in a side panel
+- [2026-11-02] Added a trail learning: e2e/13's dated-notes test needs the whole file, because it opens a company an earlier test makes

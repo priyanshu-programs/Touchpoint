@@ -1103,7 +1103,9 @@ test("a box shows each kind it carries on its mark, and carries dated notes copi
   // Two notes, each under the time it was written, and kept as plain text.
   await write("Kickoff call booked");
   await expect(notes()).toHaveCount(1);
-  await write("<b>Quote</b> sent\nwaiting on the signature");
+  await write(
+    "<b>Quote</b> sent\nwaiting on the signature from Maple Studio, the terms are at https://maple.test/quote and a reminder goes out on Friday",
+  );
   await expect(notes()).toHaveCount(2);
   await expect(notes().nth(1)).toContainText("<b>Quote</b> sent");
   await expect(card(page).locator("b")).toHaveCount(0);
@@ -1112,6 +1114,30 @@ test("a box shows each kind it carries on its mark, and carries dated notes copi
     /^\d{4}-\d\d-\d\dT/,
   );
   await expect.poll(() => markKinds(page)).toEqual(["pdf", "word", "link", "note2"]);
+
+  // In the card a long note is one line, cut short; clicked, it opens whole on the
+  // right, its line break kept and its address a link, and closing leaves the box chosen.
+  const preview = notes().nth(1).getByRole("button", { name: /^<b>Quote<\/b> sent/ });
+  expect(await preview.evaluate((line) => line.scrollWidth > line.clientWidth)).toBe(true);
+  expect((await preview.boundingBox())!.height).toBeLessThan(30);
+  const opened = page.getByRole("dialog", { name: "Note" });
+  await preview.click();
+  await expect(opened).toBeVisible();
+  expect(await opened.innerText()).toContain("<b>Quote</b> sent\nwaiting on the signature");
+  await expect(opened.locator("b")).toHaveCount(0);
+  await expect(opened.getByRole("link", { name: "https://maple.test/quote" })).toHaveAttribute(
+    "href",
+    "https://maple.test/quote",
+  );
+  expect((await opened.boundingBox())!.x).toBeGreaterThan(640);
+  await page.keyboard.press("Escape");
+  await expect(opened).toBeHidden();
+  await expect(card(page).getByText("Notes", { exact: true })).toBeVisible();
+  await notes().first().getByRole("button", { name: "Kickoff call booked" }).click();
+  await expect(opened).toContainText("Kickoff call booked");
+  await opened.getByRole("button", { name: "Close" }).click();
+  await expect(opened).toBeHidden();
+  await expect(card(page)).toBeVisible();
 
   // A note of nothing but spaces is not kept, and the form stays to be corrected.
   await write("   ");
@@ -1134,6 +1160,15 @@ test("a box shows each kind it carries on its mark, and carries dated notes copi
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
   ).toBe(true);
+  // There the whole note fills the screen's width.
+  await preview.click();
+  await expect(opened).toBeInViewport();
+  expect(Math.round((await opened.boundingBox())!.width)).toBeLessThanOrEqual(390);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(opened).toBeHidden();
   await page.setViewportSize({ width: 1280, height: 720 });
 
   // A note taken off, and the mark counts one.
