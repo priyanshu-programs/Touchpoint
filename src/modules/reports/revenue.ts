@@ -80,6 +80,38 @@ export async function revenueByMonth(
   return { total, months };
 }
 
+// The twelve months ending with today's, every one of them there even with nothing
+// received, so a chart of them keeps its shape however new the money records are.
+export async function revenueLastTwelveMonths(
+  ownerId: string,
+  options: { today: string; baseCurrency: string },
+) {
+  const current = options.today.slice(0, 7);
+  const [year, number] = current.split("-").map(Number);
+  const first = number === 12 ? `${year}-01` : `${year - 1}-${String(number + 1).padStart(2, "0")}`;
+  const { total, months } = await revenueByMonth(
+    ownerId,
+    { from: `${first}-01`, to: lastDay(current) },
+    options,
+  );
+  const held = new Map(months.map((month) => [month.month, month]));
+  const filled: typeof months = [];
+  for (let month = first; month <= current; month = nextMonth(month)) {
+    filled.push(
+      held.get(month) ?? {
+        month,
+        from: `${month}-01`,
+        to: lastDay(month),
+        minor: 0,
+        count: 0,
+        converted: [],
+        unconverted: [],
+      },
+    );
+  }
+  return { total, months: filled };
+}
+
 export type ClientKey = { organizationId: string } | { contactId: string };
 
 // Money received from each client in the range, in the base currency, most first.

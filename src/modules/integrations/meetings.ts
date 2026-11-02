@@ -60,8 +60,10 @@ export async function meetingsBetween(
       title: calendarEvents.title,
       allDay: calendarEvents.allDay,
       startsAt: calendarEvents.startsAt,
+      endsAt: calendarEvents.endsAt,
       startsOn: calendarEvents.startsOn,
       endsOn: calendarEvents.endsOn,
+      meetingUrl: calendarEvents.meetingUrl,
     })
     .from(calendarEvents)
     .where(

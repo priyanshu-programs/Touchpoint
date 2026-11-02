@@ -28,6 +28,10 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
   --color-chart-bar: var(--chart-bar);
+  --color-chart-bar-quiet: var(--chart-bar-quiet);
+  --color-spotlight: var(--spotlight);
+  --color-spotlight-foreground: var(--spotlight-foreground);
+  --color-spotlight-muted: var(--spotlight-muted);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -98,6 +102,12 @@
   /* The lime a step deeper, for bars: the brand lime is too faint on white (checked at
      3:1 and more against each theme's card). */
   --chart-bar: oklch(0.62 0.17 128.24);
+  /* The cap on the bars around a highlighted one: neutral, and still 3:1 against the card. */
+  --chart-bar-quiet: oklch(0.64 0.005 106.5);
+  /* The one dark card on Today, near black in both themes. */
+  --spotlight: oklch(0.2 0.005 128);
+  --spotlight-foreground: oklch(0.9875 0.0026 106.4475);
+  --spotlight-muted: oklch(0.8 0.005 106.5);
   --sidebar: oklch(0.9875 0.0026 106.4475);
   --sidebar-foreground: oklch(0.5243 0 0);
   --sidebar-primary: oklch(0.9154 0.2402 128.2393);
@@ -150,6 +160,8 @@
     --chart-4: oklch(0.5103 0 0);
     --chart-5: oklch(0.6401 0 0);
     --chart-bar: oklch(0.66 0.18 128.24);
+    --chart-bar-quiet: oklch(0.5 0.005 106.5);
+    --spotlight: oklch(0.12 0.005 128);
     --sidebar: oklch(0.1448 0 0);
     --sidebar-foreground: oklch(0.709 0 0);
     --sidebar-primary: oklch(0.9154 0.2402 128.2393);
@@ -278,4 +290,33 @@
     margin-inline-start: auto;
     color: var(--muted-foreground);
   }
+}
+
+/*
+ * Today's dark card. It keeps its own focus ring: the light theme's dark ring would
+ * vanish on it. The glow is a gradient of the brand lime, so nothing has to be fetched.
+ */
+.spotlight {
+  --ring: var(--primary);
+  background-color: var(--spotlight);
+  background-image: radial-gradient(
+    110% 90% at 100% 0%,
+    oklch(0.9154 0.2402 128.2393 / 0.3),
+    transparent 62%
+  );
+  color: var(--spotlight-foreground);
+}
+
+/* The faint lime at the top of Today, behind everything on the page. */
+.today-wash {
+  background-image: radial-gradient(
+    closest-side at 50% 50%,
+    oklch(0.9154 0.2402 128.2393 / 0.16),
+    transparent
+  );
+}
+
+/* The highlighted bar: its top is the deeper lime, which still shows on a white card. */
+.chart-bar-highlight {
+  background-image: linear-gradient(to bottom, var(--chart-bar), var(--primary));
 }

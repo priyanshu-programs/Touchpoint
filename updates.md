@@ -1280,3 +1280,15 @@
 - [2026-11-02] e2e/40-profile.spec.ts: refusals, saving, the greeting, reload and a phone; e2e/99-sign-out and e2e/01-foundation follow the button
 - [2026-11-02] security.md: a rule for the owner's profile; plan.md and docs/PRD.md: the profile and what was left out
 - [2026-11-02] Added a trail learning: a saved name reaches the greeting only through its key, and two greeting lines name nobody
+- [2026-11-02] src/app/(app)/next-up.ts: works out the one thing to show first on Today and the line under its heading, because the owner found Today boring and a stack of equal boxes says nothing about what matters; tests
+- [2026-11-02] meetingsBetween also gives a meeting's end and its stored join link, so Next up can pass over a finished meeting and offer Join
+- [2026-11-02] revenueLastTwelveMonths: exactly twelve months with the empty ones as nothing, because revenueByMonth starts at the first payment and would leave a short, lopsided chart on Today; tests
+- [2026-11-02] Money reports: monthName, scaleTop and Conversions moved to parts.tsx, so Today's chart can use them
+- [2026-11-02] BarChart: an optional highlighted bar with its figure kept up and quiet bars around it; Reports doesn't pass it and looks as before
+- [2026-11-02] globals.css: colours for the dark card and the quiet bars in both themes, and the card's glow, Today's faint lime wash and the highlighted bar, drawn in CSS so nothing is fetched
+- [2026-11-02] Today rebuilt from the owner's reference picture, adapted and not copied: a large Received tile with four small ones, a 12-month Money received chart, a dark Next up card, Quick actions and a right-hand column; corners stay 6px at the owner's choice (today-tiles, next-up-card, quick-actions, money-chart-card)
+- [2026-11-02] Today: a Connect Google Calendar card where the Meetings card would be, only while the calendar isn't connected, in place of the reference's upgrade card (connect-calendar-card)
+- [2026-11-02] Today: Add task and Log activity moved from the card headers to Quick actions, so each link appears once
+- [2026-11-02] Today: laid out by its own width with a container query since the sidebar can be dragged wider, and on a phone Next up, Quick actions and tasks come first with each card drawn once
+- [2026-11-02] e2e/41-today-dashboard.spec.ts: the clear state, Next up's choices and Open, the connect card coming and going, Quick actions, the chart's bars and a phone's order
+- [2026-11-02] security.md: a rule for what Next up draws and links to; plan.md: the Today redesign and what was left out

@@ -18,6 +18,7 @@ import {
   revenueByClient,
   revenueByMonth,
   revenueByService,
+  revenueLastTwelveMonths,
   serviceRows,
   timeToPayment,
   timeToPaymentRows,
@@ -179,6 +180,29 @@ describe("money reports", () => {
     for (const month of year.months) {
       expect((await listPayments(ownerId, { from: month.from, to: month.to })).total).toBe(month.count);
     }
+  });
+
+  it("gives exactly the last twelve months, the empty ones as nothing", async () => {
+    const { total, months } = await revenueLastTwelveMonths(ownerId, { today: TODAY, ...BASE });
+    expect(months).toHaveLength(12);
+    expect(months[0]).toMatchObject({ month: "2025-11", from: "2025-11-01", to: "2025-11-30", minor: 0, count: 0 });
+    expect(months.at(-2)).toMatchObject({ month: "2026-09", to: "2026-09-30", minor: 5_000_000 });
+    expect(months.at(-1)).toMatchObject({ month: "2026-10", to: "2026-10-31", minor: 17_325_000 });
+    expect(total.minor).toBe(22_325_000);
+
+    // Across a new year, and in December, when the twelve months are one calendar year.
+    const january = await revenueLastTwelveMonths(ownerId, { today: "2027-01-05", ...BASE });
+    expect([january.months[0].month, january.months.at(-1)!.month]).toEqual(["2026-02", "2027-01"]);
+    expect(january.months).toHaveLength(12);
+    const december = await revenueLastTwelveMonths(ownerId, { today: "2026-12-31", ...BASE });
+    expect([december.months[0].month, december.months.at(-1)!.month]).toEqual(["2026-01", "2026-12"]);
+    expect(december.months).toHaveLength(12);
+
+    // A year with no payments at all still has its twelve months.
+    const empty = await revenueLastTwelveMonths(ownerId, { today: "2030-06-15", ...BASE });
+    expect(empty.months).toHaveLength(12);
+    expect(empty.total.count).toBe(0);
+    expect(empty.months.every((month) => month.count === 0)).toBe(true);
   });
 
   it("lists every month between payments, the empty ones as nothing, and clamps to the dates", async () => {
