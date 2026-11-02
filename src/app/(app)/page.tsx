@@ -27,10 +27,16 @@ import {
   listDueTasks,
 } from "@/modules/tasks/queries";
 import { TimelineEvent } from "./activities/timeline-event";
+import { ConnectCalendarCard } from "./connect-calendar-card";
 import { figureLinks } from "./money/figure-links";
+import { MoneyChartCard } from "./money-chart-card";
+import { nextUp, todaySummary } from "./next-up";
+import { NextUpCard } from "./next-up-card";
+import { QuickActions } from "./quick-actions";
 import { dismissReminderAction } from "./tasks/actions";
 import { DueToday } from "./tasks/due-today";
 import { WeekAhead } from "./tasks/week-ahead";
+import { TodayTiles } from "./today-tiles";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -80,6 +86,7 @@ export default async function TodayPage() {
   const settings = await getSettings(owner.id);
   const timezone = settings?.timezone ?? "UTC";
   const today = dateIn(timezone);
+  const base = settings?.baseCurrency ?? "INR";
   const [
     tasks,
     reminders,
@@ -89,7 +96,7 @@ export default async function TodayPage() {
     organizationCount,
     money,
     google,
-    meetings,
+    calendar,
   ] = await Promise.all([
     listDueTasks(owner.id, { through: today, hideSnoozed: true }),
     listDeliveredReminders(owner.id),
@@ -100,10 +107,14 @@ export default async function TodayPage() {
     listTimeline(owner.id, { limit: 5, withoutMeetings: true }),
     countContacts(owner.id),
     countOrganizations(owner.id),
-    moneyTiles(owner.id, today, settings?.baseCurrency ?? "INR"),
+    moneyTiles(owner.id, today, base),
     googleConnection(owner.id),
     meetingsBetween(owner.id, today, addDays(today, 6), timezone),
   ]);
+  const connected = google && google.status !== "revoked";
+  // A copy of the calendar can outlast its connection, and is then not shown.
+  const meetings = connected ? calendar : [];
+  const day = { today, now: new Date(), timezone };
   const people = [
     { href: "/people/contacts", label: "Contacts", count: contactCount },
     {
@@ -112,152 +123,151 @@ export default async function TodayPage() {
       count: organizationCount,
     },
   ];
+  const longDate = new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${today}T00:00:00Z`));
 
   return (
-    <div className="grid gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
-        <p className="text-muted-foreground">Welcome, {callName(owner.name, settings?.preferredName)}.</p>
+    // Laid out by its own width, not the screen's, since the sidebar can be dragged wider.
+    // When narrow the two columns' wrappers step aside and every card takes its place by
+    // its own order, so the work comes first on a phone with each card drawn once.
+    <div className="@container relative isolate grid gap-6">
+      <div
+        aria-hidden
+        className="today-wash pointer-events-none absolute -top-24 -left-16 -z-10 h-96 w-4/5 @4xl:w-2/3"
+      />
+      <div className="grid gap-1">
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <h1 className="text-3xl font-semibold tracking-tight">Today</h1>
+          <p className="text-muted-foreground">{longDate}</p>
+        </div>
+        <p className="text-muted-foreground">
+          Welcome, {callName(owner.name, settings?.preferredName)}.{" "}
+          {todaySummary({ due: tasks, meetings }, day)}
+        </p>
       </div>
 
-      <ul className="grid grid-cols-2 gap-4 lg:gap-6">
-        {people.map((tile) => (
-          <li key={tile.href}>
-            <Link
-              href={tile.href}
-              className="grid gap-1 rounded-xl bg-card p-4 ring-1 ring-foreground/10 hover:bg-accent"
-            >
-              <span className="text-sm text-muted-foreground">{tile.label}</span>
-              <span className="text-2xl font-semibold tracking-tight tabular-nums">
-                {tile.count}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <div className="grid min-w-0 gap-4 @4xl:grid-cols-[minmax(0,1fr)_20rem] @4xl:grid-rows-[auto_1fr]">
+        <div className="grid content-start gap-4 @max-4xl:contents @4xl:col-start-2 @4xl:row-start-1">
+          <div className="@max-4xl:order-1">
+            <NextUpCard next={nextUp({ due: tasks, upcoming, meetings }, day)} />
+          </div>
+          <div className="@max-4xl:order-2">
+            <QuickActions />
+          </div>
+        </div>
 
-      {money && (
-        <ul aria-label="Money" className="grid gap-4 sm:grid-cols-3 lg:gap-6">
-          {money.map((tile) => (
-            <li key={tile.label}>
-              <Link
-                href={tile.href}
-                className="grid gap-1 rounded-xl bg-card p-4 ring-1 ring-foreground/10 hover:bg-accent"
-              >
-                <span className="text-sm text-muted-foreground">{tile.label}</span>
-                <span className="text-2xl font-semibold tracking-tight tabular-nums">
-                  {tile.figure}
-                </span>
-                {tile.more && (
-                  <span className="text-sm text-muted-foreground">{tile.more}</span>
-                )}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+        <div className="grid min-w-0 content-start gap-4 @max-4xl:contents @4xl:col-start-1 @4xl:row-span-2 @4xl:row-start-1">
+          <div className="@max-4xl:order-7">
+            <TodayTiles money={money} people={people} />
+          </div>
 
-      {reminders.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Reminders</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="grid gap-3">
-              {reminders.map((reminder) => (
-                <li key={reminder.id} className="flex items-start gap-3">
-                  <div className="grid min-w-0 flex-1 gap-0.5">
-                    <Link
-                      href={`/tasks/${reminder.taskId}`}
-                      className="font-medium break-words underline-offset-4 hover:underline"
-                    >
-                      {reminder.title}
-                    </Link>
-                    <p className="text-sm text-muted-foreground">
-                      Reminder for {formatDateTime(reminder.remindAt, timezone)}
-                    </p>
-                  </div>
-                  <form action={dismissReminderAction}>
-                    <input type="hidden" name="id" value={reminder.id} />
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="sm"
-                      aria-label={`Dismiss reminder: ${reminder.title}`}
-                    >
-                      Dismiss
-                    </Button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+          {money && (
+            <div className="@max-4xl:order-8">
+              <MoneyChartCard ownerId={owner.id} today={today} base={base} />
+            </div>
+          )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Tasks</CardTitle>
-          <CardAction>
-            <ButtonLink href="/tasks/new" variant="outline" size="sm">
-              Add task
-            </ButtonLink>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          <DueToday tasks={tasks} timezone={timezone} />
-        </CardContent>
-      </Card>
+          {reminders.length > 0 && (
+            <Card className="@max-4xl:order-3">
+              <CardHeader>
+                <CardTitle>Reminders</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="grid gap-3">
+                  {reminders.map((reminder) => (
+                    <li key={reminder.id} className="flex items-start gap-3">
+                      <div className="grid min-w-0 flex-1 gap-0.5">
+                        <Link
+                          href={`/tasks/${reminder.taskId}`}
+                          className="font-medium break-words underline-offset-4 hover:underline"
+                        >
+                          {reminder.title}
+                        </Link>
+                        <p className="text-sm text-muted-foreground">
+                          Reminder for {formatDateTime(reminder.remindAt, timezone)}
+                        </p>
+                      </div>
+                      <form action={dismissReminderAction}>
+                        <input type="hidden" name="id" value={reminder.id} />
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Dismiss reminder: ${reminder.title}`}
+                        >
+                          Dismiss
+                        </Button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
-      {google && google.status !== "revoked" && (
-        <MeetingsCard meetings={meetings} today={today} timezone={timezone} />
-      )}
+          <Card className="@max-4xl:order-4">
+            <CardHeader>
+              <CardTitle>Tasks</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DueToday tasks={tasks} timezone={timezone} />
+            </CardContent>
+          </Card>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Coming up</CardTitle>
-            <CardAction>
-              <ButtonLink href="/tasks/week" variant="outline" size="sm">
-                Week
-              </ButtonLink>
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            <WeekAhead
-              tasks={upcoming}
-              timezone={timezone}
-              empty="Nothing else is due in the next seven days."
-            />
-          </CardContent>
-        </Card>
+          <Card className="@max-4xl:order-9">
+            <CardHeader>
+              <CardTitle>Recent activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recent.rows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nothing logged yet.</p>
+              ) : (
+                <ul className="grid gap-4">
+                  {recent.rows.map((event) => (
+                    <li key={event.eventId} className="grid min-w-0 gap-1">
+                      <TimelineEvent
+                        event={event}
+                        when={formatDateTime(event.occurredAt, timezone)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
-            <CardAction>
-              <ButtonLink href="/activities/new" variant="outline" size="sm">
-                Log activity
-              </ButtonLink>
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            {recent.rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing logged yet.</p>
+        <div className="grid content-start gap-4 @max-4xl:contents @4xl:col-start-2 @4xl:row-start-2">
+          <div className="@max-4xl:order-5">
+            {connected ? (
+              <MeetingsCard meetings={meetings} today={today} timezone={timezone} />
             ) : (
-              <ul className="grid gap-4">
-                {recent.rows.map((event) => (
-                  <li key={event.eventId} className="grid min-w-0 gap-1">
-                    <TimelineEvent
-                      event={event}
-                      when={formatDateTime(event.occurredAt, timezone)}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <ConnectCalendarCard />
             )}
-          </CardContent>
-        </Card>
+          </div>
+
+          <Card className="@max-4xl:order-6">
+            <CardHeader>
+              <CardTitle>Coming up</CardTitle>
+              <CardAction>
+                <ButtonLink href="/tasks/week" variant="outline" size="sm">
+                  Week
+                </ButtonLink>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              <WeekAhead
+                tasks={upcoming}
+                timezone={timezone}
+                empty="Nothing else is due in the next seven days."
+              />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

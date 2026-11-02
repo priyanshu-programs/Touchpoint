@@ -17,7 +17,6 @@ import { followUpCompliance, proposalAcceptance, replyRate } from "@/modules/rep
 import { revenueByClient, revenueByMonth, revenueByService, timeToPayment } from "@/modules/reports/revenue";
 import { reportParams } from "@/modules/reports/schema";
 import { chosenRange, PERIOD_LABELS, PERIODS } from "@/modules/revenue/period";
-import type { BaseSum } from "@/modules/revenue/queries";
 import { getSettings } from "@/modules/settings/service";
 import { clientParams } from "../figure-links";
 import { MoneyHeader } from "../money-header";
@@ -26,24 +25,11 @@ import { paymentsHref } from "../payments/labels";
 import { rangeText } from "../range";
 import { BarChart } from "./bar-chart";
 import { periodKeep, reportsHref } from "./links";
-import { counted, NotEnoughData, serviceName } from "./parts";
+import { Conversions, counted, monthName, NotEnoughData, scaleTop, serviceName } from "./parts";
 
 export const metadata: Metadata = { title: "Reports" };
 
 const TOP_CLIENTS = 10;
-
-const monthName = (month: string, style: "long" | "short") =>
-  new Intl.DateTimeFormat("en-GB", {
-    month: style,
-    year: style === "long" ? "numeric" : undefined,
-    timeZone: "UTC",
-  }).format(new Date(`${month}-01T00:00:00Z`));
-
-// The scale's top: the largest month rounded up to 1, 2, 2.5 or 5 of its power of ten.
-function scaleTop(largest: number) {
-  const power = 10 ** Math.floor(Math.log10(largest));
-  return [1, 2, 2.5, 5, 10].map((step) => step * power).find((top) => top >= largest)!;
-}
 
 function ReportCard({
   title,
@@ -96,28 +82,6 @@ function Rate({
       </Headline>
       <p className="text-sm text-muted-foreground">{children}</p>
     </div>
-  );
-}
-
-// What a sum in the base currency took in from other currencies, and left out.
-function Conversions({ sum, base, href }: { sum: BaseSum; base: string; href: (currency: string) => string }) {
-  return (
-    <>
-      {sum.converted.length > 0 && (
-        <p className="text-sm text-muted-foreground">
-          Includes {sum.converted.map(({ currency, minor }) => formatMoney(minor, currency)).join(", ")} at
-          your recorded rates.
-        </p>
-      )}
-      {sum.unconverted.map((amount) => (
-        <p key={amount.currency} className="text-sm">
-          <Link href={href(amount.currency)} className="underline">
-            {formatMoney(amount.minor, amount.currency)}
-          </Link>{" "}
-          is left out: {amount.count === 1 ? "it has" : "they have"} no rate to {base}.
-        </p>
-      ))}
-    </>
   );
 }
 
