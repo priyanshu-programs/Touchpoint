@@ -1298,3 +1298,4 @@
 - [2026-11-02] Brainstorm boards and workflows: the Highlighter button sits beside Sticky note or the save status, and above the bottom bar on a phone
 - [2026-11-02] e2e/41-highlighter.spec.ts: a highlight is stored with the marker's colour, width and opacity on both kinds of board, the pen comes back as it was, another tool puts the highlighter away, and the button is in reach on a phone
 - [2026-11-02] plan.md: an entry for the highlighter
+- [2026-11-02] Added a trail learning: the highlighter is the whiteboard's own pen with marker settings, given back when the tool changes
