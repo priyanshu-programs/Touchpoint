@@ -1311,3 +1311,4 @@
 - [2026-11-02] e2e/13-workflows.spec.ts: a note is typed into the editor, made bold and italic in the panel, kept after a reload, and an emptied note is refused in the panel
 - [2026-11-02] security.md and plan.md: a note's formatting and editing, the editor package, and what was left out
 - [2026-11-02] Added a trail learning: Vitest and Playwright share the test database, so they must not run at once
+- [2026-11-02] Added a trail learning: note formatting is plain text plus checked ranges, never HTML
