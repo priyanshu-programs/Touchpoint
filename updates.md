@@ -1318,3 +1318,8 @@
 - [2026-11-02] Added a trail learning: note formatting is plain text plus checked ranges, never HTML
 - [2026-11-02] Added a trail learning: a PR stacked on another branch merges into that branch, not main, if its base PR merges first (what happened to #51)
 - [2026-11-02] Merged main into the note formatting branch, keeping the highlighter's plan.md entry and the formatting sentence in the note previews entry; added a trail learning on why open PRs conflict in plan.md
+- [2026-11-02] note-editor.tsx: a `fill` mode that grows with the note under formatting buttons kept at the top, and addresses drawn as links (decorations from linkParts, never stored) that open on Ctrl+click or Cmd+click
+- [2026-11-02] box-notes.tsx: the note panel is the editor itself, with no Edit button, because the owner wanted to edit where the note is read with the whole note showing; Save and Cancel appear once something changed, and closing or opening another note with a change asks "Discard your changes to this note?"
+- [2026-11-02] e2e/13-workflows.spec.ts: the panel opens ready to edit with the buttons above the whole note, saves bold and italic, refuses an emptied note, Cancel puts the saved one back, closing with a change asks first, and the buttons are on screen on a phone
+- [2026-11-02] security.md and plan.md: the note panel edits in place, and its addresses open only on Ctrl+click from linkParts's http(s) addresses
+- [2026-11-02] Added a trail learning: the note editor shows addresses as links with decorations, not Tiptap's Link package or a link mark

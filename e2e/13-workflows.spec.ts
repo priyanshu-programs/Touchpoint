@@ -1121,35 +1121,44 @@ test("a box shows each kind it carries on its mark, and carries dated notes copi
   await expect.poll(() => markKinds(page)).toEqual(["pdf", "word", "link", "note2"]);
 
   // In the card a long note is one line, cut short; clicked, it opens whole on the
-  // right, its line break kept and its address a link, and closing leaves the box chosen.
+  // right, ready to be written in with its formatting buttons on top, its line break
+  // kept and its address drawn as a link, and closing leaves the box chosen.
   const preview = notes().nth(1).getByRole("button", { name: /^<b>Quote<\/b> sent/ });
   expect(await preview.evaluate((line) => line.scrollWidth > line.clientWidth)).toBe(true);
   expect((await preview.boundingBox())!.height).toBeLessThan(30);
   const opened = page.getByRole("dialog", { name: "Note" });
+  const editing = opened.getByRole("form", { name: "Edit the note" });
+  const box = editing.getByRole("textbox", { name: "Note" });
+  const formatting = editing.getByRole("toolbar", { name: "Formatting" });
   await preview.click();
   await expect(opened).toBeVisible();
-  expect(await opened.innerText()).toContain("<b>Quote</b> sent\nwaiting on the signature");
+  await expect(box.locator("p")).toHaveText([
+    "<b>Quote</b> sent",
+    /^waiting on the signature/,
+  ]);
   await expect(opened.locator("b")).toHaveCount(0);
-  await expect(opened.getByRole("link", { name: "https://maple.test/quote" })).toHaveAttribute(
-    "href",
+  await expect(box.locator('[data-href="https://maple.test/quote"]')).toHaveText(
     "https://maple.test/quote",
   );
+  // The whole note shows, the buttons above it, and there is nothing to save yet.
+  expect(await box.evaluate((text) => text.scrollHeight <= text.clientHeight)).toBe(true);
+  expect((await formatting.boundingBox())!.y).toBeLessThan((await box.boundingBox())!.y);
+  await expect(opened.getByRole("button", { name: "Edit" })).toHaveCount(0);
+  await expect(editing.getByRole("button", { name: "Save" })).toHaveCount(0);
   expect((await opened.boundingBox())!.x).toBeGreaterThan(640);
   await page.keyboard.press("Escape");
   await expect(opened).toBeHidden();
   await expect(card(page).getByText("Notes", { exact: true })).toBeVisible();
   await notes().first().getByRole("button", { name: "Kickoff call booked" }).click();
-  await expect(opened).toContainText("Kickoff call booked");
+  await expect(box).toHaveText("Kickoff call booked");
 
-  // In the panel a note is edited: words chosen and made bold with the button,
-  // others italic with Ctrl+I, kept as words and never as markup.
-  await opened.getByRole("button", { name: "Edit" }).click();
-  const editing = opened.getByRole("form", { name: "Edit the note" });
-  await expect(editing.getByRole("textbox", { name: "Note" })).toBeFocused();
+  // In the panel a note is edited where it stands: words chosen and made bold with
+  // the button, others italic with Ctrl+I, kept as words and never as markup.
   // Words are chosen as a drag would choose them: arrow presses can be lost on a slow machine.
   const choose = (word: string) =>
-    editing.getByRole("textbox", { name: "Note" }).evaluate((box, wanted) => {
-      const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+    box.evaluate((text, wanted) => {
+      (text as HTMLElement).focus();
+      const walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         const at = node.textContent!.indexOf(wanted);
         if (at < 0) continue;
@@ -1168,25 +1177,39 @@ test("a box shows each kind it carries on its mark, and carries dated notes copi
   await expect(editing.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Control+i");
   await editing.getByRole("button", { name: "Save" }).click();
-  await expect(editing).toBeHidden();
+  await expect(editing.getByRole("button", { name: "Save" })).toHaveCount(0);
   await expect(opened.locator("strong")).toHaveText("Kickoff");
   await expect(opened.locator("em")).toHaveText("booked");
-  await expect(opened).toContainText("Kickoff call booked");
+  await expect(box).toHaveText("Kickoff call booked");
   // The card's line stays plain.
   await expect(card(page).locator("strong, em")).toHaveCount(0);
 
-  // A note emptied while editing is refused, and the panel says why.
-  await opened.getByRole("button", { name: "Edit" }).click();
-  await expect(editing.getByRole("textbox", { name: "Note" })).toBeFocused();
+  // A note emptied is refused, and the panel says why; Cancel puts the saved one back.
+  await box.click();
   await page.keyboard.press("Control+a");
   await page.keyboard.press("Delete");
   await editing.getByRole("button", { name: "Save" }).click();
   await expect(opened.getByRole("alert")).toHaveText("Write something in the note first.");
   await editing.getByRole("button", { name: "Cancel" }).click();
   await expect(opened.locator("strong")).toHaveText("Kickoff");
+  await expect(opened.getByRole("alert")).toHaveCount(0);
+
+  // Closing with a change not saved asks first: kept on Keep editing, gone on Discard.
+  await box.click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" for Monday");
+  await page.keyboard.press("Escape");
+  await expect(opened).toContainText("Discard your changes to this note?");
+  await opened.getByRole("button", { name: "Keep editing" }).click();
+  await expect(box).toHaveText("Kickoff call booked for Monday");
   await opened.getByRole("button", { name: "Close" }).click();
+  await opened.getByRole("button", { name: "Discard" }).click();
   await expect(opened).toBeHidden();
   await expect(card(page)).toBeVisible();
+  await notes().first().getByRole("button", { name: "Kickoff call booked" }).click();
+  await expect(box).toHaveText("Kickoff call booked");
+  await opened.getByRole("button", { name: "Close" }).click();
+  await expect(opened).toBeHidden();
 
   // A note of nothing but spaces is not kept, and the form stays to be corrected.
   await write("   ");
@@ -1214,9 +1237,10 @@ test("a box shows each kind it carries on its mark, and carries dated notes copi
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
   ).toBe(true);
-  // There the whole note fills the screen's width.
+  // There the whole note fills the screen's width, its buttons on top.
   await preview.click();
   await expect(opened).toBeInViewport();
+  await expect(formatting).toBeInViewport();
   expect(Math.round((await opened.boundingBox())!.width)).toBeLessThanOrEqual(390);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),

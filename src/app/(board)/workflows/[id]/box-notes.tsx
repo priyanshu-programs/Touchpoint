@@ -1,6 +1,5 @@
-import { Pencil, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useState } from "react";
-import { LinkedText } from "@/components/linked-text";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -11,6 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { formatDateTime } from "@/lib/time";
 import type { BoxNote } from "@/modules/workflows/drawing";
+import { tidyMarks } from "@/modules/workflows/note-marks";
 import {
   addNoteAction,
   editNoteAction,
@@ -24,13 +24,16 @@ const EMPTY: NoteDraft = { body: "", marks: [] };
 const UNSAVED =
   "The drawing has to be saved before anything goes on a box. Reload the page and try again.";
 
+const tidy = ({ body, marks }: NoteDraft) => JSON.stringify(tidyMarks(marks, body.length));
+const same = (a: NoteDraft, b: NoteDraft) => a.body === b.body && tidy(a) === tidy(b);
+
 // The whiteboard is only ever drawn in the browser, so its clock is the one meant.
 const when = (at: string) =>
   formatDateTime(new Date(at), Intl.DateTimeFormat().resolvedOptions().timeZone);
 
 // The notes left on the selected box, in its card: each as one line of plain text
-// under the time it was written, opening whole, formatted and to be edited, in a
-// side panel, and each can be taken off.
+// under the time it was written, opening whole and formatted in a side panel where
+// it is edited as it stands, and each can be taken off.
 export function BoxNotes({
   boardId,
   elementId,
@@ -52,9 +55,24 @@ export function BoxNotes({
   const [message, setMessage] = useState<string | null>(null);
   const [draft, setDraft] = useState<NoteDraft>(EMPTY);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [editing, setEditing] = useState<NoteDraft | null>(null);
+  // The panel's note as changed and not yet saved.
+  const [edited, setEdited] = useState<NoteDraft | null>(null);
+  // Bumped to put the saved note back in the panel's editor.
+  const [resets, setResets] = useState(0);
+  // Where the panel was asked to go (another note, or shut) while it held changes.
+  const [leaving, setLeaving] = useState<{ to: string | null } | null>(null);
   // Read from the notes, so the panel shows a note as last saved and closes if it goes.
   const open = notes.find(({ id }) => id === openId) ?? null;
+  const changed = open !== null && edited !== null && !same(edited, open);
+
+  const show = (to: string | null) => {
+    setOpenId(to);
+    setEdited(null);
+    setLeaving(null);
+    setMessage(null);
+    setResets((count) => count + 1);
+  };
+  const go = (to: string | null) => (changed ? setLeaving({ to }) : show(to));
 
   const run = async (work: () => Promise<NoteOutcome>) => {
     setBusy(true);
@@ -84,11 +102,7 @@ export function BoxNotes({
                   type="button"
                   aria-haspopup="dialog"
                   className="block w-full truncate rounded text-left hover:bg-accent"
-                  onClick={() => {
-                    setMessage(null);
-                    setEditing(null);
-                    setOpenId(note.id);
-                  }}
+                  onClick={() => go(note.id)}
                 >
                   {note.body}
                 </button>
@@ -163,10 +177,7 @@ export function BoxNotes({
       <Sheet
         open={open !== null}
         onOpenChange={(next) => {
-          if (next) return;
-          setOpenId(null);
-          setEditing(null);
-          setMessage(null);
+          if (!next) go(null);
         }}
       >
         <SheetContent className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
@@ -176,51 +187,67 @@ export function BoxNotes({
               {open && <time dateTime={open.createdAt}>{when(open.createdAt)}</time>}
             </SheetDescription>
           </SheetHeader>
-          {open && editing ? (
+          {open && (
             <form
               aria-label="Edit the note"
-              className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto px-4 pb-4"
+              className="flex min-h-0 flex-1 flex-col"
               onSubmit={async (event) => {
                 event.preventDefault();
-                const saved = await run(() => editNoteAction(boardId, open.id, editing));
-                if (saved) setEditing(null);
+                if (!edited) return;
+                const saved = await run(() => editNoteAction(boardId, open.id, edited));
+                if (saved) show(open.id);
               }}
             >
-              <NoteEditor initial={open} onChange={setEditing} autoFocus />
-              <div className="flex gap-1.5">
-                <Button type="submit" size="sm" disabled={busy}>
-                  Save
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(null)}>
-                  Cancel
-                </Button>
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+                <NoteEditor key={`${open.id}-${resets}`} initial={open} onChange={setEdited} fill />
               </div>
+              {(changed || message) && (
+                <div className="grid gap-2 border-t px-4 py-3">
+                  {message && (
+                    <p role="alert" className="text-xs text-destructive">
+                      {message}
+                    </p>
+                  )}
+                  {leaving ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="mr-auto text-sm">Discard your changes to this note?</p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => show(leaving.to)}
+                      >
+                        Discard
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setLeaving(null)}
+                      >
+                        Keep editing
+                      </Button>
+                    </div>
+                  ) : (
+                    changed && (
+                      <div className="flex gap-1.5">
+                        <Button type="submit" size="sm" disabled={busy}>
+                          Save
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => show(open.id)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
             </form>
-          ) : (
-            open && (
-              <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto px-4 pb-4">
-                <p className="break-words whitespace-pre-wrap">
-                  <LinkedText text={open.body} marks={open.marks} />
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="justify-self-start"
-                  onClick={() => {
-                    setMessage(null);
-                    setEditing({ body: open.body, marks: open.marks });
-                  }}
-                >
-                  <Pencil aria-hidden />
-                  Edit
-                </Button>
-              </div>
-            )
-          )}
-          {message && open && (
-            <p role="alert" className="px-4 pb-4 text-xs text-destructive">
-              {message}
-            </p>
           )}
         </SheetContent>
       </Sheet>
