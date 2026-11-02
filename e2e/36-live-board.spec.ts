@@ -257,10 +257,10 @@ const sticky = (id: string) => ({
     customData: { sticky: true },
 });
 
-// Joins the room as another of the owner's devices and sends these elements.
-const sendAsAnotherDevice = (page: Page, pass: Pass, elements: unknown[]) =>
+// Joins the room as another of the owner's devices and sends this message.
+const tellAsAnotherDevice = (page: Page, pass: Pass, message: unknown) =>
     page.evaluate(
-      async ({ pass, elements }) => {
+      async ({ pass, message }) => {
         const raw = Uint8Array.from(
           atob(pass.key.replaceAll("-", "+").replaceAll("_", "/")),
           (c) => c.charCodeAt(0),
@@ -270,7 +270,7 @@ const sendAsAnotherDevice = (page: Page, pass: Pass, elements: unknown[]) =>
         const sealed = await crypto.subtle.encrypt(
           { name: "AES-GCM", iv },
           key,
-          new TextEncoder().encode(JSON.stringify({ t: "changes", elements })),
+          new TextEncoder().encode(JSON.stringify(message)),
         );
         const out = new Uint8Array(12 + sealed.byteLength);
         out.set(iv);
@@ -281,8 +281,11 @@ const sendAsAnotherDevice = (page: Page, pass: Pass, elements: unknown[]) =>
         await new Promise((resolve) => setTimeout(resolve, 300));
         socket.close();
       },
-      { pass, elements },
+      { pass, message },
     );
+
+const sendAsAnotherDevice = (page: Page, pass: Pass, elements: unknown[]) =>
+  tellAsAnotherDevice(page, pass, { t: "changes", elements });
 
 test("a message that would not pass a save is not drawn", async ({ browser }) => {
   const tablet = await device(browser);
@@ -381,5 +384,52 @@ test("an element the whiteboard renumbers on arrival is sent on and saved", asyn
       intervals: [500],
     })
     .toBeGreaterThan(sticky(id).version);
+  await tablet.context().close();
+});
+
+// The server lists what changed by id, not in drawing order. Taken in that order,
+// the whiteboard would renumber one on arrival, raising its version here alone,
+// and a delete from the device that made it would then lose by the toss of a nonce.
+test("what the server lists out of drawing order is taken as it is, so a delete from elsewhere still wins", async ({
+  browser,
+}) => {
+  const tablet = await device(browser);
+  await connected(tablet);
+  const pass = await passFor(tablet);
+  const origin = new URL(tablet.url()).origin;
+  const rows = (await (await tablet.request.get(`/api/brainstorm/${boardId}/elements?since=0`)).json()) as {
+    elements: { index: string | null }[];
+  };
+  const last = rows.elements.map(({ index }) => index ?? "").sort().pop() || "a0";
+  // Listed by id, "aa-…" comes first though it is drawn after "zz-…".
+  const drawnSecond = { ...sticky("aa-drawn-second"), index: `${last}W` };
+  const drawnFirst = { ...sticky("zz-drawn-first"), index: `${last}V` };
+  const before = await notes(tablet).count();
+  const saveElsewhere = async (elements: unknown[]) => {
+    const answer = await tablet.request.patch(`/api/brainstorm/${boardId}/elements`, {
+      headers: { origin },
+      data: { since: 0, elements },
+    });
+    expect(answer.status()).toBe(200);
+    await tellAsAnotherDevice(tablet, pass, { t: "look" });
+  };
+
+  await saveElsewhere([drawnSecond, drawnFirst]);
+  await expect(notes(tablet)).toHaveCount(before + 2, { timeout: 5_000 });
+
+  // Rubbed out on the other device and sent through the room in drawing order, as a
+  // device sends: one version on, with the largest nonce there is, so it would lose
+  // to any copy here at that version.
+  await sendAsAnotherDevice(
+    tablet,
+    pass,
+    [drawnFirst, drawnSecond].map((element) => ({
+      ...element,
+      version: element.version + 1,
+      versionNonce: 2_147_483_647,
+      isDeleted: true,
+    })),
+  );
+  await expect(notes(tablet)).toHaveCount(before, { timeout: 5_000 });
   await tablet.context().close();
 });

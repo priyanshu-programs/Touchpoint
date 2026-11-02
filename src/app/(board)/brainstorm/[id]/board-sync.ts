@@ -62,13 +62,17 @@ async function changesSince(address: string, since: number) {
   return { clock: clock!, elements };
 }
 
+// A plain comparison of fractional indices, as the whiteboard makes them, so
+// elements go in the order they are drawn in.
+const at = ({ index }: Record<string, unknown>) => (typeof index === "string" ? index : "￿");
+const drawingOrder = (a: Record<string, unknown>, b: Record<string, unknown>) =>
+  at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0;
+
 // The whole board as it stands, in the order it is drawn in.
 export async function loadBoard(address: string) {
   const loaded = await changesSince(address, 0);
   if (loaded === "reset") throw new Error("reset from clock 0");
-  const at = ({ index }: Record<string, unknown>) => (typeof index === "string" ? index : "￿");
-  // A plain comparison of fractional indices, as the whiteboard makes them.
-  loaded.elements.sort((a, b) => (at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0));
+  loaded.elements.sort(drawingOrder);
   return loaded;
 }
 
@@ -344,8 +348,12 @@ export function createBoardSync({
   function merge(remote: Record<string, unknown>[], fromRoom = false) {
     if (!api) return;
     mergedAt = performance.now();
+    // In drawing order, as the room brings them and unlike the server, which lists
+    // them by id. Out of order, restoring renumbers some here alone, raising their
+    // version and drawing a new nonce, and a delete from the device that made them
+    // can then lose to this copy by the toss of a nonce.
     const restored = restoreElements(
-      remote as unknown as ExcalidrawElement[],
+      [...remote].sort(drawingOrder) as unknown as ExcalidrawElement[],
       null,
     ) as RemoteExcalidrawElement[];
     // Merging can renumber an element's place in the drawing order, which raises

@@ -1292,3 +1292,5 @@
 - [2026-11-02] Today: laid out by its own width with a container query since the sidebar can be dragged wider, and on a phone Next up, Quick actions and tasks come first with each card drawn once
 - [2026-11-02] e2e/41-today-dashboard.spec.ts: the clear state, Next up's choices and Open, the connect card coming and going, Quick actions, the chart's bars and a phone's order
 - [2026-11-02] security.md: a rule for what Next up draws and links to; plan.md: the Today redesign and what was left out
+- [2026-11-02] board-sync.ts: what arrives is put in drawing order before the whiteboard restores it, because the server lists changes by id and restoring them out of order renumbered some on one device alone, raising their version with a new nonce, so a delete from the device that made them could lose and leave the note behind (e2e/19's two-window test, failing on main since #45)
+- [2026-11-02] e2e/36-live-board.spec.ts: notes the server lists out of drawing order, then deleted through the room with the largest nonce, are gone; it fails on the old code on any machine
