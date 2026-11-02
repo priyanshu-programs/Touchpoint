@@ -41,8 +41,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm exec playwright install --with-deps chromium
-      # TEMPORARY DEBUG (fix/live-delete-wins): only the brainstorm two-window story
-      - run: pnpm exec playwright test e2e/01-foundation.spec.ts e2e/19-brainstorm.spec.ts
+      - run: pnpm test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

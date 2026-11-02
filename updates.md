@@ -1280,3 +1280,5 @@
 - [2026-11-02] e2e/40-profile.spec.ts: refusals, saving, the greeting, reload and a phone; e2e/99-sign-out and e2e/01-foundation follow the button
 - [2026-11-02] security.md: a rule for the owner's profile; plan.md and docs/PRD.md: the profile and what was left out
 - [2026-11-02] Added a trail learning: a saved name reaches the greeting only through its key, and two greeting lines name nobody
+- [2026-11-02] board-sync.ts: what arrives is put in drawing order before the whiteboard restores it, because the server lists changes by id and restoring them out of order renumbered some on one device alone, raising their version with a new nonce, so a delete from the device that made them could lose and leave the note behind (e2e/19's two-window test, failing on main since #45)
+- [2026-11-02] e2e/36-live-board.spec.ts: notes the server lists out of drawing order, then deleted through the room with the largest nonce, are gone; it fails on the old code on any machine

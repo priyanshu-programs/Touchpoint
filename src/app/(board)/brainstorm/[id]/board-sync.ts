@@ -62,13 +62,17 @@ async function changesSince(address: string, since: number) {
   return { clock: clock!, elements };
 }
 
+// A plain comparison of fractional indices, as the whiteboard makes them, so
+// elements go in the order they are drawn in.
+const at = ({ index }: Record<string, unknown>) => (typeof index === "string" ? index : "￿");
+const drawingOrder = (a: Record<string, unknown>, b: Record<string, unknown>) =>
+  at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0;
+
 // The whole board as it stands, in the order it is drawn in.
 export async function loadBoard(address: string) {
   const loaded = await changesSince(address, 0);
   if (loaded === "reset") throw new Error("reset from clock 0");
-  const at = ({ index }: Record<string, unknown>) => (typeof index === "string" ? index : "￿");
-  // A plain comparison of fractional indices, as the whiteboard makes them.
-  loaded.elements.sort((a, b) => (at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : 0));
+  loaded.elements.sort(drawingOrder);
   return loaded;
 }
 
@@ -165,11 +169,7 @@ export function createBoardSync({
       bytes += part.length;
     }
     const versions = batch.map(({ id, version }) => [id, version] as const);
-    // TEMPORARY DEBUG (fix/live-delete-wins)
-    console.info(
-      `[sync] save ${batch.map((e) => `${e.id.slice(0, 6)}:${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`).join(" ")}`,
-    );
-    const body =`{"since":${since},"elements":[${parts.join(",")}]}`;
+    const body = `{"since":${since},"elements":[${parts.join(",")}]}`;
 
     busy = true;
     report("saving");
@@ -271,16 +271,7 @@ export function createBoardSync({
       parts.push(part);
       bytes += part.length;
     }
-    if (parts.length > 0) {
-      // TEMPORARY DEBUG (fix/live-delete-wins)
-      console.info(
-        `[sync] relay ${parts
-          .map((p) => JSON.parse(p) as ExcalidrawElement)
-          .map((e) => `${e.id.slice(0, 6)}:${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`)
-          .join(" ")}`,
-      );
-      void live.send(`{"t":"changes","elements":[${parts.join(",")}]}`);
-    }
+    if (parts.length > 0) void live.send(`{"t":"changes","elements":[${parts.join(",")}]}`);
   }
 
   // What the room brought. It cannot read or check what it forwards, so a change
@@ -357,8 +348,12 @@ export function createBoardSync({
   function merge(remote: Record<string, unknown>[], fromRoom = false) {
     if (!api) return;
     mergedAt = performance.now();
+    // In drawing order, as the room brings them and unlike the server, which lists
+    // them by id. Out of order, restoring renumbers some here alone, raising their
+    // version and drawing a new nonce, and a delete from the device that made them
+    // can then lose to this copy by the toss of a nonce.
     const restored = restoreElements(
-      remote as unknown as ExcalidrawElement[],
+      [...remote].sort(drawingOrder) as unknown as ExcalidrawElement[],
       null,
     ) as RemoteExcalidrawElement[];
     // Merging can renumber an element's place in the drawing order, which raises
@@ -366,21 +361,10 @@ export function createBoardSync({
     // renumbered element is a change of this device's own, to send on like any
     // other. Counted as received, the devices would hold two copies at one version.
     const arrived = restored.map(({ id, version, versionNonce }) => ({ id, version, versionNonce }));
-    // TEMPORARY DEBUG (fix/live-delete-wins): what each side held before the merge.
-    const debugBefore = new Map(
-      api.getSceneElementsIncludingDeleted().map((e) => [e.id, `${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`]),
-    );
-    const debugArrived = restored.map((e) => `${e.id.slice(0, 6)}:${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`);
     const merged = reconcileElements(
       api.getSceneElementsIncludingDeleted(),
       restored,
       api.getAppState(),
-    );
-    console.info(
-      `[sync] merge fromRoom=${fromRoom} arrived=${debugArrived.join(" ")} | result=${merged
-        .filter((e) => restored.some((r) => r.id === e.id) || debugBefore.get(e.id) !== `${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`)
-        .map((e) => `${e.id.slice(0, 6)}:${debugBefore.get(e.id) ?? "new"}=>${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`)
-        .join(" ")}`,
     );
     // Not a step of this board's undo: it was drawn somewhere else.
     api.updateScene({ elements: merged, captureUpdate: CaptureUpdateAction.NEVER });
