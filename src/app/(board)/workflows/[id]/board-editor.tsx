@@ -43,6 +43,7 @@ import { createBoardPictures } from "./board-pictures";
 import { createBoardSaver, type SaveState } from "./board-saver";
 import { HEADER_PX, openingView, useRememberedView, type Placed } from "./board-view";
 import { ColorGrid, samePicked, type Picked } from "./color-grid";
+import { HighlighterButton, useHighlighter } from "./highlighter";
 import { pickedColors } from "@/modules/workflows/colors";
 import { closedShape } from "@/modules/workflows/sketch";
 import {
@@ -381,6 +382,7 @@ function Whiteboard({
   const clips = useRef<HTMLDivElement>(null);
   const isDark = useDarkTheme();
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  const highlighter = useHighlighter(api);
   const [typedLinks] = useState(createTypedLinks);
   const [selected, setSelected] = useState<Selected | null>(null);
   const [stages, setStages] = useState<StageBox[]>([]);
@@ -718,7 +720,16 @@ function Whiteboard({
             ),
           );
         }}
-        renderTopRightUI={() => <SaveStatus state={shownState} />}
+        renderTopRightUI={() => (
+          <div className="flex items-center gap-2">
+            <HighlighterButton
+              on={highlighter.on}
+              onToggle={highlighter.toggle}
+              className="hidden sm:inline-flex"
+            />
+            <SaveStatus state={shownState} />
+          </div>
+        )}
       >
         <MainMenu>
           <MainMenu.DefaultItems.SaveAsImage />
@@ -731,6 +742,12 @@ function Whiteboard({
       </Excalidraw>
       <StickySheen layer={sheen} notes={notes} dark={isDark} />
       <ColorGrid board={board} api={api} picked={picked} />
+      {/* On a phone the tools fill the top row, so it waits above the bar at the foot. */}
+      <HighlighterButton
+        on={highlighter.on}
+        onToggle={highlighter.toggle}
+        className="absolute right-4 bottom-24 z-10 inline-flex sm:hidden"
+      />
       <div ref={asks} className="stage-asks">
         {ask && (
           <StageAsk
