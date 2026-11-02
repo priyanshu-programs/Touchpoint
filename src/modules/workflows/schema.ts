@@ -4,6 +4,7 @@ import { blankToNull, text } from "@/lib/form";
 import { httpUrl } from "@/lib/url";
 import { ELEMENT_TYPES, MAX_NOTE_LENGTH, MAX_STAGE_NAME } from "./drawing";
 import { workflowIcon } from "./icons";
+import { MAX_NOTE_MARKS, NOTE_STYLES, trimNote, type NoteMark } from "./note-marks";
 
 export { STAGE_STATUSES };
 
@@ -77,7 +78,7 @@ export const attachmentRef = z.strictObject({
 });
 export type AttachmentRef = z.infer<typeof attachmentRef>;
 
-// Notes left on the boxes of a board, as plain text.
+// Notes left on the boxes of a board: plain text, with formatting kept apart.
 export const MAX_BOARD_NOTES = 200;
 
 export const noteBody = z
@@ -85,6 +86,24 @@ export const noteBody = z
   .trim()
   .min(1, "Write something in the note first.")
   .max(MAX_NOTE_LENGTH, `A note can be at most ${MAX_NOTE_LENGTH} characters.`);
+
+// A note as the editor sends it: the words as plain text, and which of their
+// characters are bold, italic or underlined. Marks are moved with the words when
+// the spaces around them are taken off, and cut to the words.
+const noteMark = z.strictObject({
+  from: z.int().min(0).max(MAX_NOTE_LENGTH * 5),
+  to: z.int().min(0).max(MAX_NOTE_LENGTH * 5),
+  style: z.enum(NOTE_STYLES),
+});
+
+export const noteInput = z
+  .strictObject({
+    body: z.string().max(MAX_NOTE_LENGTH * 5),
+    marks: z.array(noteMark).max(MAX_NOTE_MARKS),
+  })
+  .transform(({ body, marks }) => trimNote(body, marks))
+  .pipe(z.object({ body: noteBody, marks: z.custom<NoteMark[]>() }));
+export type NoteInput = z.infer<typeof noteInput>;
 
 export const noteRef = z.strictObject({
   boardId: z.uuid(),

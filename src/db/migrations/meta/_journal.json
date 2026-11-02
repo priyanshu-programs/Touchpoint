@@ -281,6 +281,13 @@
       "when": 1793580760923,
       "tag": "0039_owner_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793629708308,
+      "tag": "0040_note_formatting",
+      "breakpoints": true
     }
   ]
 }
