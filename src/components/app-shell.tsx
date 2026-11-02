@@ -5,7 +5,6 @@ import {
   Files,
   Lightbulb,
   ListChecks,
-  LogOut,
   Plus,
   Receipt,
   Search,
@@ -24,20 +23,12 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { signOutAction } from "@/app/(app)/settings/actions";
 import { BrandMark } from "@/components/brand-mark";
 import { ButtonLink } from "@/components/button-link";
 import { CommandPalette } from "@/components/command-palette";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { FullscreenButton } from "@/components/fullscreen-button";
 import { Greeting } from "@/components/greeting";
+import { ProfilePanel, type ProfileValues } from "@/components/profile-panel";
 import { cn } from "@/lib/utils";
 
 // Only screens that exist are listed; each module adds its entry when it ships.
@@ -107,47 +98,39 @@ function persistSidebar(width: number) {
 }
 
 // At the foot of the sidebar; in the top bar on a phone, which has no sidebar.
-function AccountMenu({
+function AccountButton({
   ownerName,
-  placement,
+  onClick,
   className,
   children,
 }: {
   ownerName: string;
-  placement: "sidebar" | "top-bar";
+  onClick: () => void;
   className: string;
   children?: ReactNode;
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger aria-label="Account" className={className}>
-        <span
-          aria-hidden
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
-        >
-          {ownerName.trim().charAt(0).toUpperCase()}
-        </span>
-        {children}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        side={placement === "sidebar" ? "top" : "bottom"}
-        align={placement === "sidebar" ? "start" : "end"}
-        className="min-w-44"
+    <button
+      type="button"
+      aria-label="Account"
+      onClick={onClick}
+      className={className}
+    >
+      <span
+        aria-hidden
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
       >
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="truncate">{ownerName}</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => void signOutAction()}>
-            <LogOut aria-hidden />
-            Sign out
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        {ownerName.trim().charAt(0).toUpperCase()}
+      </span>
+      {children}
+    </button>
   );
 }
 
 export function AppShell({
   ownerName,
+  called,
+  profile,
   timezone,
   greeting,
   defaultCollapsed,
@@ -155,6 +138,8 @@ export function AppShell({
   children,
 }: {
   ownerName: string;
+  called: string;
+  profile: ProfileValues;
   timezone: string;
   greeting: string;
   defaultCollapsed: boolean;
@@ -163,6 +148,7 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [width, setWidth] = useState(() =>
     defaultWidth !== undefined
       ? clampWidth(defaultWidth)
@@ -264,7 +250,13 @@ export function AppShell({
       <header className="sticky top-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-3 border-b bg-background pt-[env(safe-area-inset-top)] pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))]">
         <BrandMark className="size-7" />
         <p className="min-w-0 flex-1 truncate font-semibold tracking-tight">
-          <Greeting name={ownerName} timezone={timezone} initial={greeting} />
+          {/* The key draws a saved name at once: the line is held in state between its minutes. */}
+          <Greeting
+            key={called}
+            name={called}
+            timezone={timezone}
+            initial={greeting}
+          />
         </p>
         <FullscreenButton />
         <ButtonLink
@@ -275,9 +267,9 @@ export function AppShell({
         >
           <Plus aria-hidden />
         </ButtonLink>
-        <AccountMenu
+        <AccountButton
           ownerName={ownerName}
-          placement="top-bar"
+          onClick={() => setProfileOpen(true)}
           className="rounded-full hover:opacity-80 md:hidden"
         />
       </header>
@@ -321,9 +313,9 @@ export function AppShell({
               </Link>
             ))}
           </nav>
-          <AccountMenu
+          <AccountButton
             ownerName={ownerName}
-            placement="sidebar"
+            onClick={() => setProfileOpen(true)}
             className={cn(
               "mt-auto flex items-center gap-2 rounded-md py-1 text-left text-sm hover:bg-sidebar-accent",
               collapsed ? "justify-center px-0" : "px-1",
@@ -332,7 +324,7 @@ export function AppShell({
             <span className={cn("min-w-0 truncate font-medium", railLabel)}>
               {ownerName}
             </span>
-          </AccountMenu>
+          </AccountButton>
           <div
             role="separator"
             aria-orientation="vertical"
@@ -427,6 +419,11 @@ export function AppShell({
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         screens={NAV}
+      />
+      <ProfilePanel
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        profile={profile}
       />
     </div>
   );

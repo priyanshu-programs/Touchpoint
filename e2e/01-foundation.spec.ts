@@ -175,7 +175,7 @@ test.describe("signed in", () => {
     const handle = page.getByRole("separator", { name: "Resize sidebar" });
     await expect(handle).toBeVisible();
 
-    // The account menu is at the foot of the sidebar and out of the top bar.
+    // The account button is at the foot of the sidebar and out of the top bar.
     const account = { name: "Account" };
     await expect(
       page.getByRole("complementary").getByRole("button", account),
@@ -221,7 +221,7 @@ test.describe("signed in", () => {
       await expect(
         page.getByRole("separator", { name: "Resize sidebar" }),
       ).toBeHidden();
-      // With no sidebar, the account menu stays in the top bar.
+      // With no sidebar, the account button stays in the top bar.
       await expect(
         page.getByRole("banner").getByRole("button", { name: "Account" }),
       ).toBeVisible();

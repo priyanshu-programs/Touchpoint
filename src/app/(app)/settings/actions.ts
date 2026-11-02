@@ -6,11 +6,52 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
-import { settingsInput } from "@/modules/settings/schema";
-import { getSettings, saveSettings } from "@/modules/settings/service";
+import { profileInput, settingsInput } from "@/modules/settings/schema";
+import {
+  getSettings,
+  saveProfile,
+  saveSettings,
+} from "@/modules/settings/service";
 
 export type FormState = { ok: boolean; message: string } | null;
+
+const PROFILE_FIELDS = [
+  "name",
+  "preferredName",
+  "jobTitle",
+  "businessName",
+  "phone",
+  "website",
+  "location",
+] as const;
+
+export type ProfileFormState =
+  | {
+      ok: boolean;
+      message: string;
+      values: Record<(typeof PROFILE_FIELDS)[number], string>;
+    }
+  | null;
+
+export async function saveProfileAction(
+  _previous: ProfileFormState,
+  formData: FormData,
+): Promise<ProfileFormState> {
+  const owner = await requireOwner();
+  const values = readFields(formData, PROFILE_FIELDS);
+  const parsed = profileInput.safeParse(values);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message, values };
+  }
+  if (!(await saveProfile(owner.id, parsed.data))) {
+    return { ok: false, message: "Finish setting up first.", values };
+  }
+  // The greeting and the sidebar's name are drawn by the layout.
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Saved.", values };
+}
 
 export async function saveSettingsAction(
   _previous: FormState,

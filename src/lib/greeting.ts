@@ -72,6 +72,11 @@ function special(weekday: string, hour: number) {
     return "Weekend hustle, {name}?";
 }
 
+// What the owner asked to be called, whole; until they say, the first word of their name.
+export function callName(fullName: string, preferredName?: string | null) {
+  return preferredName?.trim() || fullName.trim().split(/\s+/)[0];
+}
+
 // The line is picked by the date in the owner's zone, so it holds all day and changes the next.
 export function greeting(name: string, timezone: string, instant = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -86,8 +91,9 @@ export function greeting(name: string, timezone: string, instant = new Date()) {
 
   const { lines } = BANDS.find((band) => hour < band.until)!;
   const line = special(weekday, hour) ?? lines[day % lines.length];
-  const first = name.trim().split(/\s+/)[0];
-  return first
-    ? line.replace("{name}", first)
+  const called = name.trim();
+  // A function, so a "$" in a typed name is not read as a replacement pattern.
+  return called
+    ? line.replace("{name}", () => called)
     : line.replace(/,? \{name\}/, "");
 }

@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { greeting } from "@/lib/greeting";
+import { callName, greeting } from "@/lib/greeting";
 import { requireOwner } from "@/lib/session";
 import { googleNeedsReconnect } from "@/modules/integrations/service";
 import { getSettings } from "@/modules/settings/service";
@@ -19,12 +19,24 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const defaultWidth = Number.isFinite(rawWidth)
     ? Math.min(320, Math.max(56, rawWidth))
     : undefined;
+  const called = callName(owner.name, settings.preferredName);
 
   return (
     <AppShell
       ownerName={owner.name}
+      called={called}
+      profile={{
+        email: owner.email,
+        name: owner.name,
+        preferredName: settings.preferredName ?? "",
+        jobTitle: settings.jobTitle ?? "",
+        businessName: settings.businessName ?? "",
+        phone: settings.phone ?? "",
+        website: settings.website ?? "",
+        location: settings.location ?? "",
+      }}
       timezone={settings.timezone}
-      greeting={greeting(owner.name, settings.timezone)}
+      greeting={greeting(called, settings.timezone)}
       defaultCollapsed={sidebar !== "expanded"}
       defaultWidth={defaultWidth}
     >

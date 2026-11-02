@@ -30,6 +30,12 @@ export const settings = pgTable(
     onboardingCompletedAt: timestamp("onboarding_completed_at", {
       withTimezone: true,
     }),
+    preferredName: text("preferred_name"),
+    jobTitle: text("job_title"),
+    businessName: text("business_name"),
+    phone: text("phone"),
+    website: text("website"),
+    location: text("location"),
     createdAt,
     updatedAt,
   },

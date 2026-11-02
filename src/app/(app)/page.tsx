@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { callName } from "@/lib/greeting";
 import { formatMoney } from "@/lib/money";
 import { requireOwner } from "@/lib/session";
 import { addDays, dateIn, formatDateTime } from "@/lib/time";
@@ -116,7 +117,7 @@ export default async function TodayPage() {
     <div className="grid gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
-        <p className="text-muted-foreground">Welcome, {owner.name}.</p>
+        <p className="text-muted-foreground">Welcome, {callName(owner.name, settings?.preferredName)}.</p>
       </div>
 
       <ul className="grid grid-cols-2 gap-4 lg:gap-6">
