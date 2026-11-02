@@ -8,8 +8,9 @@ import { deleteOrganization } from "@/modules/organizations/service";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import { createBoard, deleteBoard, saveScene, startBoard } from "./boards";
 import { attachmentKind, MAX_NOTE_LENGTH } from "./drawing";
-import { addNote, openNotes, removeNote } from "./notes";
-import { MAX_BOARD_NOTES, noteBody, noteRef, sceneSave } from "./schema";
+import { MAX_NOTE_MARKS, type NoteMark } from "./note-marks";
+import { addNote, editNote, openNotes, removeNote } from "./notes";
+import { MAX_BOARD_NOTES, noteBody, noteInput, noteRef, sceneSave } from "./schema";
 
 const box = (id: string) => ({ id, type: "rectangle", x: 0, y: 0, width: 100, height: 60 });
 const refused = (reason: string) => ({ ok: false, reason });
@@ -72,6 +73,64 @@ describe("noteBody", () => {
   });
 });
 
+describe("noteInput", () => {
+  it("moves the formatting with the words when the spaces around them go", () => {
+    expect(
+      noteInput.parse({
+        body: "  Call Maple Studio  ",
+        marks: [
+          { from: 2, to: 6, style: "bold" },
+          { from: 0, to: 30, style: "italic" },
+        ],
+      }),
+    ).toEqual({
+      body: "Call Maple Studio",
+      marks: [
+        { from: 0, to: 4, style: "bold" },
+        { from: 0, to: 17, style: "italic" },
+      ],
+    });
+  });
+
+  it("joins a style's overlapping marks and drops empty ones", () => {
+    expect(
+      noteInput.parse({
+        body: "Quote sent",
+        marks: [
+          { from: 6, to: 10, style: "underline" },
+          { from: 0, to: 3, style: "underline" },
+          { from: 2, to: 6, style: "underline" },
+          { from: 4, to: 4, style: "bold" },
+        ],
+      }).marks,
+    ).toEqual([{ from: 0, to: 10, style: "underline" }]);
+  });
+
+  it.each([
+    ["an empty note", { body: "  ", marks: [] }],
+    ["a style it does not know", { body: "x", marks: [{ from: 0, to: 1, style: "script" }] }],
+    ["a mark with more fields", { body: "x", marks: [{ from: 0, to: 1, style: "bold", href: "x" }] }],
+    ["a mark not in whole characters", { body: "xy", marks: [{ from: 0.5, to: 1, style: "bold" }] }],
+    [
+      "too many marks",
+      {
+        body: "x",
+        marks: Array.from({ length: MAX_NOTE_MARKS + 1 }, () => ({ from: 0, to: 1, style: "bold" })),
+      },
+    ],
+    ["a note with more fields", { body: "x", marks: [], html: "<b>x</b>" }],
+    ["a note over the length", { body: "x".repeat(MAX_NOTE_LENGTH + 1), marks: [] }],
+  ])("rejects %s", (_label, value) => {
+    expect(noteInput.safeParse(value).success).toBe(false);
+  });
+
+  it("says why a note is refused", () => {
+    expect(noteInput.safeParse({ body: " ", marks: [] }).error?.issues[0].message).toBe(
+      "Write something in the note first.",
+    );
+  });
+});
+
 describe("notes on a box", () => {
   let ownerId: string;
   let boardId: string;
@@ -96,8 +155,8 @@ describe("notes on a box", () => {
     if (!notes) throw new Error("no board");
     return notes;
   };
-  const note = (elementId: string, body: string, id = boardId) =>
-    addNote(ownerId, { boardId: id, elementId }, body);
+  const note = (elementId: string, body: string, id = boardId, marks: NoteMark[] = []) =>
+    addNote(ownerId, { boardId: id, elementId }, { body, marks });
 
   beforeEach(async () => {
     await resetDatabase();
@@ -113,6 +172,7 @@ describe("notes on a box", () => {
           id: expect.any(String),
           elementId: "a",
           body: "Call on Monday",
+          marks: [],
           createdAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
         },
       ],
@@ -168,6 +228,33 @@ describe("notes on a box", () => {
     });
   });
 
+  it("keeps a note's formatting, and changes its words and formatting, and says so", async () => {
+    const bold = { from: 0, to: 5, style: "bold" } as const;
+    const added = await note("a", "Quote sent", boardId, [bold]);
+    if (!added.ok) throw new Error(added.reason);
+    const noteId = added.notes[0].id;
+    expect((await noted())[0].marks).toEqual([bold]);
+
+    const italic = { from: 6, to: 10, style: "italic" } as const;
+    const edited = await editNote(
+      ownerId,
+      { boardId, noteId },
+      { body: "Quote sent today", marks: [italic] },
+    );
+    expect(edited).toEqual([
+      expect.objectContaining({ id: noteId, body: "Quote sent today", marks: [italic] }),
+    ]);
+    expect((await listAudit(ownerId)).rows[0]).toMatchObject({
+      action: "workflow.note_edit",
+      entityId: boardId,
+      before: { body: "Quote sent", marks: [bold] },
+      after: { body: "Quote sent today", marks: [italic] },
+    });
+    expect(
+      await editNote(ownerId, { boardId, noteId: crypto.randomUUID() }, { body: "x", marks: [] }),
+    ).toBeNull();
+  });
+
   it("drops a deleted box's notes when the whiteboard is next opened", async () => {
     await note("a", "Stays");
     await note("b", "Goes");
@@ -209,7 +296,7 @@ describe("notes on a box", () => {
         .insert(contacts)
         .values({ ownerId, firstName: "Priya", lastName: "Sharma" })
         .returning({ id: contacts.id });
-      await note("a", "Kickoff call");
+      await note("a", "Kickoff call", boardId, [{ from: 0, to: 7, style: "bold" }]);
       await note("b", "Send the contract");
     });
 
@@ -226,6 +313,7 @@ describe("notes on a box", () => {
         ["a", "Kickoff call"],
         ["b", "Send the contract"],
       ]);
+      expect(copied[0].marks).toEqual([{ from: 0, to: 7, style: "bold" }]);
       expect(copied.map(({ createdAt }) => createdAt)).toEqual(
         (await noted()).map(({ createdAt }) => createdAt),
       );
@@ -264,13 +352,14 @@ describe("notes on a box", () => {
     const stranger = await createTestOwner("stranger@example.com");
 
     expect(await openNotes(stranger, boardId)).toBeNull();
-    expect(await addNote(stranger, { boardId, elementId: "a" }, "x")).toEqual(
+    expect(await addNote(stranger, { boardId, elementId: "a" }, { body: "x", marks: [] })).toEqual(
       refused("not_found"),
     );
+    expect(await editNote(stranger, { boardId, noteId }, { body: "Mine", marks: [] })).toBeNull();
     expect(await removeNote(stranger, { boardId, noteId })).toBeNull();
     // Nor by way of a board of their own.
     const theirs = await drawn("Theirs", stranger);
     expect(await removeNote(stranger, { boardId: theirs, noteId })).toBeNull();
-    expect(await noted()).toHaveLength(1);
+    expect(await noted()).toEqual([expect.objectContaining({ body: "Private" })]);
   });
 });

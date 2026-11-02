@@ -22,7 +22,7 @@ import {
   type BoardResult,
 } from "@/modules/workflows/boards";
 import type { BoxAttachment, BoxNote } from "@/modules/workflows/drawing";
-import { addNote, openNotes, removeNote } from "@/modules/workflows/notes";
+import { addNote, editNote, openNotes, removeNote } from "@/modules/workflows/notes";
 import { openPictures } from "@/modules/workflows/pictures";
 import { getBoard } from "@/modules/workflows/queries";
 import {
@@ -36,7 +36,7 @@ import {
   boxRef,
   MAX_RECORD_BOARDS,
   MAX_TEMPLATES,
-  noteBody,
+  noteInput,
   noteRef,
 } from "@/modules/workflows/schema";
 import { STARTER_BOARDS } from "@/modules/workflows/starters";
@@ -198,15 +198,27 @@ export type NoteOutcome =
   | { ok: true; notes: BoxNote[] }
   | { ok: false; message: string };
 
-export async function addNoteAction(box: unknown, body: string): Promise<NoteOutcome> {
+export async function addNoteAction(box: unknown, note: unknown): Promise<NoteOutcome> {
   const owner = await requireOwner();
-  const parsed = noteBody.safeParse(body);
+  const parsed = noteInput.safeParse(note);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
 
   const result = await addNote(owner.id, boxRef.parse(box), parsed.data);
   if (result.ok) return result;
   if (result.reason === "not_found") notFound();
   return { ok: false, message: NOTE_REFUSALS[result.reason] };
+}
+
+export async function editNoteAction(
+  boardId: string,
+  noteId: string,
+  note: unknown,
+): Promise<NoteOutcome> {
+  const owner = await requireOwner();
+  const parsed = noteInput.safeParse(note);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
+  const notes = await editNote(owner.id, noteRef.parse({ boardId, noteId }), parsed.data);
+  return notes ? { ok: true, notes } : notFound();
 }
 
 export async function removeNoteAction(boardId: string, noteId: string) {

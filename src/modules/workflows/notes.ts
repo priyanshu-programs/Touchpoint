@@ -4,7 +4,7 @@ import { workflowBoards, workflowNotes } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { boxRefusal } from "./attachments";
 import type { BoxNote } from "./drawing";
-import { MAX_BOARD_NOTES, type BoxRef, type NoteRef } from "./schema";
+import { MAX_BOARD_NOTES, type BoxRef, type NoteInput, type NoteRef } from "./schema";
 
 export type NoteResult =
   | { ok: true; notes: BoxNote[] }
@@ -24,6 +24,7 @@ async function list(
       id: workflowNotes.id,
       elementId: workflowNotes.elementId,
       body: workflowNotes.body,
+      marks: workflowNotes.marks,
       createdAt: workflowNotes.createdAt,
     })
     .from(workflowNotes)
@@ -32,11 +33,11 @@ async function list(
   return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
 }
 
-// `body` is checked by `noteBody` before it gets here.
+// `note` is checked by `noteInput` before it gets here.
 export async function addNote(
   ownerId: string,
   box: BoxRef,
-  body: string,
+  note: NoteInput,
 ): Promise<NoteResult> {
   return db.transaction(async (tx) => {
     const reason = await boxRefusal(tx, ownerId, box);
@@ -47,16 +48,42 @@ export async function addNote(
       .where(onBoard(ownerId, box.boardId));
     if (held >= MAX_BOARD_NOTES) return { ok: false, reason: "limit" };
 
-    await tx.insert(workflowNotes).values({ ownerId, ...box, body });
+    await tx.insert(workflowNotes).values({ ownerId, ...box, ...note });
     await audit(tx, {
       ownerId,
       actor: "user",
       action: "workflow.note_add",
       entityType: "workflow",
       entityId: box.boardId,
-      after: { elementId: box.elementId, body },
+      after: { elementId: box.elementId, ...note },
     });
     return { ok: true, notes: await list(tx, ownerId, box.boardId) };
+  });
+}
+
+// The board's notes afterwards, or null when there was no such note to change.
+export async function editNote(ownerId: string, { boardId, noteId }: NoteRef, note: NoteInput) {
+  return db.transaction(async (tx) => {
+    const [held] = await tx
+      .select({ body: workflowNotes.body, marks: workflowNotes.marks })
+      .from(workflowNotes)
+      .where(and(onBoard(ownerId, boardId), eq(workflowNotes.id, noteId)))
+      .for("update");
+    if (!held) return null;
+    await tx
+      .update(workflowNotes)
+      .set(note)
+      .where(and(onBoard(ownerId, boardId), eq(workflowNotes.id, noteId)));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "workflow.note_edit",
+      entityType: "workflow",
+      entityId: boardId,
+      before: held,
+      after: note,
+    });
+    return list(tx, ownerId, boardId);
   });
 }
 
@@ -130,6 +157,7 @@ export async function copyNotes(
     .select({
       elementId: workflowNotes.elementId,
       body: workflowNotes.body,
+      marks: workflowNotes.marks,
       createdAt: workflowNotes.createdAt,
     })
     .from(workflowNotes)
