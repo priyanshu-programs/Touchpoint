@@ -1294,6 +1294,11 @@
 - [2026-11-02] security.md: a rule for what Next up draws and links to; plan.md: the Today redesign and what was left out
 - [2026-11-02] board-sync.ts: what arrives is put in drawing order before the whiteboard restores it, because the server lists changes by id and restoring them out of order renumbered some on one device alone, raising their version with a new nonce, so a delete from the device that made them could lose and leave the note behind (e2e/19's two-window test, failing on main since #45)
 - [2026-11-02] e2e/36-live-board.spec.ts: notes the server lists out of drawing order, then deleted through the room with the largest nonce, are gone; it fails on the old code on any machine
+- [2026-11-02] highlighter.tsx: a Highlighter button and hook that turn the whiteboard's pen into a wide, see-through yellow marker (width 6, opacity 40) and give back the owner's pen when it is pressed again or another tool is chosen
+- [2026-11-02] Brainstorm boards and workflows: the Highlighter button sits beside Sticky note or the save status, and above the bottom bar on a phone
+- [2026-11-02] e2e/41-highlighter.spec.ts: a highlight is stored with the marker's colour, width and opacity on both kinds of board, the pen comes back as it was, another tool puts the highlighter away, and the button is in reach on a phone
+- [2026-11-02] plan.md: an entry for the highlighter
+- [2026-11-02] Added a trail learning: the highlighter is the whiteboard's own pen with marker settings, given back when the tool changes
 - [2026-11-02] box-notes.tsx: a stage's notes show in its card as one line each, cut with "…" where the card ends, because long notes took over the small card
 - [2026-11-02] box-notes.tsx: clicking a note's line opens the whole note in a panel on the right (the shared Sheet), with its line breaks and its addresses as links
 - [2026-11-02] e2e/13-workflows.spec.ts: a long note's line is cut, opens whole in the panel with its line break and link, Escape and Close leave the stage chosen, and on a phone the panel fits the screen
@@ -1312,3 +1317,4 @@
 - [2026-11-02] security.md and plan.md: a note's formatting and editing, the editor package, and what was left out
 - [2026-11-02] Added a trail learning: note formatting is plain text plus checked ranges, never HTML
 - [2026-11-02] Added a trail learning: a PR stacked on another branch merges into that branch, not main, if its base PR merges first (what happened to #51)
+- [2026-11-02] Merged main into the note formatting branch, keeping the highlighter's plan.md entry and the formatting sentence in the note previews entry; added a trail learning on why open PRs conflict in plan.md
