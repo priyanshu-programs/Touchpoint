@@ -39,7 +39,7 @@ jobs:
       - run: pnpm audit --prod
       - run: pnpm lint
       - run: pnpm typecheck
-      # TEMPORARY DEBUG (fix/live-delete-wins): unit tests skipped
+      - run: pnpm test
       - run: pnpm exec playwright install --with-deps chromium
       # TEMPORARY DEBUG (fix/live-delete-wins): only the brainstorm two-window story
       - run: pnpm exec playwright test e2e/01-foundation.spec.ts e2e/19-brainstorm.spec.ts
