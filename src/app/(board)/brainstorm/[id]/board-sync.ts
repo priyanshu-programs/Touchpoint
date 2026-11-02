@@ -165,7 +165,11 @@ export function createBoardSync({
       bytes += part.length;
     }
     const versions = batch.map(({ id, version }) => [id, version] as const);
-    const body = `{"since":${since},"elements":[${parts.join(",")}]}`;
+    // TEMPORARY DEBUG (fix/live-delete-wins)
+    console.info(
+      `[sync] save ${batch.map((e) => `${e.id.slice(0, 6)}:${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`).join(" ")}`,
+    );
+    const body =`{"since":${since},"elements":[${parts.join(",")}]}`;
 
     busy = true;
     report("saving");
@@ -267,7 +271,16 @@ export function createBoardSync({
       parts.push(part);
       bytes += part.length;
     }
-    if (parts.length > 0) void live.send(`{"t":"changes","elements":[${parts.join(",")}]}`);
+    if (parts.length > 0) {
+      // TEMPORARY DEBUG (fix/live-delete-wins)
+      console.info(
+        `[sync] relay ${parts
+          .map((p) => JSON.parse(p) as ExcalidrawElement)
+          .map((e) => `${e.id.slice(0, 6)}:${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`)
+          .join(" ")}`,
+      );
+      void live.send(`{"t":"changes","elements":[${parts.join(",")}]}`);
+    }
   }
 
   // What the room brought. It cannot read or check what it forwards, so a change
@@ -353,10 +366,21 @@ export function createBoardSync({
     // renumbered element is a change of this device's own, to send on like any
     // other. Counted as received, the devices would hold two copies at one version.
     const arrived = restored.map(({ id, version, versionNonce }) => ({ id, version, versionNonce }));
+    // TEMPORARY DEBUG (fix/live-delete-wins): what each side held before the merge.
+    const debugBefore = new Map(
+      api.getSceneElementsIncludingDeleted().map((e) => [e.id, `${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`]),
+    );
+    const debugArrived = restored.map((e) => `${e.id.slice(0, 6)}:${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`);
     const merged = reconcileElements(
       api.getSceneElementsIncludingDeleted(),
       restored,
       api.getAppState(),
+    );
+    console.info(
+      `[sync] merge fromRoom=${fromRoom} arrived=${debugArrived.join(" ")} | result=${merged
+        .filter((e) => restored.some((r) => r.id === e.id) || debugBefore.get(e.id) !== `${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`)
+        .map((e) => `${e.id.slice(0, 6)}:${debugBefore.get(e.id) ?? "new"}=>${e.version}/${e.versionNonce}/${e.isDeleted ? "D" : "-"}/${e.index}`)
+        .join(" ")}`,
     );
     // Not a step of this board's undo: it was drawn somewhere else.
     api.updateScene({ elements: merged, captureUpdate: CaptureUpdateAction.NEVER });

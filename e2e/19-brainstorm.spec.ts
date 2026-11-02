@@ -366,9 +366,15 @@ test("a board far past what one save could carry is stored and opens again", asy
 test("two windows on one board draw together: each sees the other's notes, and what is rubbed out", async ({
   browser,
 }) => {
+  let opened = 0;
   const open = async () => {
     const context = await browser.newContext({ storageState: OWNER_SESSION });
     const page = await context.newPage();
+    // TEMPORARY DEBUG (fix/live-delete-wins): the sync's own account of each window.
+    const name = ++opened === 1 ? "laptop" : "phone";
+    page.on("console", (message) => {
+      if (message.text().startsWith("[sync]")) console.log(`${Date.now() % 100_000} ${name} ${message.text()}`);
+    });
     await page.goto(`/brainstorm/${boardId}`);
     await expect(whiteboard(page)).toBeVisible();
     return page;
