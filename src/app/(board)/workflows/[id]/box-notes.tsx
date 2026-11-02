@@ -3,6 +3,13 @@ import { useState } from "react";
 import { LinkedText } from "@/components/linked-text";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/time";
 import { MAX_NOTE_LENGTH, type BoxNote } from "@/modules/workflows/drawing";
@@ -20,8 +27,9 @@ const UNSAVED =
 const when = (at: string) =>
   formatDateTime(new Date(at), Intl.DateTimeFormat().resolvedOptions().timeZone);
 
-// The notes left on the selected box, in its card: each as plain text under the
-// time it was written, and each can be taken off.
+// The notes left on the selected box, in its card: each as one line of plain text
+// under the time it was written, opening whole in a side panel, and each can be
+// taken off.
 export function BoxNotes({
   boardId,
   elementId,
@@ -41,6 +49,7 @@ export function BoxNotes({
   const [writing, setWriting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [open, setOpen] = useState<BoxNote | null>(null);
 
   const run = async (work: () => Promise<NoteOutcome>) => {
     setBusy(true);
@@ -59,25 +68,31 @@ export function BoxNotes({
       <h2 className="font-medium">Notes</h2>
       {notes.length > 0 && (
         <ul className="flex max-h-40 flex-col gap-2 overflow-y-auto">
-          {notes.map(({ id, body, createdAt }) => (
-            <li key={id} className="flex items-start gap-1.5">
+          {notes.map((note) => (
+            <li key={note.id} className="flex items-start gap-1.5">
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-muted-foreground">
-                  <time dateTime={createdAt}>{when(createdAt)}</time>
+                  <time dateTime={note.createdAt}>{when(note.createdAt)}</time>
                 </p>
-                <p className="break-words whitespace-pre-wrap">
-                  <LinkedText text={body} />
-                </p>
+                {/* Plain text: a link can't sit inside a button, so links show in the panel. */}
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  className="block w-full truncate rounded text-left hover:bg-accent"
+                  onClick={() => setOpen(note)}
+                >
+                  {note.body}
+                </button>
               </div>
               <button
                 type="button"
-                aria-label={`Remove the note from ${when(createdAt)}`}
+                aria-label={`Remove the note from ${when(note.createdAt)}`}
                 disabled={busy}
                 className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                 onClick={() =>
                   run(async () => ({
                     ok: true,
-                    notes: await removeNoteAction(boardId, id),
+                    notes: await removeNoteAction(boardId, note.id),
                   }))
                 }
               >
@@ -145,6 +160,19 @@ export function BoxNotes({
           {message}
         </p>
       )}
+      <Sheet open={open !== null} onOpenChange={(next) => !next && setOpen(null)}>
+        <SheetContent className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
+          <SheetHeader className="pr-12">
+            <SheetTitle>Note</SheetTitle>
+            <SheetDescription>
+              {open && <time dateTime={open.createdAt}>{when(open.createdAt)}</time>}
+            </SheetDescription>
+          </SheetHeader>
+          <p className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 break-words whitespace-pre-wrap">
+            {open && <LinkedText text={open.body} />}
+          </p>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
