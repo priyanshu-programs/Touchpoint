@@ -200,7 +200,8 @@ test("the chart shows twelve months with this one marked, and a bar opens its pa
 
   await chart.locator(`a[href*="from=${from}"]`).click();
   await expect(page).toHaveURL(new RegExp(`/money/payments\\?from=${from}&to=${to}$`));
-  await expect(main(page).getByText("Today Dashboard Co").first()).toBeVisible();
+  // The list names the client twice, once for phones only, so look for the one on screen.
+  await expect(main(page).getByText("Today Dashboard Co").filter({ visible: true }).first()).toBeVisible();
 });
 
 test.describe("on a phone", () => {
