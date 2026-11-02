@@ -243,8 +243,11 @@ for (const device of devices) {
 
       // Matched by the attendee's email, and to the person's company through them.
       await page.goto(`/people/organizations?company=${organizationId}&tab=activity`);
-      await expect(panel(page).getByRole("link", { name: started })).toBeVisible();
-      await expect(panel(page).getByRole("link", { name: coming })).toHaveCount(0);
+      const past = panel(page).getByRole("region", { name: "Past meetings" });
+      const upcoming = panel(page).getByRole("region", { name: "Upcoming meetings" });
+      await expect(past.getByRole("link", { name: started })).toBeVisible();
+      await expect(upcoming.getByRole("link", { name: coming })).toBeVisible();
+      await expect(past.getByRole("link", { name: coming })).toHaveCount(0);
 
       await page.goto(`/people/contacts?contact=${contactId}&tab=activity`);
       await panel(page).getByRole("link", { name: started }).click();

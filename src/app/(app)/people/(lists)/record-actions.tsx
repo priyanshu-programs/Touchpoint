@@ -81,7 +81,7 @@ export function RecordActions({
 
   function openMerge(otherId: string) {
     const params = new URLSearchParams(searchParams);
-    for (const name of ["tab", "activity", "task", "send", "fields", "earlier"]) {
+    for (const name of ["tab", "activity", "task", "send", "fields", "earlier", "section"]) {
       params.delete(name);
     }
     params.set("merge", otherId);

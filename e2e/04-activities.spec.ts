@@ -59,8 +59,9 @@ test("log a call from a contact; the timeline and the task list update together"
   await page.getByRole("button", { name: "Log activity" }).click();
 
   await expect(page).toHaveURL(ON_ACTIVITY);
-  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Intro call" })).toBeVisible();
+  const logged = page.getByRole("region", { name: "Activities" });
+  await expect(logged.getByText(/^Today, \d{2}:\d{2}$/)).toBeVisible();
+  await expect(logged.getByRole("link", { name: "Intro call" })).toBeVisible();
   await expect(page.getByText("Wants a proposal by Friday")).toBeVisible();
   await expect(page.getByText("She leads the redesign.")).toBeVisible();
 

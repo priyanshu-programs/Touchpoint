@@ -201,7 +201,12 @@ export async function CompanyPanel({
     country: { note: fromWebsite("country"), value: organization.country },
   });
   const contactLink = (id: string) =>
-    companiesHref(params, { contact: id, tab: undefined, after: undefined });
+    companiesHref(params, {
+      contact: id,
+      tab: undefined,
+      after: undefined,
+      section: undefined,
+    });
   const tiles = [
     { label: "Contacts", value: String(contacts.total) },
     { label: "Open tasks", value: upTo(openTasks) },
@@ -280,7 +285,7 @@ export async function CompanyPanel({
         {TABS.map(({ tab, label }) => (
           <Link
             key={label}
-            href={companiesHref(params, { tab, after: undefined })}
+            href={companiesHref(params, { tab, after: undefined, section: undefined })}
             scroll={false}
             aria-current={params.tab === tab ? "page" : undefined}
             className={cn(
@@ -454,8 +459,9 @@ export async function CompanyPanel({
             <RecordTimeline
               ownerId={ownerId}
               filter={filter}
-              moreHref={(earlier) =>
-                companiesHref(params, { tab: "activity", after: earlier })
+              section={params.section}
+              sectionHref={(section, after) =>
+                companiesHref(params, { tab: "activity", section, after })
               }
               newHref={companiesHref(params, { activity: "new" })}
               sendHref={companiesHref(params, { send: "new" })}

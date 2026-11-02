@@ -76,8 +76,12 @@ test("a send is logged from a person's Activity tab and shows on the person and 
 
   // Back on Tara's Activity tab, inside the company's panel.
   await expect(page).toHaveURL(new RegExp(`company=${ID}&contact=${ID}&tab=activity$`));
-  const entry = panel(page).getByRole("listitem").filter({ hasText: "Studio deck · v1" });
-  await expect(entry).toContainText("Sent material");
+  // A send sits in its own section, which names it.
+  const entry = panel(page)
+    .getByRole("region", { name: "Materials sent" })
+    .getByRole("listitem")
+    .filter({ hasText: "Studio deck · v1" });
+  await expect(entry).toBeVisible();
   await expect(entry).toContainText("WhatsApp");
   await expect(entry).toContainText("Shared in our chat");
   await expect(entry.getByRole("link", { name: "Studio deck · v1" })).toHaveAttribute(

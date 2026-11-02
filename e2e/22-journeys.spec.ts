@@ -323,8 +323,11 @@ for (const device of devices) {
         await companyTabs(page).getByRole("link", { name: "Contacts" }).click();
         await panel(page).getByRole("link", { name, exact: true }).click();
         await contactTabs(page).getByRole("link", { name: "Activity" }).click();
-        const send = panel(page).getByRole("listitem").filter({ hasText: entry });
-        await expect(send).toContainText("Sent material");
+        const send = panel(page)
+          .getByRole("region", { name: "Materials sent" })
+          .getByRole("listitem")
+          .filter({ hasText: entry });
+        await expect(send).toBeVisible();
         await expect(send).toContainText("Email");
         await checkFits(page, `the send on ${name}`);
       }

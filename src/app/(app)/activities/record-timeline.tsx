@@ -1,6 +1,7 @@
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { ButtonLink } from "@/components/button-link";
-import { LinkedText } from "@/components/linked-text";
 import {
   Card,
   CardAction,
@@ -8,17 +9,27 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { dateIn, formatDate, formatTime } from "@/lib/time";
-import { listTimeline, type TimelineRow } from "@/modules/activities/queries";
+import { countRecordEvents, listTimeline } from "@/modules/activities/queries";
+import { recordMeetings } from "@/modules/integrations/meetings";
 import { schedulingState } from "@/modules/integrations/scheduling";
+import { googleConnection } from "@/modules/integrations/service";
 import { getSettings } from "@/modules/settings/service";
-import { TimelineEvent } from "./timeline-event";
+import type { ActivitySection } from "../people/(lists)/list-controls";
+import { EntryBox } from "./entry-box";
+import { MeetingBox } from "./meeting-box";
 
-// The Timeline tab of a record: what happened, newest first, a page at a time.
+const PAGE = 30;
+const UPCOMING = 20;
+// How many of each the overview shows before "See all".
+const PREVIEW = { meetings: 5, sends: 5, activities: 10 };
+
+// A record's Activity tab: upcoming meetings, past meetings, materials sent and logged
+// activities, each in a section of its own. One section can be opened alone and paged.
 export async function RecordTimeline({
   ownerId,
   filter,
-  moreHref,
+  section,
+  sectionHref,
   newHref,
   sendHref,
   scheduleHref,
@@ -28,7 +39,9 @@ export async function RecordTimeline({
 }: {
   ownerId: string;
   filter: { contactId: string } | { organizationId: string };
-  moreHref: (after: string) => string;
+  section?: ActivitySection;
+  // The tab with one section alone (from `after` on, when given), or with all of them.
+  sectionHref: (section?: ActivitySection, after?: string) => string;
   newHref: string;
   // Logs that a material went to this record.
   sendHref: string;
@@ -38,25 +51,71 @@ export async function RecordTimeline({
   meetingHref: (id: string) => string;
   after?: string;
 }) {
-  const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
-  const [page, scheduling] = await Promise.all([
-    listTimeline(ownerId, { ...filter, after }),
-    schedulingState(ownerId),
-  ]);
-  const today = dateIn(timezone);
+  const shows = (which: ActivitySection) => !section || section === which;
+  const limit = (which: ActivitySection) => (section ? PAGE : PREVIEW[which]);
+  const cursor = section ? after : undefined;
+  const none = { rows: [], nextAfter: null };
 
-  // Days are the owner's calendar days, worked out here so no zone name reaches the database.
-  const days: { date: string; events: TimelineRow[] }[] = [];
-  for (const event of page.rows) {
-    const date = dateIn(timezone, event.occurredAt);
-    if (days.at(-1)?.date === date) days.at(-1)!.events.push(event);
-    else days.push({ date, events: [event] });
-  }
+  const [settings, scheduling, google, counts, past, sends, activities] =
+    await Promise.all([
+      getSettings(ownerId),
+      schedulingState(ownerId),
+      googleConnection(ownerId),
+      countRecordEvents(ownerId, filter),
+      shows("meetings")
+        ? recordMeetings(ownerId, filter, {
+            when: "past",
+            after: cursor,
+            limit: limit("meetings"),
+          })
+        : none,
+      shows("sends")
+        ? listTimeline(ownerId, {
+            ...filter,
+            eventType: "material_send",
+            after: cursor,
+            limit: limit("sends"),
+          })
+        : none,
+      shows("activities")
+        ? listTimeline(ownerId, {
+            ...filter,
+            eventType: "activity",
+            after: cursor,
+            limit: limit("activities"),
+          })
+        : none,
+    ]);
+  const timezone = settings?.timezone ?? "UTC";
+  // A copy of the calendar can outlast its connection, and its future is then not shown.
+  const connected = google && google.status !== "revoked";
+  const upcoming =
+    connected && shows("meetings") && !cursor
+      ? await recordMeetings(ownerId, filter, { when: "upcoming", limit: UPCOMING })
+      : none;
+
+  const footer = (which: ActivitySection, total: number, shown: number, next: string | null) =>
+    section ? (
+      next && (
+        <Link href={sectionHref(which, next)} scroll={false} className="text-sm underline">
+          Earlier
+        </Link>
+      )
+    ) : (
+      total > shown && (
+        <Link href={sectionHref(which)} scroll={false} className="text-sm underline">
+          See all ({total})
+        </Link>
+      )
+    );
+  const empty =
+    upcoming.rows.length + past.rows.length + sends.rows.length + activities.rows.length ===
+    0;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Timeline</CardTitle>
+        <CardTitle>Activity</CardTitle>
         <CardAction className="flex flex-wrap justify-end gap-2">
           {scheduling !== "off" && (
             <ButtonLink href={scheduleHref} scroll={false} variant="outline" size="sm">
@@ -71,60 +130,111 @@ export async function RecordTimeline({
           </ButtonLink>
         </CardAction>
       </CardHeader>
-      <CardContent className="grid gap-6">
-        {days.length === 0 && (
+      <CardContent className="grid gap-4">
+        {section && (
+          <Link
+            href={sectionHref()}
+            scroll={false}
+            className="inline-flex items-center gap-1 justify-self-start text-sm underline"
+          >
+            <ArrowLeft aria-hidden className="size-3.5" />
+            All activity
+          </Link>
+        )}
+        {empty && (
           <p className="text-sm text-muted-foreground">
-            {after ? "Nothing earlier." : "Nothing logged yet."}
+            {cursor ? "Nothing earlier." : "Nothing logged yet."}
           </p>
         )}
-        {days.map((day) => (
-          <section key={day.date} className="grid gap-3">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              {day.date === today ? "Today" : formatDate(day.date)}
-            </h2>
-            <ul className="grid gap-4">
-              {day.events.map((event) => (
-                <li key={event.eventId} className="grid min-w-0 gap-1">
-                  <TimelineEvent
-                    event={event}
-                    when={
-                      event.kind === "all_day"
-                        ? "All day"
-                        : formatTime(event.occurredAt, timezone)
-                    }
-                    hrefFor={openHref}
-                    meetingHref={meetingHref}
-                  />
-                  {event.outcome && (
-                    <p className="text-sm break-words">
-                      <span className="text-muted-foreground">Outcome: </span>
-                      <LinkedText text={event.outcome} />
-                    </p>
-                  )}
-                  {event.body && (
-                    <p className="text-sm break-words whitespace-pre-wrap">
-                      {/* A meeting's line is its location, which came from Google. */}
-                      {event.eventType === "calendar_event" ? (
-                        event.body
-                      ) : (
-                        <LinkedText text={event.body} />
-                      )}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-        {page.nextAfter && (
-          <Link
-            href={moreHref(page.nextAfter)}
-            className="justify-self-start text-sm underline"
+        {upcoming.rows.length > 0 && (
+          <Section title="Upcoming meetings" count={upcoming.rows.length}>
+            {upcoming.rows.map((meeting) => (
+              <li key={meeting.id}>
+                <MeetingBox
+                  meeting={meeting}
+                  timezone={timezone}
+                  href={meetingHref(meeting.id)}
+                  joinable
+                />
+              </li>
+            ))}
+          </Section>
+        )}
+        {past.rows.length > 0 && (
+          <Section
+            title="Past meetings"
+            count={counts.meetings}
+            footer={footer("meetings", counts.meetings, past.rows.length, past.nextAfter)}
           >
-            Earlier
-          </Link>
+            {past.rows.map((meeting) => (
+              <li key={meeting.id}>
+                <MeetingBox
+                  meeting={meeting}
+                  timezone={timezone}
+                  href={meetingHref(meeting.id)}
+                  joinable={false}
+                />
+              </li>
+            ))}
+          </Section>
+        )}
+        {sends.rows.length > 0 && (
+          <Section
+            title="Materials sent"
+            count={counts.sends}
+            footer={footer("sends", counts.sends, sends.rows.length, sends.nextAfter)}
+          >
+            {sends.rows.map((event) => (
+              <li key={event.eventId}>
+                <EntryBox event={event} timezone={timezone} href={openHref} />
+              </li>
+            ))}
+          </Section>
+        )}
+        {activities.rows.length > 0 && (
+          <Section
+            title="Activities"
+            count={counts.activities}
+            footer={footer(
+              "activities",
+              counts.activities,
+              activities.rows.length,
+              activities.nextAfter,
+            )}
+          >
+            {activities.rows.map((event) => (
+              <li key={event.eventId}>
+                <EntryBox event={event} timezone={timezone} href={openHref} />
+              </li>
+            ))}
+          </Section>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function Section({
+  title,
+  count,
+  footer,
+  children,
+}: {
+  title: string;
+  count: number;
+  footer?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-label={title} className="grid gap-3 rounded-xl bg-muted/50 p-3">
+      <h2 className="flex items-center gap-2 px-1 text-sm font-medium">
+        {title}
+        <span className="rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground tabular-nums">
+          {count}
+        </span>
+      </h2>
+      <ul className="grid gap-2">{children}</ul>
+      {footer && <div className="px-1">{footer}</div>}
+    </section>
   );
 }
