@@ -14,6 +14,7 @@ import {
 import { citext, createdAt, id, ownerId, updatedAt } from "./columns";
 import { files } from "./files";
 import { contacts, organizations } from "./people";
+import type { NoteMark } from "../../modules/workflows/note-marks";
 
 export const STAGE_STATUSES = [
   "not_started",
@@ -127,7 +128,10 @@ export const workflowNotes = pgTable(
       .references(() => workflowBoards.id, { onDelete: "cascade" }),
     elementId: text("element_id").notNull(),
     body: text("body").notNull(),
+    // Which characters of the body are bold, italic or underlined (note-marks.ts).
+    marks: jsonb("marks").$type<NoteMark[]>().notNull().default([]),
     createdAt,
+    updatedAt,
   },
   (table) => [index("workflow_notes_board_idx").on(table.boardId, table.elementId)],
 );

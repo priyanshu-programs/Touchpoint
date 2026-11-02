@@ -1,4 +1,5 @@
 import type { StageStatus } from "@/db/schema";
+import type { NoteMark } from "./note-marks";
 
 // What the whiteboard in the browser and the server both need to know about a
 // drawing. Nothing here touches the database, so the browser can load it.
@@ -43,6 +44,7 @@ export type BoxNote = {
   id: string;
   elementId: string;
   body: string;
+  marks: NoteMark[];
   createdAt: string;
 };
 

@@ -1304,3 +1304,17 @@
 - [2026-11-02] e2e/13-workflows.spec.ts: a long note's line is cut, opens whole in the panel with its line break and link, Escape and Close leave the stage chosen, and on a phone the panel fits the screen
 - [2026-11-02] security.md and plan.md: notes on a box are drawn cut short in the card and whole in a side panel
 - [2026-11-02] Added a trail learning: e2e/13's dated-notes test needs the whole file, because it opens a company an earlier test makes
+- [2026-11-02] Migration 0040 (additive): `marks` (jsonb, default none) and `updated_at` on workflow_notes, for a note's formatting and edits
+- [2026-11-02] note-marks.ts: a note's bold, italic and underline kept as ranges apart from its plain text; tidyMarks, trimNote and pieces, with tests
+- [2026-11-02] noteInput: checks a note's words and marks, moves the marks with the words when the spaces go, and gives the same refusals as before; tests
+- [2026-11-02] notes.ts: notes are added and copied with their marks, and editNote changes a note's words and marks under a row lock, audited as workflow.note_edit; editNoteAction checks the owner and the note
+- [2026-11-02] Added Tiptap 3.32.2 (react, pm, core, document, paragraph, text, bold, italic, underline, extensions), pinned; pnpm audit shows no advisories
+- [2026-11-02] note-doc.ts: turns a note into the editor's document and back, keeping only the text and the three styles; tests
+- [2026-11-02] note-editor.tsx: the note editor, with Bold, Italic and Underline buttons above it and Ctrl+B, Ctrl+I, Ctrl+U, limited to 2,000 characters
+- [2026-11-02] LinkedText: takes a note's marks and draws them as strong, em and u around plain text; without marks it draws as before
+- [2026-11-02] box-notes.tsx: Add note uses the editor, and the panel shows the note formatted with an Edit button that edits it in place, with Save, Cancel and the refusal shown in the panel
+- [2026-11-02] e2e/13-workflows.spec.ts: a note is typed into the editor, made bold and italic in the panel, kept after a reload, and an emptied note is refused in the panel
+- [2026-11-02] security.md and plan.md: a note's formatting and editing, the editor package, and what was left out
+- [2026-11-02] Added a trail learning: note formatting is plain text plus checked ranges, never HTML
+- [2026-11-02] Added a trail learning: a PR stacked on another branch merges into that branch, not main, if its base PR merges first (what happened to #51)
+- [2026-11-02] Merged main into the note formatting branch, keeping the highlighter's plan.md entry and the formatting sentence in the note previews entry; added a trail learning on why open PRs conflict in plan.md

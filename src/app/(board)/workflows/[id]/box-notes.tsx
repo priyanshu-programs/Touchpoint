@@ -1,8 +1,7 @@
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { useState } from "react";
 import { LinkedText } from "@/components/linked-text";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -10,16 +9,18 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/time";
-import { MAX_NOTE_LENGTH, type BoxNote } from "@/modules/workflows/drawing";
+import type { BoxNote } from "@/modules/workflows/drawing";
 import {
   addNoteAction,
+  editNoteAction,
   removeNoteAction,
   type NoteOutcome,
 } from "@/app/(app)/workflows/actions";
+import { NoteEditor, type NoteDraft } from "./note-editor";
 
 const FAILED = "That did not go through. Try again.";
+const EMPTY: NoteDraft = { body: "", marks: [] };
 const UNSAVED =
   "The drawing has to be saved before anything goes on a box. Reload the page and try again.";
 
@@ -28,8 +29,8 @@ const when = (at: string) =>
   formatDateTime(new Date(at), Intl.DateTimeFormat().resolvedOptions().timeZone);
 
 // The notes left on the selected box, in its card: each as one line of plain text
-// under the time it was written, opening whole in a side panel, and each can be
-// taken off.
+// under the time it was written, opening whole, formatted and to be edited, in a
+// side panel, and each can be taken off.
 export function BoxNotes({
   boardId,
   elementId,
@@ -49,7 +50,11 @@ export function BoxNotes({
   const [writing, setWriting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [open, setOpen] = useState<BoxNote | null>(null);
+  const [draft, setDraft] = useState<NoteDraft>(EMPTY);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<NoteDraft | null>(null);
+  // Read from the notes, so the panel shows a note as last saved and closes if it goes.
+  const open = notes.find(({ id }) => id === openId) ?? null;
 
   const run = async (work: () => Promise<NoteOutcome>) => {
     setBusy(true);
@@ -79,7 +84,11 @@ export function BoxNotes({
                   type="button"
                   aria-haspopup="dialog"
                   className="block w-full truncate rounded text-left hover:bg-accent"
-                  onClick={() => setOpen(note)}
+                  onClick={() => {
+                    setMessage(null);
+                    setEditing(null);
+                    setOpenId(note.id);
+                  }}
                 >
                   {note.body}
                 </button>
@@ -108,28 +117,16 @@ export function BoxNotes({
           className="grid gap-2"
           onSubmit={async (event) => {
             event.preventDefault();
-            const body = String(new FormData(event.currentTarget).get("body") ?? "");
             // A box drawn a moment ago is not in the stored drawing until it is saved.
             const added = await run(async () =>
               (await stored())
-                ? addNoteAction({ boardId, elementId }, body)
+                ? addNoteAction({ boardId, elementId }, draft)
                 : { ok: false, message: UNSAVED },
             );
             if (added) setWriting(false);
           }}
         >
-          <div className="grid gap-1.5">
-            <Label htmlFor="note-body">Note</Label>
-            <Textarea
-              id="note-body"
-              name="body"
-              required
-              autoFocus
-              rows={3}
-              maxLength={MAX_NOTE_LENGTH}
-              className="max-h-40"
-            />
-          </div>
+          <NoteEditor initial={EMPTY} onChange={setDraft} autoFocus />
           <div className="flex gap-1.5">
             <Button type="submit" size="sm" disabled={busy}>
               Add
@@ -150,17 +147,28 @@ export function BoxNotes({
           variant="outline"
           className="justify-self-start"
           disabled={busy}
-          onClick={() => setWriting(true)}
+          onClick={() => {
+            setDraft(EMPTY);
+            setWriting(true);
+          }}
         >
           Add note
         </Button>
       )}
-      {message && (
+      {message && !open && (
         <p role="alert" className="text-xs text-destructive">
           {message}
         </p>
       )}
-      <Sheet open={open !== null} onOpenChange={(next) => !next && setOpen(null)}>
+      <Sheet
+        open={open !== null}
+        onOpenChange={(next) => {
+          if (next) return;
+          setOpenId(null);
+          setEditing(null);
+          setMessage(null);
+        }}
+      >
         <SheetContent className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
           <SheetHeader className="pr-12">
             <SheetTitle>Note</SheetTitle>
@@ -168,9 +176,52 @@ export function BoxNotes({
               {open && <time dateTime={open.createdAt}>{when(open.createdAt)}</time>}
             </SheetDescription>
           </SheetHeader>
-          <p className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 break-words whitespace-pre-wrap">
-            {open && <LinkedText text={open.body} />}
-          </p>
+          {open && editing ? (
+            <form
+              aria-label="Edit the note"
+              className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto px-4 pb-4"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const saved = await run(() => editNoteAction(boardId, open.id, editing));
+                if (saved) setEditing(null);
+              }}
+            >
+              <NoteEditor initial={open} onChange={setEditing} autoFocus />
+              <div className="flex gap-1.5">
+                <Button type="submit" size="sm" disabled={busy}>
+                  Save
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : (
+            open && (
+              <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto px-4 pb-4">
+                <p className="break-words whitespace-pre-wrap">
+                  <LinkedText text={open.body} marks={open.marks} />
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="justify-self-start"
+                  onClick={() => {
+                    setMessage(null);
+                    setEditing({ body: open.body, marks: open.marks });
+                  }}
+                >
+                  <Pencil aria-hidden />
+                  Edit
+                </Button>
+              </div>
+            )
+          )}
+          {message && open && (
+            <p role="alert" className="px-4 pb-4 text-xs text-destructive">
+              {message}
+            </p>
+          )}
         </SheetContent>
       </Sheet>
     </div>

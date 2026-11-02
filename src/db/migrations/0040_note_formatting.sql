@@ -1,0 +1,2 @@
+ALTER TABLE "workflow_notes" ADD COLUMN "marks" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "workflow_notes" ADD COLUMN "updated_at" timestamp with time zone DEFAULT now() NOT NULL;
