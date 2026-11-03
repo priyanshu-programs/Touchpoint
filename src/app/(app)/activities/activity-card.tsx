@@ -28,16 +28,13 @@ export function ActivityCard({
 }) {
   return (
     <article className="flex min-w-0 items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-xs sm:gap-5 sm:px-5">
-      <div className="flex w-12 shrink-0 flex-col items-center self-stretch justify-center border-r pr-4 text-center sm:w-14 sm:pr-5">
-        <span className="text-sm font-medium text-orange-600 dark:text-orange-400">
-          {dayPart(day, { weekday: "short" })}
-        </span>
-        <span className="text-3xl leading-none font-semibold text-orange-600 tabular-nums dark:text-orange-400">
+      {/* The theme's lime is too light for text on white, so it is the tile, under black. */}
+      <div className="flex w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-primary py-2 text-center text-primary-foreground">
+        <span className="text-xs font-medium">{dayPart(day, { weekday: "short" })}</span>
+        <span className="text-2xl leading-none font-semibold tabular-nums">
           {dayPart(day, { day: "numeric" })}
         </span>
-        <span className="mt-0.5 text-xs text-muted-foreground">
-          {dayPart(day, { month: "short" })}
-        </span>
+        <span className="mt-0.5 text-xs opacity-70">{dayPart(day, { month: "short" })}</span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-5">
         <div className="grid min-w-0 shrink-0 gap-1.5 text-sm text-muted-foreground sm:w-44">

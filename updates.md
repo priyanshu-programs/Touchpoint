@@ -1341,3 +1341,5 @@
 - [2026-11-03] activities/queries.ts: the timeline's people carry their picture's version, so an activity card can show their faces
 - [2026-11-03] e2e/04-activities.spec.ts: the Activities card shows the time and the outcome and notes on one line, and the whole note is checked in the opened activity
 - [2026-11-03] entry-box.tsx: addresses in the one-line outcome and notes preview stay links, as typed notes are everywhere else (e2e/38)
+- [2026-11-03] activity-card.tsx: the day sits on a lime tile in the theme's primary colour with black text, in place of orange text, because the owner wanted the card on theme
+- [2026-11-03] plan.md: the Activity tab's cards described as one shape with the day on a lime tile
