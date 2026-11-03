@@ -7,12 +7,13 @@ import {
   organizations,
   timeline,
 } from "@/db/schema";
+import { photoVersion } from "@/modules/contacts/queries";
 
 const contactNames = async (ownerId: string, ids: string[]) =>
   ids.length === 0
     ? []
     : db
-        .select({ id: contacts.id, name: contacts.fullName })
+        .select({ id: contacts.id, name: contacts.fullName, photoVersion })
         .from(contacts)
         .where(and(eq(contacts.ownerId, ownerId), inArray(contacts.id, ids)))
         .orderBy(asc(contacts.fullName));

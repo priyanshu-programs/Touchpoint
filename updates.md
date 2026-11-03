@@ -1335,3 +1335,9 @@
 - [2026-11-03] e2e/16 and e2e/22: a send is found in the Materials sent section, which replaces its old "Sent material" badge
 - [2026-11-03] e2e/30: Log notes checks the meeting under Past meetings and its notes under Activities, since meetings no longer carry a "Meeting" badge
 - [2026-11-03] e2e/33: the synced meeting still to come shows under Upcoming meetings on the company's Activity tab, where it used to be absent
+- [2026-11-03] activity-card.tsx: one card shape for the Activity tab after the owner's reference picture: the day in orange on the left, then when and where, then what and who, and an action at the end; on a phone the title comes first
+- [2026-11-03] meeting-box.tsx: a meeting uses the shared card, with its hours and place in the middle and its title and people's pictures on the right, because the stacked card read as cluttered
+- [2026-11-03] entry-box.tsx: an activity or a send uses the same card, with its time and kind in the middle, its people as pictures that link to them, and its outcome and notes on one line; the kind badge and the "Today, 14:00" text go, since the day block says it
+- [2026-11-03] activities/queries.ts: the timeline's people carry their picture's version, so an activity card can show their faces
+- [2026-11-03] e2e/04-activities.spec.ts: the Activities card shows the time and the outcome and notes on one line, and the whole note is checked in the opened activity
+- [2026-11-03] entry-box.tsx: addresses in the one-line outcome and notes preview stay links, as typed notes are everywhere else (e2e/38)

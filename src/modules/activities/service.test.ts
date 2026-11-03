@@ -249,7 +249,7 @@ describe("activities", () => {
       "Later meeting",
       "Earlier call",
     ]);
-    expect(rows[1].contacts).toEqual([{ id: priya, name: "Priya" }]);
+    expect(rows[1].contacts).toEqual([{ id: priya, name: "Priya", photoVersion: null }]);
   });
 
   it("keeps one owner's timeline from another", async () => {
