@@ -1343,3 +1343,5 @@
 - [2026-11-03] entry-box.tsx: addresses in the one-line outcome and notes preview stay links, as typed notes are everywhere else (e2e/38)
 - [2026-11-03] activity-card.tsx: the day sits on a lime tile in the theme's primary colour with black text, in place of orange text, because the owner wanted the card on theme
 - [2026-11-03] plan.md: the Activity tab's cards described as one shape with the day on a lime tile
+- [2026-11-03] activity-card.tsx: the day's text is the theme's green (its darker chart green on white, lime in dark mode) with a thin divider, in place of the lime tile, because the owner wanted only the text coloured
+- [2026-11-03] plan.md: the Activity tab's cards described with the day's text in the theme's green
