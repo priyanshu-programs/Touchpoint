@@ -60,10 +60,12 @@ test("log a call from a contact; the timeline and the task list update together"
 
   await expect(page).toHaveURL(ON_ACTIVITY);
   const logged = page.getByRole("region", { name: "Activities" });
-  await expect(logged.getByText(/^Today, \d{2}:\d{2}$/)).toBeVisible();
+  await expect(logged.getByText(/^\d{2}:\d{2}$/)).toBeVisible();
   await expect(logged.getByRole("link", { name: "Intro call" })).toBeVisible();
-  await expect(page.getByText("Wants a proposal by Friday")).toBeVisible();
-  await expect(page.getByText("She leads the redesign.")).toBeVisible();
+  // The card shows the outcome and the notes on one line; the whole note is in the activity.
+  await expect(
+    logged.getByText("Wants a proposal by Friday · Walked through the brief."),
+  ).toBeVisible();
 
   await contactTabs(page).getByRole("link", { name: "Tasks" }).click();
   await expect(
@@ -86,6 +88,9 @@ test("an activity can involve a second contact, be edited and be deleted", async
   await page.getByRole("link", { name: "Intro call" }).click();
   await expect(page).toHaveURL(
     /\/people\/contacts\?contact=[0-9a-f-]+&tab=activity&activity=[0-9a-f-]{36}$/,
+  );
+  await expect(page.getByLabel("Notes")).toHaveValue(
+    "Walked through the brief.\nShe leads the redesign.",
   );
 
   await page.getByRole("button", { name: "Add contact" }).click();

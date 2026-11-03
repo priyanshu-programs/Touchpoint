@@ -1,5 +1,6 @@
 import {
   Briefcase,
+  Clock,
   FileText,
   Flag,
   Mail,
@@ -10,16 +11,17 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { Fragment } from "react";
 import { LinkedText } from "@/components/linked-text";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { addDays, dateIn, formatDateTime, formatTime } from "@/lib/time";
+import { dateIn, formatDateTime, formatTime } from "@/lib/time";
 import type { TimelineRow } from "@/modules/activities/queries";
 import { SEND_CHANNEL_LABELS, type SEND_CHANNELS } from "@/modules/materials/schema";
 import { materialHref, sendStatusOptions } from "../materials/labels";
 import { removeSendAction, setSendStatusAction } from "../materials/send-actions";
 import { StatusMenu } from "../people/(lists)/status-menu";
 import { contactHref, labelFor } from "../people/labels";
+import { ActivityCard, DetailRow, People } from "./activity-card";
 
 const ICONS = {
   call: Phone,
@@ -30,7 +32,8 @@ const ICONS = {
   note: StickyNote,
 } as const;
 
-// A logged activity or a material send as a card on a record's Activity tab.
+// A logged activity or a material send as a card on a record's Activity tab. Its notes
+// show as one line; the whole of them is in the activity it opens.
 export function EntryBox({
   event,
   timezone,
@@ -43,83 +46,79 @@ export function EntryBox({
 }) {
   const send = event.eventType === "material_send" && event.materialId;
   const Icon = send ? FileText : (ICONS[event.kind as keyof typeof ICONS] ?? Flag);
-  const today = dateIn(timezone);
-  const day = dateIn(timezone, event.occurredAt);
-  const when =
-    day === today
-      ? `Today, ${formatTime(event.occurredAt, timezone)}`
-      : day === addDays(today, -1)
-        ? `Yesterday, ${formatTime(event.occurredAt, timezone)}`
-        : formatDateTime(event.occurredAt, timezone);
+  const preview = [event.outcome, event.body].filter((text): text is string => Boolean(text));
 
   return (
-    <article className="flex min-w-0 gap-3 rounded-lg border bg-card p-4 shadow-xs">
-      <span
-        aria-hidden
-        className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
-      >
-        <Icon className="size-4" />
-      </span>
-      <div className="grid min-w-0 flex-1 gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={send ? materialHref(send) : href(event.eventId)}
-            scroll={Boolean(send)}
-            className="min-w-0 font-medium break-words underline-offset-4 hover:underline"
-          >
-            {event.title}
-          </Link>
-          {!send && <Badge variant="secondary">{labelFor(event.kind)}</Badge>}
-          {send && event.status && (
-            <StatusMenu
-              label="Status"
-              value={event.status}
-              options={sendStatusOptions}
-              action={setSendStatusAction.bind(null, event.eventId)}
-            />
-          )}
-          {send && (
-            <form action={removeSendAction} className="ml-auto">
+    <ActivityCard
+      day={dateIn(timezone, event.occurredAt)}
+      details={
+        <>
+          <DetailRow icon={Clock}>{formatTime(event.occurredAt, timezone)}</DetailRow>
+          <DetailRow icon={Icon}>
+            {send ? (
+              (SEND_CHANNEL_LABELS[event.kind as (typeof SEND_CHANNELS)[number]] ??
+              event.kind)
+            ) : (
+              <>
+                <span>{labelFor(event.kind)}</span>
+                {event.direction && <span> · {labelFor(event.direction)}</span>}
+              </>
+            )}
+          </DetailRow>
+        </>
+      }
+      title={
+        <Link
+          href={send ? materialHref(send) : href(event.eventId)}
+          scroll={Boolean(send)}
+          className="min-w-0 font-medium break-words underline-offset-4 hover:underline sm:truncate"
+        >
+          {event.title}
+        </Link>
+      }
+      below={
+        (event.contacts.length > 0 || preview.length > 0) && (
+          <div className="flex min-w-0 items-center gap-3">
+            <People people={event.contacts} href={contactHref} />
+            {preview.length > 0 && (
+              <p className="line-clamp-1 min-w-0 text-sm break-words text-muted-foreground">
+                {preview.map((text, index) => (
+                  <Fragment key={index}>
+                    {index > 0 && " · "}
+                    <LinkedText text={text} />
+                  </Fragment>
+                ))}
+              </p>
+            )}
+          </div>
+        )
+      }
+      action={
+        send && (
+          <>
+            {event.status && (
+              <StatusMenu
+                label="Status"
+                value={event.status}
+                options={sendStatusOptions}
+                action={setSendStatusAction.bind(null, event.eventId)}
+              />
+            )}
+            <form action={removeSendAction}>
               <input type="hidden" name="id" value={event.eventId} />
               <Button
                 type="submit"
                 variant="ghost"
                 size="icon"
                 className="size-7"
-                aria-label={`Remove the send of ${event.title} on ${when}`}
+                aria-label={`Remove the send of ${event.title} on ${formatDateTime(event.occurredAt, timezone)}`}
               >
                 <X aria-hidden />
               </Button>
             </form>
-          )}
-        </div>
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span>{when}</span>
-          {send ? (
-            <span>
-              · {SEND_CHANNEL_LABELS[event.kind as (typeof SEND_CHANNELS)[number]] ?? event.kind}
-            </span>
-          ) : (
-            event.direction && <span>· {labelFor(event.direction)}</span>
-          )}
-          {event.contacts.map((contact) => (
-            <Link key={contact.id} href={contactHref(contact.id)} className="underline">
-              {contact.name}
-            </Link>
-          ))}
-        </p>
-        {event.outcome && (
-          <p className="text-sm break-words">
-            <span className="text-muted-foreground">Outcome: </span>
-            <LinkedText text={event.outcome} />
-          </p>
-        )}
-        {event.body && (
-          <p className="text-sm break-words whitespace-pre-wrap">
-            <LinkedText text={event.body} />
-          </p>
-        )}
-      </div>
-    </article>
+          </>
+        )
+      }
+    />
   );
 }
