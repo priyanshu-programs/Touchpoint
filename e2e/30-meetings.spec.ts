@@ -25,6 +25,7 @@ let contactId: string;
 let organizationId: string;
 let startedId: string;
 let comingId: string;
+let connectionId: string;
 
 test.beforeAll(async () => {
   const owner = `(select id from "user" limit 1)`;
@@ -38,14 +39,14 @@ test.beforeAll(async () => {
   } = await pool.query(
     `insert into contacts (owner_id, first_name, last_name) select ${owner}, 'Ava', 'Stone' returning id`,
   ));
-  const {
+  ({
     rows: [{ id: connectionId }],
   } = await pool.query(`
     insert into integration_connections
       (owner_id, provider, account_email, scopes, status, key_version, connected_at, last_sync_at)
     select ${owner}, 'google', 'owner@gmail.test', '{}', 'connected', 1, now(), now()
     returning id
-  `);
+  `));
   const insert = `
     insert into calendar_events
       (owner_id, connection_id, external_id, title, location, meeting_url, html_link, all_day,
@@ -89,6 +90,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  await pool.query(`delete from calendar_events where title like 'Older meeting %'`);
   await pool.query(`delete from activities where title = 'Maple kickoff'`);
   await pool.query(`delete from integration_connections`);
   await pool.query(`delete from contacts where id = $1`, [contactId]);
@@ -131,8 +133,17 @@ for (const device of DEVICES) {
       `/people/organizations?company=${organizationId}&tab=activity`,
     ]) {
       await page.goto(address);
-      await expect(panel(page).getByRole("link", { name: "Maple kickoff" })).toBeVisible();
-      await expect(panel(page).getByRole("link", { name: "Maple review" })).toHaveCount(0);
+      const upcoming = panel(page).getByRole("region", { name: "Upcoming meetings" });
+      const past = panel(page).getByRole("region", { name: "Past meetings" });
+      await expect(upcoming.getByRole("link", { name: "Maple review" })).toBeVisible();
+      await expect(upcoming.getByRole("link", { name: "Maple kickoff" })).toHaveCount(0);
+      await expect(past.getByRole("link", { name: "Maple kickoff" })).toBeVisible();
+      // A meeting's box: its day, its hours, its place and who came.
+      await expect(past.getByText(/^\d{2}:\d{2} – \d{2}:\d{2}$/)).toBeVisible();
+      await expect(past.getByText("Room 4")).toBeVisible();
+      await expect(past.getByText("With Ava Stone")).toBeAttached();
+      // Join is for a meeting still to come.
+      await expect(past.getByRole("link", { name: "Join" })).toHaveCount(0);
       await panel(page).getByRole("link", { name: "Maple kickoff" }).click();
       await expect(page).toHaveURL(new RegExp(`&event=${startedId}$`));
       await expect(panel(page).getByRole("heading", { name: "Maple kickoff" })).toBeVisible();
@@ -146,6 +157,41 @@ for (const device of DEVICES) {
   });
 }
 
+test("past meetings past five open alone with See all, paged, and All activity goes back", async ({
+  page,
+}) => {
+  for (let day = 1; day <= 30; day++) {
+    await pool.query(
+      `insert into calendar_events
+         (owner_id, connection_id, external_id, title, all_day, starts_at, ends_at, attendees,
+          organization_id)
+       select owner_id, id, $1, $2, false, $3::timestamptz, $4::timestamptz, '[]', $5
+       from integration_connections where id = $6`,
+      [
+        `e2e-older-${day}`,
+        `Older meeting ${day}`,
+        new Date(Date.now() - day * 86_400_000).toISOString(),
+        new Date(Date.now() - day * 86_400_000 + 1_800_000).toISOString(),
+        organizationId,
+        connectionId,
+      ],
+    );
+  }
+  await page.goto(`/people/organizations?company=${organizationId}&tab=activity`);
+  const past = panel(page).getByRole("region", { name: "Past meetings" });
+  await expect(past.getByRole("listitem")).toHaveCount(5);
+  await past.getByRole("link", { name: "See all (31)" }).click();
+  await expect(page).toHaveURL(/section=meetings/);
+  await expect(panel(page).getByRole("region", { name: "Past meetings" }).getByRole("listitem")).toHaveCount(30);
+  await panel(page).getByRole("link", { name: "Earlier" }).click();
+  await expect(page).toHaveURL(/section=meetings&after=/);
+  await expect(panel(page).getByRole("link", { name: "Older meeting 30" })).toBeVisible();
+  await expect(panel(page).getByRole("region", { name: "Upcoming meetings" })).toHaveCount(0);
+  await panel(page).getByRole("link", { name: "All activity" }).click();
+  await expect(page).not.toHaveURL(/section=/);
+  await expect(panel(page).getByRole("region", { name: "Upcoming meetings" })).toBeVisible();
+});
+
 test("Log notes opens Log activity filled in, and saving keeps it", async ({ page }) => {
   await page.goto(`/people/contacts?contact=${contactId}&tab=activity&event=${startedId}`);
   await panel(page).getByRole("link", { name: "Log notes" }).click();
@@ -158,8 +204,12 @@ test("Log notes opens Log activity filled in, and saving keeps it", async ({ pag
 
   await panel(page).getByRole("button", { name: "Log activity" }).click();
   await expect(page).toHaveURL(new RegExp(`contact=${contactId}.*tab=activity`));
-  await expect(panel(page).getByText("Meeting", { exact: true })).toHaveCount(2);
-  await expect(panel(page).getByRole("link", { name: "Maple kickoff" })).toHaveCount(2);
+  // The meeting stays under Past meetings, and its notes join Activities as a meeting.
+  const past = panel(page).getByRole("region", { name: "Past meetings" });
+  const logged = panel(page).getByRole("region", { name: "Activities" });
+  await expect(past.getByRole("link", { name: "Maple kickoff" })).toBeVisible();
+  await expect(logged.getByRole("link", { name: "Maple kickoff" })).toBeVisible();
+  await expect(logged.getByText("Meeting", { exact: true })).toBeVisible();
 });
 
 test("a meeting that isn't there opens nothing", async ({ page }) => {

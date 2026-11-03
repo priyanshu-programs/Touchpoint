@@ -6,13 +6,13 @@ import {
   calendarEvents,
   integrationConnections,
 } from "@/db/schema";
-import { listTimeline } from "@/modules/activities/queries";
+import { countRecordEvents, listTimeline } from "@/modules/activities/queries";
 import { newContactInput } from "@/modules/contacts/schema";
 import { createContact } from "@/modules/contacts/service";
 import { organizationInput } from "@/modules/organizations/schema";
 import { createOrganization } from "@/modules/organizations/service";
 import { createTestOwner, resetDatabase } from "@/test/owner";
-import { getMeeting, meetingsBetween } from "./meetings";
+import { getMeeting, meetingsBetween, recordMeetings } from "./meetings";
 import { disconnectGoogle } from "./service";
 
 const HOUR = 60 * 60_000;
@@ -223,6 +223,126 @@ describe("meetings", () => {
       await seed(ownerId, connectionId, { title: "Kickoff", organizationId: maple });
       await disconnectGoogle(ownerId);
       expect((await listTimeline(ownerId, { organizationId: maple })).rows).toEqual([]);
+    });
+  });
+
+  describe("on a record's Activity tab", () => {
+    it("splits a record's meetings into those to come, soonest first, and those started, newest first", async () => {
+      const maple = await company(ownerId, "Maple");
+      await seed(ownerId, connectionId, { title: "Started", organizationId: maple });
+      await seed(ownerId, connectionId, {
+        title: "In 5h",
+        startsAt: fromNow(5),
+        endsAt: fromNow(6),
+        organizationId: maple,
+      });
+      await seed(ownerId, connectionId, {
+        title: "In 2h",
+        startsAt: fromNow(2),
+        endsAt: fromNow(3),
+        organizationId: maple,
+      });
+      await seed(ownerId, connectionId, {
+        title: "Long ago",
+        organizationId: maple,
+        ...allDay("2026-01-05", "2026-01-06"),
+      });
+      await seed(ownerId, connectionId, {
+        title: "Far off",
+        organizationId: maple,
+        ...allDay("2099-01-05", "2099-01-06"),
+      });
+      await seed(ownerId, connectionId, { title: "Elsewhere" });
+
+      const filter = { organizationId: maple };
+      const upcoming = await recordMeetings(ownerId, filter, { when: "upcoming", limit: 10 });
+      expect(upcoming.rows.map((row) => row.title)).toEqual(["In 2h", "In 5h", "Far off"]);
+      expect(upcoming.nextAfter).toBeNull();
+      const past = await recordMeetings(ownerId, filter, { when: "past", limit: 10 });
+      expect(past.rows.map((row) => row.title)).toEqual(["Started", "Long ago"]);
+      expect(past.rows[0].endsAt).toBeInstanceOf(Date);
+    });
+
+    it("finds a person's meetings through their attendance, with everyone who came", async () => {
+      const ava = await person(ownerId, "Ava");
+      const ben = await person(ownerId, "Ben");
+      const met = await seed(ownerId, connectionId, { title: "Both" });
+      const without = await seed(ownerId, connectionId, { title: "Ben alone" });
+      await db.insert(calendarEventContacts).values([
+        { eventId: met, contactId: ben, ownerId },
+        { eventId: met, contactId: ava, ownerId },
+        { eventId: without, contactId: ben, ownerId },
+      ]);
+
+      const { rows } = await recordMeetings(ownerId, { contactId: ava }, { when: "past", limit: 10 });
+      expect(rows.map((row) => row.title)).toEqual(["Both"]);
+      expect(rows[0].people.map((who) => who.name)).toEqual(["Ava", "Ben"]);
+      expect(rows[0].people[0]).toHaveProperty("photoVersion", null);
+    });
+
+    it("pages through past meetings", async () => {
+      const maple = await company(ownerId, "Maple");
+      for (const hours of [1, 2, 3]) {
+        await seed(ownerId, connectionId, {
+          title: `${hours}h ago`,
+          startsAt: fromNow(-hours),
+          endsAt: fromNow(-hours + 0.5),
+          organizationId: maple,
+        });
+      }
+      const filter = { organizationId: maple };
+      const first = await recordMeetings(ownerId, filter, { when: "past", limit: 2 });
+      expect(first.rows.map((row) => row.title)).toEqual(["1h ago", "2h ago"]);
+      const second = await recordMeetings(ownerId, filter, {
+        when: "past",
+        limit: 2,
+        after: first.nextAfter!,
+      });
+      expect(second.rows.map((row) => row.title)).toEqual(["3h ago"]);
+      expect(second.nextAfter).toBeNull();
+    });
+
+    it("never shows another owner's meeting", async () => {
+      const maple = await company(ownerId, "Maple");
+      const otherOwner = await createTestOwner("other@example.com");
+      const otherConnection = await connect(otherOwner);
+      await seed(otherOwner, otherConnection, { title: "Theirs", organizationId: maple });
+
+      for (const when of ["upcoming", "past"] as const) {
+        const { rows } = await recordMeetings(ownerId, { organizationId: maple }, { when, limit: 10 });
+        expect(rows).toEqual([]);
+      }
+    });
+
+    it("counts a record's started meetings, sends and activities", async () => {
+      const maple = await company(ownerId, "Maple");
+      await seed(ownerId, connectionId, { title: "Started", organizationId: maple });
+      await seed(ownerId, connectionId, {
+        title: "To come",
+        startsAt: fromNow(2),
+        endsAt: fromNow(3),
+        organizationId: maple,
+      });
+      await db.insert(activities).values(
+        ["One", "Two"].map((title) => ({
+          ownerId,
+          kind: "note" as const,
+          occurredAt: fromNow(-1),
+          title,
+          organizationId: maple,
+        })),
+      );
+
+      expect(await countRecordEvents(ownerId, { organizationId: maple })).toEqual({
+        meetings: 1,
+        sends: 0,
+        activities: 2,
+      });
+      const { rows } = await listTimeline(ownerId, {
+        organizationId: maple,
+        eventType: "activity",
+      });
+      expect(rows.map((row) => row.eventType)).toEqual(["activity", "activity"]);
     });
   });
 

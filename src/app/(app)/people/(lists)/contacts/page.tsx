@@ -65,6 +65,7 @@ const NO_PANEL = {
   contact: undefined,
   tab: undefined,
   earlier: undefined,
+  section: undefined,
   fields: undefined,
 };
 // A change to what the list shows starts again from its first page, with no record open.
@@ -409,6 +410,7 @@ export default async function ContactsPage({
                   ...NO_ENTRY,
                   tab: entryTab(entry),
                   earlier: undefined,
+                  section: undefined,
                 }),
                 label: `Back to ${open.fullName}`,
               }}
@@ -435,8 +437,9 @@ export default async function ContactsPage({
               contact={open}
               tab={params.tab}
               after={params.earlier}
-              hrefFor={({ tab, after }) =>
-                contactsHref(params, { tab, earlier: after })
+              section={params.section}
+              hrefFor={({ tab, after, section }) =>
+                contactsHref(params, { tab, earlier: after, section })
               }
               entryHref={(change) => contactsHref(params, change)}
               fieldsHref={contactsHref(params, { fields: "contacts" })}

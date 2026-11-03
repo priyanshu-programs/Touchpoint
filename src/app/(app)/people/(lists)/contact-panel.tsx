@@ -27,6 +27,7 @@ import { ContactEmailsAndLinks } from "../contacts/contact-emails-links";
 import { ProfileSuggestions } from "../contacts/profile-suggestions";
 import { companyHref, labelFor, toOptions } from "../labels";
 import { FieldsLink } from "./fields-link";
+import type { ActivitySection } from "./list-controls";
 import { RecordActions } from "./record-actions";
 import { StatusMenu } from "./status-menu";
 
@@ -47,6 +48,7 @@ export async function ContactPanel({
   inside,
   tab,
   after,
+  section,
   hrefFor,
   entryHref,
   fieldsHref,
@@ -59,7 +61,8 @@ export async function ContactPanel({
   tab: Tab;
   // Where the Activity tab's page of history starts.
   after?: string;
-  hrefFor: (change: { tab: Tab; after?: string }) => string;
+  section?: ActivitySection;
+  hrefFor: (change: { tab: Tab; after?: string; section?: ActivitySection }) => string;
   // An activity or a task, new or existing, opened in place of this person.
   entryHref: (
     entry:
@@ -240,7 +243,8 @@ export async function ContactPanel({
           <RecordTimeline
             ownerId={ownerId}
             filter={filter}
-            moreHref={(earlier) => hrefFor({ tab: "activity", after: earlier })}
+            section={section}
+            sectionHref={(section, after) => hrefFor({ tab: "activity", section, after })}
             newHref={entryHref({ activity: "new" })}
             sendHref={entryHref({ send: "new" })}
             scheduleHref={entryHref({ schedule: "new" })}

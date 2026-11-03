@@ -90,6 +90,7 @@ const NO_CONTACT = {
   contact: undefined,
   tab: undefined,
   after: undefined,
+  section: undefined,
   fields: undefined,
 };
 const NO_PANEL = { ...NO_CONTACT, company: undefined };
@@ -495,6 +496,7 @@ export default async function OrganizationsPage({
                   ...NO_ENTRY,
                   tab: entryTab(entry),
                   after: undefined,
+                  section: undefined,
                 }),
                 label: `Back to ${contact?.fullName ?? open.name}`,
               }}
@@ -547,7 +549,10 @@ export default async function OrganizationsPage({
               // A company's own "contacts" tab means nothing for one person.
               tab={params.tab === "contacts" ? undefined : params.tab}
               after={params.after}
-              hrefFor={({ tab, after }) => companiesHref(params, { tab, after })}
+              section={params.section}
+              hrefFor={({ tab, after, section }) =>
+                companiesHref(params, { tab, after, section })
+              }
               entryHref={(change) => companiesHref(params, change)}
               fieldsHref={companiesHref(params, { fields: "contacts" })}
             />

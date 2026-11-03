@@ -1323,3 +1323,15 @@
 - [2026-11-02] e2e/13-workflows.spec.ts: the panel opens ready to edit with the buttons above the whole note, saves bold and italic, refuses an emptied note, Cancel puts the saved one back, closing with a change asks first, and the buttons are on screen on a phone
 - [2026-11-02] security.md and plan.md: the note panel edits in place, and its addresses open only on Ctrl+click from linkParts's http(s) addresses
 - [2026-11-02] Added a trail learning: the note editor shows addresses as links with decorations, not Tiptap's Link package or a link mark
+- [2026-11-03] meetings.ts: `recordMeetings` lists a company's or a person's meetings still to come (soonest first) or started (newest first, paged), with their end times and people's pictures; tests
+- [2026-11-03] activities/queries.ts: `listTimeline` takes an `eventType` (activities or sends only), and `countRecordEvents` counts a record's started meetings, sends and activities; tests
+- [2026-11-03] list-controls.tsx and the people and company pages: `section=` (meetings, sends or activities) in a panel's address, cleared wherever the tab or the open record changes
+- [2026-11-03] meeting-box.tsx: a meeting as a card with its day on the left in orange, its hours, its place, up to four people's pictures and Join for one still to come, after the owner's reference picture
+- [2026-11-03] entry-box.tsx: a logged activity or a material send as a card with an icon by kind, keeping the send's status menu and remove button
+- [2026-11-03] record-timeline.tsx: the Activity tab shows Upcoming meetings, Past meetings, Materials sent and Activities as separate sections of boxes, with "See all (N)" opening one alone in pages of 30, because the owner wanted each kind in its own box and upcoming meetings shown
+- [2026-11-03] e2e/30-meetings.spec.ts: the upcoming meeting shows under Upcoming meetings and the started one under Past meetings with its hours, place and people; See all, Earlier and All activity page through 31 past meetings
+- [2026-11-03] security.md and plan.md: the sectioned Activity tab, and upcoming meetings on it moved out of Phase 5 step 5's "Not built"
+- [2026-11-03] entry-box.tsx: an entry from today or yesterday says "Today, 14:00" or "Yesterday, 14:00", since the sections no longer have day headings; e2e/04 checks it in the Activities section
+- [2026-11-03] e2e/16 and e2e/22: a send is found in the Materials sent section, which replaces its old "Sent material" badge
+- [2026-11-03] e2e/30: Log notes checks the meeting under Past meetings and its notes under Activities, since meetings no longer carry a "Meeting" badge
+- [2026-11-03] e2e/33: the synced meeting still to come shows under Upcoming meetings on the company's Activity tab, where it used to be absent

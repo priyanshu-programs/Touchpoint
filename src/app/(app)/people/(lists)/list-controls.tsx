@@ -35,6 +35,10 @@ const entryParams = {
 const customSort = z.string().regex(CUSTOM_SORT);
 const dir = optional(z.enum(["asc", "desc"]));
 const page = optional(z.coerce.number().int().min(1).max(1000));
+// One section of a record's Activity tab, shown alone and paged; none shows them all.
+export const ACTIVITY_SECTIONS = ["meetings", "sends", "activities"] as const;
+export type ActivitySection = (typeof ACTIVITY_SECTIONS)[number];
+const section = optional(z.enum(ACTIVITY_SECTIONS));
 
 // `company` and `tab` say which company panel is open over the list; `after` pages its timeline.
 // With `contact`, the panel shows that person at the company and `tab` is theirs.
@@ -48,6 +52,7 @@ export const companyListParams = listParams.extend({
   company: optional(z.uuid()),
   contact: optional(z.uuid()),
   tab: optional(z.enum(["contacts", "activity", "tasks", "workflows", "money"])),
+  section,
   ...entryParams,
 });
 export type CompanyListParams = z.infer<typeof companyListParams>;
@@ -61,6 +66,7 @@ export const contactListParams = listParams.omit({ after: true }).extend({
   contact: optional(z.uuid()),
   tab: optional(z.enum(["activity", "tasks", "workflows", "money"])),
   earlier: optional(z.uuid()),
+  section,
   ...entryParams,
 });
 export type ContactListParams = z.infer<typeof contactListParams>;

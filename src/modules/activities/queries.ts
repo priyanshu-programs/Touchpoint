@@ -24,7 +24,12 @@ export async function listTimeline(
     | { contactId: string; organizationId?: undefined }
     | { organizationId: string; contactId?: undefined }
     | { contactId?: undefined; organizationId?: undefined }
-  ) & { after?: string; limit?: number; withoutMeetings?: boolean } = {},
+  ) & {
+    after?: string;
+    limit?: number;
+    withoutMeetings?: boolean;
+    eventType?: "activity" | "material_send";
+  } = {},
 ) {
   const limit = Math.min(options.limit ?? 30, 100);
   const events = await db
@@ -34,6 +39,7 @@ export async function listTimeline(
       and(
         eq(timeline.ownerId, ownerId),
         options.withoutMeetings ? ne(timeline.eventType, "calendar_event") : undefined,
+        options.eventType ? eq(timeline.eventType, options.eventType) : undefined,
         options.contactId
           ? sql`${options.contactId} = any(${timeline.contactIds})`
           : options.organizationId
@@ -61,6 +67,32 @@ export async function listTimeline(
       contacts: names.filter((contact) => event.contactIds.includes(contact.id)),
     })),
     nextAfter: events.length > limit ? page[page.length - 1].eventId : null,
+  };
+}
+
+// How many of each kind of entry one record's timeline holds; meetings only once started.
+export async function countRecordEvents(
+  ownerId: string,
+  filter: { contactId: string } | { organizationId: string },
+) {
+  const rows = await db
+    .select({ eventType: timeline.eventType, count: sql<number>`count(*)::int` })
+    .from(timeline)
+    .where(
+      and(
+        eq(timeline.ownerId, ownerId),
+        "contactId" in filter
+          ? sql`${filter.contactId} = any(${timeline.contactIds})`
+          : eq(timeline.organizationId, filter.organizationId),
+      ),
+    )
+    .groupBy(timeline.eventType);
+  const count = (type: string) =>
+    rows.find((row) => row.eventType === type)?.count ?? 0;
+  return {
+    meetings: count("calendar_event"),
+    sends: count("material_send"),
+    activities: count("activity"),
   };
 }
 
