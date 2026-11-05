@@ -9,8 +9,12 @@ import { readFields, readOrigin } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import { removeMeetingFile, saveMeetingNotes } from "@/modules/activities/meeting-notes";
 import { meetingFileRef, meetingNotesInput } from "@/modules/activities/meeting-notes-schema";
-import { meetingInput } from "@/modules/integrations/schema";
-import { checkMeeting, scheduleMeeting } from "@/modules/integrations/scheduling";
+import { cancelMeetingInput, meetingInput } from "@/modules/integrations/schema";
+import {
+  cancelMeeting,
+  checkMeeting,
+  scheduleMeeting,
+} from "@/modules/integrations/scheduling";
 
 const FIELDS = [
   "key",
@@ -112,4 +116,31 @@ export async function removeMeetingFileAction(eventId: unknown, fileId: unknown)
   const owner = await requireOwner();
   const ref = meetingFileRef.parse({ eventId, fileId });
   return (await removeMeetingFile(owner.id, ref.eventId, ref.fileId)) || notFound();
+}
+
+// Back to the record the meeting was open on, built from ids that the page then checks
+// against the owner, or to the Calendar tab from the meeting's own page.
+export async function cancelMeetingAction(
+  _previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const owner = await requireOwner();
+  const origin = readOrigin(formData);
+  const parsed = cancelMeetingInput.safeParse(
+    readFields(formData, ["eventId", "contactId", "emailGuests"]),
+  );
+  if (!parsed.success) return { ok: false, message: "That meeting can't be cancelled." };
+
+  const result = await cancelMeeting(owner.id, parsed.data);
+  if (!result.ok) return { ok: false, message: result.message };
+
+  revalidatePath("/", "layout");
+  const { contactId } = parsed.data;
+  if (origin.from === "organization" && origin.inside) {
+    redirect(companyHref(origin.inside, "activity"));
+  }
+  if (origin.from === "contact" && contactId) {
+    redirect(contactTabHref(contactId, "activity", origin.inside || undefined));
+  }
+  redirect("/tasks/calendar");
 }

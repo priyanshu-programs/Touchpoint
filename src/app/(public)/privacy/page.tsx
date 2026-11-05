@@ -36,7 +36,9 @@ export default function PrivacyPage() {
         If the owner turns on scheduling, Touchpoint asks Google for permission to add events (
         <span className="font-mono">calendar.events</span>). It adds one only after the owner
         confirms it, with the title, times, location and guests they chose, and with Google
-        sending the invitation if they ask for that. It never changes or removes an event. Notes
+        sending the invitation if they ask for that. It never changes an event. It removes one
+        only when the owner cancels a meeting they organized that hasn&apos;t started, after
+        confirming it, with Google telling the guests if they ask for that. Notes
         written for an invitation go to Google and aren&apos;t kept in Touchpoint. Touchpoint
         doesn&apos;t read, send or store email itself.
       </p>

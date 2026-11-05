@@ -158,10 +158,16 @@ function handleCalendar(request, url, body, response) {
       ? insertEvent(url, body, response)
       : listEvents(url, response);
   }
-  const held = state.events.get(url.pathname.slice(EVENTS_PATH.length + 1));
-  return held
-    ? send(response, 200, held.event)
-    : send(response, 404, { error: { code: 404, message: "Not Found" } });
+  const held = state.events.get(decodeURIComponent(url.pathname.slice(EVENTS_PATH.length + 1)));
+  if (!held) return send(response, 404, { error: { code: 404, message: "Not Found" } });
+  if (request.method !== "DELETE") return send(response, 200, held.event);
+  // As Google does, a deleted event stays as cancelled, so a sync token reports it.
+  if (held.event.status === "cancelled") {
+    return send(response, 410, { error: { code: 410, message: "Resource has been deleted" } });
+  }
+  store({ ...held.event, status: "cancelled" });
+  response.writeHead(204);
+  return response.end();
 }
 
 // What a test uses to set the scene and to read what the app sent.

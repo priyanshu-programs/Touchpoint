@@ -1,0 +1,1 @@
+ALTER TABLE "calendar_events" ADD COLUMN "organized_by_owner" boolean DEFAULT false NOT NULL;

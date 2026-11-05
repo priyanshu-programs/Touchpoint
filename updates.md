@@ -1359,3 +1359,10 @@
 - [2026-11-05] Export: `activity_files` added to data.json
 - [2026-11-05] e2e/30 and e2e/33: Live now, ended meetings under Past meetings, notes typed bold and kept after a reload, a PDF uploaded, opened and removed, a text file refused, leaving with a change asks, and the notes on a phone
 - [2026-11-05] security.md and plan.md: notes and files inside a meeting, and the Live now section
+- [2026-11-05] Migration 0042 (additive): `calendar_events.organized_by_owner`, read from Google's `organizer.self` at sync and on scheduling, so only a meeting the owner organized can be cancelled
+- [2026-11-05] google/calendar.ts: `deleteEvent` (gone already counts as done) and `getEvent` exported, with event ids percent-encoded in the address
+- [2026-11-05] scheduling.ts: `cancelMeeting` checks the permission, 30 an hour, that the owner organized it and it hasn't started, asks Google first, deletes it, audits `meeting.cancel` and removes the copy; the 401 retry is shared with scheduling
+- [2026-11-05] Meeting panel and page: a Cancel meeting button with a confirmation and an "Email guests that it's cancelled" box, ticked by default, on the owner's own meetings still to come
+- [2026-11-05] Fake Google server: DELETE on an event, kept as cancelled so a sync reports it; e2e/33 cancels from a person's and a company's panel and checks invitations and started meetings offer no button
+- [2026-11-05] Vitest: cancelling deletes at Google and the copy, keeps the meeting's notes, refuses others' and started meetings, and keeps the copy when Google fails; `parseEvent` reads the organizer
+- [2026-11-05] security.md, plan.md and the Privacy page: Touchpoint may now remove an event, only by cancelling a meeting the owner organized that hasn't started

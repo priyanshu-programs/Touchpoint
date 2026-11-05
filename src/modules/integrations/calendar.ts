@@ -87,6 +87,7 @@ export async function upsertMeetings(
         endsOn: sql`excluded.ends_on`,
         timezone: sql`excluded.timezone`,
         attendees: sql`excluded.attendees`,
+        organizedByOwner: sql`excluded.organized_by_owner`,
         updatedAt: new Date(),
       },
     })

@@ -21,6 +21,7 @@ export type Meeting = {
   endsOn: string | null;
   timezone: string | null;
   attendees: CalendarAttendee[];
+  organizedByOwner: boolean;
 };
 
 // `meeting` is null for what isn't a meeting of the owner's: cancelled, declined, or a
@@ -42,6 +43,7 @@ const rawEvent = z.object({
   location: z.string().optional(),
   htmlLink: z.string().optional(),
   hangoutLink: z.string().optional(),
+  organizer: z.object({ self: z.boolean().optional() }).optional(),
   conferenceData: z
     .object({
       entryPoints: z
@@ -157,6 +159,7 @@ export function parseEvent(raw: unknown): ListedEvent | null {
       htmlLink: calendarUrl(event.htmlLink),
       timezone: cut(event.start?.timeZone, 100),
       attendees,
+      organizedByOwner: event.organizer?.self === true,
       ...time,
     },
   };
@@ -210,8 +213,8 @@ export type NewEvent = {
   addMeet: boolean;
 };
 
-async function getEvent(accessToken: string, id: string): Promise<ListedEvent> {
-  const response = await fetch(`${EVENTS_URL}/${id}`, {
+export async function getEvent(accessToken: string, id: string): Promise<ListedEvent> {
+  const response = await fetch(`${EVENTS_URL}/${encodeURIComponent(id)}`, {
     headers: { authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(10_000),
     redirect: "error",
@@ -265,4 +268,18 @@ export async function insertEvent(
     created: true,
     event: parseEvent(await response.json()) ?? { externalId: id, meeting: null },
   };
+}
+
+// Gone already counts as done: a second press, or a cancel made in Google meanwhile.
+export async function deleteEvent(accessToken: string, id: string, emailGuests: boolean) {
+  const url = new URL(`${EVENTS_URL}/${encodeURIComponent(id)}`);
+  url.searchParams.set("sendUpdates", emailGuests ? "all" : "none");
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(10_000),
+    redirect: "error",
+  });
+  if (response.ok || response.status === 404 || response.status === 410) return;
+  throw new GoogleApiError(response.status);
 }
