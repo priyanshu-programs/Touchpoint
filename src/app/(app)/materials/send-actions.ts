@@ -7,6 +7,7 @@ import { timelineOf } from "@/app/(app)/activities/timeline-href";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
 import { readFields, readOrigin } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
+import { outsidersMessage } from "@/modules/contacts/at-company";
 import { sendInput, sendStatus } from "@/modules/materials/schema";
 import { logSend, removeSend, setSendStatus } from "@/modules/materials/service";
 import { SEND_REFUSALS } from "./labels";
@@ -54,7 +55,13 @@ export async function logSendAction(
   if (!parsed.success) return invalid(parsed.error, values);
 
   const result = await logSend(owner.id, parsed.data);
-  if (!result.ok) return { ok: false, message: SEND_REFUSALS[result.reason], values };
+  if (!result.ok) {
+    const message =
+      result.reason === "not_at_company"
+        ? outsidersMessage(result.outsiders)
+        : SEND_REFUSALS[result.reason];
+    return { ok: false, message, values };
+  }
 
   refresh();
   redirect(timelineOf(parsed.data, origin));

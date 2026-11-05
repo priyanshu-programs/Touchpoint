@@ -87,14 +87,14 @@ describe("sends", () => {
     return result.id;
   }
 
-  async function createPerson(firstName: string, owner = ownerId) {
+  async function createPerson(firstName: string, owner = ownerId, organizationId = "") {
     const result = await createContact(
       owner,
       newContactInput.parse({
         firstName,
         lastName: "",
         email: "",
-        organizationId: "",
+        organizationId,
         jobTitle: "",
         department: "",
         phoneE164: "",
@@ -143,9 +143,9 @@ describe("sends", () => {
     if (!created.ok) throw new Error(created.reason);
     materialId = created.id;
     v1 = await addVersion("v1");
-    priya = await createPerson("Priya");
-    arjun = await createPerson("Arjun");
     acme = await createOrg();
+    priya = await createPerson("Priya", ownerId, acme);
+    arjun = await createPerson("Arjun", ownerId, acme);
   });
 
   it("shows on each person's and the company's timeline, in the owner's time zone", async () => {
@@ -200,6 +200,33 @@ describe("sends", () => {
       refused("unknown_organization"),
     );
     expect(await db.$count(materialSends)).toBe(0);
+  });
+
+  it("goes from a company only to its own people, and to anyone without one", async () => {
+    const kiran = await createPerson("Kiran");
+    const meera = await createPerson("Meera");
+
+    expect(
+      await logSend(
+        ownerId,
+        sendInput.parse({ ...form, versionId: v1, contactIds: [priya, meera, kiran], organizationId: acme }),
+      ),
+    ).toEqual({
+      ok: false,
+      reason: "not_at_company",
+      outsiders: {
+        company: "Acme Design",
+        people: [
+          { id: kiran, name: "Kiran" },
+          { id: meera, name: "Meera" },
+        ],
+      },
+    });
+    expect(await db.$count(materialSends)).toBe(0);
+
+    await send({ contactIds: [priya, arjun], organizationId: acme });
+    await send({ contactIds: [kiran] });
+    expect(await db.$count(materialSends)).toBe(2);
   });
 
   it("marks the older version a person had as superseded when a newer one goes to them", async () => {

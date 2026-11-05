@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { activities, tasks } from "@/db/schema";
 import { listAudit } from "@/modules/audit/service";
 import { newContactInput } from "@/modules/contacts/schema";
-import { createContact } from "@/modules/contacts/service";
+import { createContact, removeContactCompany } from "@/modules/contacts/service";
 import { organizationInput } from "@/modules/organizations/schema";
 import { createOrganization } from "@/modules/organizations/service";
 import { saveSettings } from "@/modules/settings/service";
@@ -76,11 +76,11 @@ describe("activities", () => {
     });
   });
 
-  async function createOrg(owner = ownerId) {
+  async function createOrg(owner = ownerId, name = "Acme Design") {
     const result = await createOrganization(
       owner,
       organizationInput.parse({
-        name: "Acme Design",
+        name,
         domain: "",
         website: "",
         phone: "",
@@ -98,14 +98,14 @@ describe("activities", () => {
     return result.id;
   }
 
-  async function createPerson(firstName: string, owner = ownerId) {
+  async function createPerson(firstName: string, owner = ownerId, organizationId = "") {
     const result = await createContact(
       owner,
       newContactInput.parse({
         firstName,
         lastName: "",
         email: "",
-        organizationId: "",
+        organizationId,
         jobTitle: "",
         department: "",
         phoneE164: "",
@@ -144,8 +144,8 @@ describe("activities", () => {
   });
 
   it("creates the follow-up task with the activity", async () => {
-    const contactId = await createPerson("Priya");
     const organizationId = await createOrg();
+    const contactId = await createPerson("Priya", ownerId, organizationId);
     const { followUpTaskId } = await log({
       contactIds: [contactId],
       organizationId,
@@ -198,11 +198,40 @@ describe("activities", () => {
     expect(await db.select().from(tasks)).toHaveLength(0);
   });
 
+  it("is with a company's own people only, and keeps on an edit someone who has since left", async () => {
+    const acme = await createOrg();
+    const priya = await createPerson("Priya", ownerId, acme);
+    const kiran = await createPerson("Kiran");
+    const notAtAcme = {
+      ok: false,
+      reason: "not_at_company",
+      outsiders: { company: "Acme Design", people: [{ id: kiran, name: "Kiran" }] },
+    };
+
+    expect(
+      await logActivity(ownerId, input({ contactIds: [priya, kiran], organizationId: acme })),
+    ).toEqual(notAtAcme);
+    expect(await db.select().from(activities)).toHaveLength(0);
+    expect((await log({ contactIds: [kiran] })).ok).toBe(true);
+
+    const { id } = await log({ contactIds: [priya], organizationId: acme });
+    expect(await removeContactCompany(ownerId, priya, acme)).toBe(true);
+    const edit = (contactIds: string[], organizationId = acme) =>
+      updateActivity(
+        ownerId,
+        id,
+        activityInput.parse({ ...editForm, title: "Renamed", contactIds, organizationId }),
+      );
+    expect(await edit([priya])).toMatchObject({ ok: true });
+    expect(await edit([priya, kiran])).toEqual(notAtAcme);
+    expect(await edit([priya], await createOrg(ownerId, "Northwind Labs"))).toMatchObject({ reason: "not_at_company" });
+  });
+
   it("shows an activity once on each linked record's timeline", async () => {
-    const priya = await createPerson("Priya");
-    const arjun = await createPerson("Arjun");
-    const bystander = await createPerson("Meera");
     const organizationId = await createOrg();
+    const priya = await createPerson("Priya", ownerId, organizationId);
+    const arjun = await createPerson("Arjun", ownerId, organizationId);
+    const bystander = await createPerson("Meera");
     const { id } = await log({
       kind: "meeting",
       direction: "",

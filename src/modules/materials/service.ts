@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { fromLocalInput } from "@/lib/time";
 import { audit } from "@/modules/audit/service";
+import { outsiders, type Outsiders } from "@/modules/contacts/at-company";
 import { dropUnusedFiles, storeFile } from "@/modules/files/service";
 import { fileType } from "@/modules/files/sniff";
 import { ownerTimezone } from "@/modules/settings/service";
@@ -458,7 +459,8 @@ export type SendResult =
   | {
       ok: false;
       reason: "unknown_version" | "unknown_contact" | "unknown_organization" | "rate";
-    };
+    }
+  | { ok: false; reason: "not_at_company"; outsiders: Outsiders };
 
 async function unknownRecipient(tx: Tx, ownerId: string, input: SendInput) {
   const found = await tx.$count(
@@ -500,6 +502,10 @@ export async function logSend(ownerId: string, input: SendInput): Promise<SendRe
     }
     const problem = await unknownRecipient(tx, ownerId, input);
     if (problem) return { ok: false, reason: problem };
+    const away =
+      input.organizationId &&
+      (await outsiders(tx, ownerId, input.organizationId, input.contactIds));
+    if (away) return { ok: false, reason: "not_at_company", outsiders: away };
 
     const recent = await tx.$count(
       materialSends,

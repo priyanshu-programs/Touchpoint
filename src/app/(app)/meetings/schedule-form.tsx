@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useCallback, useEffect, useState } from "react";
 import type { RecordFormState } from "@/app/(app)/form-state";
 import { ButtonLink } from "@/components/button-link";
 import { TextareaField, TextField } from "@/components/fields";
@@ -43,6 +43,7 @@ export function ScheduleForm({
   timezone,
   from,
   inside,
+  company,
   cancelHref,
 }: {
   initial: Record<string, string>;
@@ -50,9 +51,13 @@ export function ScheduleForm({
   from?: "contact" | "organization";
   // The company whose panel this was opened in: its own, or the one a person is shown inside.
   inside?: string;
+  // Scheduled from a company's own panel, the meeting is with its people only.
+  company?: { id: string; name: string };
   cancelHref: string;
 }) {
   const [state, formAction, pending] = useActionState(scheduleMeetingAction, null);
+  const at = company?.id;
+  const search = useCallback((query: string) => searchContactsAction(query, at), [at]);
   // Which answer "Go back" was pressed on, so the next answer asks again.
   const [wentBackFrom, setWentBackFrom] = useState<RecordFormState>(null);
   const values = state?.values ?? initial;
@@ -117,8 +122,14 @@ export function ScheduleForm({
           name="contacts"
           noun="contact"
           initial={JSON.parse(values.contacts) as PickerOption[]}
-          search={searchContactsAction}
+          search={search}
+          empty={company ? `Nobody at ${company.name} matches.` : undefined}
         />
+        {company && (
+          <p className="-mt-2 text-sm text-muted-foreground">
+            Only people at {company.name} are listed.
+          </p>
+        )}
         <TextField
           name="location"
           label="Location"

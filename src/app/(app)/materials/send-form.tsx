@@ -3,14 +3,9 @@
 import { useActionState, useState } from "react";
 import { SelectField, TextareaField, TextField } from "@/components/fields";
 import { FormButtons, FormOutcome } from "@/components/form-outcome";
-import {
-  RecordPicker,
-  RecordsPicker,
-  type PickerOption,
-} from "@/components/record-picker";
+import type { PickerOption } from "@/components/record-picker";
 import type { Sendable } from "@/modules/materials/queries";
-import { searchContactsAction } from "../people/contacts/actions";
-import { searchOrganizationsAction } from "../people/organizations/actions";
+import { PeopleAtCompany } from "../people/contacts/people-at-company";
 import { sendChannelOptions } from "./labels";
 import { logSendAction } from "./send-actions";
 
@@ -65,26 +60,14 @@ export function SendForm({
           defaultValue={values.channel}
         />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <RecordsPicker
-          name="contacts"
-          noun="contact"
-          initial={JSON.parse(values.contacts) as PickerOption[]}
-          search={searchContactsAction}
-        />
-        <RecordPicker
-          name="organizationId"
-          labelName="organizationName"
-          noun="company"
-          plural="companies"
-          initial={
-            values.organizationId
-              ? { id: values.organizationId, label: values.organizationName }
-              : null
-          }
-          search={searchOrganizationsAction}
-        />
-      </div>
+      <PeopleAtCompany
+        contacts={JSON.parse(values.contacts) as PickerOption[]}
+        organization={
+          values.organizationId
+            ? { id: values.organizationId, label: values.organizationName }
+            : null
+        }
+      />
       <TextareaField name="note" label="Note" maxLength={2000} defaultValue={values.note} />
       <p className="text-sm text-muted-foreground">
         Dates and times are in your time zone, {timezone}. Sending a newer version to

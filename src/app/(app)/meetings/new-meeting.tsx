@@ -90,6 +90,7 @@ export async function NewMeeting({
         timezone={timezone}
         from={contact ? "contact" : organization ? "organization" : undefined}
         inside={inside ?? (contact ? undefined : organization?.id)}
+        company={contact ? undefined : (organization ?? undefined)}
         cancelHref={cancelHref}
       />
     </div>

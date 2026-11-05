@@ -1376,3 +1376,14 @@
 - [2026-11-05] Data export: `removed_calendar_events` is exported with the calendar copies, so the export test's every-table check passes
 - [2026-11-05] Privacy page: says a deleted past meeting's Google id is kept so the sync leaves it out, through a disconnect, until another account connects or the client is removed (review)
 - [2026-11-05] Schedule form: the panel's back arrow waits while Schedule is being sent, so a failed send can't bring back a stale confirmation (review)
+- [2026-11-05] contacts/at-company.ts: `outsiders` names the people not at a company, and `outsidersMessage` says so, for sends, activities and meetings
+- [2026-11-05] Log a send: the service refuses anyone not at the chosen company, naming them
+- [2026-11-05] Log activity: the service refuses anyone not at the chosen company; an edit keeps people who have since left it
+- [2026-11-05] Schedule meeting: from a company's panel, the check refuses guests not at that company before Google is asked
+- [2026-11-05] People search takes an optional company and lists only its people; `outsidersAction` says who isn't at a company
+- [2026-11-05] Send and activity forms: the people and company pickers are one component; another company takes off who isn't there, with a note
+- [2026-11-05] Schedule form: from a company, the people search lists only its people, with a line saying so
+- [2026-11-05] Vitest and e2e/16: refusals for people not at the company, the activity edit exception, and the form taking people off
+- [2026-11-05] security.md and plan.md: a send, activity or meeting about a company is with its own people only
+- [2026-11-06] Learning: a send, activity or meeting about a company is with its own people only, and why an activity edit keeps people who left
+- [2026-11-06] Learning: the materials last-change sort test fails locally when this PC's clock trails the database's

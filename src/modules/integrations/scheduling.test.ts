@@ -18,7 +18,7 @@ import {
 import { toLocalInput } from "@/lib/time";
 import { saveMeetingNotes } from "@/modules/activities/meeting-notes";
 import { newContactInput } from "@/modules/contacts/schema";
-import { createContact } from "@/modules/contacts/service";
+import { addContactCompany, createContact } from "@/modules/contacts/service";
 import { ownerTimezone } from "@/modules/settings/service";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import { syncCalendar } from "./calendar";
@@ -243,6 +243,43 @@ describe("scheduling a meeting", () => {
       expect(await refusal(form())).toBe(
         "Asha Rao has no email address, so Google can't invite them. Add one, or take them off.",
       );
+    });
+
+    it("from a company, is with its own people only", async () => {
+      const { organizationInput } = await import("@/modules/organizations/schema");
+      const { createOrganization } = await import("@/modules/organizations/service");
+      const created = await createOrganization(
+        ownerId,
+        organizationInput.parse({
+          name: "Maple Studio",
+          domain: "",
+          website: "",
+          phone: "",
+          email: "",
+          industry: "",
+          description: "",
+          city: "",
+          region: "",
+          country: "",
+          status: "prospect",
+          tags: "",
+        }),
+        { confirmSimilar: true },
+      );
+      if (!created.ok) throw new Error(created.reason);
+      const kiran = await person(ownerId, "Kiran", "kiran@elsewhere.test");
+      expect((await addContactCompany(ownerId, asha, created.id, { jobTitle: null })).ok).toBe(true);
+
+      expect(await checkMeeting(ownerId, form({ contactIds: [asha, kiran] }), created.id)).toEqual({
+        ok: false,
+        message: "Kiran Rao isn't at Maple Studio. Add them to the company first, or take them off.",
+      });
+      expect(await scheduleMeeting(ownerId, form({ contactIds: [kiran] }), created.id)).toMatchObject({
+        ok: false,
+      });
+      expect(google.insertEvent).not.toHaveBeenCalled();
+      expect((await checkMeeting(ownerId, form(), created.id)).ok).toBe(true);
+      expect((await checkMeeting(ownerId, form({ contactIds: [kiran] }))).ok).toBe(true);
     });
 
     it("refuses without the connection or the permission", async () => {

@@ -22,6 +22,7 @@ export function RecordSearchDialog({
   plural = `${noun}s`,
   search,
   exclude = [],
+  empty = "Nothing matches.",
   onSelect,
 }: {
   open: boolean;
@@ -30,6 +31,7 @@ export function RecordSearchDialog({
   plural?: string;
   search: Search;
   exclude?: string[];
+  empty?: string;
   onSelect: (option: PickerOption) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -64,7 +66,7 @@ export function RecordSearchDialog({
           placeholder={`Search ${plural}…`}
         />
         <CommandList>
-          {shown && <CommandEmpty>Nothing matches.</CommandEmpty>}
+          {shown && <CommandEmpty>{empty}</CommandEmpty>}
           {shown?.map((option) => (
             <CommandItem
               key={option.id}
@@ -154,19 +156,28 @@ export function RecordPicker({
 }
 
 // Chooses several records. They are submitted as one JSON field of ids and labels, so a
-// rejected form can show the choices again.
+// rejected form can show the choices again. With `value` and `onChange` the form holds
+// the choices, so it can take people off.
 export function RecordsPicker({
   name,
   noun,
   initial,
   search,
+  empty,
+  value,
+  onChange,
 }: {
   name: string;
   noun: string;
   initial: PickerOption[];
   search: Search;
+  empty?: string;
+  value?: PickerOption[];
+  onChange?: (options: PickerOption[]) => void;
 }) {
-  const [selected, setSelected] = useState(initial);
+  const [own, setOwn] = useState(initial);
+  const selected = value ?? own;
+  const setSelected = onChange ?? setOwn;
   const [open, setOpen] = useState(false);
 
   return (
@@ -215,6 +226,7 @@ export function RecordsPicker({
         onOpenChange={setOpen}
         noun={noun}
         search={search}
+        empty={empty}
         exclude={selected.map((option) => option.id)}
         onSelect={(option) => setSelected([...selected, option])}
       />
