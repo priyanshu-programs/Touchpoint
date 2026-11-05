@@ -1374,3 +1374,5 @@
 - [2026-11-05] Vitest and e2e/33: deleting a past meeting, its notes and files, a full re-sync leaving it out, a press on the card body, and the three ways back from the confirmation
 - [2026-11-05] security.md and plan.md: deleting a meeting that has ended, in Touchpoint only
 - [2026-11-05] Data export: `removed_calendar_events` is exported with the calendar copies, so the export test's every-table check passes
+- [2026-11-05] Privacy page: says a deleted past meeting's Google id is kept so the sync leaves it out, through a disconnect, until another account connects or the client is removed (review)
+- [2026-11-05] Schedule form: the panel's back arrow waits while Schedule is being sent, so a failed send can't bring back a stale confirmation (review)

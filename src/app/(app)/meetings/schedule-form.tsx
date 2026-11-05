@@ -35,6 +35,8 @@ function Box({
 }
 
 const goBack = () => window.history.back();
+// While Schedule is being sent, its answer decides what shows next, so the arrow waits.
+const stay = () => {};
 
 export function ScheduleForm({
   initial,
@@ -68,7 +70,7 @@ export function ScheduleForm({
     window.addEventListener("popstate", back);
     return () => window.removeEventListener("popstate", back);
   }, [confirming, state]);
-  usePanelBack(confirming ? goBack : null);
+  usePanelBack(confirming ? (pending ? stay : goBack) : null);
 
   if (state?.ok) {
     return (
