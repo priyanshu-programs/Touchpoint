@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import {
+  activities,
   auditLog,
   calendarEventContacts,
   calendarEvents,
@@ -15,6 +16,7 @@ import {
   GrantRevokedError,
 } from "@/integrations/google/oauth";
 import { toLocalInput } from "@/lib/time";
+import { saveMeetingNotes } from "@/modules/activities/meeting-notes";
 import { newContactInput } from "@/modules/contacts/schema";
 import { createContact } from "@/modules/contacts/service";
 import { ownerTimezone } from "@/modules/settings/service";
@@ -22,8 +24,10 @@ import { createTestOwner, resetDatabase } from "@/test/owner";
 import { syncCalendar } from "./calendar";
 import { meetingInput, MEETINGS_PER_HOUR } from "./schema";
 import {
+  cancelMeeting,
   checkMeeting,
   firstInvitee,
+  isCancellable,
   meetingSummary,
   scheduleMeeting,
   schedulingState,
@@ -35,7 +39,12 @@ import {
   startGoogleConnect,
 } from "./service";
 
-const google = vi.hoisted(() => ({ insertEvent: vi.fn(), listEvents: vi.fn() }));
+const google = vi.hoisted(() => ({
+  insertEvent: vi.fn(),
+  listEvents: vi.fn(),
+  getEvent: vi.fn(),
+  deleteEvent: vi.fn(),
+}));
 vi.mock("@/integrations/google/calendar", async (actual) => ({
   ...(await actual<typeof import("@/integrations/google/calendar")>()),
   ...google,
@@ -110,6 +119,7 @@ const madeAtGoogle = (email: string, overrides = {}): ListedEvent => ({
     endsOn: null,
     timezone: "UTC",
     attendees: [{ email, name: "Asha Rao", response: "needsAction" }],
+    organizedByOwner: true,
     ...overrides,
   },
 });
@@ -504,5 +514,147 @@ describe("the meeting form's own rules", () => {
     expect(meetingInput.safeParse({ ...valid, calendar: "other" }).success).toBe(false);
     expect(meetingInput.safeParse({ ...valid, emailGuests: "maybe" }).success).toBe(false);
     expect(meetingInput.safeParse({ ...valid, key: "1" }).success).toBe(false);
+  });
+});
+
+describe("cancelling a meeting", () => {
+  let ownerId: string;
+  let meetingId: string;
+
+  const copies = () => db.select().from(calendarEvents).where(eq(calendarEvents.ownerId, ownerId));
+  const cancelAudits = () =>
+    db.select().from(auditLog).where(eq(auditLog.action, "meeting.cancel"));
+  const cancel = (emailGuests = true) => cancelMeeting(ownerId, { eventId: meetingId, emailGuests });
+  const refusal = async () => {
+    const result = await cancel();
+    return result.ok ? null : result.message;
+  };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    google.getEvent.mockReset();
+    google.deleteEvent.mockReset();
+    await resetDatabase();
+    ownerId = await createTestOwner();
+    const timezone = await ownerTimezone(db, ownerId);
+    const asha = await person(ownerId, "Asha", "asha@maple.test");
+    await connect(ownerId);
+    google.insertEvent.mockResolvedValueOnce({
+      created: true,
+      event: madeAtGoogle("asha@maple.test"),
+    });
+    const starts = Date.now() + DAY;
+    const made = await scheduleMeeting(
+      ownerId,
+      meetingInput.parse({
+        key: KEY,
+        title: "Intro call",
+        startsAt: toLocalInput(new Date(starts), timezone),
+        endsAt: toLocalInput(new Date(starts + HOUR / 2), timezone),
+        location: "",
+        notes: "",
+        contactIds: [asha],
+        emailGuests: "yes",
+        addMeet: "yes",
+      }),
+    );
+    if (!made.ok || !made.meetingId) throw new Error("not scheduled");
+    meetingId = made.meetingId;
+    google.getEvent.mockResolvedValue(madeAtGoogle("asha@maple.test"));
+    google.deleteEvent.mockResolvedValue(undefined);
+  });
+
+  it("deletes it at Google, emailing guests as the box says, and audits it", async () => {
+    expect(await cancel(false)).toEqual({ ok: true });
+    expect(google.getEvent).toHaveBeenCalledWith("ya29.access", EXTERNAL);
+    expect(google.deleteEvent).toHaveBeenCalledWith("ya29.access", EXTERNAL, false);
+    expect(await copies()).toEqual([]);
+    const [row] = await cancelAudits();
+    expect(row.after).toMatchObject({
+      externalId: EXTERNAL,
+      title: "Intro call",
+      guests: ["asha@maple.test"],
+      emailGuests: false,
+    });
+  });
+
+  it("counts a meeting already gone at Google as cancelled", async () => {
+    google.getEvent.mockRejectedValueOnce(new GoogleApiError(410));
+    expect(await cancel()).toEqual({ ok: true });
+    expect(google.deleteEvent).not.toHaveBeenCalled();
+    expect(await copies()).toEqual([]);
+  });
+
+  it("keeps the notes written inside it, on their activity", async () => {
+    await saveMeetingNotes(ownerId, { eventId: meetingId, body: "Agreed the scope", marks: [] });
+    await cancel();
+    const [kept] = await db.select().from(activities).where(eq(activities.ownerId, ownerId));
+    expect(kept).toMatchObject({ body: "Agreed the scope", calendarEventId: null });
+  });
+
+  it("refuses a meeting someone else organized, here or at Google, and deletes nothing", async () => {
+    google.getEvent.mockResolvedValueOnce(
+      madeAtGoogle("asha@maple.test", { organizedByOwner: false }),
+    );
+    expect(await refusal()).toContain("only its organizer can cancel it");
+
+    await db.update(calendarEvents).set({ organizedByOwner: false });
+    expect(await refusal()).toBe(
+      "Only a meeting you organized that hasn't started can be cancelled here.",
+    );
+    expect(google.deleteEvent).not.toHaveBeenCalled();
+    expect(await copies()).toHaveLength(1);
+  });
+
+  it("refuses one that has started, or isn't the owner's", async () => {
+    await db.update(calendarEvents).set({ startsAt: new Date(Date.now() - HOUR) });
+    expect(await refusal()).toBe(
+      "Only a meeting you organized that hasn't started can be cancelled here.",
+    );
+    const other = await createTestOwner("other@example.com");
+    await connect(other);
+    const theirs = await cancelMeeting(other, { eventId: meetingId, emailGuests: true });
+    expect(theirs.ok).toBe(false);
+    expect(google.getEvent).not.toHaveBeenCalled();
+  });
+
+  it("refuses without the permission, and past the hourly limit", async () => {
+    await db.insert(auditLog).values(
+      Array.from({ length: MEETINGS_PER_HOUR }, () => ({
+        ownerId,
+        actor: "user",
+        action: "meeting.cancel",
+        entityType: "calendar_event",
+      })),
+    );
+    expect(await refusal()).toContain(`at most ${MEETINGS_PER_HOUR} meetings an hour`);
+
+    await db
+      .update(integrationConnections)
+      .set({ scopes: [CALENDAR_READ] })
+      .where(eq(integrationConnections.ownerId, ownerId));
+    expect(await refusal()).toBe("Allow scheduling in Settings first.");
+  });
+
+  it("keeps the meeting and says so when Google refuses or doesn't answer", async () => {
+    google.deleteEvent.mockRejectedValueOnce(new GoogleApiError(400));
+    expect(await refusal()).toBe("Google refused to cancel this meeting, so it still stands.");
+    google.deleteEvent.mockRejectedValueOnce(new GoogleApiError(503));
+    expect(await refusal()).toContain("can't say whether the meeting was cancelled");
+    expect(await copies()).toHaveLength(1);
+    expect(await cancelAudits()).toEqual([]);
+  });
+
+  it("offers the button only on the owner's own meetings still to come", () => {
+    const later = new Date(Date.now() + HOUR);
+    const timed = { organizedByOwner: true, allDay: false, startsAt: later, startsOn: null };
+    expect(isCancellable(timed, "2030-01-01")).toBe(true);
+    expect(isCancellable({ ...timed, organizedByOwner: false }, "2030-01-01")).toBe(false);
+    expect(isCancellable({ ...timed, startsAt: new Date(Date.now() - HOUR) }, "2030-01-01")).toBe(
+      false,
+    );
+    const allDay = { organizedByOwner: true, allDay: true, startsAt: null, startsOn: "2030-01-02" };
+    expect(isCancellable(allDay, "2030-01-01")).toBe(true);
+    expect(isCancellable(allDay, "2030-01-02")).toBe(false);
   });
 });

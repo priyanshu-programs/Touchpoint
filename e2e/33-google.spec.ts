@@ -393,6 +393,68 @@ for (const device of devices) {
       expect(await audited(lost)).toBe(1);
     });
 
+    test("a meeting the owner organized can be cancelled, and one they were invited to can't", async ({
+      page,
+    }) => {
+      const idOf = async (title: string) =>
+        (await pool.query(`select id from calendar_events where title = $1`, [title])).rows[0]
+          ?.id as string | undefined;
+      const deletes = (state: FakeState) =>
+        state.requests.filter((request) => request.method === "DELETE");
+      const confirm = (page: Page) => page.getByRole("alertdialog");
+      const plain = `${device.first} intro`;
+      const quiet = `${device.first} quiet`;
+
+      // From the person's panel, guests emailed.
+      const plainId = await idOf(plain);
+      await page.goto(`/people/contacts?contact=${contactId}&tab=activity&event=${plainId}`);
+      await panel(page).getByRole("button", { name: "Cancel meeting" }).click();
+      await expect(confirm(page).getByText(`Cancel ${plain}?`)).toBeVisible();
+      await expect(confirm(page).getByLabel("Email guests that it's cancelled")).toBeChecked();
+      expect(deletes(await fakeState())).toHaveLength(0);
+      expect(await fits(page)).toBe(true);
+
+      // "Keep meeting" changes nothing.
+      await confirm(page).getByRole("button", { name: "Keep meeting" }).click();
+      await expect(confirm(page)).toBeHidden();
+      expect(deletes(await fakeState())).toHaveLength(0);
+
+      await panel(page).getByRole("button", { name: "Cancel meeting" }).click();
+      await confirm(page).getByRole("button", { name: "Cancel meeting" }).click();
+      await expect(page).toHaveURL(new RegExp(`contact=${contactId}&tab=activity$`));
+      await expect(panel(page).getByText(plain)).toHaveCount(0);
+      const [first] = deletes(await fakeState());
+      expect(first.query.sendUpdates).toBe("all");
+      expect(await idOf(plain)).toBeUndefined();
+      expect(
+        await count(`from audit_log where action = 'meeting.cancel' and after->>'title' = $1`, [
+          plain,
+        ]),
+      ).toBe(1);
+      await page.goto("/");
+      await expect(meetingsCard(page).getByRole("link", { name: plain })).toHaveCount(0);
+
+      // From the company's panel, nobody emailed.
+      await page.goto(
+        `/people/organizations?company=${organizationId}&tab=activity&event=${await idOf(quiet)}`,
+      );
+      await panel(page).getByRole("button", { name: "Cancel meeting" }).click();
+      await confirm(page).getByLabel("Email guests that it's cancelled").uncheck();
+      await confirm(page).getByRole("button", { name: "Cancel meeting" }).click();
+      await expect(page).toHaveURL(new RegExp(`company=${organizationId}&tab=activity$`));
+      expect(deletes(await fakeState())[1].query.sendUpdates).toBe("none");
+      expect(await idOf(quiet)).toBeUndefined();
+
+      // Someone else's invitation, and a meeting already under way, offer no button.
+      const invited = `${device.first} added later`;
+      await page.goto(`/meetings/${await idOf(invited)}`);
+      await expect(page.getByRole("heading", { name: invited })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Cancel meeting" })).toHaveCount(0);
+      await page.goto(`/meetings/${await idOf(started)}`);
+      await expect(page.getByRole("heading", { name: started })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Cancel meeting" })).toHaveCount(0);
+    });
+
     test("a token revoked at Google pauses sync and nothing else", async ({ page, request }) => {
       const meetings = () => count(`from calendar_events`, []);
       const keptBefore = await meetings();

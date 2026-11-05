@@ -3,6 +3,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { addDays, formatDate, formatDateTime, formatTime } from "@/lib/time";
 import type { Meeting } from "@/modules/integrations/meetings";
 import { companyHref, contactHref } from "../people/labels";
+import { CancelMeeting } from "./cancel-meeting";
 import { MeetingNotes } from "./meeting-notes";
 
 // Google's end date is the day after an all-day meeting's last.
@@ -19,8 +20,17 @@ function meetingWhen(meeting: Meeting, timezone: string) {
 const external = { target: "_blank", rel: "noopener noreferrer" };
 
 // One meeting, in a record's panel or on its own page, with the notes and files the owner
-// keeps inside it. Google's text is a stranger's: plain only.
-export function MeetingDetails({ meeting, timezone }: { meeting: Meeting; timezone: string }) {
+// keeps inside it. Google's text is a stranger's: plain only. `cancel` is given only for a
+// meeting the owner organized that is still to come, with where to go back to after.
+export function MeetingDetails({
+  meeting,
+  timezone,
+  cancel,
+}: {
+  meeting: Meeting;
+  timezone: string;
+  cancel?: { from?: "contact" | "organization"; inside?: string; contactId?: string } | null;
+}) {
   return (
     <div className="grid gap-4 text-sm">
       <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[7rem_1fr]">
@@ -91,6 +101,14 @@ export function MeetingDetails({ meeting, timezone }: { meeting: Meeting; timezo
           >
             Open in Google Calendar
           </a>
+        )}
+        {cancel && (
+          <CancelMeeting
+            eventId={meeting.id}
+            title={meeting.title}
+            hasGuests={meeting.attendees.length > 0}
+            {...cancel}
+          />
         )}
       </div>
       <MeetingNotes key={meeting.id} eventId={meeting.id} notes={meeting.notes} />

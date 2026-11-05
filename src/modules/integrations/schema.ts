@@ -50,3 +50,10 @@ export const meetingInput = z.strictObject({
   addMeet: box,
 });
 export type MeetingInput = z.infer<typeof meetingInput>;
+
+export const cancelMeetingInput = z.strictObject({
+  eventId: z.uuid(),
+  // The person whose panel it was cancelled from, to go back to.
+  contactId: z.union([z.literal(""), z.uuid()]),
+  emailGuests: box,
+});

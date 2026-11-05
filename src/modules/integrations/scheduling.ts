@@ -2,12 +2,17 @@ import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   auditLog,
+  calendarEvents,
   contactEmails,
   contactOrganizations,
   contacts,
   integrationConnections,
 } from "@/db/schema";
-import { insertEvent, type NewEvent } from "@/integrations/google/calendar";
+import {
+  deleteEvent,
+  getEvent,
+  insertEvent,
+} from "@/integrations/google/calendar";
 import { CALENDAR_WRITE, GoogleApiError } from "@/integrations/google/oauth";
 import { logger } from "@/lib/logger";
 import { dateIn, formatDateTime, formatTime, fromLocalInput } from "@/lib/time";
@@ -28,11 +33,15 @@ import {
 } from "./service";
 
 const ACTION = "meeting.schedule";
+const CANCEL_ACTION = "meeting.cancel";
 // The confirmation is read before it is pressed, so a start in this very minute still counts.
 const START_GRACE_MS = 60_000;
 
 const NOT_ANSWERED =
   "Google didn't answer, so Touchpoint can't say whether the meeting was made. Check your calendar, or press Schedule again: it won't make a second one.";
+
+const CANCEL_NOT_ANSWERED =
+  "Google didn't answer, so Touchpoint can't say whether the meeting was cancelled. Check your calendar, or press Cancel meeting again.";
 
 export type SchedulingState = "off" | "needs_permission" | "ready";
 
@@ -165,25 +174,32 @@ export async function checkMeeting(ownerId: string, input: MeetingInput) {
   };
 }
 
-async function insertWithRetry(ownerId: string, event: NewEvent) {
+// As in a sync, Google can turn down a token it has just issued, so a 401 is tried once
+// more with a fresh one. A form's key keeps that second try from making a second meeting.
+async function withToken<T>(ownerId: string, call: (token: string) => Promise<T>) {
   try {
-    return await insertEvent(await googleAccessToken(ownerId), event);
+    return await call(await googleAccessToken(ownerId));
   } catch (error) {
     if (!(error instanceof GoogleApiError && error.status === 401)) throw error;
-    // As in a sync, Google can turn down a token it has just issued. The key keeps this
-    // second try from making a second meeting.
-    return insertEvent(await googleAccessToken(ownerId, { force: true }), event);
+    return call(await googleAccessToken(ownerId, { force: true }));
   }
 }
 
-function refusalFrom(ownerId: string, error: unknown): Refusal {
+function refusalFrom(
+  ownerId: string,
+  error: unknown,
+  doing: "make" | "cancel" = "make",
+): Refusal {
   if (error instanceof ConnectionUnavailableError) {
     return {
       ok: false,
       message: "Google no longer accepts this connection. Reconnect in Settings to go on.",
     };
   }
-  logger.error("meeting.schedule_failed", { ownerId, error });
+  logger.error(doing === "make" ? "meeting.schedule_failed" : "meeting.cancel_failed", {
+    ownerId,
+    error,
+  });
   if (error instanceof GoogleApiError && error.status === 401) {
     return { ok: false, message: ACCESS_NOT_ACCEPTED };
   }
@@ -191,13 +207,19 @@ function refusalFrom(ownerId: string, error: unknown): Refusal {
     return {
       ok: false,
       message:
-        "Google refused to make this meeting. Check Allow scheduling in Settings, and that the Google Calendar API is on.",
+        `Google refused to ${doing} this meeting. Check Allow scheduling in Settings, and that the Google Calendar API is on.`,
     };
   }
   if (error instanceof GoogleApiError && error.status < 500) {
-    return { ok: false, message: "Google refused to make this meeting, so nothing was added." };
+    return {
+      ok: false,
+      message:
+        doing === "make"
+          ? "Google refused to make this meeting, so nothing was added."
+          : "Google refused to cancel this meeting, so it still stands.",
+    };
   }
-  return { ok: false, message: NOT_ANSWERED };
+  return { ok: false, message: doing === "make" ? NOT_ANSWERED : CANCEL_NOT_ANSWERED };
 }
 
 export type ScheduleResult =
@@ -215,7 +237,7 @@ export async function scheduleMeeting(
 
   let answer;
   try {
-    answer = await insertWithRetry(ownerId, {
+    answer = await withToken(ownerId, (token) => insertEvent(token, {
       key: input.key,
       title: input.title,
       startsAt,
@@ -226,7 +248,7 @@ export async function scheduleMeeting(
       notes: input.notes || null,
       emailGuests: input.emailGuests,
       addMeet: input.addMeet,
-    });
+    }));
   } catch (error) {
     return refusalFrom(ownerId, error);
   }
@@ -273,4 +295,111 @@ export async function scheduleMeeting(
     message:
       "The meeting is on your Google Calendar, but Touchpoint couldn't keep its copy. It appears here after the next sync, if Google is still connected.",
   };
+}
+
+// Only a meeting the owner organized and that hasn't started: for one they were invited
+// to, Google's delete would quietly take it off their calendar and tell nobody.
+const cancellableNow = sql`(${calendarEvents.startsAt} > now() or ${calendarEvents.startsOn} > current_date)`;
+
+export function isCancellable(meeting: {
+  organizedByOwner: boolean;
+  allDay: boolean;
+  startsAt: Date | null;
+  startsOn: string | null;
+}, today: string) {
+  if (!meeting.organizedByOwner) return false;
+  return meeting.allDay ? meeting.startsOn! > today : meeting.startsAt!.getTime() > Date.now();
+}
+
+export type CancelResult = Refusal | { ok: true };
+
+export async function cancelMeeting(
+  ownerId: string,
+  input: { eventId: string; emailGuests: boolean },
+): Promise<CancelResult> {
+  const [connection] = await db
+    .select()
+    .from(integrationConnections)
+    .where(ownConnection(ownerId));
+  if (connection?.status !== "connected") {
+    return refuse("Connect Google Calendar in Settings first.");
+  }
+  if (!connection.scopes.includes(CALENDAR_WRITE)) {
+    return refuse("Allow scheduling in Settings first.");
+  }
+
+  const recent = await db.$count(
+    auditLog,
+    and(
+      eq(auditLog.ownerId, ownerId),
+      eq(auditLog.action, CANCEL_ACTION),
+      gt(auditLog.createdAt, sql`now() - interval '1 hour'`),
+    ),
+  );
+  if (recent >= MEETINGS_PER_HOUR) {
+    return refuse(`Touchpoint cancels at most ${MEETINGS_PER_HOUR} meetings an hour. Try again later.`);
+  }
+
+  const [meeting] = await db
+    .select()
+    .from(calendarEvents)
+    .where(
+      and(
+        eq(calendarEvents.ownerId, ownerId),
+        eq(calendarEvents.id, input.eventId),
+        eq(calendarEvents.connectionId, connection.id),
+        eq(calendarEvents.organizedByOwner, true),
+        cancellableNow,
+      ),
+    );
+  if (!meeting) {
+    return refuse("Only a meeting you organized that hasn't started can be cancelled here.");
+  }
+
+  try {
+    // The copy can be a day old: Google says who organizes it now.
+    const held = await withToken(ownerId, async (token) => {
+      try {
+        return (await getEvent(token, meeting.externalId)).meeting;
+      } catch (error) {
+        if (error instanceof GoogleApiError && (error.status === 404 || error.status === 410)) {
+          return null;
+        }
+        throw error;
+      }
+    });
+    if (held && !held.organizedByOwner) {
+      return refuse("You didn't organize this meeting, so only its organizer can cancel it. Decline it in Google Calendar.");
+    }
+    if (held) {
+      await withToken(ownerId, (token) =>
+        deleteEvent(token, meeting.externalId, input.emailGuests),
+      );
+    }
+  } catch (error) {
+    return refusalFrom(ownerId, error, "cancel");
+  }
+
+  await audit(db, {
+    ownerId,
+    actor: "user",
+    action: CANCEL_ACTION,
+    entityType: "calendar_event",
+    after: {
+      externalId: meeting.externalId,
+      title: meeting.title,
+      startsAt: meeting.startsAt,
+      startsOn: meeting.startsOn,
+      guests: meeting.attendees.map(({ email }) => email),
+      emailGuests: input.emailGuests,
+    },
+  });
+  // Notes and files written inside it stay, on their activity, as after a disconnect.
+  await db.transaction(async (tx) => {
+    if (!(await stillConnected(tx, connection))) return;
+    await tx
+      .delete(calendarEvents)
+      .where(and(eq(calendarEvents.ownerId, ownerId), eq(calendarEvents.id, meeting.id)));
+  });
+  return { ok: true };
 }

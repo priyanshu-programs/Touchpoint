@@ -2,7 +2,9 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { getActivity } from "@/modules/activities/queries";
+import { dateIn } from "@/lib/time";
 import { getMeeting } from "@/modules/integrations/meetings";
+import { isCancellable, schedulingState } from "@/modules/integrations/scheduling";
 import { getSettings } from "@/modules/settings/service";
 import { getTask } from "@/modules/tasks/queries";
 import { ActivityEditor } from "@/app/(app)/activities/activity-editor";
@@ -90,6 +92,10 @@ export async function EntryPanel({
   const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
   const from = contact ? "contact" : "organization";
   const inside = contact ? organization?.id : undefined;
+  const cancellable =
+    entry.kind === "meeting" &&
+    isCancellable(entry.meeting, dateIn(timezone)) &&
+    (await schedulingState(ownerId)) === "ready";
   const title =
     entry.kind === "send"
       ? "Log a send"
@@ -122,7 +128,19 @@ export async function EntryPanel({
 
       <div className="p-4">
         {entry.kind === "meeting" ? (
-          <MeetingDetails meeting={entry.meeting} timezone={timezone} />
+          <MeetingDetails
+            meeting={entry.meeting}
+            timezone={timezone}
+            cancel={
+              cancellable
+                ? {
+                    from,
+                    inside: contact ? inside : organization?.id,
+                    contactId: contact?.id,
+                  }
+                : null
+            }
+          />
         ) : entry.kind === "send" ? (
           <NewSend
             ownerId={ownerId}

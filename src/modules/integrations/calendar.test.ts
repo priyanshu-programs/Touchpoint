@@ -64,6 +64,7 @@ const event = (
     endsOn: null,
     timezone: null,
     attendees: [],
+    organizedByOwner: false,
     ...overrides,
   },
 });
@@ -186,8 +187,16 @@ describe("reading Google's answer", () => {
         endsOn: null,
         timezone: "Asia/Kolkata",
         attendees: [{ email: "ava@maple.test", name: "Ava", response: "tentative" }],
+        organizedByOwner: false,
       },
     });
+  });
+
+  it("knows a meeting the owner organized, and only from Google's own flag", () => {
+    expect(parseEvent({ ...raw, organizer: { self: true } })?.meeting?.organizedByOwner).toBe(true);
+    expect(
+      parseEvent({ ...raw, organizer: { email: "owner@gmail.test" } })?.meeting?.organizedByOwner,
+    ).toBe(false);
   });
 
   it("keeps an all-day event as dates", () => {

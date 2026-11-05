@@ -123,6 +123,8 @@ export const calendarEvents = pgTable(
     endsOn: date("ends_on"),
     timezone: text("timezone"),
     attendees: jsonb("attendees").$type<CalendarAttendee[]>().notNull(),
+    // Only a meeting the owner organized can be cancelled from Touchpoint.
+    organizedByOwner: boolean("organized_by_owner").notNull().default(false),
     organizationId: uuid("organization_id").references(() => organizations.id, {
       onDelete: "set null",
     }),
