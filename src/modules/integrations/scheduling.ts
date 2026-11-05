@@ -17,6 +17,7 @@ import { CALENDAR_WRITE, GoogleApiError } from "@/integrations/google/oauth";
 import { logger } from "@/lib/logger";
 import { dateIn, formatDateTime, formatTime, fromLocalInput } from "@/lib/time";
 import { audit } from "@/modules/audit/service";
+import { outsiders, outsidersMessage } from "@/modules/contacts/at-company";
 import { ownerTimezone } from "@/modules/settings/service";
 import {
   matchMeetings,
@@ -88,7 +89,8 @@ async function guestsOf(ownerId: string, contactIds: string[]) {
 type Refusal = { ok: false; message: string };
 const refuse = (message: string): Refusal => ({ ok: false, message });
 
-async function check(ownerId: string, input: MeetingInput) {
+// `atCompany` is the company the meeting is scheduled from, whose people alone it is with.
+async function check(ownerId: string, input: MeetingInput, atCompany: string | null) {
   const [connection] = await db
     .select()
     .from(integrationConnections)
@@ -134,6 +136,8 @@ async function check(ownerId: string, input: MeetingInput) {
     }
     guests.push({ email: guest.email, name: guest.name });
   }
+  const away = atCompany && (await outsiders(db, ownerId, atCompany, input.contactIds));
+  if (away) return refuse(outsidersMessage(away));
   return { ok: true, connection, timezone, startsAt, endsAt, guests } as const;
 }
 
@@ -162,8 +166,12 @@ export function meetingSummary(
   ].join(" ");
 }
 
-export async function checkMeeting(ownerId: string, input: MeetingInput) {
-  const checked = await check(ownerId, input);
+export async function checkMeeting(
+  ownerId: string,
+  input: MeetingInput,
+  atCompany: string | null = null,
+) {
+  const checked = await check(ownerId, input, atCompany);
   if (!checked.ok) return checked;
   return {
     ok: true as const,
@@ -230,8 +238,9 @@ export type ScheduleResult =
 export async function scheduleMeeting(
   ownerId: string,
   input: MeetingInput,
+  atCompany: string | null = null,
 ): Promise<ScheduleResult> {
-  const checked = await check(ownerId, input);
+  const checked = await check(ownerId, input, atCompany);
   if (!checked.ok) return checked;
   const { connection, guests, startsAt, endsAt, timezone } = checked;
 

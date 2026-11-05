@@ -6,7 +6,9 @@ import { after } from "next/server";
 import { z } from "zod";
 import type { FormState } from "@/app/(app)/settings/actions";
 import { readFields } from "@/lib/form";
+import { db } from "@/db/client";
 import { requireOwner } from "@/lib/session";
+import { outsiders } from "@/modules/contacts/at-company";
 import { getContact, listContacts } from "@/modules/contacts/queries";
 import {
   companyLinkInput,
@@ -425,15 +427,25 @@ export async function setPrimaryContactAction(formData: FormData) {
   revalidatePath("/people", "layout");
 }
 
-export async function searchContactsAction(query: string) {
+// With a company, only its people: a send, activity or meeting about it is with them.
+export async function searchContactsAction(query: string, organizationId?: string) {
   const owner = await requireOwner();
   const q = z.string().max(100).parse(query);
-  const { rows } = await listContacts(owner.id, { q, limit: 20 });
+  const at = z.uuid().optional().parse(organizationId);
+  const { rows } = await listContacts(owner.id, { q, organizationId: at, limit: 20 });
   return rows.map((row) => ({
     id: row.id,
     label: row.fullName,
     hint: row.companies.map((company) => company.name).join(", ") || null,
   }));
+}
+
+// When a form's company changes, who of the people picked is not at the new one.
+export async function outsidersAction(organizationId: string, contactIds: string[]) {
+  const owner = await requireOwner();
+  const at = z.uuid().parse(organizationId);
+  const ids = z.array(z.uuid()).max(20).parse(contactIds);
+  return outsiders(db, owner.id, at, ids);
 }
 
 export async function setContactArchivedAction(formData: FormData) {

@@ -168,6 +168,50 @@ test("a send with no one to go to is refused and keeps what was typed", async ({
   await expect(page).toHaveURL(new RegExp(`company=${ID}&tab=activity$`));
 });
 
+test("a send from a company goes only to its people, and another company takes off who isn't there", async ({
+  page,
+}) => {
+  await page.goto("/people/organizations");
+  await page.getByRole("button", { name: "New company" }).click();
+  const newCompany = page.getByRole("dialog", { name: "New company" });
+  await newCompany.getByLabel("Name", { exact: true }).fill("Elsewhere Works");
+  await newCompany.getByRole("button", { name: "Add company" }).click();
+  await expect(panel(page).getByRole("heading", { name: "Elsewhere Works" })).toBeVisible();
+  await companyTabs(page).getByRole("link", { name: "Contacts" }).click();
+  await panel(page).getByRole("button", { name: "Add contact" }).click();
+  const form = page.getByRole("form", { name: "Add contact" });
+  await form.getByLabel("First name").fill("Omar");
+  await form.getByLabel("Last name").fill("Outside");
+  await form.getByRole("button", { name: "Add contact" }).click();
+  await expect(panel(page).getByRole("link", { name: "Omar Outside" })).toBeVisible();
+
+  await page.goto(`${companyUrl}&tab=activity&send=new`);
+  await panel(page).getByRole("button", { name: "Add contact" }).click();
+  await page.getByPlaceholder("Search contacts…").fill("Omar Outside");
+  await expect(page.getByText("Nobody at Sendwell Studio matches.")).toBeVisible();
+  await page.getByPlaceholder("Search contacts…").fill("Tara Sender");
+  await page.getByRole("option", { name: /Tara Sender/ }).click();
+
+  await panel(page).getByRole("button", { name: /company: Sendwell Studio/ }).click();
+  await page.getByPlaceholder("Search companies…").fill("Elsewhere Works");
+  await page.getByRole("option", { name: /Elsewhere Works/ }).click();
+  await expect(
+    panel(page).getByText("Took off Tara Sender: not at Elsewhere Works."),
+  ).toBeVisible();
+  await expect(
+    panel(page).getByRole("button", { name: "Remove contact: Tara Sender" }),
+  ).toHaveCount(0);
+
+  // With no company, anyone can be picked again.
+  await panel(page).getByRole("button", { name: "Clear company" }).click();
+  await panel(page).getByRole("button", { name: "Add contact" }).click();
+  await page.getByPlaceholder("Search contacts…").fill("Omar Outside");
+  await page.getByRole("option", { name: /Omar Outside/ }).click();
+  await expect(
+    panel(page).getByRole("button", { name: "Remove contact: Omar Outside" }),
+  ).toBeVisible();
+});
+
 test("sending fits a phone", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(materialUrl);

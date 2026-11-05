@@ -16,6 +16,7 @@ import {
   updateActivity,
   type ActivityResult,
 } from "@/modules/activities/service";
+import { outsidersMessage } from "@/modules/contacts/at-company";
 import { timelineOf } from "./timeline-href";
 
 const FIELDS = [
@@ -44,9 +45,11 @@ function failure(
   return {
     ok: false,
     message:
-      result.reason === "unknown_contact"
-        ? "Choose contacts from the list."
-        : "Choose a company from the list.",
+      result.reason === "not_at_company"
+        ? outsidersMessage(result.outsiders)
+        : result.reason === "unknown_contact"
+          ? "Choose contacts from the list."
+          : "Choose a company from the list.",
     values,
   };
 }

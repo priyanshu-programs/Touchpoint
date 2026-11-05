@@ -81,19 +81,21 @@ export async function scheduleMeetingAction(
     contactIds: contacts.data.map(({ id }) => id),
   });
   if (!parsed.success) return invalid(parsed.error, values);
+  // Asked for from a company's own panel, a meeting is with that company's people.
+  const atCompany = (origin.from === "organization" && origin.inside) || null;
 
   if (formData.get("confirmed") !== "yes") {
-    const checked = await checkMeeting(owner.id, parsed.data);
+    const checked = await checkMeeting(owner.id, parsed.data, atCompany);
     return checked.ok
       ? { ok: false, message: "", values, confirm: checked.summary }
       : { ok: false, message: checked.message, values };
   }
 
-  const result = await scheduleMeeting(owner.id, parsed.data);
+  const result = await scheduleMeeting(owner.id, parsed.data, atCompany);
   if (!result.ok) {
     // Stays on the confirmation while it can still go through, so "press Schedule again" is
     // there to press, with the same details that may already have reached Google.
-    const again = await checkMeeting(owner.id, parsed.data);
+    const again = await checkMeeting(owner.id, parsed.data, atCompany);
     return {
       ok: false,
       message: result.message,

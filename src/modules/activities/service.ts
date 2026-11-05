@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import { fromLocalInput } from "@/lib/time";
 import { audit } from "@/modules/audit/service";
+import { outsiders, type Outsiders } from "@/modules/contacts/at-company";
 import { dropUnusedFiles } from "@/modules/files/service";
 import { ownerTimezone } from "@/modules/settings/service";
 import { insertTask } from "@/modules/tasks/service";
@@ -18,7 +19,8 @@ export type ActivityResult =
   | {
       ok: false;
       reason: "unknown_contact" | "unknown_organization" | "not_found";
-    };
+    }
+  | { ok: false; reason: "not_at_company"; outsiders: Outsiders };
 
 type ActivityRow = typeof activities.$inferSelect;
 
@@ -115,6 +117,10 @@ export async function logActivity(
   return db.transaction(async (tx) => {
     const problem = await unknownLink(tx, ownerId, input);
     if (problem) return { ok: false, reason: problem };
+    const away =
+      input.organizationId &&
+      (await outsiders(tx, ownerId, input.organizationId, input.contactIds));
+    if (away) return { ok: false, reason: "not_at_company", outsiders: away };
 
     const timezone = await ownerTimezone(tx, ownerId);
     const [row] = await tx
@@ -167,6 +173,15 @@ export async function updateActivity(
     if (problem) return { ok: false, reason: problem };
 
     const contactsBefore = await contactIdsOf(tx, ownerId, id);
+    // Someone who has since left the company stays on what was logged with them there.
+    const checked =
+      input.organizationId === before.organizationId
+        ? input.contactIds.filter((contactId) => !contactsBefore.includes(contactId))
+        : input.contactIds;
+    const away =
+      input.organizationId &&
+      (await outsiders(tx, ownerId, input.organizationId, checked));
+    if (away) return { ok: false, reason: "not_at_company", outsiders: away };
     const timezone = await ownerTimezone(tx, ownerId);
     const [row] = await tx
       .update(activities)
