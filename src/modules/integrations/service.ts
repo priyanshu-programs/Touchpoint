@@ -1,6 +1,11 @@
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { calendarEvents, integrationClients, integrationConnections } from "@/db/schema";
+import {
+  calendarEvents,
+  integrationClients,
+  integrationConnections,
+  removedCalendarEvents,
+} from "@/db/schema";
 import {
   CALENDAR_READ,
   CALENDAR_WRITE,
@@ -212,6 +217,7 @@ export async function completeGoogleConnect(
       .for("update");
     if (previous && previous.accountEmail !== email) {
       await tx.delete(calendarEvents).where(eq(calendarEvents.ownerId, ownerId));
+      await tx.delete(removedCalendarEvents).where(eq(removedCalendarEvents.ownerId, ownerId));
     }
     const values = {
       accountEmail: email,

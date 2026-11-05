@@ -146,6 +146,21 @@ export const calendarEvents = pgTable(
   ],
 );
 
+// A meeting the owner deleted from Touchpoint. It is still on Google Calendar, so the
+// sync would bring it back without this; it goes with the connection, as the copies do.
+export const removedCalendarEvents = pgTable(
+  "removed_calendar_events",
+  {
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => integrationConnections.id, { onDelete: "cascade" }),
+    externalId: text("external_id").notNull(),
+    ownerId: ownerId(),
+    createdAt,
+  },
+  (table) => [primaryKey({ columns: [table.connectionId, table.externalId] })],
+);
+
 export const calendarEventContacts = pgTable(
   "calendar_event_contacts",
   {

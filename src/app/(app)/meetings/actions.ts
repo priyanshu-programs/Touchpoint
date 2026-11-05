@@ -9,7 +9,12 @@ import { readFields, readOrigin } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import { removeMeetingFile, saveMeetingNotes } from "@/modules/activities/meeting-notes";
 import { meetingFileRef, meetingNotesInput } from "@/modules/activities/meeting-notes-schema";
-import { cancelMeetingInput, meetingInput } from "@/modules/integrations/schema";
+import { removeMeeting } from "@/modules/integrations/meetings";
+import {
+  cancelMeetingInput,
+  meetingInput,
+  removeMeetingInput,
+} from "@/modules/integrations/schema";
 import {
   cancelMeeting,
   checkMeeting,
@@ -143,4 +148,13 @@ export async function cancelMeetingAction(
     redirect(contactTabHref(contactId, "activity", origin.inside || undefined));
   }
   redirect("/tasks/calendar");
+}
+
+// Deletes a meeting that has ended from Touchpoint, with its notes and files. The card
+// it was pressed on goes, and the page stays where it is.
+export async function removeMeetingAction(formData: FormData) {
+  const owner = await requireOwner();
+  const { id } = removeMeetingInput.parse(readFields(formData, ["id"]));
+  if (!(await removeMeeting(owner.id, id))) notFound();
+  revalidatePath("/", "layout");
 }

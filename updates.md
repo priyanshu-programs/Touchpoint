@@ -1366,3 +1366,10 @@
 - [2026-11-05] Fake Google server: DELETE on an event, kept as cancelled so a sync reports it; e2e/33 cancels from a person's and a company's panel and checks invitations and started meetings offer no button
 - [2026-11-05] Vitest: cancelling deletes at Google and the copy, keeps the meeting's notes, refuses others' and started meetings, and keeps the copy when Google fails; `parseEvent` reads the organizer
 - [2026-11-05] security.md, plan.md and the Privacy page: Touchpoint may now remove an event, only by cancelling a meeting the owner organized that hasn't started
+- [2026-11-05] Migration 0043 (additive): `removed_calendar_events` keeps the Google id of a meeting deleted from Touchpoint, and `upsertMeetings` skips those ids so the sync can't bring it back; cleared when another Google account connects
+- [2026-11-05] meetings.ts: `removeMeeting` deletes a meeting that has ended, with the activity holding its notes and files (bytes freed), keeps its id and audits `meeting.remove`; `removeMeetingAction` takes it as a strict uuid
+- [2026-11-05] Activity tab: a Past meetings card has an × with a confirmation ("stays on your Google Calendar", and its notes and files are deleted too)
+- [2026-11-05] Activity tab cards: the title's link covers the whole card, so a press anywhere on it opens the entry; the buttons, faces and links on it stay pressable
+- [2026-11-05] Schedule meeting: the confirmation is a step in the browser's history, and the panel's back arrow returns to the form there, so going back keeps what was typed
+- [2026-11-05] Vitest and e2e/33: deleting a past meeting, its notes and files, a full re-sync leaving it out, a press on the card body, and the three ways back from the confirmation
+- [2026-11-05] security.md and plan.md: deleting a meeting that has ended, in Touchpoint only

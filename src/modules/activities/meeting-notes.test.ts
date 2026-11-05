@@ -10,12 +10,14 @@ import {
   calendarEvents,
   files,
   integrationConnections,
+  removedCalendarEvents,
 } from "@/db/schema";
 import { countRecordEvents, getActivity, listTimeline } from "@/modules/activities/queries";
 import { deleteActivity } from "@/modules/activities/service";
 import { newContactInput } from "@/modules/contacts/schema";
 import { createContact } from "@/modules/contacts/service";
-import { getMeeting, recordMeetings } from "@/modules/integrations/meetings";
+import { upsertMeetings } from "@/modules/integrations/calendar";
+import { getMeeting, recordMeetings, removeMeeting } from "@/modules/integrations/meetings";
 import { disconnectGoogle } from "@/modules/integrations/service";
 import { MAX_FILE_BYTES } from "@/modules/workflows/drawing";
 import { pdf } from "@/test/files";
@@ -234,6 +236,76 @@ describe("meeting notes", () => {
       const { id } = (await getMeeting(ownerId, eventId))!.notes!;
       await deleteActivity(ownerId, id);
       expect(await db.$count(files, and(eq(files.ownerId, ownerId)))).toBe(0);
+    });
+  });
+
+  describe("deleting the meeting", () => {
+    it("deletes a meeting that has ended with its notes and files, and audits it", async () => {
+      await saveMeetingNotes(ownerId, notes(eventId, "Agreed on scope"));
+      await addMeetingFile(ownerId, eventId, { name: "brief.pdf", bytes: pdf("brief") });
+
+      expect(await removeMeeting(ownerId, eventId)).toBe(true);
+      expect(await getMeeting(ownerId, eventId)).toBeNull();
+      expect(await db.$count(activities, eq(activities.ownerId, ownerId))).toBe(0);
+      expect(await db.$count(files, eq(files.ownerId, ownerId))).toBe(0);
+      const [entry] = await db
+        .select()
+        .from(auditLog)
+        .where(and(eq(auditLog.ownerId, ownerId), eq(auditLog.action, "meeting.remove")));
+      expect(entry).toMatchObject({
+        entityId: eventId,
+        before: { title: "Kickoff with Maple", notes: { body: "Agreed on scope" } },
+      });
+    });
+
+    it("keeps it deleted when the sync sends it again", async () => {
+      const [row] = await db.select().from(calendarEvents);
+      const [connection] = await db.select().from(integrationConnections);
+      await removeMeeting(ownerId, eventId);
+      expect(await db.$count(removedCalendarEvents)).toBe(1);
+
+      const { externalId } = row;
+      const meeting = {
+        title: row.title,
+        location: row.location,
+        meetingUrl: row.meetingUrl,
+        htmlLink: row.htmlLink,
+        allDay: row.allDay,
+        startsAt: row.startsAt,
+        endsAt: row.endsAt,
+        startsOn: row.startsOn,
+        endsOn: row.endsOn,
+        timezone: row.timezone,
+        attendees: row.attendees,
+        organizedByOwner: row.organizedByOwner,
+      };
+      const kept = await db.transaction((tx) =>
+        upsertMeetings(tx, connection, [
+          { externalId, meeting },
+          { externalId: crypto.randomUUID(), meeting: { ...meeting, title: "Follow-up" } },
+        ]),
+      );
+      expect(kept).toHaveLength(1);
+      expect((await db.select().from(calendarEvents)).map(({ title }) => title)).toEqual([
+        "Follow-up",
+      ]);
+    });
+
+    it("refuses a meeting still to come or under way, and one that isn't the owner's", async () => {
+      const upcoming = await meeting(ownerId, connectionId, 2);
+      const live = await meeting(ownerId, connectionId, -0.5);
+      expect(await removeMeeting(ownerId, upcoming)).toBe(false);
+      expect(await removeMeeting(ownerId, live)).toBe(false);
+      const other = await createTestOwner("other@example.com");
+      expect(await removeMeeting(other, eventId)).toBe(false);
+      expect(await db.$count(calendarEvents)).toBe(3);
+      expect(await db.$count(removedCalendarEvents)).toBe(0);
+    });
+
+    it("stays deleted through a disconnect, for when the same account connects again", async () => {
+      await removeMeeting(ownerId, eventId);
+      await disconnectGoogle(ownerId);
+      expect(await db.$count(removedCalendarEvents)).toBe(1);
     });
   });
 });

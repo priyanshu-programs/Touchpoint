@@ -10,6 +10,11 @@ const dayPart = (date: string, part: Intl.DateTimeFormatOptions) =>
     new Date(`${date}T00:00:00Z`),
   );
 
+// The title's link, stretched over the whole card so a press anywhere on it opens the
+// entry. Anything else pressable on the card sits above it.
+export const CARD_LINK =
+  "min-w-0 font-medium break-words underline-offset-4 outline-none after:absolute after:inset-0 after:rounded-xl after:content-[''] hover:underline focus-visible:after:ring-2 focus-visible:after:ring-ring sm:truncate";
+
 // One entry on a record's Activity tab: its day on the left, then when and where, then
 // what and who, and an optional action at the end.
 export function ActivityCard({
@@ -27,7 +32,7 @@ export function ActivityCard({
   action?: ReactNode;
 }) {
   return (
-    <article className="flex min-w-0 items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-xs sm:gap-5 sm:px-5">
+    <article className="relative flex min-w-0 items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-xs transition-colors hover:bg-accent/50 sm:gap-5 sm:px-5">
       {/* The theme's lime is too light for text on white, so light mode uses its darker green. */}
       <div className="flex w-12 shrink-0 flex-col items-center justify-center self-stretch border-r pr-4 text-center text-chart-bar sm:w-14 sm:pr-5 dark:text-primary">
         <span className="text-sm font-medium">{dayPart(day, { weekday: "short" })}</span>
@@ -47,7 +52,7 @@ export function ActivityCard({
           {below}
         </div>
       </div>
-      {action && <div className="flex shrink-0 items-center gap-1">{action}</div>}
+      {action && <div className="relative z-10 flex shrink-0 items-center gap-1">{action}</div>}
     </article>
   );
 }
@@ -101,7 +106,7 @@ export function People({
               href={href(person.id)}
               aria-label={person.name}
               title={person.name}
-              className="rounded-full hover:z-10 focus-visible:z-10"
+              className="relative z-10 rounded-full hover:z-20 focus-visible:z-20"
             >
               {face}
             </Link>

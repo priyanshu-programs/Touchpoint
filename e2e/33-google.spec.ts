@@ -455,6 +455,102 @@ for (const device of devices) {
       await expect(page.getByRole("button", { name: "Cancel meeting" })).toHaveCount(0);
     });
 
+    test("a meeting that has ended opens from anywhere on its card, and is deleted from it for good", async ({
+      page,
+    }) => {
+      const ended = `${device.first} wrap-up`;
+      const rows = () => count(`from calendar_events where title = $1`, [ended]);
+      const fullSync = async () => {
+        await pool.query(`update integration_connections set sync_cursor = null`);
+        await syncNow(page, /^Synced\./);
+      };
+      const confirm = page.getByRole("alertdialog");
+      await fake("events", {
+        events: [
+          timed("fakeended", ended, -3 * HOUR, {
+            attendees: [{ email, displayName: person, responseStatus: "accepted" }],
+          }),
+        ],
+      });
+      await fullSync();
+      expect(await rows()).toBe(1);
+
+      await page.goto(`/people/contacts?contact=${contactId}&tab=activity`);
+      const past = panel(page).getByRole("region", { name: "Past meetings" });
+      const card = past.locator("article").filter({ hasText: ended });
+      // Away from the title: the card's day.
+      await card.click({ position: { x: 24, y: 24 } });
+      await expect(panel(page).getByRole("heading", { name: ended })).toBeVisible();
+      await expect(page).toHaveURL(/&event=/);
+      await panel(page).getByRole("link", { name: /^Back to / }).click();
+
+      // Only a meeting that has ended has the button.
+      await expect(panel(page).getByRole("button", { name: /^Delete / })).toHaveCount(1);
+      await card.getByRole("button", { name: new RegExp(`^Delete ${ended} on `) }).click();
+      await expect(confirm.getByText(`Delete ${ended}?`)).toBeVisible();
+      await expect(confirm).toContainText("stays on your Google Calendar");
+      expect(await fits(page)).toBe(true);
+      await confirm.getByRole("button", { name: "Keep" }).click();
+      await expect(confirm).toBeHidden();
+      expect(await rows()).toBe(1);
+
+      await card.getByRole("button", { name: /^Delete / }).click();
+      await confirm.getByRole("button", { name: "Delete", exact: true }).click();
+      // While the dialog is open the panel is hidden from roles, so its closing comes first.
+      await expect(confirm).toBeHidden();
+      await expect(past.getByText(ended)).toHaveCount(0);
+      await expect.poll(rows).toBe(0);
+      expect(
+        await count(`from audit_log where action = 'meeting.remove' and before->>'title' = $1`, [
+          ended,
+        ]),
+      ).toBe(1);
+      expect((await fakeState()).events.some(({ id }) => id === "fakeended")).toBe(true);
+
+      // Google still has it, and a full read of the window leaves it out.
+      await fullSync();
+      expect(await rows()).toBe(0);
+      await page.goto(`/people/contacts?contact=${contactId}&tab=activity`);
+      await expect(panel(page).getByText(ended)).toHaveCount(0);
+    });
+
+    test("going back from the schedule confirmation returns to the form as it was typed", async ({
+      page,
+    }) => {
+      const draft = `${device.first} draft`;
+      const title = panel(page).getByLabel("Title");
+      const toConfirm = async () => {
+        await panel(page).getByRole("button", { name: "Continue" }).click();
+        await expect(panel(page).getByRole("status")).toContainText("Google will add");
+      };
+      const backArrow = panel(page).getByRole("link", { name: /^Back to / });
+
+      await page.goto(`/people/contacts?contact=${contactId}&tab=activity&schedule=new`);
+      await title.fill(draft);
+
+      // The panel's arrow.
+      await toConfirm();
+      await backArrow.click();
+      await expect(title).toHaveValue(draft);
+      await expect(page).toHaveURL(/schedule=new/);
+
+      // The browser's back.
+      await toConfirm();
+      await page.goBack();
+      await expect(title).toHaveValue(draft);
+      await expect(page).toHaveURL(/schedule=new/);
+
+      // Go back.
+      await toConfirm();
+      await panel(page).getByRole("button", { name: "Go back" }).click();
+      await expect(title).toHaveValue(draft);
+
+      expect(inserts(await fakeState()).filter(({ body }) => body?.summary === draft)).toHaveLength(0);
+      // On the form itself, the arrow leaves for the record.
+      await backArrow.click();
+      await expect(page).toHaveURL(new RegExp(`contact=${contactId}&tab=activity$`));
+    });
+
     test("a token revoked at Google pauses sync and nothing else", async ({ page, request }) => {
       const meetings = () => count(`from calendar_events`, []);
       const keptBefore = await meetings();
