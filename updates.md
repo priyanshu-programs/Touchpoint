@@ -1373,3 +1373,4 @@
 - [2026-11-05] Schedule meeting: the confirmation is a step in the browser's history, and the panel's back arrow returns to the form there, so going back keeps what was typed
 - [2026-11-05] Vitest and e2e/33: deleting a past meeting, its notes and files, a full re-sync leaving it out, a press on the card body, and the three ways back from the confirmation
 - [2026-11-05] security.md and plan.md: deleting a meeting that has ended, in Touchpoint only
+- [2026-11-05] Data export: `removed_calendar_events` is exported with the calendar copies, so the export test's every-table check passes
