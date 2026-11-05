@@ -7,9 +7,12 @@ import {
   calendarEvents,
   contacts,
   organizations,
+  removedCalendarEvents,
 } from "@/db/schema";
 import { addDays, fromLocalInput } from "@/lib/time";
+import { audit } from "@/modules/audit/service";
 import { photoVersion } from "@/modules/contacts/queries";
+import { dropUnusedFiles } from "@/modules/files/service";
 
 const MAX_LISTED = 20;
 
@@ -239,3 +242,47 @@ export async function recordMeetings(
   };
 }
 export type RecordMeeting = Awaited<ReturnType<typeof recordMeetings>>["rows"][number];
+
+// A meeting that has ended, deleted from Touchpoint with what was written inside it. Google
+// keeps it, so its id is kept to stop the sync bringing it back. False when it isn't the
+// owner's or hasn't ended.
+export async function removeMeeting(ownerId: string, id: string) {
+  return db.transaction(async (tx) => {
+    const [meeting] = await tx
+      .select()
+      .from(calendarEvents)
+      .where(and(eq(calendarEvents.ownerId, ownerId), eq(calendarEvents.id, id), WHEN.past))
+      .for("update");
+    if (!meeting) return false;
+
+    const [notes] = await tx
+      .delete(activities)
+      .where(and(eq(activities.ownerId, ownerId), eq(activities.calendarEventId, id)))
+      .returning({ id: activities.id, body: activities.body });
+    if (notes) await dropUnusedFiles(tx, ownerId);
+
+    await tx
+      .insert(removedCalendarEvents)
+      .values({ ownerId, connectionId: meeting.connectionId, externalId: meeting.externalId })
+      .onConflictDoNothing();
+    await tx
+      .delete(calendarEvents)
+      .where(and(eq(calendarEvents.ownerId, ownerId), eq(calendarEvents.id, id)));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "meeting.remove",
+      entityType: "calendar_event",
+      entityId: id,
+      before: {
+        externalId: meeting.externalId,
+        title: meeting.title,
+        startsAt: meeting.startsAt,
+        startsOn: meeting.startsOn,
+        guests: meeting.attendees.map(({ email }) => email),
+        notes: notes ? { activityId: notes.id, body: notes.body } : null,
+      },
+    });
+    return true;
+  });
+}

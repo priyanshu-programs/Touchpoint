@@ -47,6 +47,7 @@ export const EXPORTED_TABLES: readonly PgTable[] = [
   schema.paymentAllocations,
   schema.calendarEvents,
   schema.calendarEventContacts,
+  schema.removedCalendarEvents,
   schema.auditLog,
 ];
 

@@ -302,6 +302,13 @@
       "when": 1793881598890,
       "tag": "0042_meeting_organizer",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793888002953,
+      "tag": "0043_removed_meetings",
+      "breakpoints": true
     }
   ]
 }

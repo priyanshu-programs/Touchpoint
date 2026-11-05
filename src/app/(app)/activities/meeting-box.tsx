@@ -1,9 +1,10 @@
 import { Clock, MapPin, NotebookPen, Paperclip } from "lucide-react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
-import { dateIn, formatTime } from "@/lib/time";
+import { dateIn, formatDate, formatTime } from "@/lib/time";
 import type { RecordMeeting } from "@/modules/integrations/meetings";
-import { ActivityCard, DetailRow, People } from "./activity-card";
+import { ActivityCard, CARD_LINK, DetailRow, People } from "./activity-card";
+import { RemoveMeeting } from "./remove-meeting";
 
 // One meeting as a card. All of its text came from Google, so it is drawn as plain text.
 export function MeetingBox({
@@ -22,10 +23,11 @@ export function MeetingBox({
     ? "All day"
     : `${formatTime(meeting.startsAt!, timezone)} – ${formatTime(meeting.endsAt!, timezone)}`;
   const kept = meeting.hasNotes || meeting.fileCount > 0;
+  const day = meeting.allDay ? meeting.startsOn! : dateIn(timezone, meeting.startsAt!);
 
   return (
     <ActivityCard
-      day={meeting.allDay ? meeting.startsOn! : dateIn(timezone, meeting.startsAt!)}
+      day={day}
       details={
         <>
           <DetailRow icon={Clock}>{hours}</DetailRow>
@@ -44,11 +46,7 @@ export function MeetingBox({
               Live
             </span>
           )}
-          <Link
-            href={href}
-            scroll={false}
-            className="min-w-0 font-medium break-words underline-offset-4 hover:underline sm:truncate"
-          >
+          <Link href={href} scroll={false} className={CARD_LINK}>
             {meeting.title}
           </Link>
         </div>
@@ -77,16 +75,25 @@ export function MeetingBox({
         )
       }
       action={
-        when !== "past" &&
-        meeting.meetingUrl && (
-          <a
-            href={meeting.meetingUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={buttonVariants({ variant: when === "live" ? "default" : "outline", size: "sm" })}
-          >
-            Join
-          </a>
+        when === "past" ? (
+          <RemoveMeeting
+            id={meeting.id}
+            title={meeting.title}
+            label={`Delete ${meeting.title} on ${formatDate(day)}`}
+            hasNotes={meeting.hasNotes}
+            fileCount={meeting.fileCount}
+          />
+        ) : (
+          meeting.meetingUrl && (
+            <a
+              href={meeting.meetingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonVariants({ variant: when === "live" ? "default" : "outline", size: "sm" })}
+            >
+              Join
+            </a>
+          )
         )
       }
     />

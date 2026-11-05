@@ -55,7 +55,10 @@ export default function PrivacyPage() {
         of the people invited. It doesn&apos;t keep the event&apos;s description. Disconnecting
         in Settings, or connecting a different Google account, deletes that copy. After access
         is removed at Google, Touchpoint stops reading the calendar and the copy stays until
-        the owner disconnects in Settings.
+        the owner disconnects in Settings. When the owner deletes a past meeting from
+        Touchpoint, only Google&apos;s id for that event is kept, so the next sync doesn&apos;t
+        bring it back. Those ids stay after disconnecting, and go when a different Google
+        account is connected or the Google client is removed.
       </p>
       <p>
         Touchpoint&apos;s use and transfer of information received from Google APIs adheres to

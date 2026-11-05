@@ -57,3 +57,5 @@ export const cancelMeetingInput = z.strictObject({
   contactId: z.union([z.literal(""), z.uuid()]),
   emailGuests: box,
 });
+
+export const removeMeetingInput = z.strictObject({ id: z.uuid() });

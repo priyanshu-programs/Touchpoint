@@ -21,7 +21,7 @@ import { materialHref, sendStatusOptions } from "../materials/labels";
 import { removeSendAction, setSendStatusAction } from "../materials/send-actions";
 import { StatusMenu } from "../people/(lists)/status-menu";
 import { contactHref, labelFor } from "../people/labels";
-import { ActivityCard, DetailRow, People } from "./activity-card";
+import { ActivityCard, CARD_LINK, DetailRow, People } from "./activity-card";
 
 const ICONS = {
   call: Phone,
@@ -71,7 +71,7 @@ export function EntryBox({
         <Link
           href={send ? materialHref(send) : href(event.eventId)}
           scroll={Boolean(send)}
-          className="min-w-0 font-medium break-words underline-offset-4 hover:underline sm:truncate"
+          className={CARD_LINK}
         >
           {event.title}
         </Link>
@@ -81,7 +81,7 @@ export function EntryBox({
           <div className="flex min-w-0 items-center gap-3">
             <People people={event.contacts} href={contactHref} />
             {preview.length > 0 && (
-              <p className="line-clamp-1 min-w-0 text-sm break-words text-muted-foreground">
+              <p className="line-clamp-1 min-w-0 text-sm break-words text-muted-foreground [&_a]:relative [&_a]:z-10">
                 {preview.map((text, index) => (
                   <Fragment key={index}>
                     {index > 0 && " · "}

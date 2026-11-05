@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import type { RecordFormState } from "@/app/(app)/form-state";
 import { ButtonLink } from "@/components/button-link";
 import { TextareaField, TextField } from "@/components/fields";
 import { FormOutcome } from "@/components/form-outcome";
 import { RecordsPicker, type PickerOption } from "@/components/record-picker";
 import { Button } from "@/components/ui/button";
+import { usePanelBack } from "../people/(lists)/panel-back";
 import { searchContactsAction } from "../people/contacts/actions";
 import { scheduleMeetingAction } from "./actions";
 
@@ -33,6 +34,10 @@ function Box({
   );
 }
 
+const goBack = () => window.history.back();
+// While Schedule is being sent, its answer decides what shows next, so the arrow waits.
+const stay = () => {};
+
 export function ScheduleForm({
   initial,
   timezone,
@@ -52,6 +57,20 @@ export function ScheduleForm({
   const [wentBackFrom, setWentBackFrom] = useState<RecordFormState>(null);
   const values = state?.values ?? initial;
   const confirming = Boolean(state?.confirm) && wentBackFrom !== state;
+
+  // The confirmation is a step of its own in the browser's history, so going back from it,
+  // by the browser, the panel's arrow or Go back, returns to the form as it was typed.
+  useEffect(() => {
+    if (!confirming) return;
+    window.history.pushState(null, "", window.location.href);
+  }, [confirming]);
+  useEffect(() => {
+    if (!confirming) return;
+    const back = () => setWentBackFrom(state);
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  }, [confirming, state]);
+  usePanelBack(confirming ? (pending ? stay : goBack) : null);
 
   if (state?.ok) {
     return (
@@ -143,7 +162,7 @@ export function ScheduleForm({
               type="button"
               variant="outline"
               disabled={pending}
-              onClick={() => setWentBackFrom(state)}
+              onClick={goBack}
             >
               Go back
             </Button>

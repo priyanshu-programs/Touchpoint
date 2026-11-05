@@ -4,6 +4,7 @@ import {
   calendarEventContacts,
   calendarEvents,
   integrationConnections,
+  removedCalendarEvents,
 } from "@/db/schema";
 import {
   listEvents,
@@ -56,17 +57,33 @@ export async function stillConnected(tx: Tx, connection: Connection) {
   return Boolean(row);
 }
 
-// One copy per Google id, whichever of sync and scheduling gets there first.
+// One copy per Google id, whichever of sync and scheduling gets there first. One the
+// owner deleted from Touchpoint stays deleted.
 export async function upsertMeetings(
   tx: Tx,
   connection: Connection,
   meetings: { externalId: string; meeting: Meeting }[],
 ) {
   if (meetings.length === 0) return [];
+  const removed = await tx
+    .select({ externalId: removedCalendarEvents.externalId })
+    .from(removedCalendarEvents)
+    .where(
+      and(
+        eq(removedCalendarEvents.connectionId, connection.id),
+        inArray(
+          removedCalendarEvents.externalId,
+          meetings.map(({ externalId }) => externalId),
+        ),
+      ),
+    );
+  const skipped = new Set(removed.map(({ externalId }) => externalId));
+  const kept = meetings.filter(({ externalId }) => !skipped.has(externalId));
+  if (kept.length === 0) return [];
   return tx
     .insert(calendarEvents)
     .values(
-      meetings.map(({ externalId, meeting }) => ({
+      kept.map(({ externalId, meeting }) => ({
         ownerId: connection.ownerId,
         connectionId: connection.id,
         externalId,

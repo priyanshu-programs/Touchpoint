@@ -1,5 +1,3 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { getActivity } from "@/modules/activities/queries";
 import { dateIn } from "@/lib/time";
@@ -15,6 +13,7 @@ import { NewMeeting } from "@/app/(app)/meetings/new-meeting";
 import { NewTask } from "@/app/(app)/tasks/new-task";
 import { TaskEditor } from "@/app/(app)/tasks/task-editor";
 import type { EntryParam } from "./list-controls";
+import { PanelBackLink, PanelBackProvider } from "./panel-back";
 
 // The entry an address asks for: a new one, or one of the owner's. An id that is not
 // theirs, or is gone, is no entry, and the record is shown as if it had not been asked for.
@@ -108,16 +107,9 @@ export async function EntryPanel({
           : (entry.activity?.title ?? "Log activity");
 
   return (
-    <>
+    <PanelBackProvider>
       <header className="flex items-start gap-2 border-b p-4 pr-12">
-        <Link
-          href={back.href}
-          scroll={false}
-          aria-label={back.label}
-          className="mt-1 rounded-md p-1 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft aria-hidden className="size-4" />
-        </Link>
+        <PanelBackLink href={back.href} label={back.label} />
         <div className="grid min-w-0 flex-1 gap-0.5">
           <SheetTitle className="text-lg break-words">{title}</SheetTitle>
           <SheetDescription>
@@ -194,6 +186,6 @@ export async function EntryPanel({
           />
         )}
       </div>
-    </>
+    </PanelBackProvider>
   );
 }
