@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, notExists, sql } from "drizzle-orm";
 import type { Tx } from "@/db/client";
 import {
+  activityFiles,
   brainstormPictures,
   files,
   invoices,
@@ -51,7 +52,7 @@ export async function storeFile(
 // Files nothing points at any more are deleted, wherever the last pointer went:
 // removed by hand, or with its board, or with the board's company or person.
 // A file is pointed at by what a box carries, by a picture on a board, by a
-// version of a material and by an invoice.
+// version of a material, by an invoice and by a file kept in a meeting's notes.
 export async function dropUnusedFiles(tx: Tx, ownerId: string) {
   await lockFiles(tx, ownerId);
   await tx.delete(files).where(
@@ -86,6 +87,12 @@ export async function dropUnusedFiles(tx: Tx, ownerId: string) {
           .select({ id: invoices.id })
           .from(invoices)
           .where(eq(invoices.fileId, files.id)),
+      ),
+      notExists(
+        tx
+          .select({ id: activityFiles.id })
+          .from(activityFiles)
+          .where(eq(activityFiles.fileId, files.id)),
       ),
     ),
   );

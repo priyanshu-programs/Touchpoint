@@ -25,6 +25,7 @@ let contactId: string;
 let organizationId: string;
 let startedId: string;
 let comingId: string;
+let endedId: string;
 let connectionId: string;
 
 test.beforeAll(async () => {
@@ -82,10 +83,23 @@ test.beforeAll(async () => {
     attendees,
     organizationId,
   ]));
+  ({
+    rows: [{ id: endedId }],
+  } = await pool.query(insert, [
+    connectionId,
+    "e2e-ended",
+    "Maple intro",
+    JOIN_LINK,
+    null,
+    new Date(Date.now() - 2 * 3_600_000).toISOString(),
+    new Date(Date.now() - 3_600_000).toISOString(),
+    attendees,
+    organizationId,
+  ]));
   await pool.query(
     `insert into calendar_event_contacts (event_id, contact_id, owner_id)
      select unnest($1::uuid[]), $2, ${owner}`,
-    [[startedId, comingId], contactId],
+    [[startedId, comingId, endedId], contactId],
   );
 });
 
@@ -126,23 +140,31 @@ for (const device of DEVICES) {
 
     await page.goto(`/meetings/${comingId}`);
     await expect(page.getByRole("heading", { name: "Maple review" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Log notes" })).toHaveCount(0);
+    // Notes and files go in any meeting, prep notes for one still to come too.
+    await expect(page.getByRole("textbox", { name: "Meeting notes" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add file" })).toBeVisible();
 
     for (const address of [
       `/people/contacts?contact=${contactId}&tab=activity`,
       `/people/organizations?company=${organizationId}&tab=activity`,
     ]) {
       await page.goto(address);
+      const live = panel(page).getByRole("region", { name: "Live now" });
       const upcoming = panel(page).getByRole("region", { name: "Upcoming meetings" });
       const past = panel(page).getByRole("region", { name: "Past meetings" });
+      // Under way: begun a minute ago and an hour long.
+      await expect(live.getByRole("link", { name: "Maple kickoff" })).toBeVisible();
+      await expect(live.getByText("Live", { exact: true })).toBeVisible();
+      await expect(live.getByRole("link", { name: "Join" })).toHaveAttribute("href", JOIN_LINK);
       await expect(upcoming.getByRole("link", { name: "Maple review" })).toBeVisible();
       await expect(upcoming.getByRole("link", { name: "Maple kickoff" })).toHaveCount(0);
-      await expect(past.getByRole("link", { name: "Maple kickoff" })).toBeVisible();
+      await expect(past.getByRole("link", { name: "Maple intro" })).toBeVisible();
+      await expect(past.getByRole("link", { name: "Maple kickoff" })).toHaveCount(0);
       // A meeting's box: its day, its hours, its place and who came.
       await expect(past.getByText(/^\d{2}:\d{2} – \d{2}:\d{2}$/)).toBeVisible();
       await expect(past.getByText("Room 4")).toBeVisible();
       await expect(past.getByText("With Ava Stone")).toBeAttached();
-      // Join is for a meeting still to come.
+      // Join is for a meeting still to come or under way.
       await expect(past.getByRole("link", { name: "Join" })).toHaveCount(0);
       await panel(page).getByRole("link", { name: "Maple kickoff" }).click();
       await expect(page).toHaveURL(new RegExp(`&event=${startedId}$`));
@@ -192,31 +214,76 @@ test("past meetings past five open alone with See all, paged, and All activity g
   await expect(panel(page).getByRole("region", { name: "Upcoming meetings" })).toBeVisible();
 });
 
-test("Log notes opens Log activity filled in, and saving keeps it", async ({ page }) => {
-  await page.goto(`/people/contacts?contact=${contactId}&tab=activity&event=${startedId}`);
-  await panel(page).getByRole("link", { name: "Log notes" }).click();
-  await expect(page).toHaveURL(new RegExp(`event=${startedId}&activity=new$`));
+test("notes and files are kept inside a meeting", async ({ page }) => {
+  const address = `/people/contacts?contact=${contactId}&tab=activity&event=${startedId}`;
+  await page.goto(address);
+  const notes = panel(page).getByRole("textbox", { name: "Meeting notes" });
+  await notes.click();
+  await page.keyboard.press("Control+b");
+  await page.keyboard.type("Agreed");
+  await page.keyboard.press("Control+b");
+  await page.keyboard.type(" on scope");
+  // Leaving with a change asks first; staying keeps it.
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await panel(page).getByRole("link", { name: /^Back to / }).click();
+  await expect(page).toHaveURL(new RegExp(`event=${startedId}$`));
+  await panel(page).getByRole("button", { name: "Save" }).click();
+  await expect(panel(page).getByRole("status")).toHaveText("Notes saved.");
+  await expect(panel(page).getByRole("button", { name: "Save" })).toHaveCount(0);
 
-  await expect(panel(page).getByLabel("Type")).toHaveValue("meeting");
-  await expect(panel(page).getByLabel("Summary")).toHaveValue("Maple kickoff");
-  await expect(panel(page).getByText("Maple Studio")).toBeVisible();
-  await expect(panel(page).getByText("Ava Stone").first()).toBeVisible();
+  const choose = panel(page).getByLabel("Choose a file");
+  await choose.setInputFiles({
+    name: "brief.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\nMaple brief\n%%EOF\n"),
+  });
+  const brief = panel(page).getByRole("link", { name: "brief.pdf" });
+  await expect(brief).toHaveAttribute("href", /^\/api\/activities\/[\w-]+\/files\/[\w-]+$/);
+  await expect(brief).toHaveAttribute("rel", "noopener noreferrer");
+  const served = await page.request.get((await brief.getAttribute("href"))!);
+  expect(served.headers()["content-type"]).toBe("application/pdf");
 
-  await panel(page).getByRole("button", { name: "Log activity" }).click();
-  await expect(page).toHaveURL(new RegExp(`contact=${contactId}.*tab=activity`));
-  // The meeting stays under Past meetings, and its notes join Activities as a meeting.
-  const past = panel(page).getByRole("region", { name: "Past meetings" });
-  const logged = panel(page).getByRole("region", { name: "Activities" });
-  await expect(past.getByRole("link", { name: "Maple kickoff" })).toBeVisible();
-  await expect(logged.getByRole("link", { name: "Maple kickoff" })).toBeVisible();
-  await expect(logged.getByText("Meeting", { exact: true })).toBeVisible();
+  // Only the kinds a box on a workflow takes are kept.
+  await choose.setInputFiles({
+    name: "notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("plain text"),
+  });
+  await expect(panel(page).getByRole("alert")).toHaveText(
+    "Only PDFs, pictures and Word, Excel and PowerPoint files are kept.",
+  );
+
+  await page.reload();
+  await expect(notes).toHaveText("Agreed on scope");
+  await expect(notes.locator("strong")).toHaveText("Agreed");
+  await expect(brief).toBeVisible();
+
+  await panel(page).getByRole("link", { name: /^Back to / }).click();
+  const live = panel(page).getByRole("region", { name: "Live now" });
+  await expect(live.getByText("Has notes")).toBeAttached();
+  await expect(live.getByTitle("1 file")).toBeVisible();
+  // The notes stay with the meeting and aren't repeated under Activities.
+  await expect(panel(page).getByRole("region", { name: "Activities" })).toHaveCount(0);
+
+  await page.goto(address);
+  await panel(page).getByRole("button", { name: "Remove brief.pdf" }).click();
+  await expect(brief).toHaveCount(0);
+});
+
+test("notes in a meeting fit a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/people/organizations?company=${organizationId}&tab=activity&event=${endedId}`);
+  await expect(panel(page).getByRole("textbox", { name: "Meeting notes" })).toBeVisible();
+  await expect(panel(page).getByRole("button", { name: "Bold" })).toBeVisible();
+  await expect(panel(page).getByRole("button", { name: "Add file" })).toBeVisible();
+  expect(await fits(page)).toBe(true);
 });
 
 test("a meeting that isn't there opens nothing", async ({ page }) => {
   // The app's loading screen has already answered 200 by the time the page knows.
   await page.goto(`/meetings/${OTHER_MEETING}`);
   await expect(page.getByRole("heading", { name: /not found/i })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Log notes" })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Meeting notes" })).toHaveCount(0);
 
   await page.goto(`/people/contacts?contact=${contactId}&tab=activity&event=${OTHER_MEETING}`);
   await expect(panel(page).getByRole("heading", { name: "Ava Stone" })).toBeVisible();

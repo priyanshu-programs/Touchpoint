@@ -288,6 +288,13 @@
       "when": 1793629708308,
       "tag": "0040_note_formatting",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793873547004,
+      "tag": "0041_meeting_notes_files",
+      "breakpoints": true
     }
   ]
 }

@@ -23,7 +23,7 @@ const UPCOMING = 20;
 // How many of each the overview shows before "See all".
 const PREVIEW = { meetings: 5, sends: 5, activities: 10 };
 
-// A record's Activity tab: upcoming meetings, past meetings, materials sent and logged
+// A record's Activity tab: meetings under way, upcoming meetings, past meetings, materials sent and logged
 // activities, each in a section of its own. One section can be opened alone and paged.
 export async function RecordTimeline({
   ownerId,
@@ -89,10 +89,11 @@ export async function RecordTimeline({
   const timezone = settings?.timezone ?? "UTC";
   // A copy of the calendar can outlast its connection, and its future is then not shown.
   const connected = google && google.status !== "revoked";
-  const upcoming =
-    connected && shows("meetings") && !cursor
-      ? await recordMeetings(ownerId, filter, { when: "upcoming", limit: UPCOMING })
-      : none;
+  const ahead = connected && shows("meetings") && !cursor;
+  const [live, upcoming] = await Promise.all([
+    ahead ? recordMeetings(ownerId, filter, { when: "live", limit: UPCOMING }) : none,
+    ahead ? recordMeetings(ownerId, filter, { when: "upcoming", limit: UPCOMING }) : none,
+  ]);
 
   const footer = (which: ActivitySection, total: number, shown: number, next: string | null) =>
     section ? (
@@ -109,7 +110,9 @@ export async function RecordTimeline({
       )
     );
   const empty =
-    upcoming.rows.length + past.rows.length + sends.rows.length + activities.rows.length ===
+    live.rows.length +
+      upcoming.rows.length +
+      past.rows.length + sends.rows.length + activities.rows.length ===
     0;
 
   return (
@@ -146,6 +149,20 @@ export async function RecordTimeline({
             {cursor ? "Nothing earlier." : "Nothing logged yet."}
           </p>
         )}
+        {live.rows.length > 0 && (
+          <Section title="Live now" count={live.rows.length}>
+            {live.rows.map((meeting) => (
+              <li key={meeting.id}>
+                <MeetingBox
+                  meeting={meeting}
+                  timezone={timezone}
+                  href={meetingHref(meeting.id)}
+                  when="live"
+                />
+              </li>
+            ))}
+          </Section>
+        )}
         {upcoming.rows.length > 0 && (
           <Section title="Upcoming meetings" count={upcoming.rows.length}>
             {upcoming.rows.map((meeting) => (
@@ -154,7 +171,7 @@ export async function RecordTimeline({
                   meeting={meeting}
                   timezone={timezone}
                   href={meetingHref(meeting.id)}
-                  joinable
+                  when="upcoming"
                 />
               </li>
             ))}
@@ -172,7 +189,7 @@ export async function RecordTimeline({
                   meeting={meeting}
                   timezone={timezone}
                   href={meetingHref(meeting.id)}
-                  joinable={false}
+                  when="past"
                 />
               </li>
             ))}

@@ -75,7 +75,6 @@ export async function EntryPanel({
   contact,
   organization,
   back,
-  notesHref,
 }: {
   ownerId: string;
   entry: Entry;
@@ -87,8 +86,6 @@ export async function EntryPanel({
   } | null;
   organization: { id: string; name: string } | null;
   back: { href: string; label: string };
-  // Log activity, in this panel, filled in from a meeting.
-  notesHref: (meetingId: string) => string;
 }) {
   const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
   const from = contact ? "contact" : "organization";
@@ -125,11 +122,7 @@ export async function EntryPanel({
 
       <div className="p-4">
         {entry.kind === "meeting" ? (
-          <MeetingDetails
-            meeting={entry.meeting}
-            timezone={timezone}
-            notesHref={notesHref(entry.meeting.id)}
-          />
+          <MeetingDetails meeting={entry.meeting} timezone={timezone} />
         ) : entry.kind === "send" ? (
           <NewSend
             ownerId={ownerId}

@@ -500,9 +500,6 @@ export default async function OrganizationsPage({
                 }),
                 label: `Back to ${contact?.fullName ?? open.name}`,
               }}
-              notesHref={(id) =>
-                companiesHref(params, { ...NO_ENTRY, activity: "new", event: id })
-              }
             />
           ) : contact && params.merge ? (
             <MergePanel

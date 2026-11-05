@@ -29,7 +29,6 @@ export default async function MeetingPage({ params }: PageProps<"/meetings/[id]"
         <MeetingDetails
           meeting={meeting}
           timezone={settings?.timezone ?? "UTC"}
-          notesHref={`/activities/new?event=${meeting.id}`}
         />
       </CardContent>
     </Card>

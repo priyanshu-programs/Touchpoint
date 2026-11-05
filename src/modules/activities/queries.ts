@@ -8,6 +8,7 @@ import {
   timeline,
 } from "@/db/schema";
 import { photoVersion } from "@/modules/contacts/queries";
+import { activityFileList, countEndedMeetings } from "@/modules/integrations/meetings";
 
 const contactNames = async (ownerId: string, ids: string[]) =>
   ids.length === 0
@@ -18,7 +19,14 @@ const contactNames = async (ownerId: string, ids: string[]) =>
         .where(and(eq(contacts.ownerId, ownerId), inArray(contacts.id, ids)))
         .orderBy(asc(contacts.fullName));
 
+// A meeting's own notes show inside the meeting while its copy is there.
+const meetingNoteIds = (ownerId: string) => sql`(
+  select ${activities.id} from ${activities}
+  where ${activities.ownerId} = ${ownerId} and ${activities.calendarEventId} is not null
+)`;
+
 // What happened to one record, or to all of them when none is named, newest first.
+// Asked for activities alone, the notes kept inside a meeting are left out.
 export async function listTimeline(
   ownerId: string,
   options: (
@@ -41,6 +49,9 @@ export async function listTimeline(
         eq(timeline.ownerId, ownerId),
         options.withoutMeetings ? ne(timeline.eventType, "calendar_event") : undefined,
         options.eventType ? eq(timeline.eventType, options.eventType) : undefined,
+        options.eventType === "activity"
+          ? sql`${timeline.eventId} not in ${meetingNoteIds(ownerId)}`
+          : undefined,
         options.contactId
           ? sql`${options.contactId} = any(${timeline.contactIds})`
           : options.organizationId
@@ -71,27 +82,33 @@ export async function listTimeline(
   };
 }
 
-// How many of each kind of entry one record's timeline holds; meetings only once started.
+// How many of each kind of entry one record's Activity tab holds: meetings once ended,
+// and activities but for the notes kept inside a meeting.
 export async function countRecordEvents(
   ownerId: string,
   filter: { contactId: string } | { organizationId: string },
 ) {
-  const rows = await db
-    .select({ eventType: timeline.eventType, count: sql<number>`count(*)::int` })
-    .from(timeline)
-    .where(
-      and(
-        eq(timeline.ownerId, ownerId),
-        "contactId" in filter
-          ? sql`${filter.contactId} = any(${timeline.contactIds})`
-          : eq(timeline.organizationId, filter.organizationId),
-      ),
-    )
-    .groupBy(timeline.eventType);
+  const [rows, meetings] = await Promise.all([
+    db
+      .select({ eventType: timeline.eventType, count: sql<number>`count(*)::int` })
+      .from(timeline)
+      .where(
+        and(
+          eq(timeline.ownerId, ownerId),
+          ne(timeline.eventType, "calendar_event"),
+          sql`${timeline.eventId} not in ${meetingNoteIds(ownerId)}`,
+          "contactId" in filter
+            ? sql`${filter.contactId} = any(${timeline.contactIds})`
+            : eq(timeline.organizationId, filter.organizationId),
+        ),
+      )
+      .groupBy(timeline.eventType),
+    countEndedMeetings(ownerId, filter),
+  ]);
   const count = (type: string) =>
     rows.find((row) => row.eventType === type)?.count ?? 0;
   return {
-    meetings: count("calendar_event"),
+    meetings,
     sends: count("material_send"),
     activities: count("activity"),
   };
@@ -109,20 +126,24 @@ export async function getActivity(ownerId: string, id: string) {
     .where(and(eq(activities.ownerId, ownerId), eq(activities.id, id)));
   if (!row) return null;
 
-  const linked = await db
-    .select({ id: contacts.id, name: contacts.fullName })
-    .from(activityContacts)
-    .innerJoin(contacts, eq(contacts.id, activityContacts.contactId))
-    .where(
-      and(
-        eq(activityContacts.ownerId, ownerId),
-        eq(activityContacts.activityId, id),
-      ),
-    )
-    .orderBy(asc(contacts.fullName));
+  const [linked, files] = await Promise.all([
+    db
+      .select({ id: contacts.id, name: contacts.fullName })
+      .from(activityContacts)
+      .innerJoin(contacts, eq(contacts.id, activityContacts.contactId))
+      .where(
+        and(
+          eq(activityContacts.ownerId, ownerId),
+          eq(activityContacts.activityId, id),
+        ),
+      )
+      .orderBy(asc(contacts.fullName)),
+    activityFileList(ownerId, id),
+  ]);
   return {
     ...row.activity,
     organizationName: row.organizationName,
     contacts: linked,
+    files,
   };
 }

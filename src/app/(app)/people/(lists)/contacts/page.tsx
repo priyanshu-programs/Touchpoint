@@ -414,9 +414,6 @@ export default async function ContactsPage({
                 }),
                 label: `Back to ${open.fullName}`,
               }}
-              notesHref={(id) =>
-                contactsHref(params, { ...NO_ENTRY, activity: "new", event: id })
-              }
             />
           ) : params.merge ? (
             <MergePanel
