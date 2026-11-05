@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
 import { companyHref, contactTabHref } from "@/app/(app)/people/labels";
 import { readFields, readOrigin } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
+import { removeMeetingFile, saveMeetingNotes } from "@/modules/activities/meeting-notes";
+import { meetingFileRef, meetingNotesInput } from "@/modules/activities/meeting-notes-schema";
 import { meetingInput } from "@/modules/integrations/schema";
 import { checkMeeting, scheduleMeeting } from "@/modules/integrations/scheduling";
 
@@ -94,4 +96,20 @@ export async function scheduleMeetingAction(
   revalidatePath("/", "layout");
   if (result.meetingId === null) return { ok: true, message: result.message };
   redirect(landing(result.meetingId, parsed.data.contactIds[0], origin));
+}
+
+export type MeetingNotesOutcome = { ok: true } | { ok: false; message: string };
+
+// The notes written inside a meeting, kept on its activity.
+export async function saveMeetingNotesAction(notes: unknown): Promise<MeetingNotesOutcome> {
+  const owner = await requireOwner();
+  const parsed = meetingNotesInput.safeParse(notes);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
+  return (await saveMeetingNotes(owner.id, parsed.data)) ? { ok: true } : notFound();
+}
+
+export async function removeMeetingFileAction(eventId: unknown, fileId: unknown) {
+  const owner = await requireOwner();
+  const ref = meetingFileRef.parse({ eventId, fileId });
+  return (await removeMeetingFile(owner.id, ref.eventId, ref.fileId)) || notFound();
 }

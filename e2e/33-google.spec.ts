@@ -243,19 +243,23 @@ for (const device of devices) {
 
       // Matched by the attendee's email, and to the person's company through them.
       await page.goto(`/people/organizations?company=${organizationId}&tab=activity`);
-      const past = panel(page).getByRole("region", { name: "Past meetings" });
+      // Begun a minute ago and an hour long, so under way.
+      const live = panel(page).getByRole("region", { name: "Live now" });
       const upcoming = panel(page).getByRole("region", { name: "Upcoming meetings" });
-      await expect(past.getByRole("link", { name: started })).toBeVisible();
+      await expect(live.getByRole("link", { name: started })).toBeVisible();
       await expect(upcoming.getByRole("link", { name: coming })).toBeVisible();
-      await expect(past.getByRole("link", { name: coming })).toHaveCount(0);
+      await expect(live.getByRole("link", { name: coming })).toHaveCount(0);
 
       await page.goto(`/people/contacts?contact=${contactId}&tab=activity`);
       await panel(page).getByRole("link", { name: started }).click();
-      await panel(page).getByRole("link", { name: "Log notes" }).click();
-      await expect(panel(page).getByLabel("Summary")).toHaveValue(started);
-      await panel(page).getByRole("button", { name: "Log activity" }).click();
-      await expect(page).toHaveURL(new RegExp(`contact=${contactId}.*tab=activity`));
-      await expect(panel(page).getByRole("link", { name: started })).toHaveCount(2);
+      await panel(page).getByRole("textbox", { name: "Meeting notes" }).fill("Talked through the plan");
+      await panel(page).getByRole("button", { name: "Save" }).click();
+      await expect(panel(page).getByRole("status")).toHaveText("Notes saved.");
+      await panel(page).getByRole("link", { name: /^Back to / }).click();
+      await expect(page).toHaveURL(new RegExp(`contact=${contactId}.*tab=activity$`));
+      // The notes stay inside the meeting, not as an activity of their own.
+      await expect(panel(page).getByRole("link", { name: started })).toHaveCount(1);
+      await expect(live.getByText("Has notes")).toBeAttached();
       expect(await fits(page)).toBe(true);
     });
 

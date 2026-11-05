@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import { fromLocalInput } from "@/lib/time";
 import { audit } from "@/modules/audit/service";
+import { dropUnusedFiles } from "@/modules/files/service";
 import { ownerTimezone } from "@/modules/settings/service";
 import { insertTask } from "@/modules/tasks/service";
 import type { ActivityInput, LogActivityInput } from "./schema";
@@ -169,7 +170,12 @@ export async function updateActivity(
     const timezone = await ownerTimezone(tx, ownerId);
     const [row] = await tx
       .update(activities)
-      .set(columns(input, timezone))
+      .set({
+        ...columns(input, timezone),
+        // This form edits the words as plain text, so a meeting note's formatting stays
+        // only while they are unchanged.
+        ...(input.body === before.body ? {} : { marks: [] }),
+      })
       .where(and(eq(activities.ownerId, ownerId), eq(activities.id, id)))
       .returning();
     await tx
@@ -203,6 +209,7 @@ export async function deleteActivity(ownerId: string, id: string) {
     await tx
       .delete(activities)
       .where(and(eq(activities.ownerId, ownerId), eq(activities.id, id)));
+    await dropUnusedFiles(tx, ownerId);
     await audit(tx, {
       ownerId,
       actor: "user",

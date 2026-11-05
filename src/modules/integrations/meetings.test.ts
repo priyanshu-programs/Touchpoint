@@ -227,9 +227,23 @@ describe("meetings", () => {
   });
 
   describe("on a record's Activity tab", () => {
-    it("splits a record's meetings into those to come, soonest first, and those started, newest first", async () => {
+    it("splits a record's meetings into those to come and under way, soonest first, and those ended, newest first", async () => {
       const maple = await company(ownerId, "Maple");
       await seed(ownerId, connectionId, { title: "Started", organizationId: maple });
+      await seed(ownerId, connectionId, {
+        title: "Under way",
+        startsAt: fromNow(-0.5),
+        endsAt: fromNow(0.5),
+        organizationId: maple,
+      });
+      // The database's own date, as the queries compare it.
+      const today = new Date().toISOString().slice(0, 10);
+      const tomorrow = new Date(Date.now() + 24 * HOUR).toISOString().slice(0, 10);
+      await seed(ownerId, connectionId, {
+        title: "All of today",
+        organizationId: maple,
+        ...allDay(today, tomorrow),
+      });
       await seed(ownerId, connectionId, {
         title: "In 5h",
         startsAt: fromNow(5),
@@ -258,6 +272,9 @@ describe("meetings", () => {
       const upcoming = await recordMeetings(ownerId, filter, { when: "upcoming", limit: 10 });
       expect(upcoming.rows.map((row) => row.title)).toEqual(["In 2h", "In 5h", "Far off"]);
       expect(upcoming.nextAfter).toBeNull();
+      const live = await recordMeetings(ownerId, filter, { when: "live", limit: 10 });
+      // Which comes first depends on whether it is past midnight in the database's zone.
+      expect(live.rows.map((row) => row.title).sort()).toEqual(["All of today", "Under way"]);
       const past = await recordMeetings(ownerId, filter, { when: "past", limit: 10 });
       expect(past.rows.map((row) => row.title)).toEqual(["Started", "Long ago"]);
       expect(past.rows[0].endsAt).toBeInstanceOf(Date);
@@ -308,15 +325,21 @@ describe("meetings", () => {
       const otherConnection = await connect(otherOwner);
       await seed(otherOwner, otherConnection, { title: "Theirs", organizationId: maple });
 
-      for (const when of ["upcoming", "past"] as const) {
+      for (const when of ["upcoming", "live", "past"] as const) {
         const { rows } = await recordMeetings(ownerId, { organizationId: maple }, { when, limit: 10 });
         expect(rows).toEqual([]);
       }
     });
 
-    it("counts a record's started meetings, sends and activities", async () => {
+    it("counts a record's ended meetings, sends and activities", async () => {
       const maple = await company(ownerId, "Maple");
-      await seed(ownerId, connectionId, { title: "Started", organizationId: maple });
+      await seed(ownerId, connectionId, { title: "Ended", organizationId: maple });
+      await seed(ownerId, connectionId, {
+        title: "Under way",
+        startsAt: fromNow(-0.5),
+        endsAt: fromNow(0.5),
+        organizationId: maple,
+      });
       await seed(ownerId, connectionId, {
         title: "To come",
         startsAt: fromNow(2),

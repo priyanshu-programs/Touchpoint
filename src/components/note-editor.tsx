@@ -84,10 +84,15 @@ export function NoteEditor({
   onChange,
   autoFocus = false,
   fill = false,
+  max = MAX_NOTE_LENGTH,
+  label = "Note",
 }: {
   initial: NoteDraft;
   onChange: (draft: NoteDraft) => void;
   autoFocus?: boolean;
+  // The most characters it takes: a box's note, unless said otherwise.
+  max?: number;
+  label?: string;
   // Grows with the note, its formatting buttons kept at the top while it scrolls.
   fill?: boolean;
 }) {
@@ -101,7 +106,7 @@ export function NoteEditor({
       Underline,
       UndoRedo,
       Addresses,
-      CharacterCount.configure({ limit: MAX_NOTE_LENGTH }),
+      CharacterCount.configure({ limit: max }),
     ],
     content: noteToDoc(initial.body, initial.marks),
     immediatelyRender: false,
@@ -110,7 +115,7 @@ export function NoteEditor({
       attributes: {
         role: "textbox",
         "aria-multiline": "true",
-        "aria-label": "Note",
+        "aria-label": label,
         class: cn(
           "px-2.5 py-2 text-base break-words whitespace-pre-wrap outline-none md:text-sm",
           fill ? "min-h-40" : "min-h-16 max-h-40 overflow-y-auto",

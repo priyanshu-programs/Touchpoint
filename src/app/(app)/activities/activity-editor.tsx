@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
+import { KindIcon } from "@/app/(board)/workflows/[id]/kind-icons";
+import { LinkedText } from "@/components/linked-text";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime, toLocalInput } from "@/lib/time";
 import type { getActivity } from "@/modules/activities/queries";
+import { attachmentKind } from "@/modules/workflows/drawing";
 import { labelFor } from "../people/labels";
 import { deleteActivityAction, updateActivityAction } from "./actions";
 import { ActivityForm } from "./activity-form";
@@ -47,6 +50,46 @@ export function ActivityEditor({
           </Button>
         </form>
       </div>
+
+      {/* A meeting's notes keep their formatting here; the form below edits them as plain text. */}
+      {activity.body && activity.marks.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Notes</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm break-words whitespace-pre-wrap">
+            <LinkedText text={activity.body} marks={activity.marks} />
+          </CardContent>
+        </Card>
+      )}
+
+      {activity.files.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Files</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid gap-2 text-sm">
+              {activity.files.map((file) => (
+                <li key={file.id} className="flex min-w-0 items-center gap-2">
+                  <KindIcon
+                    kind={attachmentKind({ url: null, contentType: file.contentType })}
+                    className="size-4 shrink-0 text-muted-foreground"
+                  />
+                  <a
+                    href={`/api/activities/${activity.id}/files/${file.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
+                  >
+                    {file.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

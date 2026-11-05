@@ -28,6 +28,7 @@ export const EXPORTED_TABLES: readonly PgTable[] = [
   schema.activities,
   schema.activityContacts,
   schema.files,
+  schema.activityFiles,
   schema.workflowBoards,
   schema.workflowAttachments,
   schema.workflowNotes,

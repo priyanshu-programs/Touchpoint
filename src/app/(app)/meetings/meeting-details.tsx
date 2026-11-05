@@ -1,16 +1,9 @@
 import Link from "next/link";
-import { ButtonLink } from "@/components/button-link";
 import { buttonVariants } from "@/components/ui/button";
-import {
-  addDays,
-  dateIn,
-  formatDate,
-  formatDateTime,
-  formatTime,
-  isFuture,
-} from "@/lib/time";
+import { addDays, formatDate, formatDateTime, formatTime } from "@/lib/time";
 import type { Meeting } from "@/modules/integrations/meetings";
 import { companyHref, contactHref } from "../people/labels";
+import { MeetingNotes } from "./meeting-notes";
 
 // Google's end date is the day after an all-day meeting's last.
 function meetingWhen(meeting: Meeting, timezone: string) {
@@ -23,24 +16,11 @@ function meetingWhen(meeting: Meeting, timezone: string) {
   return `${formatDateTime(meeting.startsAt!, timezone)} to ${formatTime(meeting.endsAt!, timezone)}`;
 }
 
-// An activity can't be logged for a time still to come.
-const hasStarted = (meeting: Meeting, timezone: string) =>
-  meeting.allDay
-    ? meeting.startsOn! <= dateIn(timezone)
-    : !isFuture(meeting.startsAt!);
-
 const external = { target: "_blank", rel: "noopener noreferrer" };
 
-// One meeting, in a record's panel or on its own page. Its text is a stranger's: plain only.
-export function MeetingDetails({
-  meeting,
-  timezone,
-  notesHref,
-}: {
-  meeting: Meeting;
-  timezone: string;
-  notesHref: string;
-}) {
+// One meeting, in a record's panel or on its own page, with the notes and files the owner
+// keeps inside it. Google's text is a stranger's: plain only.
+export function MeetingDetails({ meeting, timezone }: { meeting: Meeting; timezone: string }) {
   return (
     <div className="grid gap-4 text-sm">
       <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[7rem_1fr]">
@@ -93,12 +73,7 @@ export function MeetingDetails({
           </>
         )}
       </dl>
-      <div className="flex flex-wrap gap-2">
-        {hasStarted(meeting, timezone) && (
-          <ButtonLink href={notesHref} scroll={false} size="sm">
-            Log notes
-          </ButtonLink>
-        )}
+      <div className="flex flex-wrap gap-2 empty:hidden">
         {meeting.meetingUrl && (
           <a
             href={meeting.meetingUrl}
@@ -118,6 +93,7 @@ export function MeetingDetails({
           </a>
         )}
       </div>
+      <MeetingNotes key={meeting.id} eventId={meeting.id} notes={meeting.notes} />
     </div>
   );
 }

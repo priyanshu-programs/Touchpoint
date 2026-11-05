@@ -2,13 +2,17 @@ import { type SQL, sql } from "drizzle-orm";
 import {
   check,
   index,
+  integer,
+  jsonb,
   pgTable,
   pgView,
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { NoteMark } from "../../modules/workflows/note-marks";
 import {
   createdAt,
   id,
@@ -17,6 +21,8 @@ import {
   tsvector,
   updatedAt,
 } from "./columns";
+import { files } from "./files";
+import { calendarEvents } from "./integrations";
 import { contacts, organizations } from "./people";
 
 export const ACTIVITY_KINDS = [
@@ -43,9 +49,16 @@ export const activities = pgTable(
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     title: text("title").notNull(),
     body: text("body"),
+    // Which characters of the body are bold, italic or underlined (note-marks.ts).
+    marks: jsonb("marks").$type<NoteMark[]>().notNull().default([]),
     outcome: text("outcome"),
     source: text("source").notNull().default("manual"),
     organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    // The meeting whose notes and files these are. The meeting's copy goes when Google is
+    // disconnected; its notes stay, as an ordinary activity.
+    calendarEventId: uuid("calendar_event_id").references(() => calendarEvents.id, {
       onDelete: "set null",
     }),
     search: tsvector("search").generatedAlwaysAs(
@@ -69,6 +82,32 @@ export const activities = pgTable(
     ),
     index("activities_organization_idx").on(table.organizationId),
     index("activities_search_idx").using("gin", table.search),
+    uniqueIndex("activities_owner_calendar_event_idx")
+      .on(table.ownerId, table.calendarEventId)
+      .where(sql`${table.calendarEventId} is not null`),
+  ],
+);
+
+// A file kept with an activity: so far, one uploaded into a meeting's notes.
+export const activityFiles = pgTable(
+  "activity_files",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    activityId: uuid("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    fileId: uuid("file_id")
+      .notNull()
+      .references(() => files.id),
+    title: text("title").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    createdAt,
+  },
+  (table) => [
+    index("activity_files_activity_idx").on(table.activityId),
+    index("activity_files_file_idx").on(table.fileId),
   ],
 );
 

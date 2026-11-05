@@ -1345,3 +1345,17 @@
 - [2026-11-03] plan.md: the Activity tab's cards described as one shape with the day on a lime tile
 - [2026-11-03] activity-card.tsx: the day's text is the theme's green (its darker chart green on white, lime in dark mode) with a thin divider, in place of the lime tile, because the owner wanted only the text coloured
 - [2026-11-03] plan.md: the Activity tab's cards described with the day's text in the theme's green
+- [2026-11-05] Migration 0041 (additive): `activities.calendar_event_id` (set null when the meeting's copy goes, one per meeting) and `marks`, and `activity_files`, so a meeting's notes and files outlive a disconnect
+- [2026-11-05] meetings.ts: `recordMeetings` lists meetings under way (`live`) and "past" now means ended; each row says whether it has notes and how many files; `countEndedMeetings`; `getMeeting` returns the meeting's notes and files
+- [2026-11-05] activities/queries.ts: the Activities section and its count leave out notes kept inside a meeting, a record's meeting count is of ended meetings, and `getActivity` returns its files
+- [2026-11-05] meeting-notes.ts: a meeting's notes saved formatted on an activity made from the meeting (its title, start, company and people), and files added and removed (4 MB, 20 a meeting, 30 a minute, the owner's 200 MB), each audited; tests
+- [2026-11-05] POST /api/meetings/<id>/files and GET /api/activities/<id>/files/<fileId>: a file uploaded into a meeting, and served to its owner only
+- [2026-11-05] files/service.ts: `dropUnusedFiles` keeps files an activity holds, and deleting an activity frees its files
+- [2026-11-05] activities/service.ts: the ordinary activity form clears a note's formatting when its words change, so ranges never point at the wrong words
+- [2026-11-05] note-editor.tsx moved to src/components, with `max` and `label`, so meeting notes use the stage notes' editor
+- [2026-11-05] Meeting panel: Notes (the formatted editor, Save and Cancel once changed, leaving with a change asks first) and Files (Add file, open, remove) in place of Log notes, on any meeting
+- [2026-11-05] Activity tab: a Live now section for meetings under way, with a Live label and Join; a meeting's card shows a notes mark and a paperclip with a count
+- [2026-11-05] Activity page: a meeting's notes shown formatted and its files listed, once the meeting's copy is gone
+- [2026-11-05] Export: `activity_files` added to data.json
+- [2026-11-05] e2e/30 and e2e/33: Live now, ended meetings under Past meetings, notes typed bold and kept after a reload, a PDF uploaded, opened and removed, a text file refused, leaving with a change asks, and the notes on a phone
+- [2026-11-05] security.md and plan.md: notes and files inside a meeting, and the Live now section

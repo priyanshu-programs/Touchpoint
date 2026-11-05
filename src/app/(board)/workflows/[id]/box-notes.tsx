@@ -17,7 +17,7 @@ import {
   removeNoteAction,
   type NoteOutcome,
 } from "@/app/(app)/workflows/actions";
-import { NoteEditor, type NoteDraft } from "./note-editor";
+import { NoteEditor, type NoteDraft } from "@/components/note-editor";
 
 const FAILED = "That did not go through. Try again.";
 const EMPTY: NoteDraft = { body: "", marks: [] };
