@@ -48,10 +48,10 @@ test("from a company, an activity and its follow-up are logged, opened and chang
   await expect(
     panel(page).getByRole("heading", { name: "Log activity" }),
   ).toBeVisible();
-  // The company arrives filled in.
+  // From the company's own panel the company is that one, with no picker to change it.
   await expect(
-    panel(page).getByRole("button", { name: /company: Panel Works/ }),
-  ).toBeVisible();
+    panel(page).getByRole("button", { name: /^(Choose company|company: )/ }),
+  ).toHaveCount(0);
   await panel(page).getByLabel("Type").selectOption("meeting");
   await panel(page).getByLabel("Summary").fill("Kick-off meeting");
   await panel(page).getByLabel("Follow-up date").fill(localDate(2));

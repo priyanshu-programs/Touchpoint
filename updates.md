@@ -1399,3 +1399,6 @@
 - [2026-11-07] record-picker: an inline search closes on an outside click, not the press, so the other picker's button can't scroll away mid-click and miss
 - [2026-11-07] e2e/16: the company-switch and both-searches checks move to a person's Log a send; from a company there is no company picker
 - [2026-11-07] plan.md: Log a send from a company has no company to choose
+- [2026-11-07] Log activity from a company's own panel: no company picker, the company is that one and only people are chosen
+- [2026-11-07] e2e/11: Log activity from a company shows no company picker
+- [2026-11-07] plan.md: Log activity from a company has no company to choose, like Log a send
