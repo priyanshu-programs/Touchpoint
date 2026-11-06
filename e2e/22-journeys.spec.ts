@@ -210,7 +210,7 @@ for (const device of devices) {
       ]) {
         await panel(page).getByRole("link", { name: "Add task" }).click();
         await panel(page).getByLabel("Task", { exact: true }).fill(title);
-        await panel(page).getByLabel("Due date").fill(due);
+        await panel(page).getByLabel("Deadline date").fill(due);
         await panel(page).getByRole("button", { name: "Add task" }).click();
         await expect(panel(page).getByRole("link", { name: title })).toBeVisible();
       }

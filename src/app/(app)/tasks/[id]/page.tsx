@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { requireOwner } from "@/lib/session";
+import { priorityColors } from "@/modules/settings/priority-colors";
 import { getSettings } from "@/modules/settings/service";
 import { getTask } from "@/modules/tasks/queries";
 import { TaskEditor } from "../task-editor";
@@ -22,6 +23,7 @@ export default async function TaskPage({ params }: PageProps<"/tasks/[id]">) {
     <TaskEditor
       task={task}
       timezone={settings?.timezone ?? "UTC"}
+      colors={priorityColors(settings)}
       cancelHref="/tasks"
       heading={
         <h1 className="text-2xl font-semibold tracking-tight break-words">

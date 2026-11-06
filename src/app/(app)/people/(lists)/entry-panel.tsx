@@ -3,6 +3,7 @@ import { getActivity } from "@/modules/activities/queries";
 import { dateIn } from "@/lib/time";
 import { getMeeting } from "@/modules/integrations/meetings";
 import { isCancellable, schedulingState } from "@/modules/integrations/scheduling";
+import { priorityColors } from "@/modules/settings/priority-colors";
 import { getSettings } from "@/modules/settings/service";
 import { getTask } from "@/modules/tasks/queries";
 import { ActivityEditor } from "@/app/(app)/activities/activity-editor";
@@ -88,7 +89,9 @@ export async function EntryPanel({
   organization: { id: string; name: string } | null;
   back: { href: string; label: string };
 }) {
-  const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
+  const settings = await getSettings(ownerId);
+  const timezone = settings?.timezone ?? "UTC";
+  const colors = priorityColors(settings);
   const from = contact ? "contact" : "organization";
   const inside = contact ? organization?.id : undefined;
   const cancellable =
@@ -156,13 +159,17 @@ export async function EntryPanel({
             <TaskEditor
               task={entry.task}
               timezone={timezone}
+              colors={colors}
               cancelHref={back.href}
+              from={from}
+              inside={inside}
             />
           ) : (
             <NewTask
               contact={contact}
               organization={organization}
               timezone={timezone}
+              colors={colors}
               inside={inside}
               cancelHref={back.href}
             />

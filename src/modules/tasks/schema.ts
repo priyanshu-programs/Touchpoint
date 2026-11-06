@@ -12,9 +12,9 @@ export const taskInput = z
     title: z.string().trim().min(1, "Enter what needs doing").max(300),
     notes: blankToNull(text(5000)),
     priority: z.enum(TASK_PRIORITIES),
-    dueDate: blankToNull(z.iso.date("Enter a valid due date")),
+    dueDate: blankToNull(z.iso.date("Enter a valid deadline date")),
     dueTime: blankToNull(
-      z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Enter a valid due time"),
+      z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Enter a valid deadline time"),
     ),
     repeat: blankToNull(z.enum(FREQUENCIES)),
     repeatEvery: z.coerce
@@ -33,10 +33,10 @@ export const taskInput = z
     organizationId: blankToNull(z.uuid()),
   })
   .refine((value) => !value.dueTime || value.dueDate, {
-    message: "Choose a due date to go with the time",
+    message: "Choose a deadline date to go with the time",
   })
   .refine((value) => !value.repeat || value.dueDate, {
-    message: "A repeating task needs a due date",
+    message: "A repeating task needs a deadline date",
   });
 
 export type TaskInput = z.infer<typeof taskInput>;

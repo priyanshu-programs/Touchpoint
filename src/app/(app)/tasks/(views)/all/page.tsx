@@ -3,6 +3,7 @@ import Link from "next/link";
 import { z } from "zod";
 import { requireOwner } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { priorityColors } from "@/modules/settings/priority-colors";
 import { getSettings } from "@/modules/settings/service";
 import { listTasks } from "@/modules/tasks/queries";
 import { TASK_STATUSES } from "@/modules/tasks/schema";
@@ -21,7 +22,8 @@ export default async function AllTasksPage({
 }: PageProps<"/tasks/all">) {
   const owner = await requireOwner();
   const { status, after } = params.parse(await searchParams);
-  const timezone = (await getSettings(owner.id))?.timezone ?? "UTC";
+  const settings = await getSettings(owner.id);
+  const timezone = settings?.timezone ?? "UTC";
   const page = await listTasks(owner.id, { status, after });
 
   return (
@@ -49,7 +51,11 @@ export default async function AllTasksPage({
             : `No ${LABELS[status].toLowerCase()} tasks.`}
         </p>
       ) : (
-        <TaskList tasks={page.rows} timezone={timezone} />
+        <TaskList
+          tasks={page.rows}
+          timezone={timezone}
+          colors={priorityColors(settings)}
+        />
       )}
       {page.nextAfter && (
         <Link

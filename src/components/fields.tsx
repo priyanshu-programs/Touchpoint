@@ -16,7 +16,7 @@ function Field({
   children,
 }: {
   id: string;
-  label: string;
+  label: ReactNode;
   hint?: string;
   children: ReactNode;
 }) {
@@ -29,7 +29,7 @@ function Field({
   );
 }
 
-type Shared = { name: string; label: string; hint?: string };
+type Shared = { name: string; label: ReactNode; hint?: string };
 
 export function TextField({
   name,

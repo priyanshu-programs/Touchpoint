@@ -1402,3 +1402,11 @@
 - [2026-11-07] Log activity from a company's own panel: no company picker, the company is that one and only people are chosen
 - [2026-11-07] e2e/11: Log activity from a company shows no company picker
 - [2026-11-07] plan.md: Log activity from a company has no company to choose, like Log a send
+- [2026-11-07] settings: a tag colour for each task priority (migration 0044), saved alone from the task form through setPriorityColorAction, checked as #rrggbb and audited
+- [2026-11-07] Tasks: every task in a list shows its priority as a tag in that priority's colour, not only High
+- [2026-11-07] Task form: a swatch per priority under Priority opens a colour picker and hex box to change that priority's colour
+- [2026-11-07] Task form and lists: "Due date" and "Due time" read "💀 Deadline date" and "💀 Deadline time", and a task's deadline in a list starts with 💀
+- [2026-11-07] A task from a company's own panel: no company picker, only that company's people offered, and the server refuses anyone else (a contact who has since left is kept on edit)
+- [2026-11-07] record-picker: a single-record picker can say what an empty search means, as the several-records one does
+- [2026-11-07] Unit tests for priority colours and the task company check; e2e/11 checks the company task form, the colour window and the tag colour; e2e/03, 05, 11 and 22 read the Deadline labels
+- [2026-11-07] plan.md and security.md: tasks from a company's own panel and the priority tag colours

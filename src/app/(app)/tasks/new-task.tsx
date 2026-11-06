@@ -1,3 +1,4 @@
+import type { PriorityColors } from "@/modules/settings/priority-colors";
 import { createTaskAction } from "./actions";
 import { taskFormOptions } from "./form-options";
 import { TaskForm } from "./task-form";
@@ -7,6 +8,7 @@ export function NewTask({
   contact,
   organization,
   timezone,
+  colors,
   inside,
   cancelHref,
 }: {
@@ -17,6 +19,7 @@ export function NewTask({
   } | null;
   organization: { id: string; name: string } | null;
   timezone: string;
+  colors: PriorityColors;
   inside?: string;
   cancelHref: string;
 }) {
@@ -41,6 +44,7 @@ export function NewTask({
         organizationName: (organization ?? only)?.name ?? "",
       }}
       options={taskFormOptions}
+      colors={colors}
       timezone={timezone}
       from={contact ? "contact" : organization ? "organization" : undefined}
       inside={inside}

@@ -46,7 +46,7 @@ test("add a task from a contact and complete it on Today", async ({ page }) => {
     page.getByRole("button", { name: /company: Acme Design/ }),
   ).toBeVisible();
   await page.getByLabel("Task", { exact: true }).fill("Send proposal");
-  await page.getByLabel("Due date").fill(localDate());
+  await page.getByLabel("Deadline date").fill(localDate());
   await page.getByRole("button", { name: "Add task" }).click();
 
   // Back in the person's panel, on the tab the task was added from.
@@ -75,11 +75,11 @@ test("an overdue task can be snoozed off Today and brought back", async ({
 }) => {
   await page.goto("/tasks/new");
   await page.getByLabel("Task", { exact: true }).fill("Renew domain");
-  await page.getByLabel("Due date").fill(localDate(-1));
+  await page.getByLabel("Deadline date").fill(localDate(-1));
   await page.getByLabel("Priority").selectOption("high");
   await page.getByRole("button", { name: "Add task" }).click();
   await expect(page).toHaveURL(/\/tasks\/all$/);
-  await expect(page.getByText(/^Overdue: /)).toBeVisible();
+  await expect(page.getByText(/Overdue: /)).toBeVisible();
 
   await page
     .getByRole("navigation", { name: "Task views" })
@@ -106,8 +106,8 @@ test("an overdue task can be snoozed off Today and brought back", async ({
 test("a repeating task continues when it is completed", async ({ page }) => {
   await page.goto("/tasks/new");
   await page.getByLabel("Task", { exact: true }).fill("Daily standup");
-  await page.getByLabel("Due date").fill(localDate());
-  await page.getByLabel("Due time").fill("09:30");
+  await page.getByLabel("Deadline date").fill(localDate());
+  await page.getByLabel("Deadline time").fill("09:30");
   await page.getByLabel("Repeats").selectOption("DAILY");
   await page.getByRole("button", { name: "Add task" }).click();
   await expect(page.getByText("Daily", { exact: true })).toBeVisible();
@@ -126,8 +126,8 @@ test("a repeating task continues when it is completed", async ({ page }) => {
 
   // The form reads the next occurrence back in the owner's time zone.
   await page.getByRole("link", { name: "Daily standup" }).click();
-  await expect(page.getByLabel("Due date")).toHaveValue(localDate(1));
-  await expect(page.getByLabel("Due time")).toHaveValue("09:30");
+  await expect(page.getByLabel("Deadline date")).toHaveValue(localDate(1));
+  await expect(page.getByLabel("Deadline time")).toHaveValue("09:30");
   await expect(page.getByLabel("Repeats")).toHaveValue("DAILY");
   await page.getByRole("button", { name: "Cancel task" }).click();
   await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
@@ -169,17 +169,17 @@ test("a rejected task form explains why and keeps what was typed", async ({
 }) => {
   await page.goto("/tasks/new");
   await page.getByLabel("Task", { exact: true }).fill("Half-specified");
-  await page.getByLabel("Due time").fill("09:30");
+  await page.getByLabel("Deadline time").fill("09:30");
   await page.getByLabel("Priority").selectOption("low");
   await page.getByRole("button", { name: "Add task" }).click();
 
   await expect(
-    page.getByText("Choose a due date to go with the time"),
+    page.getByText("Choose a deadline date to go with the time"),
   ).toBeVisible();
   await expect(page.getByLabel("Task", { exact: true })).toHaveValue(
     "Half-specified",
   );
-  await expect(page.getByLabel("Due time")).toHaveValue("09:30");
+  await expect(page.getByLabel("Deadline time")).toHaveValue("09:30");
   await expect(page.getByLabel("Priority")).toHaveValue("low");
 });
 

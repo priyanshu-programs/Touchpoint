@@ -7,6 +7,7 @@ import { invalid, type RecordFormState } from "@/app/(app)/form-state";
 import { companyHref, contactTabHref } from "@/app/(app)/people/labels";
 import { readFields, readOrigin } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
+import { outsidersMessage } from "@/modules/contacts/at-company";
 import { taskInput } from "@/modules/tasks/schema";
 import {
   cancelTask,
@@ -43,9 +44,11 @@ function failure(
   return {
     ok: false,
     message:
-      result.reason === "unknown_contact"
-        ? "Choose a contact from the list."
-        : "Choose a company from the list.",
+      result.reason === "not_at_company"
+        ? outsidersMessage(result.outsiders)
+        : result.reason === "unknown_contact"
+          ? "Choose a contact from the list."
+          : "Choose a company from the list.",
     values,
   };
 }
@@ -67,7 +70,11 @@ export async function createTaskAction(
   const parsed = taskInput.safeParse(fields);
   if (!parsed.success) return invalid(parsed.error, values);
 
-  const result = await createTask(owner.id, parsed.data);
+  const result = await createTask(
+    owner.id,
+    parsed.data,
+    from === "organization",
+  );
   if (!result.ok) return failure(result, values);
 
   refresh();
@@ -88,11 +95,17 @@ export async function updateTaskAction(
 ): Promise<RecordFormState> {
   const owner = await requireOwner();
   const taskId = z.uuid().parse(id);
+  const { from } = readOrigin(formData);
   const { fields, values } = read(formData);
   const parsed = taskInput.safeParse(fields);
   if (!parsed.success) return invalid(parsed.error, values);
 
-  const result = await updateTask(owner.id, taskId, parsed.data);
+  const result = await updateTask(
+    owner.id,
+    taskId,
+    parsed.data,
+    from === "organization",
+  );
   if (!result.ok) return failure(result, values);
 
   refresh();

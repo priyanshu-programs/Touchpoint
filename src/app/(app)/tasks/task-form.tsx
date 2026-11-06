@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useCallback } from "react";
 import type { RecordFormState } from "@/app/(app)/form-state";
 import {
   SelectField,
@@ -12,11 +12,16 @@ import { FormButtons, FormOutcome } from "@/components/form-outcome";
 import { RecordPicker } from "@/components/record-picker";
 import { searchContactsAction } from "../people/contacts/actions";
 import { searchOrganizationsAction } from "../people/organizations/actions";
+import type { PriorityColors } from "@/modules/settings/priority-colors";
+import { PriorityColorSwatches } from "./priority-colors";
+
+const Skull = () => <span aria-hidden>💀 </span>;
 
 export function TaskForm({
   action,
   initial,
   options,
+  colors,
   timezone,
   from,
   inside,
@@ -29,6 +34,7 @@ export function TaskForm({
   ) => Promise<RecordFormState>;
   initial: Record<string, string>;
   options: { priorities: Option[]; repeats: Option[] };
+  colors: PriorityColors;
   timezone: string;
   from?: "contact" | "organization";
   // The company whose panel the person was opened in, to go back there afterwards.
@@ -38,6 +44,12 @@ export function TaskForm({
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const values = state?.values ?? initial;
+  // From a company's own panel the company is that one, and only its people are offered.
+  const company = from === "organization" ? initial.organizationId : undefined;
+  const searchContacts = useCallback(
+    (query: string) => searchContactsAction(query, company),
+    [company],
+  );
 
   return (
     // Remounting on new values is what makes selects show them after a rejected submit.
@@ -58,23 +70,36 @@ export function TaskForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
           name="dueDate"
-          label="Due date"
+          label={
+            <>
+              <Skull />
+              Deadline date
+            </>
+          }
           type="date"
           defaultValue={values.dueDate}
         />
         <TextField
           name="dueTime"
-          label="Due time"
+          label={
+            <>
+              <Skull />
+              Deadline time
+            </>
+          }
           type="time"
           hint="Leave empty for an all-day task."
           defaultValue={values.dueTime}
         />
-        <SelectField
-          name="priority"
-          label="Priority"
-          options={options.priorities}
-          defaultValue={values.priority}
-        />
+        <div className="grid content-start gap-2">
+          <SelectField
+            name="priority"
+            label="Priority"
+            options={options.priorities}
+            defaultValue={values.priority}
+          />
+          <PriorityColorSwatches colors={colors} />
+        </div>
         <TextField
           name="remindAt"
           label="Reminder"
@@ -107,20 +132,34 @@ export function TaskForm({
               ? { id: values.contactId, label: values.contactName }
               : null
           }
-          search={searchContactsAction}
-        />
-        <RecordPicker
-          name="organizationId"
-          labelName="organizationName"
-          noun="company"
-          plural="companies"
-          initial={
-            values.organizationId
-              ? { id: values.organizationId, label: values.organizationName }
-              : null
+          search={searchContacts}
+          empty={
+            company ? `Nobody at ${initial.organizationName} matches.` : undefined
           }
-          search={searchOrganizationsAction}
         />
+        {company ? (
+          <>
+            <input type="hidden" name="organizationId" value={company} />
+            <input
+              type="hidden"
+              name="organizationName"
+              value={initial.organizationName}
+            />
+          </>
+        ) : (
+          <RecordPicker
+            name="organizationId"
+            labelName="organizationName"
+            noun="company"
+            plural="companies"
+            initial={
+              values.organizationId
+                ? { id: values.organizationId, label: values.organizationName }
+                : null
+            }
+            search={searchOrganizationsAction}
+          />
+        )}
       </div>
       <p className="text-sm text-muted-foreground">
         Dates and times are in your time zone, {timezone}.

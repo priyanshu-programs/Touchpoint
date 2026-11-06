@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { priorityColors } from "@/modules/settings/priority-colors";
 import { getSettings } from "@/modules/settings/service";
 import { listTasks } from "@/modules/tasks/queries";
 import { TaskList } from "./task-list";
@@ -22,7 +23,9 @@ export async function RecordTasks({
   newHref: string;
   openHref: (id: string) => string;
 }) {
-  const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
+  const settings = await getSettings(ownerId);
+  const timezone = settings?.timezone ?? "UTC";
+  const colors = priorityColors(settings);
   const [open, done] = await Promise.all([
     listTasks(ownerId, { ...filter, limit: 100 }),
     listTasks(ownerId, { ...filter, status: "done", limit: 10 }),
@@ -43,7 +46,7 @@ export async function RecordTasks({
           {open.rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No open tasks.</p>
           ) : (
-            <TaskList tasks={open.rows} timezone={timezone} hrefFor={openHref} />
+            <TaskList tasks={open.rows} timezone={timezone} colors={colors} hrefFor={openHref} />
           )}
         </CardContent>
       </Card>
@@ -54,7 +57,7 @@ export async function RecordTasks({
             <CardTitle>Recently done</CardTitle>
           </CardHeader>
           <CardContent>
-            <TaskList tasks={done.rows} timezone={timezone} hrefFor={openHref} />
+            <TaskList tasks={done.rows} timezone={timezone} colors={colors} hrefFor={openHref} />
           </CardContent>
         </Card>
       )}

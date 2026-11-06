@@ -5,7 +5,9 @@ import { jobs, reminders, tasks } from "@/db/schema";
 import { addDays, dateIn, toLocalInput } from "@/lib/time";
 import { listAudit } from "@/modules/audit/service";
 import { newContactInput } from "@/modules/contacts/schema";
-import { createContact } from "@/modules/contacts/service";
+import { createContact, removeContactCompany } from "@/modules/contacts/service";
+import { organizationInput } from "@/modules/organizations/schema";
+import { createOrganization } from "@/modules/organizations/service";
 import { runDueJobs } from "@/modules/jobs/service";
 import { handlers } from "@/modules/jobs/tick";
 import { saveSettings } from "@/modules/settings/service";
@@ -453,5 +455,106 @@ describe("tasks", () => {
     expect((await db.select().from(tasks).where(eq(tasks.id, id)))[0].status).toBe(
       "open",
     );
+  });
+});
+
+describe("a task from a company's own panel", () => {
+  let ownerId: string;
+
+  beforeEach(async () => {
+    await resetDatabase();
+    ownerId = await createTestOwner();
+  });
+
+  async function createOrg(name: string) {
+    const result = await createOrganization(
+      ownerId,
+      organizationInput.parse({
+        name,
+        domain: "",
+        website: "",
+        phone: "",
+        email: "",
+        industry: "",
+        description: "",
+        city: "",
+        region: "",
+        country: "",
+        status: "prospect",
+        tags: "",
+      }),
+    );
+    if (!result.ok) throw new Error(`create failed: ${result.reason}`);
+    return result.id;
+  }
+
+  async function createPerson(firstName: string, organizationId = "") {
+    const result = await createContact(
+      ownerId,
+      newContactInput.parse({
+        firstName,
+        lastName: "",
+        email: "",
+        organizationId,
+        jobTitle: "",
+        department: "",
+        phoneE164: "",
+        city: "",
+        region: "",
+        country: "",
+        timezone: "",
+        preferredChannel: "",
+        status: "active",
+        relationshipType: "prospect",
+        tags: "",
+      }),
+    );
+    if (!result.ok) throw new Error(`create failed: ${result.reason}`);
+    return result.id;
+  }
+
+  it("is only with that company's people", async () => {
+    const acme = await createOrg("Acme Design");
+    const priya = await createPerson("Priya", acme);
+    const kiran = await createPerson("Kiran");
+
+    expect(
+      await createTask(ownerId, input({ contactId: kiran, organizationId: acme }), true),
+    ).toEqual({
+      ok: false,
+      reason: "not_at_company",
+      outsiders: { company: "Acme Design", people: [{ id: kiran, name: "Kiran" }] },
+    });
+    expect(await db.select().from(tasks)).toHaveLength(0);
+    // Elsewhere a task may name any person and any company.
+    expect(
+      (await createTask(ownerId, input({ contactId: kiran, organizationId: acme }))).ok,
+    ).toBe(true);
+    expect(
+      (await createTask(ownerId, input({ contactId: priya, organizationId: acme }), true)).ok,
+    ).toBe(true);
+  });
+
+  it("keeps a person who has left the company, but takes on no one new from outside", async () => {
+    const acme = await createOrg("Acme Design");
+    const priya = await createPerson("Priya", acme);
+    const kiran = await createPerson("Kiran");
+    const created = await createTask(
+      ownerId,
+      input({ contactId: priya, organizationId: acme }),
+      true,
+    );
+    if (!created.ok) throw new Error("create failed");
+    expect(await removeContactCompany(ownerId, priya, acme)).toBe(true);
+
+    const edit = (contactId: string) =>
+      updateTask(
+        ownerId,
+        created.id,
+        input({ title: "Call again", contactId, organizationId: acme }),
+        true,
+      );
+    expect((await edit(priya)).ok).toBe(true);
+    expect(await edit(kiran)).toMatchObject({ reason: "not_at_company" });
   });
 });
