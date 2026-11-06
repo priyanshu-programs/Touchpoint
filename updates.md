@@ -1395,3 +1395,7 @@
 - [2026-11-07] record-picker: an inline search also closes when keyboard focus leaves its picker (CodeRabbit review on #62)
 - [2026-11-07] record-picker: Escape or a pick in an inline search puts focus back on the button that opened it, in a layout effect so the record panel doesn't take it (CodeRabbit review on #62)
 - [2026-11-07] e2e/16: focus returns to the button after Escape and after a pick, Tab out closes the search, and the Log a send panel stays open
+- [2026-11-07] Log a send from a company's own panel: no company picker, the company is that one and only people are chosen
+- [2026-11-07] record-picker: an inline search closes on an outside click, not the press, so the other picker's button can't scroll away mid-click and miss
+- [2026-11-07] e2e/16: the company-switch and both-searches checks move to a person's Log a send; from a company there is no company picker
+- [2026-11-07] plan.md: Log a send from a company has no company to choose

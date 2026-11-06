@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { OWNER_SESSION } from "./support";
 
 test.describe.configure({ mode: "serial" });
@@ -26,6 +26,9 @@ const panelFits = (page: Page) =>
 
 let materialUrl = "";
 let companyUrl = "";
+let personSendUrl = "";
+const companyPicker = (page: Page) =>
+  panel(page).getByRole("button", { name: /^(Choose company|company: )/ });
 
 // A material, a company and a person of this file's own, so earlier files' records stay as they were.
 test("a send is logged from a person's Activity tab and shows on the person and the company", async ({
@@ -60,6 +63,7 @@ test("a send is logged from a person's Activity tab and shows on the person and 
   await contactTabs(page).getByRole("link", { name: "Activity" }).click();
   await panel(page).getByRole("link", { name: "Log a send" }).click();
   await expect(page).toHaveURL(new RegExp(`contact=${ID}&tab=activity&send=new$`));
+  personSendUrl = page.url();
   await expect(panel(page).getByRole("heading", { name: "Log a send" })).toBeVisible();
   // The person and the company arrive filled in.
   await expect(
@@ -162,7 +166,8 @@ test("a send with no one to go to is refused and keeps what was typed", async ({
   await panel(page).getByRole("button", { name: "Log send" }).click();
   await expect(panel(page).getByText("Choose who it went to")).toBeVisible();
   await expect(panel(page).getByLabel("Note")).toHaveValue("Who was this for?");
-  await expect(panel(page).getByRole("button", { name: /company: Sendwell Studio/ })).toBeVisible();
+  await expect(panel(page).getByRole("button", { name: "Add contact" })).toBeVisible();
+  await expect(companyPicker(page)).toHaveCount(0);
 
   await panel(page).getByRole("link", { name: "Back to Sendwell Studio" }).click();
   await expect(page).toHaveURL(new RegExp(`company=${ID}&tab=activity$`));
@@ -185,13 +190,18 @@ test("a send from a company goes only to its people, and another company takes o
   await form.getByRole("button", { name: "Add contact" }).click();
   await expect(panel(page).getByRole("link", { name: "Omar Outside" })).toBeVisible();
 
+  // From the company's own panel, the company is that one: only people are chosen.
   await page.goto(`${companyUrl}&tab=activity&send=new`);
+  await expect(companyPicker(page)).toHaveCount(0);
   await panel(page).getByRole("button", { name: "Add contact" }).click();
   await page.getByPlaceholder("Search contacts…").fill("Omar Outside");
   await expect(page.getByText("Nobody at Sendwell Studio matches.")).toBeVisible();
-  await page.getByPlaceholder("Search contacts…").fill("Tara Sender");
-  await page.getByRole("option", { name: /Tara Sender/ }).click();
 
+  // From a person's panel the company can be changed, which takes off who isn't there.
+  await page.goto(personSendUrl);
+  await expect(
+    panel(page).getByRole("button", { name: "Remove contact: Tara Sender" }),
+  ).toBeVisible();
   await panel(page).getByRole("button", { name: /company: Sendwell Studio/ }).click();
   await page.getByPlaceholder("Search companies…").fill("Elsewhere Works");
   await page.getByRole("option", { name: /Elsewhere Works/ }).click();
@@ -215,15 +225,8 @@ test("a send from a company goes only to its people, and another company takes o
 test("the company and people searches open right under their own button, in the form", async ({
   page,
 }) => {
-  await page.goto(`${companyUrl}&tab=activity&send=new`);
   const dialogs = page.getByRole("dialog");
-  await expect(dialogs).toHaveCount(1);
-
-  for (const [button, placeholder] of [
-    ["Add contact", "Search contacts…"],
-    [/company: Sendwell Studio/, "Search companies…"],
-  ] as const) {
-    const opener = panel(page).getByRole("button", { name: button });
+  const opensUnder = async (opener: Locator, placeholder: string) => {
     await opener.click();
     const search = page.getByPlaceholder(placeholder);
     await expect(search).toBeFocused();
@@ -237,32 +240,40 @@ test("the company and people searches open right under their own button, in the 
     await search.press("Escape");
     await expect(search).toHaveCount(0);
     await expect(opener).toBeFocused();
-  }
+  };
 
+  await page.goto(`${companyUrl}&tab=activity&send=new`);
   const addContact = panel(page).getByRole("button", { name: "Add contact" });
+  await opensUnder(addContact, "Search contacts…");
+
   await addContact.click();
   await page.getByPlaceholder("Search contacts…").fill("Tara Sender");
   await page.getByRole("option", { name: /Tara Sender/ }).click();
   await expect(panel(page).getByRole("button", { name: "Remove contact: Tara Sender" })).toBeVisible();
   await expect(addContact).toBeFocused();
 
-  // Tabbing out of a search closes it.
+  // Tabbing out of a search closes it, and so does a press outside.
   await addContact.press("Enter");
   await expect(page.getByPlaceholder("Search contacts…")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByPlaceholder("Search contacts…")).toHaveCount(0);
+  await addContact.click();
+  await panel(page).getByLabel("Note").click();
+  await expect(page.getByPlaceholder("Search contacts…")).toHaveCount(0);
+  await expect(panel(page).getByRole("button", { name: "Log send" })).toBeVisible();
+  await expect(page).toHaveURL(/send=new/);
 
-  // One search at a time, and a press outside closes it.
+  // From a person, both searches are there, and one open closes the other.
+  await page.goto(personSendUrl);
+  await opensUnder(companyPicker(page), "Search companies…");
   await panel(page).getByRole("button", { name: "Add contact" }).click();
   await expect(page.getByPlaceholder("Search contacts…")).toBeVisible();
-  await panel(page).getByRole("button", { name: /company: Sendwell Studio/ }).click();
+  await companyPicker(page).click();
   await expect(page.getByPlaceholder("Search contacts…")).toHaveCount(0);
   await expect(page.getByPlaceholder("Search companies…")).toBeVisible();
   await panel(page).getByLabel("Note").click();
   await expect(page.getByPlaceholder("Search companies…")).toHaveCount(0);
   await expect(dialogs).toHaveCount(1);
-  await expect(panel(page).getByRole("button", { name: "Log send" })).toBeVisible();
-  await expect(page).toHaveURL(/send=new/);
 });
 
 test("sending fits a phone", async ({ page }) => {

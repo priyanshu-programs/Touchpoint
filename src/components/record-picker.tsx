@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -129,8 +130,10 @@ export function RecordSearchDialog({
   );
 }
 
-// A press or focus anywhere outside the picker closes its search, so opening another
-// picker's search closes this one at once.
+// A click or keyboard focus anywhere outside the picker closes its search, so opening
+// another picker's search closes this one at once. It waits for the click, not the press:
+// closing on the press shortens the panel, which can scroll the other button away before
+// the press ends, and then that click never lands.
 function useCloseOutside(
   ref: RefObject<HTMLElement | null>,
   open: boolean,
@@ -138,14 +141,30 @@ function useCloseOutside(
 ) {
   useEffect(() => {
     if (!open) return;
-    const onOutside = (event: Event) => {
-      if (!ref.current?.contains(event.target as Node)) close();
+    let pressing = false;
+    const outside = (event: Event) => !ref.current?.contains(event.target as Node);
+    const onDown = () => {
+      pressing = true;
     };
-    document.addEventListener("pointerdown", onOutside);
-    document.addEventListener("focusin", onOutside);
+    const onUp = () => {
+      pressing = false;
+    };
+    const onClick = (event: Event) => {
+      if (outside(event)) close();
+    };
+    // A press moves focus too; its click decides.
+    const onFocus = (event: Event) => {
+      if (!pressing && outside(event)) close();
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("click", onClick);
+    document.addEventListener("focusin", onFocus);
     return () => {
-      document.removeEventListener("pointerdown", onOutside);
-      document.removeEventListener("focusin", onOutside);
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("click", onClick);
+      document.removeEventListener("focusin", onFocus);
     };
   }, [ref, open, close]);
 }
@@ -157,7 +176,8 @@ function useInlineSearch(inline: boolean | undefined) {
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const refocus = useRef(false);
-  useCloseOutside(root, Boolean(inline) && open, () => setOpen(false));
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOutside(root, Boolean(inline) && open, close);
   // Before the record's panel, finding focus lost with the input, takes it for itself.
   useLayoutEffect(() => {
     if (open || !refocus.current) return;
