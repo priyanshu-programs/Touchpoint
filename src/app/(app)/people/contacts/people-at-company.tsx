@@ -12,13 +12,18 @@ import { outsidersAction, searchContactsAction } from "./actions";
 const listed = new Intl.ListFormat("en-GB", { type: "conjunction" });
 
 // The people and the company of a send or an activity. With a company chosen, only its
-// people are offered, and choosing another company takes off whoever isn't there.
+// people are offered, and choosing another company takes off whoever isn't there. Asked
+// from a company's own panel, `companyFixed` keeps that company and offers no other.
 export function PeopleAtCompany({
   contacts,
   organization,
+  inline,
+  companyFixed,
 }: {
   contacts: PickerOption[];
   organization: PickerOption | null;
+  inline?: boolean;
+  companyFixed?: boolean;
 }) {
   const [people, setPeople] = useState(contacts);
   const [company, setCompany] = useState(organization);
@@ -44,25 +49,34 @@ export function PeopleAtCompany({
   };
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className={companyFixed ? "grid gap-4" : "grid gap-4 sm:grid-cols-2"}>
       <RecordsPicker
         name="contacts"
         noun="contact"
         initial={contacts}
         value={people}
         onChange={setPeople}
+        inline={inline}
         search={search}
         empty={company ? `Nobody at ${company.label} matches.` : undefined}
       />
-      <RecordPicker
-        name="organizationId"
-        labelName="organizationName"
-        noun="company"
-        plural="companies"
-        initial={organization}
-        search={searchOrganizationsAction}
-        onChange={choose}
-      />
+      {companyFixed ? (
+        <>
+          <input type="hidden" name="organizationId" value={organization?.id ?? ""} />
+          <input type="hidden" name="organizationName" value={organization?.label ?? ""} />
+        </>
+      ) : (
+        <RecordPicker
+          name="organizationId"
+          labelName="organizationName"
+          noun="company"
+          plural="companies"
+          initial={organization}
+          search={searchOrganizationsAction}
+          onChange={choose}
+          inline={inline}
+        />
+      )}
       {note && (
         <p role="status" className="text-sm text-muted-foreground sm:col-span-2">
           {note}
