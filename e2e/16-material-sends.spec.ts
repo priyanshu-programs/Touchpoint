@@ -233,10 +233,24 @@ test("the company and people searches open right under their own button, in the 
     expect(below.y).toBeGreaterThanOrEqual(above.y + above.height);
     expect(below.y - (above.y + above.height)).toBeLessThan(40);
     expect(below.x).toBeGreaterThanOrEqual(above.x - 1);
+    // Escape closes the search alone, and the button that opened it has focus again.
     await search.press("Escape");
     await expect(search).toHaveCount(0);
-    await expect(dialogs).toHaveCount(1);
+    await expect(opener).toBeFocused();
   }
+
+  const addContact = panel(page).getByRole("button", { name: "Add contact" });
+  await addContact.click();
+  await page.getByPlaceholder("Search contacts…").fill("Tara Sender");
+  await page.getByRole("option", { name: /Tara Sender/ }).click();
+  await expect(panel(page).getByRole("button", { name: "Remove contact: Tara Sender" })).toBeVisible();
+  await expect(addContact).toBeFocused();
+
+  // Tabbing out of a search closes it.
+  await addContact.press("Enter");
+  await expect(page.getByPlaceholder("Search contacts…")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByPlaceholder("Search contacts…")).toHaveCount(0);
 
   // One search at a time, and a press outside closes it.
   await panel(page).getByRole("button", { name: "Add contact" }).click();
@@ -247,6 +261,8 @@ test("the company and people searches open right under their own button, in the 
   await panel(page).getByLabel("Note").click();
   await expect(page.getByPlaceholder("Search companies…")).toHaveCount(0);
   await expect(dialogs).toHaveCount(1);
+  await expect(panel(page).getByRole("button", { name: "Log send" })).toBeVisible();
+  await expect(page).toHaveURL(/send=new/);
 });
 
 test("sending fits a phone", async ({ page }) => {

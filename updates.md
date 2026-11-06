@@ -1392,3 +1392,6 @@
 - [2026-11-06] e2e/16: the company and people searches open under their button, take focus, and close on Escape without closing the panel
 - [2026-11-06] record-picker: an inline search closes on a press outside its picker, so opening the other picker's search closes the first and only one is open at a time
 - [2026-11-06] e2e/16: opening the company search closes the people search, and a click on Note closes it
+- [2026-11-07] record-picker: an inline search also closes when keyboard focus leaves its picker (CodeRabbit review on #62)
+- [2026-11-07] record-picker: Escape or a pick in an inline search puts focus back on the button that opened it, in a layout effect so the record panel doesn't take it (CodeRabbit review on #62)
+- [2026-11-07] e2e/16: focus returns to the button after Escape and after a pick, Tab out closes the search, and the Log a send panel stays open

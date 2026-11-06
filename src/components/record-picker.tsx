@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -123,8 +129,8 @@ export function RecordSearchDialog({
   );
 }
 
-// A press anywhere outside the picker closes its search, so opening another picker's
-// search closes this one in the same press.
+// A press or focus anywhere outside the picker closes its search, so opening another
+// picker's search closes this one at once.
 function useCloseOutside(
   ref: RefObject<HTMLElement | null>,
   open: boolean,
@@ -132,21 +138,46 @@ function useCloseOutside(
 ) {
   useEffect(() => {
     if (!open) return;
-    const onPress = (event: PointerEvent) => {
+    const onOutside = (event: Event) => {
       if (!ref.current?.contains(event.target as Node)) close();
     };
-    document.addEventListener("pointerdown", onPress);
-    return () => document.removeEventListener("pointerdown", onPress);
+    document.addEventListener("pointerdown", onOutside);
+    document.addEventListener("focusin", onOutside);
+    return () => {
+      document.removeEventListener("pointerdown", onOutside);
+      document.removeEventListener("focusin", onOutside);
+    };
   }, [ref, open, close]);
+}
+
+// An inline search, and the button that opens it. Closed by Escape or a pick, it gives
+// focus back to the button.
+function useInlineSearch(inline: boolean | undefined) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const refocus = useRef(false);
+  useCloseOutside(root, Boolean(inline) && open, () => setOpen(false));
+  // Before the record's panel, finding focus lost with the input, takes it for itself.
+  useLayoutEffect(() => {
+    if (open || !refocus.current) return;
+    refocus.current = false;
+    trigger.current?.focus();
+  }, [open]);
+  const done = () => {
+    refocus.current = true;
+    setOpen(false);
+  };
+  return { open, setOpen, root, trigger, done };
 }
 
 // The same search, opening in the form right under the button that asked for it.
 function RecordSearchInline({
-  onOpenChange,
+  onClose,
   exclude = [],
   onSelect,
   ...rest
-}: SearchProps & { onOpenChange: (open: boolean) => void }) {
+}: SearchProps & { onClose: () => void }) {
   const { query, setQuery, shown } = useFound(true, rest.search, exclude);
 
   return (
@@ -155,7 +186,7 @@ function RecordSearchInline({
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.stopPropagation();
-          onOpenChange(false);
+          onClose();
         }
       }}
     >
@@ -167,7 +198,7 @@ function RecordSearchInline({
         autoFocus
         onSelect={(option) => {
           onSelect(option);
-          onOpenChange(false);
+          onClose();
         }}
       />
     </div>
@@ -194,9 +225,7 @@ export function RecordPicker({
   inline?: boolean;
 }) {
   const [selected, setSelectedState] = useState(initial);
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useCloseOutside(root, Boolean(inline) && open, () => setOpen(false));
+  const { open, setOpen, root, trigger, done } = useInlineSearch(inline);
   const setSelected = (option: PickerOption | null) => {
     setSelectedState(option);
     onChange?.(option);
@@ -213,6 +242,7 @@ export function RecordPicker({
           aria-label={
             selected ? `${noun}: ${selected.label}. Change` : `Choose ${noun}`
           }
+          ref={trigger}
           aria-expanded={inline ? open : undefined}
           onClick={() => setOpen(inline ? !open : true)}
         >
@@ -237,7 +267,7 @@ export function RecordPicker({
       {inline ? (
         open && (
           <RecordSearchInline
-            onOpenChange={setOpen}
+            onClose={done}
             noun={noun}
             plural={plural}
             search={search}
@@ -283,9 +313,7 @@ export function RecordsPicker({
   const [own, setOwn] = useState(initial);
   const selected = value ?? own;
   const setSelected = onChange ?? setOwn;
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useCloseOutside(root, Boolean(inline) && open, () => setOpen(false));
+  const { open, setOpen, root, trigger, done } = useInlineSearch(inline);
 
   return (
     <div ref={root} className="grid content-start gap-2">
@@ -316,6 +344,7 @@ export function RecordsPicker({
         type="button"
         variant="outline"
         className="justify-start"
+        ref={trigger}
         aria-expanded={inline ? open : undefined}
         onClick={() => setOpen(inline ? !open : true)}
       >
@@ -332,7 +361,7 @@ export function RecordsPicker({
       {inline ? (
         open && (
           <RecordSearchInline
-            onOpenChange={setOpen}
+            onClose={done}
             noun={noun}
             search={search}
             empty={empty}
