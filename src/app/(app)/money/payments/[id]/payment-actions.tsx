@@ -19,10 +19,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PanelOriginFields, type PanelOrigin } from "../../panel-origin";
 import { deletePaymentAction } from "../actions";
 
 // A payment recorded by mistake is deleted, after a confirmation.
-export function PaymentActions({ id, label }: { id: string; label: string }) {
+export function PaymentActions({
+  id,
+  label,
+  origin,
+}: {
+  id: string;
+  label: string;
+  origin?: PanelOrigin;
+}) {
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -54,6 +63,7 @@ export function PaymentActions({ id, label }: { id: string; label: string }) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <form action={deletePaymentAction} onSubmit={() => setConfirming(false)}>
               <input type="hidden" name="id" value={id} />
+              <PanelOriginFields origin={origin} />
               <AlertDialogAction type="submit" variant="destructive" className="w-full">
                 Delete payment
               </AlertDialogAction>

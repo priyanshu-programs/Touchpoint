@@ -2,15 +2,9 @@ import type { Metadata } from "next";
 import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOwner } from "@/lib/session";
-import { addDays, dateIn } from "@/lib/time";
 import { getContact } from "@/modules/contacts/queries";
-import { serviceCategories } from "@/modules/invoices/queries";
-import { DEFAULT_TERMS_DAYS } from "@/modules/invoices/schema";
 import { getOrganization } from "@/modules/organizations/queries";
-import { CURRENCIES } from "@/modules/settings/schema";
-import { getSettings } from "@/modules/settings/service";
-import { createInvoiceAction } from "../actions";
-import { InvoiceForm } from "../invoice-form";
+import { NewInvoice } from "../invoice-editors";
 
 export const metadata: Metadata = { title: "New invoice" };
 
@@ -19,8 +13,8 @@ const from = z.object({
   person: z.uuid().optional().catch(undefined),
 });
 
-// Opened from a company's or a person's Invoices tab, the client is filled in, once
-// the record is found to be the owner's.
+// Opened with a company or a person, the client is filled in, once the record is found
+// to be the owner's.
 async function clientOf(ownerId: string, { company, person }: z.infer<typeof from>) {
   if (company) {
     const organization = await getOrganization(ownerId, company);
@@ -37,12 +31,7 @@ export default async function NewInvoicePage({
   searchParams,
 }: PageProps<"/money/invoices/new">) {
   const owner = await requireOwner();
-  const [settings, categories, client] = await Promise.all([
-    getSettings(owner.id),
-    serviceCategories(owner.id),
-    clientOf(owner.id, from.parse(await searchParams)),
-  ]);
-  const today = dateIn(settings?.timezone ?? "UTC");
+  const client = await clientOf(owner.id, from.parse(await searchParams));
 
   return (
     <Card>
@@ -52,24 +41,7 @@ export default async function NewInvoicePage({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <InvoiceForm
-          action={createInvoiceAction}
-          initial={{
-            number: "",
-            client: client?.id ?? "",
-            clientName: client?.label ?? "",
-            issueDate: today,
-            dueDate: addDays(today, DEFAULT_TERMS_DAYS),
-            currency: settings?.baseCurrency ?? "INR",
-            notes: "",
-            lines: "",
-            adjustments: "",
-          }}
-          currencies={CURRENCIES}
-          categories={categories}
-          withFile
-          cancelHref="/money/invoices"
-        />
+        <NewInvoice ownerId={owner.id} client={client} cancelHref="/money/invoices" />
       </CardContent>
     </Card>
   );

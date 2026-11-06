@@ -41,7 +41,8 @@ test("an invoice is recorded from a company's Invoices tab, with lines, a discou
   await panel(page).getByRole("link", { name: "Invoices", exact: true }).click();
   await expect(panel(page).getByText("No invoices yet.")).toBeVisible();
   await panel(page).getByRole("link", { name: "New invoice" }).click();
-  await expect(page).toHaveURL(new RegExp(`/money/invoices/new\\?company=${ID}$`));
+  // It opens in the company's panel, not on a page of its own.
+  await expect(page).toHaveURL(new RegExp(`/people/organizations\\?company=${ID}.*invoice=new`));
   await expect(page.getByRole("button", { name: "client: Ledger Works. Change" })).toBeVisible();
   await expect(page.getByLabel("Currency")).toHaveValue("INR");
   await expect(page.getByLabel("Due on")).not.toHaveValue("");
@@ -62,9 +63,17 @@ test("an invoice is recorded from a company's Invoices tab, with lines, a discou
   await page.getByLabel("Invoice file").setInputFiles(exported);
   await page.getByRole("button", { name: "Save as draft" }).click();
 
-  // Saved first, then the file goes up: two round trips to a slow test database.
-  await expect(page).toHaveURL(new RegExp(`/money/invoices/${ID}$`), { timeout: 15_000 });
-  invoiceUrl = page.url();
+  // Saved first, then the file goes up: two round trips to a slow test database. Then
+  // back to the company's Invoices tab, where it opens in the panel.
+  const listed = panel(page).getByRole("link", { name: NUMBER });
+  await expect(listed).toBeVisible({ timeout: 15_000 });
+  await listed.click();
+  await expect(panel(page).getByRole("heading", { name: `Invoice ${NUMBER}` })).toBeVisible();
+  invoiceUrl = new URL(
+    `/money/invoices/${new URL(page.url()).searchParams.get("invoice")}`,
+    page.url(),
+  ).href;
+  await page.goto(invoiceUrl);
   await expect(main(page).getByRole("heading", { name: `Invoice ${NUMBER}` })).toBeVisible();
   await expect(main(page).getByText("Draft", { exact: true })).toBeVisible();
   await expect(main(page).getByText("Launch discount")).toBeVisible();

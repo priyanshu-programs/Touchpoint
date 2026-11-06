@@ -361,7 +361,8 @@ for (const device of devices) {
       await openCompany(page);
       await companyTabs(page).getByRole("link", { name: "Invoices" }).click();
       await panel(page).getByRole("link", { name: "New invoice" }).click();
-      await expect(page).toHaveURL(new RegExp(`/money/invoices/new\\?company=${ID}$`));
+      // It opens in the company's panel.
+      await expect(page).toHaveURL(new RegExp(`/people/organizations\\?company=${ID}.*invoice=new`));
       await expect(page.getByRole("button", { name: `client: ${device.company}. Change` })).toBeVisible();
       await page.getByLabel("Invoice number").fill(device.invoice);
       await page.getByLabel("Issued on").fill(day(6));
@@ -376,8 +377,14 @@ for (const device of devices) {
       await expect(page.getByLabel("Invoice total")).toHaveText("₹1,00,000");
       await checkFits(page, "the invoice form");
       await page.getByRole("button", { name: "Save as issued" }).click();
-      await expect(page).toHaveURL(new RegExp(`/money/invoices/${ID}$`), { timeout: 15_000 });
-      invoiceUrl = page.url();
+      // Back on the company's Invoices tab; the invoice opens in the panel, and on its own page.
+      await panel(page).getByRole("link", { name: device.invoice }).click({ timeout: 15_000 });
+      await expect(page).toHaveURL(new RegExp(`invoice=${ID}`));
+      invoiceUrl = new URL(
+        `/money/invoices/${new URL(page.url()).searchParams.get("invoice")}`,
+        page.url(),
+      ).href;
+      await page.goto(invoiceUrl);
       // Its due date is long past, and stays so while it is partly paid.
       await expect(header(page).getByText("Overdue", { exact: true })).toBeVisible();
       await checkFits(page, "the invoice");
