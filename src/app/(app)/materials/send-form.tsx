@@ -61,6 +61,7 @@ export function SendForm({
         />
       </div>
       <PeopleAtCompany
+        inline
         contacts={JSON.parse(values.contacts) as PickerOption[]}
         organization={
           values.organizationId

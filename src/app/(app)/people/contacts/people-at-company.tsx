@@ -16,9 +16,11 @@ const listed = new Intl.ListFormat("en-GB", { type: "conjunction" });
 export function PeopleAtCompany({
   contacts,
   organization,
+  inline,
 }: {
   contacts: PickerOption[];
   organization: PickerOption | null;
+  inline?: boolean;
 }) {
   const [people, setPeople] = useState(contacts);
   const [company, setCompany] = useState(organization);
@@ -51,6 +53,7 @@ export function PeopleAtCompany({
         initial={contacts}
         value={people}
         onChange={setPeople}
+        inline={inline}
         search={search}
         empty={company ? `Nobody at ${company.label} matches.` : undefined}
       />
@@ -62,6 +65,7 @@ export function PeopleAtCompany({
         initial={organization}
         search={searchOrganizationsAction}
         onChange={choose}
+        inline={inline}
       />
       {note && (
         <p role="status" className="text-sm text-muted-foreground sm:col-span-2">

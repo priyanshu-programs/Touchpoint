@@ -1387,3 +1387,8 @@
 - [2026-11-05] security.md and plan.md: a send, activity or meeting about a company is with its own people only
 - [2026-11-06] Learning: a send, activity or meeting about a company is with its own people only, and why an activity edit keeps people who left
 - [2026-11-06] Learning: the materials last-change sort test fails locally when this PC's clock trails the database's
+- [2026-11-06] record-picker: an opt-in inline mode opens the search right under its button, in place of the centered pop-up, with the search body shared by both
+- [2026-11-06] Log a send: the company and people searches open right under their own button, so they no longer cover the form
+- [2026-11-06] e2e/16: the company and people searches open under their button, take focus, and close on Escape without closing the panel
+- [2026-11-06] record-picker: an inline search closes on a press outside its picker, so opening the other picker's search closes the first and only one is open at a time
+- [2026-11-06] e2e/16: opening the company search closes the people search, and a click on Note closes it

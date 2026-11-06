@@ -212,6 +212,43 @@ test("a send from a company goes only to its people, and another company takes o
   ).toBeVisible();
 });
 
+test("the company and people searches open right under their own button, in the form", async ({
+  page,
+}) => {
+  await page.goto(`${companyUrl}&tab=activity&send=new`);
+  const dialogs = page.getByRole("dialog");
+  await expect(dialogs).toHaveCount(1);
+
+  for (const [button, placeholder] of [
+    ["Add contact", "Search contacts…"],
+    [/company: Sendwell Studio/, "Search companies…"],
+  ] as const) {
+    const opener = panel(page).getByRole("button", { name: button });
+    await opener.click();
+    const search = page.getByPlaceholder(placeholder);
+    await expect(search).toBeFocused();
+    await expect(dialogs).toHaveCount(1);
+    const above = (await opener.boundingBox())!;
+    const below = (await search.boundingBox())!;
+    expect(below.y).toBeGreaterThanOrEqual(above.y + above.height);
+    expect(below.y - (above.y + above.height)).toBeLessThan(40);
+    expect(below.x).toBeGreaterThanOrEqual(above.x - 1);
+    await search.press("Escape");
+    await expect(search).toHaveCount(0);
+    await expect(dialogs).toHaveCount(1);
+  }
+
+  // One search at a time, and a press outside closes it.
+  await panel(page).getByRole("button", { name: "Add contact" }).click();
+  await expect(page.getByPlaceholder("Search contacts…")).toBeVisible();
+  await panel(page).getByRole("button", { name: /company: Sendwell Studio/ }).click();
+  await expect(page.getByPlaceholder("Search contacts…")).toHaveCount(0);
+  await expect(page.getByPlaceholder("Search companies…")).toBeVisible();
+  await panel(page).getByLabel("Note").click();
+  await expect(page.getByPlaceholder("Search companies…")).toHaveCount(0);
+  await expect(dialogs).toHaveCount(1);
+});
+
 test("sending fits a phone", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(materialUrl);
