@@ -86,6 +86,7 @@ export function ActivityForm({
         defaultValue={values.outcome}
       />
       <PeopleAtCompany
+        companyFixed={from === "organization"}
         contacts={JSON.parse(values.contacts) as PickerOption[]}
         organization={
           values.organizationId

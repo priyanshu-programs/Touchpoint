@@ -1,4 +1,5 @@
 import { dateIn } from "@/lib/time";
+import type { PriorityColors } from "@/modules/settings/priority-colors";
 import type { TaskListRow } from "@/modules/tasks/queries";
 import { TaskList } from "./task-list";
 
@@ -6,9 +7,11 @@ import { TaskList } from "./task-list";
 export function DueToday({
   tasks,
   timezone,
+  colors,
 }: {
   tasks: TaskListRow[];
   timezone: string;
+  colors: PriorityColors;
 }) {
   const today = dateIn(timezone);
   const isOverdue = (task: TaskListRow) => task.dueOn! < today;
@@ -27,7 +30,7 @@ export function DueToday({
           <h2 id="overdue-heading" className="font-medium">
             Overdue ({overdue.length})
           </h2>
-          <TaskList tasks={overdue} timezone={timezone} snooze />
+          <TaskList tasks={overdue} timezone={timezone} colors={colors} snooze />
         </section>
       )}
       {dueToday.length > 0 && (
@@ -35,7 +38,7 @@ export function DueToday({
           <h2 id="due-today-heading" className="font-medium">
             Due today ({dueToday.length})
           </h2>
-          <TaskList tasks={dueToday} timezone={timezone} snooze />
+          <TaskList tasks={dueToday} timezone={timezone} colors={colors} snooze />
         </section>
       )}
       {tasks.length === 200 && (

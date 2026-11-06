@@ -1,4 +1,5 @@
 import { addDays, dateIn, formatDate } from "@/lib/time";
+import type { PriorityColors } from "@/modules/settings/priority-colors";
 import type { TaskListRow } from "@/modules/tasks/queries";
 import { TaskList } from "./task-list";
 
@@ -6,10 +7,12 @@ import { TaskList } from "./task-list";
 export function WeekAhead({
   tasks,
   timezone,
+  colors,
   empty,
 }: {
   tasks: TaskListRow[];
   timezone: string;
+  colors: PriorityColors;
   empty: string;
 }) {
   const today = dateIn(timezone);
@@ -30,7 +33,7 @@ export function WeekAhead({
       {days.map((day) => (
         <section key={day.date} className="grid gap-3">
           <h2 className="font-medium">{day.label}</h2>
-          <TaskList tasks={day.tasks} timezone={timezone} />
+          <TaskList tasks={day.tasks} timezone={timezone} colors={colors} />
         </section>
       ))}
     </div>

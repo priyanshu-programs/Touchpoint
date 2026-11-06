@@ -1,8 +1,8 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { dateIn, formatDate, formatDateTime, isFuture } from "@/lib/time";
+import type { PriorityColors } from "@/modules/settings/priority-colors";
 import type { TaskListRow } from "@/modules/tasks/queries";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import {
@@ -11,6 +11,7 @@ import {
   snoozeTaskAction,
 } from "./actions";
 import { repeatLabel } from "./form-options";
+import { PriorityTag } from "./priority-tag";
 
 function dueLabel(task: TaskListRow, timezone: string, today: string) {
   if (task.dueAt) return formatDateTime(task.dueAt, timezone);
@@ -21,11 +22,13 @@ function dueLabel(task: TaskListRow, timezone: string, today: string) {
 export function TaskList({
   tasks,
   timezone,
+  colors,
   snooze = false,
   hrefFor,
 }: {
   tasks: TaskListRow[];
   timezone: string;
+  colors: PriorityColors;
   // Where a task opens: its own page, unless the panel showing it says otherwise.
   hrefFor?: (id: string) => string;
   // Offered where the list is about today, so a task can be pushed to tomorrow in one click.
@@ -81,10 +84,11 @@ export function TaskList({
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                 {due && (
                   <span className={overdue ? "text-destructive" : undefined}>
+                    <span aria-hidden>💀 </span>
                     {overdue ? `Overdue: ${due}` : due}
                   </span>
                 )}
-                {task.priority === "high" && <Badge>High</Badge>}
+                <PriorityTag priority={task.priority} colors={colors} />
                 {task.recurrenceRule && (
                   <span>{repeatLabel(task.recurrenceRule)}</span>
                 )}

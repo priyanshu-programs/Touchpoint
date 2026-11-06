@@ -48,10 +48,10 @@ test("from a company, an activity and its follow-up are logged, opened and chang
   await expect(
     panel(page).getByRole("heading", { name: "Log activity" }),
   ).toBeVisible();
-  // The company arrives filled in.
+  // From the company's own panel the company is that one, with no picker to change it.
   await expect(
-    panel(page).getByRole("button", { name: /company: Panel Works/ }),
-  ).toBeVisible();
+    panel(page).getByRole("button", { name: /^(Choose company|company: )/ }),
+  ).toHaveCount(0);
   await panel(page).getByLabel("Type").selectOption("meeting");
   await panel(page).getByLabel("Summary").fill("Kick-off meeting");
   await panel(page).getByLabel("Follow-up date").fill(localDate(2));
@@ -88,7 +88,7 @@ test("from a company, an activity and its follow-up are logged, opened and chang
   await expect(page).toHaveURL(
     address(`organizations\\?company=${ID}&tab=tasks&task=${ID}`),
   );
-  await expect(panel(page).getByLabel("Due date")).toHaveValue(localDate(2));
+  await expect(panel(page).getByLabel("Deadline date")).toHaveValue(localDate(2));
   await panel(page).getByLabel("Priority").selectOption("high");
   await panel(page).getByRole("button", { name: "Save changes" }).click();
   await expect(panel(page).getByText("Saved.")).toBeVisible();
@@ -106,12 +106,43 @@ test("from a company, an activity and its follow-up are logged, opened and chang
     address(`organizations\\?company=${ID}&tab=tasks&task=new`),
   );
   await expect(panel(page).getByRole("heading", { name: "Add task" })).toBeVisible();
+  // From the company's own panel only its people are offered, and there is no company to choose.
+  await expect(
+    panel(page).getByRole("button", { name: /^(Choose company|company: )/ }),
+  ).toHaveCount(0);
+  await panel(page).getByRole("button", { name: "Choose contact" }).click();
+  const search = page.getByRole("dialog", { name: "Choose contact" });
+  await search.getByPlaceholder(/Search/).fill("a");
+  await expect(search.getByText("Nobody at Panel Works matches.")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // High's tag colour is set from the form, at once, for every task.
+  await panel(page).getByRole("button", { name: /^High colour: / }).click();
+  const colour = panel(page).getByRole("group", { name: "High colour" });
+  await colour.getByLabel("High hex colour").fill("22C55E");
+  await colour.getByRole("button", { name: "Save colour" }).click();
+  await expect(colour.getByRole("alert")).toHaveText("Enter a colour like #22C55E");
+  await colour.getByLabel("High hex colour").fill("#22C55E");
+  await colour.getByRole("button", { name: "Save colour" }).click();
+  await expect(colour).toHaveCount(0);
+  await expect(
+    panel(page).getByRole("button", { name: "High colour: #22c55e. Change" }),
+  ).toBeVisible();
+
   await panel(page).getByLabel("Task", { exact: true }).fill("Prepare the workshop");
   await panel(page).getByRole("button", { name: "Add task" }).click();
   await expect(page).toHaveURL(address(`organizations\\?company=${ID}&tab=tasks`));
   await expect(
     panel(page).getByRole("link", { name: "Prepare the workshop" }),
   ).toBeVisible();
+  // The done follow-up was made High above, and its tag wears the new colour.
+  await expect(panel(page).locator('[data-priority="high"]').first()).toHaveCSS(
+    "background-color",
+    "rgb(34, 197, 94)",
+  );
+  await expect(panel(page).locator('[data-priority="normal"]').first()).toHaveText(
+    "Normal",
+  );
   expect(consoleErrors).toEqual([]);
 });
 

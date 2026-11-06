@@ -36,6 +36,10 @@ export const settings = pgTable(
     phone: text("phone"),
     website: text("website"),
     location: text("location"),
+    // Each task priority's tag colour as #rrggbb; empty means the default.
+    taskColorLow: varchar("task_color_low", { length: 7 }),
+    taskColorNormal: varchar("task_color_normal", { length: 7 }),
+    taskColorHigh: varchar("task_color_high", { length: 7 }),
     createdAt,
     updatedAt,
   },
@@ -44,6 +48,10 @@ export const settings = pgTable(
     check(
       "settings_fiscal_month_check",
       sql`${table.fiscalYearStartMonth} between 1 and 12`,
+    ),
+    check(
+      "settings_task_colors_check",
+      sql`${table.taskColorLow} ~ '^#[0-9a-f]{6}$' and ${table.taskColorNormal} ~ '^#[0-9a-f]{6}$' and ${table.taskColorHigh} ~ '^#[0-9a-f]{6}$'`,
     ),
   ],
 );

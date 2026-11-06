@@ -5,7 +5,18 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { user } from "@/db/schema";
 import { profileInput, settingsInput } from "./schema";
-import { getSettings, saveProfile, saveSettings } from "./service";
+import {
+  DEFAULT_PRIORITY_COLORS,
+  hexColor,
+  priorityColors,
+  textOn,
+} from "./priority-colors";
+import {
+  getSettings,
+  saveProfile,
+  saveSettings,
+  setPriorityColor,
+} from "./service";
 
 const input = {
   baseCurrency: "INR",
@@ -196,5 +207,44 @@ describe("listAudit", () => {
     expect(new Set(ids).size).toBe(5);
     expect(third.nextBeforeId).toBeNull();
     expect(first.rows[0].createdAt >= first.rows[1].createdAt).toBe(true);
+  });
+});
+
+describe("priority colours", () => {
+  it("reads a colour like #22C55E, in lower case, and nothing else", () => {
+    expect(hexColor.parse(" #22C55E ")).toBe("#22c55e");
+    for (const bad of ["22c55e", "#22c55", "#22c55eff", "#ggg000", "red"]) {
+      expect(hexColor.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it("writes black on light tags and white on dark ones", () => {
+    expect(textOn("#ffffff")).toBe("#000000");
+    expect(textOn("#facc15")).toBe("#000000");
+    expect(textOn("#000000")).toBe("#ffffff");
+    expect(textOn("#1e3a8a")).toBe("#ffffff");
+  });
+
+  it("falls back to the defaults before any is set", () => {
+    expect(priorityColors(null)).toEqual(DEFAULT_PRIORITY_COLORS);
+  });
+
+  it("sets one priority's colour, audited, and only after onboarding", async () => {
+    await resetDatabase();
+    const ownerId = await createTestOwner();
+    expect(await setPriorityColor(ownerId, "high", "#22c55e")).toBe(false);
+
+    await saveSettings(ownerId, input);
+    expect(await setPriorityColor(ownerId, "high", "#22c55e")).toBe(true);
+    expect(priorityColors(await getSettings(ownerId))).toEqual({
+      ...DEFAULT_PRIORITY_COLORS,
+      high: "#22c55e",
+    });
+    const { rows } = await listAudit(ownerId);
+    expect(rows.find((row) => row.action === "settings.update")).toMatchObject({
+      action: "settings.update",
+      before: { taskColorHigh: null },
+      after: { taskColorHigh: "#22c55e" },
+    });
   });
 });

@@ -8,11 +8,14 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
+import { TASK_PRIORITIES } from "@/db/schema";
+import { hexColor } from "@/modules/settings/priority-colors";
 import { profileInput, settingsInput } from "@/modules/settings/schema";
 import {
   getSettings,
   saveProfile,
   saveSettings,
+  setPriorityColor,
 } from "@/modules/settings/service";
 
 export type FormState = { ok: boolean; message: string } | null;
@@ -134,4 +137,27 @@ export async function revokeSessionAction(formData: FormData) {
 export async function signOutAction() {
   await auth.api.signOut({ headers: await headers() });
   redirect("/sign-in");
+}
+
+const priorityColorInput = z.strictObject({
+  priority: z.enum(TASK_PRIORITIES),
+  color: hexColor,
+});
+
+// Saved on its own from the task form, so it never waits on the task being saved.
+export async function setPriorityColorAction(
+  priority: string,
+  color: string,
+): Promise<{ ok: boolean; message: string }> {
+  const owner = await requireOwner();
+  const parsed = priorityColorInput.safeParse({ priority, color });
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  if (!(await setPriorityColor(owner.id, parsed.data.priority, parsed.data.color))) {
+    return { ok: false, message: "Finish setting up first." };
+  }
+  // Tags are drawn on Today, the task views and every record's Tasks tab.
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Saved." };
 }
