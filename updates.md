@@ -1399,6 +1399,14 @@
 - [2026-11-07] record-picker: an inline search closes on an outside click, not the press, so the other picker's button can't scroll away mid-click and miss
 - [2026-11-07] e2e/16: the company-switch and both-searches checks move to a person's Log a send; from a company there is no company picker
 - [2026-11-07] plan.md: Log a send from a company has no company to choose
+- [2026-11-07] Invoices tab: an invoice number, a payment's date, New invoice and Record payment open inside the company's or person's panel instead of a page under Invoices (owner's request)
+- [2026-11-07] Record panel: an invoice or payment opens in place of the record (view, edit, new, record a payment towards it), only when it is that record's own
+- [2026-11-07] Invoice and payment actions: opened from a panel, a save or delete goes back to that panel's Invoices tab or invoice, built from ids the action checked
+- [2026-11-07] Invoice and payment pages: their details and forms moved into shared pieces the pages and the panel both show
+- [2026-11-07] e2e/42: an invoice is made, opened, edited, paid and deleted inside a company's panel, a payment opened and deleted there, and a person's invoice stays out of another record's panel
+- [2026-11-07] e2e/23: New invoice from a company's tab now opens in its panel
+- [2026-11-07] plan.md: everything in a record's Invoices tab opens inside the panel
+- [2026-11-07] e2e/22: journey 7 makes its invoice in the company's panel, then opens its page as before
 - [2026-11-07] Log activity from a company's own panel: no company picker, the company is that one and only people are chosen
 - [2026-11-07] e2e/11: Log activity from a company shows no company picker
 - [2026-11-07] plan.md: Log activity from a company has no company to choose, like Log a send
@@ -1413,3 +1421,5 @@
 - [2026-11-07] Editing a company that had no domain or website to give it one now queues a website read, as creating it with one does; changing an existing address still waits for the button
 - [2026-11-07] The company panel's website button says Enrich until the site has been read once (even if that read failed), then Re-enrich
 - [2026-11-07] Unit tests: an edit adding a company's first address queues one read; keeping or changing an address does not
+- [2026-11-07] Merged main into the invoices-in-panel branch so PR #65 no longer conflicts on updates.md and CI can run
+- [2026-11-07] e2e/22 journey 7: the new-invoice address check allows the search words main's openCompany now puts before company=

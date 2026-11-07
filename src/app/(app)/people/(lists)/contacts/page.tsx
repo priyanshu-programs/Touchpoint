@@ -33,7 +33,14 @@ import {
   hiddenColumns,
 } from "../columns";
 import { ContactPanel } from "../contact-panel";
-import { EntryPanel, entryKey, entryMeetingId, entryTab, findEntry } from "../entry-panel";
+import {
+  EntryPanel,
+  entryKey,
+  entryMeetingId,
+  entryMoneyParams,
+  entryTab,
+  findEntry,
+} from "../entry-panel";
 import { FieldsPanel } from "../fields-panel";
 import { ListCard, ListFooter } from "../list-card";
 import {
@@ -55,6 +62,9 @@ const PAGE_SIZE = 50;
 const NO_ENTRY = {
   activity: undefined,
   task: undefined,
+  invoice: undefined,
+  payment: undefined,
+  edit: undefined,
   send: undefined,
   schedule: undefined,
   event: undefined,
@@ -94,7 +104,7 @@ export default async function ContactsPage({
   const owner = await requireOwner();
   const typed = contactListParams.parse(await searchParams);
   const [entry, fields, layout, jar] = await Promise.all([
-    typed.contact ? findEntry(owner.id, typed) : null,
+    typed.contact ? findEntry(owner.id, { contactId: typed.contact }, typed) : null,
     listCustomFields(owner.id, "contact"),
     getLayout(owner.id, "contact"),
     cookies(),
@@ -107,6 +117,7 @@ export default async function ContactsPage({
     sort: customSort ? typed.sort : undefined,
     activity: entry?.kind === "activity" ? typed.activity : undefined,
     task: entry?.kind === "task" ? typed.task : undefined,
+    ...entryMoneyParams(entry),
     event: entryMeetingId(entry),
   };
   const pageNumber = params.page ?? 1;
@@ -414,6 +425,7 @@ export default async function ContactsPage({
                 }),
                 label: `Back to ${open.fullName}`,
               }}
+              entryHref={(change) => contactsHref(params, { ...NO_ENTRY, ...change })}
             />
           ) : params.merge ? (
             <MergePanel

@@ -487,7 +487,16 @@ export async function CompanyPanel({
           )}
 
           {params.tab === "money" && (
-            <RecordInvoices ownerId={ownerId} client={filter} />
+            <RecordInvoices
+              ownerId={ownerId}
+              client={filter}
+              hrefs={{
+                newInvoice: companiesHref(params, { invoice: "new" }),
+                invoice: (id) => companiesHref(params, { invoice: id }),
+                newPayment: companiesHref(params, { payment: "new" }),
+                payment: (id) => companiesHref(params, { payment: id }),
+              }}
+            />
           )}
         </div>
       )}

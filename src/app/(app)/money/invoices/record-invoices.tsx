@@ -10,20 +10,25 @@ import { paymentsOfRecord } from "@/modules/payments/queries";
 import { PAYMENT_METHOD_LABELS } from "@/modules/payments/schema";
 import { ownerTimezone } from "@/modules/settings/service";
 import { ListCard } from "../../people/(lists)/list-card";
-import { newPaymentHref, paymentHref } from "../payments/labels";
-import { invoiceHref, newInvoiceHref } from "./labels";
 import { InvoiceStatusPill } from "./status-pill";
 
 const ROW = "flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-3 text-sm last:border-b-0";
 
 // The Invoices tab of a company or a person: the invoices that bill them, and what
-// they have paid.
+// they have paid. Each opens in the record's panel, at the addresses the panel gives.
 export async function RecordInvoices({
   ownerId,
   client,
+  hrefs,
 }: {
   ownerId: string;
   client: { organizationId: string } | { contactId: string };
+  hrefs: {
+    newInvoice: string;
+    invoice: (id: string) => string;
+    newPayment: string;
+    payment: (id: string) => string;
+  };
 }) {
   const [rows, paid, timezone] = await Promise.all([
     invoicesOfRecord(ownerId, client),
@@ -37,7 +42,7 @@ export async function RecordInvoices({
       <section className="grid gap-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <h3 className={SECTION_HEADING}>Invoices</h3>
-          <ButtonLink href={newInvoiceHref(client)} variant="outline" size="sm">
+          <ButtonLink href={hrefs.newInvoice} variant="outline" size="sm" scroll={false}>
             New invoice
           </ButtonLink>
         </div>
@@ -52,7 +57,8 @@ export async function RecordInvoices({
               {rows.map((row) => (
                 <li key={row.id} className={ROW}>
                   <Link
-                    href={invoiceHref(row.id)}
+                    href={hrefs.invoice(row.id)}
+                    scroll={false}
                     className="font-medium underline-offset-4 hover:underline"
                   >
                     {row.number}
@@ -72,7 +78,7 @@ export async function RecordInvoices({
       <section className="grid gap-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <h3 className={SECTION_HEADING}>Payments</h3>
-          <ButtonLink href={newPaymentHref(client)} variant="outline" size="sm">
+          <ButtonLink href={hrefs.newPayment} variant="outline" size="sm" scroll={false}>
             Record payment
           </ButtonLink>
         </div>
@@ -85,7 +91,8 @@ export async function RecordInvoices({
               {paid.map((row) => (
                 <li key={row.id} className={ROW}>
                   <Link
-                    href={paymentHref(row.id)}
+                    href={hrefs.payment(row.id)}
+                    scroll={false}
                     className="font-medium underline-offset-4 hover:underline"
                   >
                     {formatDate(row.receivedOn)}

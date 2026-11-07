@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { InvoiceStatus } from "@/db/schema";
+import { PanelOriginFields, type PanelOrigin } from "../../panel-origin";
 import { deleteInvoiceAction, issueInvoiceAction, voidInvoiceAction } from "../actions";
 
 const CONFIRMS = {
@@ -82,12 +83,14 @@ export function InvoiceActions({
   status,
   payments,
   editHref,
+  origin,
 }: {
   id: string;
   number: string;
   status: InvoiceStatus;
   payments: number;
   editHref: string;
+  origin?: PanelOrigin;
 }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState<keyof typeof CONFIRMS | null>(null);
@@ -160,6 +163,7 @@ export function InvoiceActions({
               className="contents"
             >
               <input type="hidden" name="id" value={id} />
+              <PanelOriginFields origin={origin} />
               {confirming === "deletePaid" && (
                 <fieldset className="grid gap-2">
                   <legend className="sr-only">

@@ -23,10 +23,16 @@ export const listParams = z.object({
 // `schedule` only a new one. They come last, so an address reads record, tab, entry.
 const entry = optional(z.union([z.literal("new"), z.uuid()]));
 export type EntryParam = z.infer<typeof entry>;
+// `invoice` and `payment` are the Invoices tab's entries, new or one of the record's;
+// `edit` opens that invoice's form, and `invoice` with `payment=new` is the invoice a
+// new payment goes towards.
 // `merge` puts the open person beside another, to be merged into them.
 const entryParams = {
   activity: entry,
   task: entry,
+  invoice: entry,
+  payment: entry,
+  edit: optional(z.literal("1")),
   send: optional(z.literal("new")),
   schedule: optional(z.literal("new")),
   event: optional(z.uuid()),

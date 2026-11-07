@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { readFields } from "@/lib/form";
+import { moneyPanelHref } from "@/app/(app)/people/labels";
+import { readFields, readOrigin } from "@/lib/form";
 import { formatMoney } from "@/lib/money";
 import { requireOwner } from "@/lib/session";
 import { formatDate } from "@/lib/time";
@@ -48,6 +49,10 @@ export async function recordPaymentAction(
     confirmDuplicate: formData.get("confirmDuplicate") === "yes" ? "yes" : "",
   });
   if (!parsed.success) return invalid(parsed.error, values);
+  const origin = readOrigin(formData);
+  // Opened from a record's panel, what it opens stays in that panel.
+  const inPanel = (open: { invoice?: string; payment?: string }) =>
+    moneyPanelHref(origin, parsed.data, open);
 
   const result = await recordPayment(owner.id, parsed.data);
   if (!result.ok) {
@@ -58,7 +63,12 @@ export async function recordPaymentAction(
         ok: false,
         message: `This looks like a payment you have already recorded: ${formatMoney(existing.amountMinor, existing.currency)} from ${values.clientName || "this client"} on ${formatDate(existing.receivedOn)}, with the same reference. Record it anyway?`,
         values,
-        links: [{ href: paymentHref(existing.id), label: "Open the payment already recorded" }],
+        links: [
+          {
+            href: inPanel({ payment: existing.id }) ?? paymentHref(existing.id),
+            label: "Open the payment already recorded",
+          },
+        ],
         canConfirm: true,
       };
     }
@@ -70,7 +80,8 @@ export async function recordPaymentAction(
   const from = z.uuid().safeParse(formData.get("invoice"));
   const back =
     from.success && parsed.data.allocations.some(({ invoiceId }) => invoiceId === from.data);
-  redirect(back ? invoiceHref(from.data!) : paymentHref(result.id));
+  if (back) redirect(inPanel({ invoice: from.data! }) ?? invoiceHref(from.data!));
+  redirect(inPanel({}) ?? paymentHref(result.id));
 }
 
 // What a payment from this client in this currency can be put towards.
@@ -117,7 +128,9 @@ export async function allocatePaymentAction(
 export async function deletePaymentAction(formData: FormData) {
   const owner = await requireOwner();
   const id = z.uuid().parse(formData.get("id"));
+  const origin = readOrigin(formData);
+  const payment = origin.from ? await getPayment(owner.id, id) : null;
   if (!(await deletePayment(owner.id, id))) notFound();
   refresh();
-  redirect("/money/payments");
+  redirect((payment && moneyPanelHref(origin, payment)) ?? "/money/payments");
 }

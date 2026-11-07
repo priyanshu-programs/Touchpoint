@@ -13,6 +13,7 @@ import { formatDate } from "@/lib/time";
 import type { OpenInvoice } from "@/modules/payments/queries";
 import { searchClientsAction } from "../invoices/actions";
 import { invoiceHref } from "../invoices/labels";
+import { PanelOriginFields, type PanelOrigin } from "../panel-origin";
 import { openInvoicesAction, recordPaymentAction } from "./actions";
 import { methodOptions } from "./labels";
 
@@ -142,6 +143,7 @@ export function PaymentForm({
   baseCurrency,
   fromInvoice,
   cancelHref,
+  origin,
 }: {
   initial: Record<string, string>;
   currencies: string[];
@@ -149,6 +151,7 @@ export function PaymentForm({
   // Opened from an invoice, the form goes back there once the payment is recorded.
   fromInvoice?: string;
   cancelHref: string;
+  origin?: PanelOrigin;
 }) {
   const [state, formAction, pending] = useActionState(recordPaymentAction, null);
   const values = state?.values ?? initial;
@@ -164,6 +167,7 @@ export function PaymentForm({
       />
       <input type="hidden" name="idempotencyKey" value={values.idempotencyKey} />
       {fromInvoice && <input type="hidden" name="invoice" value={fromInvoice} />}
+      <PanelOriginFields origin={origin} />
 
       <FormOutcome state={state?.ok ? null : state} />
       <div className="flex flex-wrap gap-2">

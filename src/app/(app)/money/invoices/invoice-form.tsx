@@ -18,6 +18,7 @@ import {
   MAX_INVOICE_LINES,
 } from "@/modules/invoices/schema";
 import { MAX_FILE_BYTES } from "@/modules/workflows/drawing";
+import { PanelOriginFields, type PanelOrigin } from "../panel-origin";
 import { searchClientsAction, type InvoiceFormState } from "./actions";
 import { FILE_REFUSALS, INVOICE_FILE_ACCEPT, INVOICE_FILE_HINT, invoiceHref } from "./labels";
 import { sendInvoiceFile } from "./send-file";
@@ -51,6 +52,8 @@ export function InvoiceForm({
   issued = false,
   withFile = false,
   cancelHref,
+  savedHref,
+  origin,
 }: {
   action: (state: InvoiceFormState, formData: FormData) => Promise<InvoiceFormState>;
   initial: Record<string, string>;
@@ -61,6 +64,9 @@ export function InvoiceForm({
   // A new invoice can bring its file along.
   withFile?: boolean;
   cancelHref: string;
+  // Where a new invoice goes once its file is up, in place of the invoice's own page.
+  savedHref?: string;
+  origin?: PanelOrigin;
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, null);
@@ -76,7 +82,7 @@ export function InvoiceForm({
     void sendInvoiceFile(savedId, file).then((message) => {
       if (stale) return;
       if (message === null) {
-        router.push(invoiceHref(savedId));
+        router.push(savedHref ?? invoiceHref(savedId));
         return;
       }
       setUnsent({ id: savedId, message });
@@ -84,7 +90,7 @@ export function InvoiceForm({
     return () => {
       stale = true;
     };
-  }, [savedId, file, router]);
+  }, [savedId, file, router, savedHref]);
 
   if (unsent) {
     return (
@@ -106,6 +112,7 @@ export function InvoiceForm({
     // Remounting on new values is what makes selects show them after a rejected submit.
     <form key={JSON.stringify(values)} action={formAction} className="grid gap-6">
       <InvoiceFields values={values} currencies={currencies} categories={categories} />
+      <PanelOriginFields origin={origin} />
 
       {withFile && (
         <div className="grid gap-2">

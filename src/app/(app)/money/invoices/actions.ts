@@ -4,9 +4,11 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { invalid, type RecordFormState } from "@/app/(app)/form-state";
-import { readFields } from "@/lib/form";
+import { moneyPanelHref } from "@/app/(app)/people/labels";
+import { readFields, readOrigin } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import { listContacts } from "@/modules/contacts/queries";
+import { getInvoice } from "@/modules/invoices/queries";
 import { invoiceInput } from "@/modules/invoices/schema";
 import {
   createInvoice,
@@ -71,7 +73,8 @@ export async function createInvoiceAction(
 
   refresh();
   if (formData.get("withFile") === "1") return { ok: true, message: "", id: result.id };
-  redirect(invoiceHref(result.id));
+  // Opened from a record's panel, back to its Invoices tab.
+  redirect(moneyPanelHref(readOrigin(formData), parsed.data) ?? invoiceHref(result.id));
 }
 
 export async function updateInvoiceAction(
@@ -88,7 +91,10 @@ export async function updateInvoiceAction(
   if (!result.ok) return failure(result, values);
 
   refresh();
-  redirect(invoiceHref(invoiceId));
+  redirect(
+    moneyPanelHref(readOrigin(formData), parsed.data, { invoice: invoiceId }) ??
+      invoiceHref(invoiceId),
+  );
 }
 
 // The menu offers each only where it applies, so a refusal was not asked for from the page.
@@ -114,8 +120,14 @@ export async function voidInvoiceAction(formData: FormData) {
 
 export async function deleteInvoiceAction(formData: FormData) {
   const payments = z.enum(["keep", "delete"]).catch("keep").parse(formData.get("payments"));
-  await change(formData, (ownerId, id) => deleteInvoice(ownerId, id, payments));
-  redirect("/money/invoices");
+  const origin = readOrigin(formData);
+  let back: string | null = null;
+  await change(formData, async (ownerId, id) => {
+    const invoice = origin.from ? await getInvoice(ownerId, id) : null;
+    if (invoice) back = moneyPanelHref(origin, invoice);
+    return deleteInvoice(ownerId, id, payments);
+  });
+  redirect(back ?? "/money/invoices");
 }
 
 export async function removeInvoiceFileAction(formData: FormData) {

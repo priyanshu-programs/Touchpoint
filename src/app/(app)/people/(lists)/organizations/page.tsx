@@ -38,7 +38,14 @@ import {
   hiddenColumns,
 } from "../columns";
 import { ContactPanel } from "../contact-panel";
-import { EntryPanel, entryKey, entryMeetingId, entryTab, findEntry } from "../entry-panel";
+import {
+  EntryPanel,
+  entryKey,
+  entryMeetingId,
+  entryMoneyParams,
+  entryTab,
+  findEntry,
+} from "../entry-panel";
 import { FieldsPanel } from "../fields-panel";
 import { ListCard, ListFooter } from "../list-card";
 import {
@@ -80,6 +87,9 @@ const FIRST_DIRECTION = {
 const NO_ENTRY = {
   activity: undefined,
   task: undefined,
+  invoice: undefined,
+  payment: undefined,
+  edit: undefined,
   send: undefined,
   schedule: undefined,
   event: undefined,
@@ -126,7 +136,13 @@ export default async function OrganizationsPage({
   const typed = companyListParams.parse(await searchParams);
   const [statuses, entry, jar, fields, layout] = await Promise.all([
     listCompanyStatuses(owner.id),
-    typed.company ? findEntry(owner.id, typed) : null,
+    typed.company
+      ? findEntry(
+          owner.id,
+          typed.contact ? { contactId: typed.contact } : { organizationId: typed.company },
+          typed,
+        )
+      : null,
     cookies(),
     listCustomFields(owner.id, "organization"),
     getLayout(owner.id, "organization"),
@@ -154,6 +170,7 @@ export default async function OrganizationsPage({
     sort: standard ?? (customSort ? typed.sort : undefined),
     activity: entry?.kind === "activity" ? typed.activity : undefined,
     task: entry?.kind === "task" ? typed.task : undefined,
+    ...entryMoneyParams(entry),
     event: entryMeetingId(entry),
   };
   const pageNumber = params.page ?? 1;
@@ -184,6 +201,11 @@ export default async function OrganizationsPage({
     open && person?.companies.some((company) => company.id === open.id)
       ? person
       : null;
+  // A person's invoice or payment is shown only with that person, inside the company.
+  const shown =
+    entry && (entry.kind === "invoice" || entry.kind === "payment") && params.contact && !contact
+      ? null
+      : entry;
   const timezone = settings?.timezone ?? "UTC";
   const filtered = Boolean(
     params.q || params.tag || params.status || params.archived,
@@ -465,8 +487,8 @@ export default async function OrganizationsPage({
           recordKey={
             params.fields
               ? "fields"
-              : entry
-                ? entryKey(entry)
+              : shown
+                ? entryKey(shown)
                 : params.merge && (contact || !params.contact)
                   ? `merge:${params.merge}`
                   : (contact?.id ?? open.id)
@@ -485,21 +507,22 @@ export default async function OrganizationsPage({
               }}
               hrefFor={(fields) => companiesHref(params, { fields })}
             />
-          ) : entry ? (
+          ) : shown ? (
             <EntryPanel
               ownerId={owner.id}
-              entry={entry}
+              entry={shown}
               contact={contact}
               organization={open}
               back={{
                 href: companiesHref(params, {
                   ...NO_ENTRY,
-                  tab: entryTab(entry),
+                  tab: entryTab(shown),
                   after: undefined,
                   section: undefined,
                 }),
                 label: `Back to ${contact?.fullName ?? open.name}`,
               }}
+              entryHref={(change) => companiesHref(params, { ...NO_ENTRY, ...change })}
             />
           ) : contact && params.merge ? (
             <MergePanel

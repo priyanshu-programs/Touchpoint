@@ -63,11 +63,13 @@ export async function ContactPanel({
   after?: string;
   section?: ActivitySection;
   hrefFor: (change: { tab: Tab; after?: string; section?: ActivitySection }) => string;
-  // An activity or a task, new or existing, opened in place of this person.
+  // An activity, task, invoice or payment, new or existing, opened in place of this person.
   entryHref: (
     entry:
       | { activity: string }
       | { task: string }
+      | { invoice: string }
+      | { payment: string }
       | { send: "new" }
       | { schedule: "new" }
       | { event: string },
@@ -267,7 +269,18 @@ export async function ContactPanel({
           <RecordWorkflows ownerId={ownerId} subject={filter} />
         )}
 
-        {tab === "money" && <RecordInvoices ownerId={ownerId} client={filter} />}
+        {tab === "money" && (
+          <RecordInvoices
+            ownerId={ownerId}
+            client={filter}
+            hrefs={{
+              newInvoice: entryHref({ invoice: "new" }),
+              invoice: (id) => entryHref({ invoice: id }),
+              newPayment: entryHref({ payment: "new" }),
+              payment: (id) => entryHref({ payment: id }),
+            }}
+          />
+        )}
       </div>
     </>
   );
