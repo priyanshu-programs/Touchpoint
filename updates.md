@@ -1422,3 +1422,4 @@
 - [2026-11-07] The company panel's website button says Enrich until the site has been read once (even if that read failed), then Re-enrich
 - [2026-11-07] Unit tests: an edit adding a company's first address queues one read; keeping or changing an address does not
 - [2026-11-07] Merged main into the invoices-in-panel branch so PR #65 no longer conflicts on updates.md and CI can run
+- [2026-11-07] e2e/22 journey 7: the new-invoice address check allows the search words main's openCompany now puts before company=

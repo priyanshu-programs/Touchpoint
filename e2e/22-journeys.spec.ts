@@ -362,7 +362,7 @@ for (const device of devices) {
       await companyTabs(page).getByRole("link", { name: "Invoices" }).click();
       await panel(page).getByRole("link", { name: "New invoice" }).click();
       // It opens in the company's panel.
-      await expect(page).toHaveURL(new RegExp(`/people/organizations\\?company=${ID}.*invoice=new`));
+      await expect(page).toHaveURL(new RegExp(`/people/organizations\\?.*company=${ID}.*invoice=new`));
       await expect(page.getByRole("button", { name: `client: ${device.company}. Change` })).toBeVisible();
       await page.getByLabel("Invoice number").fill(device.invoice);
       await page.getByLabel("Issued on").fill(day(6));
