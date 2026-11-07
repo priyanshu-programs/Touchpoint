@@ -1421,3 +1421,4 @@
 - [2026-11-07] Editing a company that had no domain or website to give it one now queues a website read, as creating it with one does; changing an existing address still waits for the button
 - [2026-11-07] The company panel's website button says Enrich until the site has been read once (even if that read failed), then Re-enrich
 - [2026-11-07] Unit tests: an edit adding a company's first address queues one read; keeping or changing an address does not
+- [2026-11-07] Merged main into the invoices-in-panel branch so PR #65 no longer conflicts on updates.md and CI can run
