@@ -15,6 +15,7 @@ import {
   toLocalInput,
 } from "@/lib/time";
 import { audit } from "@/modules/audit/service";
+import { outsiders, type Outsiders } from "@/modules/contacts/at-company";
 import { enqueue, type ClaimedJob } from "@/modules/jobs/service";
 import { ownerTimezone } from "@/modules/settings/service";
 import { buildRule, nextOccurrence, parseRule } from "./recurrence";
@@ -27,7 +28,8 @@ export type TaskResult =
   | {
       ok: false;
       reason: "unknown_contact" | "unknown_organization" | "not_found";
-    };
+    }
+  | { ok: false; reason: "not_at_company"; outsiders: Outsiders };
 
 type TaskRow = typeof tasks.$inferSelect;
 type ReminderRow = typeof reminders.$inferSelect;
@@ -189,13 +191,22 @@ export async function insertTask(
   return row.id;
 }
 
+// A task asked from a company's own panel is only with that company's people.
+async function notAtCompany(tx: Tx, ownerId: string, input: TaskInput) {
+  if (!input.organizationId || !input.contactId) return null;
+  return outsiders(tx, ownerId, input.organizationId, [input.contactId]);
+}
+
 export async function createTask(
   ownerId: string,
   input: TaskInput,
+  atCompany = false,
 ): Promise<TaskResult> {
   return db.transaction(async (tx) => {
     const problem = await unknownLink(tx, ownerId, input);
     if (problem) return { ok: false, reason: problem };
+    const away = atCompany && (await notAtCompany(tx, ownerId, input));
+    if (away) return { ok: false, reason: "not_at_company", outsiders: away };
 
     const timezone = await ownerTimezone(tx, ownerId);
     return { ok: true, id: await insertTask(tx, ownerId, timezone, input) };
@@ -206,12 +217,19 @@ export async function updateTask(
   ownerId: string,
   id: string,
   input: TaskInput,
+  atCompany = false,
 ): Promise<TaskResult> {
   return db.transaction(async (tx) => {
     const before = await lockTask(tx, ownerId, id);
     if (!before) return { ok: false, reason: "not_found" };
     const problem = await unknownLink(tx, ownerId, input);
     if (problem) return { ok: false, reason: problem };
+    // Whoever was already on the task stays, even after leaving the company.
+    const away =
+      atCompany &&
+      input.contactId !== before.contactId &&
+      (await notAtCompany(tx, ownerId, input));
+    if (away) return { ok: false, reason: "not_at_company", outsiders: away };
 
     const timezone = await ownerTimezone(tx, ownerId);
     const [row] = await tx

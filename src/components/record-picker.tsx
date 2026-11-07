@@ -134,7 +134,7 @@ export function RecordSearchDialog({
 // another picker's search closes this one at once. It waits for the click, not the press:
 // closing on the press shortens the panel, which can scroll the other button away before
 // the press ends, and then that click never lands.
-function useCloseOutside(
+export function useCloseOutside(
   ref: RefObject<HTMLElement | null>,
   open: boolean,
   close: () => void,
@@ -234,6 +234,7 @@ export function RecordPicker({
   search,
   onChange,
   inline,
+  empty,
 }: {
   name: string;
   labelName: string;
@@ -243,6 +244,7 @@ export function RecordPicker({
   search: Search;
   onChange?: (option: PickerOption | null) => void;
   inline?: boolean;
+  empty?: string;
 }) {
   const [selected, setSelectedState] = useState(initial);
   const { open, setOpen, root, trigger, done } = useInlineSearch(inline);
@@ -291,6 +293,7 @@ export function RecordPicker({
             noun={noun}
             plural={plural}
             search={search}
+            empty={empty}
             onSelect={setSelected}
           />
         )
@@ -301,6 +304,7 @@ export function RecordPicker({
           noun={noun}
           plural={plural}
           search={search}
+          empty={empty}
           onSelect={setSelected}
         />
       )}

@@ -5,6 +5,7 @@ import { requireOwner } from "@/lib/session";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import { getContact } from "@/modules/contacts/queries";
 import { getOrganization } from "@/modules/organizations/queries";
+import { priorityColors } from "@/modules/settings/priority-colors";
 import { getSettings } from "@/modules/settings/service";
 import { NewTask } from "../new-task";
 
@@ -35,6 +36,7 @@ export default async function NewTaskPage({
           contact={contact}
           organization={organization}
           timezone={settings?.timezone ?? "UTC"}
+          colors={priorityColors(settings)}
           cancelHref={
             contact
               ? contactHref(contact.id, "tasks")

@@ -7,6 +7,7 @@ import { invoiceState } from "@/modules/invoices/state";
 import { getPayment, openInvoices } from "@/modules/payments/queries";
 import { getMeeting } from "@/modules/integrations/meetings";
 import { isCancellable, schedulingState } from "@/modules/integrations/scheduling";
+import { priorityColors } from "@/modules/settings/priority-colors";
 import { getSettings } from "@/modules/settings/service";
 import { getTask } from "@/modules/tasks/queries";
 import { ActivityEditor } from "@/app/(app)/activities/activity-editor";
@@ -167,7 +168,9 @@ export async function EntryPanel({
   // The same panel with another invoice or payment open in it.
   entryHref: (change: MoneyEntryChange) => string;
 }) {
-  const timezone = (await getSettings(ownerId))?.timezone ?? "UTC";
+  const settings = await getSettings(ownerId);
+  const timezone = settings?.timezone ?? "UTC";
+  const colors = priorityColors(settings);
   const from = contact ? "contact" : "organization";
   const inside = contact ? organization?.id : undefined;
   if (entry.kind === "invoice" || entry.kind === "payment") {
@@ -253,13 +256,17 @@ export async function EntryPanel({
             <TaskEditor
               task={entry.task}
               timezone={timezone}
+              colors={colors}
               cancelHref={back.href}
+              from={from}
+              inside={inside}
             />
           ) : (
             <NewTask
               contact={contact}
               organization={organization}
               timezone={timezone}
+              colors={colors}
               inside={inside}
               cancelHref={back.href}
             />

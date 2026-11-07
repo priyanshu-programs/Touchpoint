@@ -251,6 +251,7 @@ export async function CompanyPanel({
         <CompanyActions
           id={organization.id}
           hasWebsite={Boolean(site)}
+          enriched={Boolean(run)}
           reading={Boolean(website?.reading)}
           editHref={`/people/organizations/${organization.id}/edit`}
           archived={Boolean(organization.archivedAt)}

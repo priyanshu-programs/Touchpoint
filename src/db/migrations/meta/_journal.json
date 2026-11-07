@@ -309,6 +309,13 @@
       "when": 1793888002953,
       "tag": "0043_removed_meetings",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793999205871,
+      "tag": "0044_task_priority_colors",
+      "breakpoints": true
     }
   ]
 }

@@ -31,7 +31,7 @@ test("Today shows the week ahead, recent activity and people counts", async ({
 
   await page.goto("/tasks/new");
   await page.getByLabel("Task", { exact: true }).fill("Prepare kickoff notes");
-  await page.getByLabel("Due date").fill(localDate(1));
+  await page.getByLabel("Deadline date").fill(localDate(1));
   await page.getByRole("button", { name: "Add task" }).click();
   await expect(page).toHaveURL(/\/tasks\/all$/);
 

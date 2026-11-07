@@ -3,6 +3,7 @@ import { db, type Executor } from "@/db/client";
 import { settings, user } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { rebaseTimedTasks } from "@/modules/tasks/rebase";
+import type { TaskPriority } from "./priority-colors";
 import type { ProfileInput, SettingsInput } from "./schema";
 
 export async function getSettings(ownerId: string) {
@@ -99,6 +100,45 @@ export async function saveProfile(ownerId: string, input: ProfileInput) {
       entityId: ownerId,
       before: existing,
       after: input,
+    });
+    return true;
+  });
+}
+
+const COLOR_COLUMNS = {
+  low: "taskColorLow",
+  normal: "taskColorNormal",
+  high: "taskColorHigh",
+} as const;
+
+// The colour of one task priority's tag, as #rrggbb. False before onboarding.
+export async function setPriorityColor(
+  ownerId: string,
+  priority: TaskPriority,
+  color: string,
+) {
+  const column = COLOR_COLUMNS[priority];
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ color: settings[column] })
+      .from(settings)
+      .where(eq(settings.ownerId, ownerId))
+      .for("update");
+    if (!existing) return false;
+    if (existing.color === color) return true;
+
+    await tx
+      .update(settings)
+      .set({ [column]: color, updatedAt: new Date() })
+      .where(eq(settings.ownerId, ownerId));
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "settings.update",
+      entityType: "settings",
+      entityId: ownerId,
+      before: { [column]: existing.color },
+      after: { [column]: color },
     });
     return true;
   });

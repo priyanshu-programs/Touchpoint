@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { companyHref, contactHref } from "@/app/(app)/people/labels";
 import { formatDate, formatDateTime, isFuture, toLocalInput } from "@/lib/time";
+import type { PriorityColors } from "@/modules/settings/priority-colors";
 import type { getTask } from "@/modules/tasks/queries";
 import { parseRule } from "@/modules/tasks/recurrence";
 import {
@@ -35,11 +36,18 @@ const STATUS_LABELS: Record<string, string> = {
 export function TaskEditor({
   task,
   timezone,
+  colors,
   cancelHref,
   heading,
+  from,
+  inside,
 }: {
   task: NonNullable<Awaited<ReturnType<typeof getTask>>>;
   timezone: string;
+  colors: PriorityColors;
+  // The panel it was opened in, so a company's own keeps to that company's people.
+  from?: "contact" | "organization";
+  inside?: string;
   cancelHref: string;
   // The title, where the panel has not already given it.
   heading?: ReactNode;
@@ -133,7 +141,10 @@ export function TaskEditor({
                   organizationName: task.organizationName ?? "",
                 }}
                 options={taskFormOptions}
+                colors={colors}
                 timezone={timezone}
+                from={from}
+                inside={inside}
                 submitLabel="Save changes"
                 cancelHref={cancelHref}
               />
@@ -175,7 +186,7 @@ export function TaskEditor({
             <DetailList
               items={[
                 {
-                  label: "Due",
+                  label: "Deadline",
                   value: task.dueAt
                     ? formatDateTime(task.dueAt, timezone)
                     : task.dueOn && formatDate(task.dueOn),

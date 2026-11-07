@@ -21,6 +21,7 @@ import { countContacts } from "@/modules/contacts/queries";
 import { countOrganizations } from "@/modules/organizations/queries";
 import { periodRange } from "@/modules/revenue/period";
 import { hasMoney, revenueSummary, type CurrencyAmount } from "@/modules/revenue/queries";
+import { priorityColors } from "@/modules/settings/priority-colors";
 import { getSettings } from "@/modules/settings/service";
 import {
   listDeliveredReminders,
@@ -214,7 +215,11 @@ export default async function TodayPage() {
               <CardTitle>Tasks</CardTitle>
             </CardHeader>
             <CardContent>
-              <DueToday tasks={tasks} timezone={timezone} />
+              <DueToday
+                tasks={tasks}
+                timezone={timezone}
+                colors={priorityColors(settings)}
+              />
             </CardContent>
           </Card>
 
@@ -263,6 +268,7 @@ export default async function TodayPage() {
               <WeekAhead
                 tasks={upcoming}
                 timezone={timezone}
+                colors={priorityColors(settings)}
                 empty="Nothing else is due in the next seven days."
               />
             </CardContent>
