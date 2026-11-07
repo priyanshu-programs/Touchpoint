@@ -196,6 +196,7 @@ export async function updateOrganizationAction(
     custom.parsed.data,
   );
   if (!result.ok) return failure(result, values);
+  if (result.reading) readWebsiteSoon();
 
   revalidatePath("/people", "layout");
   redirect(companyHref(organizationId));

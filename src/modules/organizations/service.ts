@@ -18,7 +18,8 @@ import type { OrganizationInput } from "./schema";
 
 type Named = { id: string; name: string };
 export type OrganizationResult =
-  | { ok: true; id: string }
+  // `reading`: an edit gave the company its first website address, so a read was queued.
+  | { ok: true; id: string; reading?: boolean }
   | { ok: false; reason: "duplicate"; existing: Named }
   | { ok: false; reason: "similar"; candidates: Named[] }
   | { ok: false; reason: "unknown_status" }
@@ -168,7 +169,12 @@ export async function updateOrganization(
       before: snapshot(before, beforeTags),
       after: snapshot(row, tags),
     });
-    return { ok: true, id };
+    // As on create; a refusal (the hourly limit) leaves the button for later.
+    const firstSite =
+      !before.domain && !before.website && Boolean(row.domain || row.website);
+    const reading =
+      firstSite && (await requestEnrichment(ownerId, id, tx)).ok;
+    return { ok: true, id, reading };
   });
 }
 

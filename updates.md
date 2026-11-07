@@ -1410,3 +1410,6 @@
 - [2026-11-07] record-picker: a single-record picker can say what an empty search means, as the several-records one does
 - [2026-11-07] Unit tests for priority colours and the task company check; e2e/11 checks the company task form, the colour window and the tag colour; e2e/03, 05, 11 and 22 read the Deadline labels
 - [2026-11-07] plan.md and security.md: tasks from a company's own panel and the priority tag colours
+- [2026-11-07] Editing a company that had no domain or website to give it one now queues a website read, as creating it with one does; changing an existing address still waits for the button
+- [2026-11-07] The company panel's website button says Enrich until the site has been read once (even if that read failed), then Re-enrich
+- [2026-11-07] Unit tests: an edit adding a company's first address queues one read; keeping or changing an address does not

@@ -175,7 +175,7 @@ describe("organizations", () => {
       input({ name: "Acme Studio", status: "client", tags: "vip" }),
     );
 
-    expect(result).toEqual({ ok: true, id });
+    expect(result).toEqual({ ok: true, id, reading: false });
     expect(await getOrganization(ownerId, id)).toMatchObject({
       name: "Acme Studio",
       status: "client",
@@ -200,6 +200,44 @@ describe("organizations", () => {
     );
 
     expect(result).toMatchObject({ reason: "duplicate", existing: { id: first } });
+  });
+
+  it("reads the website when an edit gives a company its first address, and only then", async () => {
+    const runs = async (id: string) =>
+      (
+        await db
+          .select({ id: enrichmentRuns.id })
+          .from(enrichmentRuns)
+          .where(eq(enrichmentRuns.organizationId, id))
+      ).length;
+    const id = await create();
+    expect(await runs(id)).toBe(0);
+
+    expect(
+      await updateOrganization(ownerId, id, input({ domain: "acme.com" })),
+    ).toEqual({ ok: true, id, reading: true });
+    expect(await runs(id)).toBe(1);
+
+    // The address it already had, or a different one, is left to the Re-enrich button.
+    expect(
+      await updateOrganization(ownerId, id, input({ domain: "acme.com", city: "Pune" })),
+    ).toEqual({ ok: true, id, reading: false });
+    expect(
+      await updateOrganization(ownerId, id, input({ domain: "acme.io" })),
+    ).toEqual({ ok: true, id, reading: false });
+    expect(await runs(id)).toBe(1);
+  });
+
+  it("reads the website when the first address added is a full website", async () => {
+    const id = await create();
+
+    expect(
+      await updateOrganization(
+        ownerId,
+        id,
+        input({ website: "https://www.acme.com/about" }),
+      ),
+    ).toEqual({ ok: true, id, reading: true });
   });
 
   it("archives and restores, and lists each state separately", async () => {
@@ -258,7 +296,7 @@ describe("organizations", () => {
     expect(await setOrganizationStatus(ownerId, id, "hot_lead")).toBe(true);
     expect(
       await updateOrganization(ownerId, id, input({ status: "client" })),
-    ).toEqual({ ok: true, id });
+    ).toEqual({ ok: true, id, reading: false });
 
     // Neither a status nobody has nor another owner's is taken, and the company keeps its own.
     for (const status of ["enemy", "dormant"]) {

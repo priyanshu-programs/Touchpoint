@@ -11,10 +11,13 @@ import { RecordActions } from "../record-actions";
 
 export function CompanyActions({
   hasWebsite,
+  enriched,
   reading,
   ...record
 }: ComponentProps<typeof RecordActions> & {
   hasWebsite: boolean;
+  // The website has been read at least once, whether or not that read worked.
+  enriched: boolean;
   // A read is queued or under way, so another cannot be started.
   reading: boolean;
 }) {
@@ -35,7 +38,7 @@ export function CompanyActions({
               disabled={pending || reading}
             >
               <RefreshCw aria-hidden />
-              Re-enrich
+              {enriched ? "Re-enrich" : "Enrich"}
             </Button>
           </form>
         )}
