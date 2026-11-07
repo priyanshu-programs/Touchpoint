@@ -11,7 +11,12 @@ export function NewTask({
   colors,
   inside,
   cancelHref,
+  due,
+  time,
 }: {
+  // A day, and maybe an hour, picked on the calendar.
+  due?: string;
+  time?: string;
   contact: {
     id: string;
     fullName: string;
@@ -32,8 +37,8 @@ export function NewTask({
         title: "",
         notes: "",
         priority: "normal",
-        dueDate: "",
-        dueTime: "",
+        dueDate: due ?? "",
+        dueTime: time ?? "",
         repeat: "",
         repeatEvery: "1",
         remindAt: "",
@@ -48,6 +53,7 @@ export function NewTask({
       timezone={timezone}
       from={contact ? "contact" : organization ? "organization" : undefined}
       inside={inside}
+      back={due ? "calendar" : undefined}
       submitLabel="Add task"
       cancelHref={cancelHref}
     />

@@ -1423,3 +1423,7 @@
 - [2026-11-07] Unit tests: an edit adding a company's first address queues one read; keeping or changing an address does not
 - [2026-11-07] Merged main into the invoices-in-panel branch so PR #65 no longer conflicts on updates.md and CI can run
 - [2026-11-07] e2e/22 journey 7: the new-invoice address check allows the search words main's openCompany now puts before company=
+- [2026-11-08] Tasks → Calendar opens on a Month grid with a Month/Week switch; Week is a grid with hours down the side, an all-day strip and overlaps side by side (calendar-month.tsx, calendar-week.tsx, calendar-entries.ts)
+- [2026-11-08] Calendar: an empty day (or an empty hour in Week) opens Add task with that deadline filled in, and saving returns to that month
+- [2026-11-08] Unit tests for the calendar's overlap columns, month range and times in the owner's zone; e2e/31 covers Month, Week, adding from an empty day and a bad due/time in the address
+- [2026-11-08] plan.md and security.md: the Month and Week calendar and the Add task prefill
