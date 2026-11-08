@@ -25,6 +25,7 @@ export function TaskForm({
   timezone,
   from,
   inside,
+  back,
   submitLabel,
   cancelHref,
 }: {
@@ -39,6 +40,8 @@ export function TaskForm({
   from?: "contact" | "organization";
   // The company whose panel the person was opened in, to go back there afterwards.
   inside?: string;
+  // Started from a day on the calendar, so a new task goes back to that day.
+  back?: "calendar";
   submitLabel: string;
   cancelHref: string;
 }) {
@@ -60,6 +63,7 @@ export function TaskForm({
     >
       {from && <input type="hidden" name="from" value={from} />}
       {inside && <input type="hidden" name="inside" value={inside} />}
+      {back && <input type="hidden" name="back" value={back} />}
       <TextField
         name="title"
         label="Task"

@@ -85,6 +85,10 @@ export async function createTaskAction(
   if (from === "organization" && parsed.data.organizationId) {
     redirect(companyHref(parsed.data.organizationId, "tasks"));
   }
+  // Built from the checked date, never from what the form sent back.
+  if (formData.get("back") === "calendar" && parsed.data.dueDate) {
+    redirect(`/tasks/calendar?view=month&on=${parsed.data.dueDate}`);
+  }
   redirect("/tasks/all");
 }
 
