@@ -433,6 +433,42 @@
   width: 15rem;
 }
 
+/* The style panel folded away (color-grid.tsx): only the button that opens it
+   again is left, so the drawing gets the room back on a wide screen. */
+.board[data-style-folded] .App-menu__left {
+  width: auto;
+  padding: 0.25rem;
+}
+
+.board[data-style-folded] .App-menu__left > :not(.color-grid) {
+  display: none;
+}
+
+.board[data-style-folded] .App-menu__left > .color-grid {
+  margin-bottom: 0;
+}
+
+.board .color-grid-tabs .style-panel-fold {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0.2rem 0.35rem;
+}
+
+.style-panel-open {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  color: var(--muted-foreground);
+}
+
+.style-panel-open:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
 .color-grid {
   display: grid;
   gap: 0.5rem;

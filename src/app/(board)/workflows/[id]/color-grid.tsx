@@ -2,6 +2,7 @@
 
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { ChevronsLeft, Palette } from "lucide-react";
 import { useEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -120,6 +121,27 @@ function useGridSpot(board: RefObject<HTMLElement | null>) {
   return spot;
 }
 
+const FOLDED_KEY = "board-style-panel-folded";
+
+// Whether the style panel beside the drawing is folded away, remembered on this
+// device. Folded, board.css shows only the button that opens it again.
+function useFolded(board: RefObject<HTMLElement | null>) {
+  const [folded, setFolded] = useState(() => {
+    try {
+      return localStorage.getItem(FOLDED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    board.current?.toggleAttribute("data-style-folded", folded);
+    try {
+      localStorage.setItem(FOLDED_KEY, folded ? "1" : "0");
+    } catch {}
+  }, [board, folded]);
+  return [folded, setFolded] as const;
+}
+
 export function ColorGrid({
   board,
   api,
@@ -131,7 +153,25 @@ export function ColorGrid({
 }) {
   const spot = useGridSpot(board);
   const [wanted, setWanted] = useState<ColorTarget>("stroke");
+  const [folded, setFolded] = useFolded(board);
   if (!spot || !api) return null;
+  // On a phone the panel is a sheet at the foot, which has no room to spare.
+  const foldable = spot.parentElement?.classList.contains("App-menu__left") ?? false;
+
+  if (foldable && folded) {
+    return createPortal(
+      <button
+        type="button"
+        aria-label="Show style panel"
+        title="Show style panel"
+        onClick={() => setFolded(false)}
+        className="style-panel-open"
+      >
+        <Palette aria-hidden className="size-4" />
+      </button>,
+      spot,
+    );
+  }
 
   const target = picked.fill === null ? "stroke" : wanted;
   const current = target === "stroke" ? picked.stroke : (picked.fill ?? TRANSPARENT);
@@ -177,6 +217,17 @@ export function ColorGrid({
             onClick={() => setWanted("fill")}
           >
             Fill
+          </button>
+        )}
+        {foldable && (
+          <button
+            type="button"
+            aria-label="Hide style panel"
+            title="Hide style panel"
+            onClick={() => setFolded(true)}
+            className="style-panel-fold"
+          >
+            <ChevronsLeft aria-hidden className="size-4" />
           </button>
         )}
       </div>

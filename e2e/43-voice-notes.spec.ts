@@ -120,3 +120,26 @@ test("a board with no voice notes says so instead of downloading", async ({ page
     "This board has no voice notes yet.",
   );
 });
+
+test("the style panel folds away and stays folded on this device", async ({ page }) => {
+  await page.goto(`/brainstorm/${boardId}`);
+  await expect(page.locator(".voice-title")).toHaveText("Launch pricing");
+  await page.locator(".excalidraw canvas.interactive").click({ position: { x: 600, y: 500 } });
+  await page.keyboard.press("r");
+  const panel = page.locator(".App-menu__left");
+  await expect(panel.getByText("Stroke width")).toBeVisible();
+
+  await page.getByRole("button", { name: "Hide style panel" }).click();
+  await expect(panel.getByText("Stroke width")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Show style panel" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator(".voice-title")).toHaveText("Launch pricing");
+  await page.locator(".excalidraw canvas.interactive").click({ position: { x: 600, y: 500 } });
+  await page.keyboard.press("r");
+  await expect(page.getByRole("button", { name: "Show style panel" })).toBeVisible();
+  await expect(panel.getByText("Stroke width")).toBeHidden();
+
+  await page.getByRole("button", { name: "Show style panel" }).click();
+  await expect(panel.getByText("Stroke width")).toBeVisible();
+});
