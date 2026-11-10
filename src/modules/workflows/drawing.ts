@@ -23,6 +23,12 @@ export const ELEMENT_TYPES = [
 // it is on the screen, and a part cut out of it stays the same part.
 export const MAX_PICTURE_SIDE = 1440;
 
+// Pictures a board holds, each kept once however many elements show it. Every
+// one is fetched as the board opens, so a full board is slow to open on a phone
+// past these; a brainstorm board, kept for notes, is given three times as many.
+export const MAX_BOARD_PICTURES = 100;
+export const MAX_BRAINSTORM_PICTURES = 300;
+
 // The shapes that hold text, and so can be a named stage.
 export const STAGE_SHAPES = ["rectangle", "diamond", "ellipse"] as const;
 

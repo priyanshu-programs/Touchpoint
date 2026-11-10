@@ -1427,3 +1427,7 @@
 - [2026-11-08] Calendar: an empty day (or an empty hour in Week) opens Add task with that deadline filled in, and saving returns to that month
 - [2026-11-08] Unit tests for the calendar's overlap columns, month range and times in the owner's zone; e2e/31 covers Month, Week, adding from an empty day and a bad due/time in the address
 - [2026-11-08] plan.md and security.md: the Month and Week calendar and the Add task prefill
+- [2026-11-10] A brainstorm board holds 300 pictures and a workflow board still 100: MAX_BRAINSTORM_PICTURES and MAX_BOARD_PICTURES live in src/modules/workflows/drawing.ts, and boardPictures takes the cap per kind of board (owner's choice, after weighing a slower open against room for screenshots)
+- [2026-11-10] The "at most N pictures" sentence is built from the board's own cap (pictureLimitMessage), which createBoardPictures now takes, so a brainstorm board says 300
+- [2026-11-10] src/modules/brainstorm/pictures.test.ts: a brainstorm board takes a picture past 100 and refuses one at 300
+- [2026-11-10] security.md, docs/PRD.md and plan.md: 300 pictures a brainstorm board

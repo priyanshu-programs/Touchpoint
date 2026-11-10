@@ -30,6 +30,7 @@ import {
   attachmentKind,
   BOX_KINDS,
   ELEMENT_TYPES,
+  MAX_BOARD_PICTURES,
   STAGE_COLORS,
   STAGE_SHAPES,
   type BoxAttachment,
@@ -425,6 +426,7 @@ function Whiteboard({
       address: `/api/workflows/${boardId}/pictures`,
       held,
       report: setSending,
+      limit: MAX_BOARD_PICTURES,
     }),
   );
   useEffect(() => {

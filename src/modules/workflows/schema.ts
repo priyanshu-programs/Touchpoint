@@ -111,8 +111,7 @@ export const noteRef = z.strictObject({
 });
 export type NoteRef = z.infer<typeof noteRef>;
 
-// Pictures drawn on a board, each kept once however many elements show it.
-export const MAX_BOARD_PICTURES = 100;
+export { MAX_BOARD_PICTURES } from "./drawing";
 export const PICTURES_PER_MINUTE = 60;
 
 // The whiteboard's own id for a picture: a hash of the file as it was added.
