@@ -4,6 +4,7 @@ import type { Tx } from "@/db/client";
 import {
   activityFiles,
   brainstormPictures,
+  brainstormVoiceNotes,
   files,
   invoices,
   materialVersions,
@@ -51,7 +52,7 @@ export async function storeFile(
 
 // Files nothing points at any more are deleted, wherever the last pointer went:
 // removed by hand, or with its board, or with the board's company or person.
-// A file is pointed at by what a box carries, by a picture on a board, by a
+// A file is pointed at by what a box carries, by a picture or a voice note on a board, by a
 // version of a material, by an invoice and by a file kept in a meeting's notes.
 export async function dropUnusedFiles(tx: Tx, ownerId: string) {
   await lockFiles(tx, ownerId);
@@ -75,6 +76,12 @@ export async function dropUnusedFiles(tx: Tx, ownerId: string) {
           .select({ id: brainstormPictures.id })
           .from(brainstormPictures)
           .where(eq(brainstormPictures.fileId, files.id)),
+      ),
+      notExists(
+        tx
+          .select({ id: brainstormVoiceNotes.id })
+          .from(brainstormVoiceNotes)
+          .where(eq(brainstormVoiceNotes.fileId, files.id)),
       ),
       notExists(
         tx

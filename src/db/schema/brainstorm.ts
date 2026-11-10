@@ -75,6 +75,29 @@ export const brainstormPictures = pgTable(
   ],
 );
 
+// A voice note recorded on a brainstorm board. The bytes are a file like any
+// other; the card that plays it, and its heading, are an element of the drawing.
+export const brainstormVoiceNotes = pgTable(
+  "brainstorm_voice_notes",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    boardId: uuid("board_id")
+      .notNull()
+      .references(() => brainstormBoards.id, { onDelete: "cascade" }),
+    fileKey: text("file_key").notNull(),
+    fileId: uuid("file_id")
+      .notNull()
+      .references(() => files.id),
+    createdAt,
+  },
+  (table) => [
+    uniqueIndex("brainstorm_voice_notes_board_key_idx").on(table.boardId, table.fileKey),
+    index("brainstorm_voice_notes_file_idx").on(table.fileId),
+    index("brainstorm_voice_notes_owner_created_idx").on(table.ownerId, table.createdAt),
+  ],
+);
+
 // One element of a brainstorm board's drawing: a stroke, a box, a line of text,
 // kept as the whiteboard gives it. Each carries the whiteboard's own version of
 // it, so two devices drawing on one board are merged element by element, the

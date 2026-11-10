@@ -1427,3 +1427,12 @@
 - [2026-11-08] Calendar: an empty day (or an empty hour in Week) opens Add task with that deadline filled in, and saving returns to that month
 - [2026-11-08] Unit tests for the calendar's overlap columns, month range and times in the owner's zone; e2e/31 covers Month, Week, adding from an empty day and a bad due/time in the address
 - [2026-11-08] plan.md and security.md: the Month and Week calendar and the Add task prefill
+- [2026-11-10] Brainstorm voice notes: brainstorm_voice_notes table (migration 0045), kept and dropped like pictures, with a WebM/MP4 magic-byte check (audioType in sniff.ts)
+- [2026-11-10] Brainstorm voice notes: upload, play (with byte ranges for Safari) and download-all-as-zip routes under /api/brainstorm/[id]/voice-notes
+- [2026-11-10] Brainstorm board: Voice note button records up to 3 minutes; the card plays, renames and downloads, and syncs like any box (voice-notes.tsx)
+- [2026-11-10] Brainstorm menu: Download voice notes as "Board - voice notes.zip", offered again in the delete dialog
+- [2026-11-10] Workflow boards: a pasted voice card saves as a plain box instead of refusing the save
+- [2026-11-10] Permissions-Policy allows the microphone for the site's own pages, for voice notes
+- [2026-11-10] Data export includes brainstorm_voice_notes
+- [2026-11-10] Unit tests for voice notes (limits, cleanup, zip names, owner isolation) and e2e/43 with Chromium's fake microphone
+- [2026-11-10] plan.md and security.md: voice notes, their limits and the microphone permission

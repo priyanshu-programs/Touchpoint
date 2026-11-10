@@ -58,6 +58,25 @@ import type { Paper } from "../../workflows/[id]/paper";
 import { StickySheen, StickyShadows } from "../../workflows/[id]/sticky-notes";
 import { createBoardSync, loadBoard } from "./board-sync";
 import { PerfReadout, wantsPerfReadout } from "./perf-readout";
+import {
+  MAX_BOARD_VOICE_NOTES,
+  sameCards,
+  voiceCards,
+  type VoiceCard,
+  type VoiceMark,
+} from "@/modules/brainstorm/voice";
+import {
+  nextVoiceTitle,
+  RecordButton,
+  sendVoiceNote,
+  useRecorder,
+  voiceCardElement,
+  VOICE_CARD_SIZE,
+  VOICE_REFUSALS,
+  voiceCount,
+  VoiceLayer,
+  type Recording,
+} from "./voice-notes";
 
 // How often a moving view or a pen stroke looks over every element of the board:
 // a board of handwriting holds thousands, and these run many times a second.
@@ -68,7 +87,6 @@ const STICKY_COLORS = [...LIGHT_COLORS, ...BRIGHT_COLORS];
 const FIRST_STICKY = LIGHT_COLORS.find(({ name }) => name === "Light yellow")!;
 
 const STICKY_SIZE = 200;
-const STICKY_STEP = STICKY_SIZE + 24;
 // Where a note goes from the middle of the screen, nearest first, beside and
 // below before above: the first of these that is on the screen and that
 // nothing is drawn on yet.
@@ -84,12 +102,17 @@ const overlaps = (a: Area, b: Area) =>
 const inside = (a: Area, b: Area) =>
   a.x >= b.x && a.y >= b.y && a.x + a.width <= b.x + b.width && a.y + a.height <= b.y + b.height;
 
-function freeSpot(drawn: readonly ExcalidrawElement[], middle: { x: number; y: number }, seen: Area) {
+function freeSpot(
+  drawn: readonly ExcalidrawElement[],
+  middle: { x: number; y: number },
+  seen: Area,
+  { width, height }: { width: number; height: number },
+) {
   const spots = STICKY_SPOTS.map(([column, row]) => ({
-    x: middle.x - STICKY_SIZE / 2 + column * STICKY_STEP,
-    y: middle.y - STICKY_SIZE / 2 + row * STICKY_STEP,
-    width: STICKY_SIZE,
-    height: STICKY_SIZE,
+    x: middle.x - width / 2 + column * (width + 24),
+    y: middle.y - height / 2 + row * (height + 24),
+    width,
+    height,
   }));
   const free = spots.filter(
     (spot) => !drawn.some((element) => !element.isDeleted && overlaps(element, spot)),
@@ -97,11 +120,9 @@ function freeSpot(drawn: readonly ExcalidrawElement[], middle: { x: number; y: n
   return free.find((spot) => inside(spot, seen)) ?? free[0] ?? spots[0];
 }
 
-// A square note near the middle of what is on the screen, where it covers
-// nothing, selected and open for typing. It is a plain box with its text
-// inside, so it moves, resizes and takes arrows like any other; its mark is
-// what has the board draw it as a note.
-function addSticky(api: ExcalidrawImperativeAPI, { value: fill }: GridColor) {
+// Where something of this size goes: near the middle of what is on the
+// screen, where it covers nothing.
+function spotOnScreen(api: ExcalidrawImperativeAPI, size: { width: number; height: number }) {
   const appState = api.getAppState();
   const middle = viewportCoordsToSceneCoords(
     {
@@ -111,12 +132,39 @@ function addSticky(api: ExcalidrawImperativeAPI, { value: fill }: GridColor) {
     appState,
   );
   const zoom = appState.zoom.value;
-  const { x, y } = freeSpot(api.getSceneElements(), middle, {
-    x: -appState.scrollX,
-    y: -appState.scrollY,
-    width: appState.width / zoom,
-    height: appState.height / zoom,
+  return freeSpot(
+    api.getSceneElements(),
+    middle,
+    {
+      x: -appState.scrollX,
+      y: -appState.scrollY,
+      width: appState.width / zoom,
+      height: appState.height / zoom,
+    },
+    size,
+  );
+}
+
+// A voice note's card, placed as a sticky note is, and selected.
+function addVoiceCard(api: ExcalidrawImperativeAPI, voice: VoiceMark) {
+  const [card] = convertToExcalidrawElements([
+    voiceCardElement(spotOnScreen(api, VOICE_CARD_SIZE), voice),
+  ]);
+  api.updateScene({
+    elements: [...api.getSceneElementsIncludingDeleted(), card],
+    appState: { selectedElementIds: { [card.id]: true } },
+    captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
+  api.setActiveTool({ type: "selection" });
+  return card.id;
+}
+
+// A square note near the middle of what is on the screen, where it covers
+// nothing, selected and open for typing. It is a plain box with its text
+// inside, so it moves, resizes and takes arrows like any other; its mark is
+// what has the board draw it as a note.
+function addSticky(api: ExcalidrawImperativeAPI, { value: fill }: GridColor) {
+  const { x, y } = spotOnScreen(api, { width: STICKY_SIZE, height: STICKY_SIZE });
   const [note] = convertToExcalidrawElements([
     {
       type: "rectangle",
@@ -300,6 +348,49 @@ function Whiteboard({
   const [notes, setNotes] = useState<NoteOnBoard[]>([]);
   const shadows = useRef<HTMLDivElement>(null);
   const sheen = useRef<HTMLDivElement>(null);
+  const voiceLayer = useRef<HTMLDivElement>(null);
+  const [cards, setCards] = useState<VoiceCard[]>([]);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [voiceSaving, setVoiceSaving] = useState(false);
+  const [voiceProblem, setVoiceProblem] = useState<{
+    message: string;
+    // A recording that did not reach the server, kept to send again.
+    unsent?: { recording: Recording; key: string };
+  } | null>(null);
+  const keepRecording = async (recording: Recording, key = crypto.randomUUID()) => {
+    setVoiceProblem(null);
+    setVoiceSaving(true);
+    const refused = await sendVoiceNote(boardId, key, recording);
+    setVoiceSaving(false);
+    if (refused) {
+      setVoiceProblem({
+        message: refused,
+        unsent: Object.values(VOICE_REFUSALS).includes(refused)
+          ? undefined
+          : { recording, key },
+      });
+      return;
+    }
+    if (!api) return;
+    const voice: VoiceMark = {
+      key,
+      title: nextVoiceTitle(api),
+      seconds: recording.seconds,
+      format: recording.format,
+    };
+    setRenaming(addVoiceCard(api, voice));
+  };
+  const recorder = useRecorder((recording) => void keepRecording(recording));
+  const startRecording = () => {
+    if (api && voiceCount(api) >= MAX_BOARD_VOICE_NOTES) {
+      setVoiceProblem({ message: VOICE_REFUSALS.limit });
+      return;
+    }
+    setVoiceProblem(null);
+    void recorder.start();
+  };
+  const voiceMessage =
+    recorder.status.state === "refused" ? recorder.status.message : voiceProblem?.message;
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [perf] = useState(wantsPerfReadout);
   // Worked out before the first draw, so the board is drawn once and not moved after.
@@ -373,7 +464,7 @@ function Whiteboard({
 
   // A picture still on its way is not stored, nor the drawing that shows it.
   const shownState: SaveState =
-    sending && saveState === "saved" ? "saving" : saveState;
+    (sending || voiceSaving) && saveState === "saved" ? "saving" : saveState;
   const unstored =
     shownState === "unsaved" ||
     shownState === "saving" ||
@@ -435,16 +526,20 @@ function Whiteboard({
             const placed = `scale(${zoom}) translate(${appState.scrollX}px, ${appState.scrollY}px)`;
             if (shadows.current) shadows.current.style.transform = placed;
             if (sheen.current) sheen.current.style.transform = placed;
+            if (voiceLayer.current) voiceLayer.current.style.transform = placed;
           }
 
           const scan = () => {
-            const onScreen = stickyNotes(all, {
+            const seen = {
               x: -appState.scrollX,
               y: -appState.scrollY,
               width: appState.width / zoom,
               height: appState.height / zoom,
-            });
+            };
+            const onScreen = stickyNotes(all, seen);
             setNotes((before) => (sameNotes(before, onScreen) ? before : onScreen));
+            const voices = voiceCards(all, seen);
+            setCards((before) => (sameCards(before, voices) ? before : voices));
             board.current?.toggleAttribute(
               "data-writing-on-note",
               writingOnNote(all, appState.editingTextElement),
@@ -482,6 +577,13 @@ function Whiteboard({
               onColor={setColor}
               className="hidden sm:inline-flex"
             />
+            <RecordButton
+              status={recorder.status}
+              onStart={startRecording}
+              onStop={recorder.stop}
+              disabled={voiceSaving}
+              className="hidden sm:inline-flex"
+            />
             <SaveStatus state={shownState} />
           </div>
         )}
@@ -496,6 +598,50 @@ function Whiteboard({
         </MainMenu>
       </Excalidraw>
       <StickySheen layer={sheen} notes={notes} dark={isDark} />
+      <VoiceLayer
+        layer={voiceLayer}
+        cards={cards}
+        api={api}
+        boardId={boardId}
+        boardName={name}
+        renaming={renaming}
+        onRenaming={setRenaming}
+      />
+      {(voiceMessage || voiceSaving) && (
+        <div className="absolute top-16 left-1/2 z-10 flex w-max max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-xl bg-card px-4 py-2.5 text-sm shadow-lg ring-1 ring-foreground/10">
+          {voiceSaving ? (
+            <p role="status" className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 aria-hidden className="size-4 animate-spin" />
+              Saving voice note…
+            </p>
+          ) : (
+            <>
+              <p role="alert">{voiceMessage}</p>
+              {voiceProblem?.unsent && recorder.status.state !== "refused" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void keepRecording(voiceProblem.unsent!.recording, voiceProblem.unsent!.key)
+                  }
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Try again
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  recorder.dismiss();
+                  setVoiceProblem(null);
+                }}
+                className="text-muted-foreground underline-offset-4 hover:underline"
+              >
+                {voiceProblem?.unsent ? "Discard" : "Dismiss"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {perf && <PerfReadout api={api} liveStatus={sync.liveStatus} />}
       <ColorGrid board={board} api={api} picked={picked} />
       {/* On a phone the tools fill the top row, so the note waits above the bar
@@ -510,6 +656,13 @@ function Whiteboard({
         on={highlighter.on}
         onToggle={highlighter.toggle}
         className="absolute right-4 bottom-36 z-10 inline-flex sm:hidden"
+      />
+      <RecordButton
+        status={recorder.status}
+        onStart={startRecording}
+        onStop={recorder.stop}
+        disabled={voiceSaving}
+        className="absolute right-4 bottom-48 z-10 inline-flex sm:hidden"
       />
     </div>
   );

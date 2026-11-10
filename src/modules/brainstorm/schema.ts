@@ -5,6 +5,7 @@ import {
   MAX_ELEMENTS,
   showsStoredPicture,
 } from "@/modules/workflows/schema";
+import { voiceMark } from "./voice";
 
 export { MAX_SCENE_BYTES } from "@/modules/workflows/schema";
 
@@ -36,8 +37,10 @@ export const brainstormListParams = z.object({
 export type BrainstormListParams = z.infer<typeof brainstormListParams>;
 
 // A brainstorm board has no stages, so of the whiteboard's own data only a
-// sticky note's mark is kept: a box copied over from a workflow loses its stage
-// mark rather than stopping the drawing from saving.
+// sticky note's mark and a voice note's are kept: a box copied over from a
+// workflow loses its stage mark rather than stopping the drawing from saving.
+// A voice note's mark is checked in full, since its heading is shown and named
+// files after.
 const INT4 = 2 ** 31;
 
 const element = drawnElement
@@ -48,11 +51,16 @@ const element = drawnElement
     version: z.number().int().min(1).max(INT4 - 1),
     versionNonce: z.number().int().min(-INT4).max(INT4 - 1),
     isDeleted: z.boolean(),
+    customData: z
+      .looseObject({ sticky: z.unknown().optional(), voice: voiceMark.optional() })
+      .nullish(),
   })
   .transform((drawn) => {
     const kept = { ...drawn };
-    if ((drawn.customData as { sticky?: unknown } | undefined)?.sticky === true) {
-      kept.customData = { sticky: true };
+    const sticky = drawn.customData?.sticky === true;
+    const voice = drawn.customData?.voice;
+    if (sticky || voice) {
+      kept.customData = { ...(sticky && { sticky: true }), ...(voice && { voice }) };
     } else {
       delete kept.customData;
     }

@@ -11,7 +11,8 @@ const securityHeaders = [
   },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=()",
+    // The microphone records voice notes on a brainstorm board, on this site's own pages only.
+    value: "camera=(), microphone=(self), geolocation=()",
   },
 ];
 

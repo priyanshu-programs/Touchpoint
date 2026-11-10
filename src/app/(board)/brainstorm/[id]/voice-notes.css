@@ -1,0 +1,90 @@
+/* The controls of a voice note's card, over the box the whiteboard draws for
+   it. Sizes are in the drawing's own measures, so they grow and shrink with the
+   zoom as the card does. Over the canvases (2), as the notes' shading is. */
+.voice-cards {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.voice-card {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 14px;
+  color: var(--foreground);
+}
+
+.voice-play,
+.voice-tool,
+.voice-heading-input {
+  pointer-events: auto;
+}
+
+.voice-play {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: #1c7ed6;
+  color: white;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+
+.voice-play:hover {
+  background: #1971c2;
+}
+
+.voice-text {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.voice-title {
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-time {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.voice-tool {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  opacity: 0.75;
+}
+
+.voice-tool:hover {
+  background: rgb(0 0 0 / 0.08);
+  opacity: 1;
+}
+
+.voice-heading-input {
+  width: 100%;
+  min-width: 0;
+  border-radius: 6px;
+  border: 1px solid #74c0fc;
+  background: var(--background);
+  padding: 2px 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--foreground);
+}

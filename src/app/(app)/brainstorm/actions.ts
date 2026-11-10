@@ -6,6 +6,7 @@ import { z } from "zod";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
 import { openPictures } from "@/modules/brainstorm/pictures";
+import { openVoiceNotes } from "@/modules/brainstorm/voice-notes";
 import {
   brainstormIcon,
   brainstormName,
@@ -83,12 +84,13 @@ export async function reorderBrainstormsAction(ids: string[]) {
 }
 
 // The ids of the pictures drawn on a board, asked for as its whiteboard opens,
-// when elements deleted long ago are cleared away too.
+// when elements deleted long ago, and recordings no card plays, are cleared away too.
 export async function openBrainstormAction(boardId: string) {
   const owner = await requireOwner();
   const id = z.uuid().parse(boardId);
   const pictures = await openPictures(owner.id, id);
   if (!pictures) notFound();
+  await openVoiceNotes(owner.id, id);
   await pruneBrainstorm(owner.id, id);
   return { pictures };
 }
