@@ -41,12 +41,14 @@ export function boardPictures({
   pictures,
   entityType,
   shown,
+  maxPictures,
 }: {
   boards: typeof workflowBoards | typeof brainstormBoards;
   pictures: typeof workflowPictures | typeof brainstormPictures;
   entityType: "workflow" | "brainstorm";
   // Whether an element of the board's stored drawing shows the picture `key`.
   shown: (boardId: string, key: SQLWrapper) => SQL;
+  maxPictures: number;
 }) {
   const onBoard = (ownerId: string, boardId: string) =>
     and(eq(pictures.ownerId, ownerId), eq(pictures.boardId, boardId));
@@ -85,7 +87,7 @@ export function boardPictures({
         .where(onBoard(ownerId, boardId));
       // Sent again, after a dropped answer or from a second element showing it.
       if (held.some((kept) => kept.key === key)) return { ok: true };
-      if (held.length >= MAX_BOARD_PICTURES) return { ok: false, reason: "limit" };
+      if (held.length >= maxPictures) return { ok: false, reason: "limit" };
 
       const [{ recent }] = await tx
         .select({ recent: sql<number>`count(*)::int` })
@@ -173,6 +175,7 @@ export const { addPicture, openPictures, getPicture } = boardPictures({
   boards: workflowBoards,
   pictures: workflowPictures,
   entityType: "workflow",
+  maxPictures: MAX_BOARD_PICTURES,
   shown: (boardId, key) => sql`exists (
     select 1
     from ${workflowBoards} as board,

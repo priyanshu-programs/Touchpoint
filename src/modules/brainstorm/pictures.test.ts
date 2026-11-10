@@ -4,13 +4,13 @@ import { db } from "@/db/client";
 import { brainstormPictures, files } from "@/db/schema";
 import { listAudit } from "@/modules/audit/service";
 import { createBoard, deleteBoard, saveScene } from "@/modules/workflows/boards";
-import { MAX_PICTURE_SIDE } from "@/modules/workflows/drawing";
-import * as workflowPictures from "@/modules/workflows/pictures";
 import {
   MAX_BOARD_PICTURES,
-  PICTURES_PER_MINUTE,
-  sceneSave,
-} from "@/modules/workflows/schema";
+  MAX_BRAINSTORM_PICTURES,
+  MAX_PICTURE_SIDE,
+} from "@/modules/workflows/drawing";
+import * as workflowPictures from "@/modules/workflows/pictures";
+import { PICTURES_PER_MINUTE, sceneSave } from "@/modules/workflows/schema";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import { grainy, shape, solid } from "@/test/pictures";
 import { addPicture, getPicture, openPictures } from "./pictures";
@@ -102,16 +102,21 @@ describe("pictures on a brainstorm board", () => {
 
   it("stops at the pictures a board can hold, and at the pictures a minute may hold", async () => {
     const fileId = await filler();
-    await db.insert(brainstormPictures).values(
-      Array.from({ length: MAX_BOARD_PICTURES }, (_, index) => ({
-        ownerId,
-        boardId,
-        fileKey: `seeded-${index}`,
-        fileId,
-        createdAt: LONG_AGO,
-      })),
-    );
-    expect(await add("a", await solid("png", 40, 40))).toEqual(refused("limit"));
+    const seed = (from: number, to: number) =>
+      db.insert(brainstormPictures).values(
+        Array.from({ length: to - from }, (_, index) => ({
+          ownerId,
+          boardId,
+          fileKey: `seeded-${from + index}`,
+          fileId,
+          createdAt: LONG_AGO,
+        })),
+      );
+    // Past what a workflow board holds.
+    await seed(0, MAX_BOARD_PICTURES);
+    expect(await add("past", await solid("png", 40, 40))).toEqual({ ok: true });
+    await seed(MAX_BOARD_PICTURES + 1, MAX_BRAINSTORM_PICTURES);
+    expect(await add("a", await solid("png", 40, 40, "#33cc33"))).toEqual(refused("limit"));
 
     const other = await drawn("Other", []);
     await db.insert(brainstormPictures).values(
