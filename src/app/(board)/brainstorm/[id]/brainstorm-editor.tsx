@@ -26,7 +26,7 @@ import {
   pickedColors,
   type GridColor,
 } from "@/modules/workflows/colors";
-import { ELEMENT_TYPES } from "@/modules/workflows/drawing";
+import { ELEMENT_TYPES, MAX_BRAINSTORM_PICTURES } from "@/modules/workflows/drawing";
 import {
   sameNotes,
   stickyNotes,
@@ -427,6 +427,7 @@ function Whiteboard({
       address: `/api/brainstorm/${boardId}/pictures`,
       held,
       report: setSending,
+      limit: MAX_BRAINSTORM_PICTURES,
     }),
   );
   useEffect(() => {

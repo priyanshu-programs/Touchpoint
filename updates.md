@@ -1436,3 +1436,7 @@
 - [2026-11-10] Data export includes brainstorm_voice_notes
 - [2026-11-10] Unit tests for voice notes (limits, cleanup, zip names, owner isolation) and e2e/43 with Chromium's fake microphone
 - [2026-11-10] plan.md and security.md: voice notes, their limits and the microphone permission
+- [2026-11-10] A brainstorm board holds 300 pictures and a workflow board still 100: MAX_BRAINSTORM_PICTURES and MAX_BOARD_PICTURES live in src/modules/workflows/drawing.ts, and boardPictures takes the cap per kind of board (owner's choice, after weighing a slower open against room for screenshots)
+- [2026-11-10] The "at most N pictures" sentence is built from the board's own cap (pictureLimitMessage), which createBoardPictures now takes, so a brainstorm board says 300
+- [2026-11-10] src/modules/brainstorm/pictures.test.ts: a brainstorm board takes a picture past 100 and refuses one at 300
+- [2026-11-10] security.md, docs/PRD.md and plan.md: 300 pictures a brainstorm board

@@ -11,13 +11,13 @@ import type {
   ExcalidrawImperativeAPI,
 } from "@excalidraw/excalidraw/types";
 import { MAX_FILE_BYTES } from "@/modules/workflows/drawing";
-import { PICTURE_REFUSALS } from "@/app/(app)/workflows/attach-messages";
+import { PICTURE_REFUSALS, pictureLimitMessage } from "@/app/(app)/workflows/attach-messages";
 
 const RETRY_MS = 10_000;
 // Pictures sent at one time; the rest wait their turn.
 const TOGETHER = 3;
 
-type Refusal = keyof typeof PICTURE_REFUSALS;
+type Refusal = keyof typeof PICTURE_REFUSALS | "limit";
 
 // The bytes a `data:` address holds. Unpacked here and not fetched: the page
 // may ask only this app for anything, and a `data:` address is not this app.
@@ -42,15 +42,18 @@ const dataURLOf = (blob: Blob) =>
 // picture's id, so a picture is fetched by its id as the whiteboard opens, and
 // one put on the whiteboard is sent under its id before the drawing that shows
 // it is. `address` is where the board's pictures are sent and fetched; `held`
-// is what the server has; `report` is told whether a picture is still on its way.
+// is what the server has; `report` is told whether a picture is still on its way;
+// `limit` is the most pictures the board holds.
 export function createBoardPictures({
   address,
   held,
   report,
+  limit,
 }: {
   address: string;
   held: readonly string[];
   report: (sending: boolean) => void;
+  limit: number;
 }) {
   const kept = new Set(held);
   const sending = new Set<string>();
@@ -80,7 +83,7 @@ export function createBoardPictures({
     // An id the server will not keep a picture under: one from another program.
     if (response.status === 400) return "kind";
     const { reason } = await response.json().catch(() => ({ reason: null }));
-    return reason in PICTURE_REFUSALS ? (reason as Refusal) : "later";
+    return reason === "limit" || reason in PICTURE_REFUSALS ? (reason as Refusal) : "later";
   }
 
   // Changes every element showing that picture, without a step to undo. It is
@@ -120,7 +123,7 @@ export function createBoardPictures({
       // whiteboard, which would otherwise show what a reload loses.
       change(key, { isDeleted: true });
       api.setToast({
-        message: PICTURE_REFUSALS[outcome],
+        message: outcome === "limit" ? pictureLimitMessage(limit) : PICTURE_REFUSALS[outcome],
         closable: true,
         duration: 10_000,
       });

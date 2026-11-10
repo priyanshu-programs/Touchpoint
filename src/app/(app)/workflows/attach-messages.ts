@@ -29,11 +29,13 @@ export const NOTE_REFUSALS: Record<
 // Why a picture was taken off the whiteboard again. One sent too fast or to a
 // board that is gone is not refused for good, so it has no sentence here.
 export const PICTURE_REFUSALS: Record<
-  Exclude<Exclude<PictureResult, { ok: true }>["reason"], "not_found" | "rate">,
+  Exclude<Exclude<PictureResult, { ok: true }>["reason"], "not_found" | "rate" | "limit">,
   string
 > = {
   kind: "Only PNG, JPEG, GIF and WebP pictures are kept. Save this one as a PNG and add it again.",
   too_large: "That picture is larger than 4 MB, so it was not kept.",
   full: "Your 200 MB of file storage is used up. Remove a file or a picture to make room.",
-  limit: "A whiteboard can hold at most 100 pictures.",
 };
+
+export const pictureLimitMessage = (most: number) =>
+  `A whiteboard can hold at most ${most} pictures.`;
