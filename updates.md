@@ -1440,3 +1440,4 @@
 - [2026-11-10] The "at most N pictures" sentence is built from the board's own cap (pictureLimitMessage), which createBoardPictures now takes, so a brainstorm board says 300
 - [2026-11-10] src/modules/brainstorm/pictures.test.ts: a brainstorm board takes a picture past 100 and refuses one at 300
 - [2026-11-10] security.md, docs/PRD.md and plan.md: 300 pictures a brainstorm board
+- [2026-11-10] e2e/43: the microphone is a tone made in the page, so the spec keeps the shared browser and runs before 99-sign-out

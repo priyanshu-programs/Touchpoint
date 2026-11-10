@@ -4,13 +4,21 @@ import { readFile } from "node:fs/promises";
 import { OWNER_SESSION } from "./support";
 
 test.describe.configure({ mode: "serial" });
-// Chromium's own stand-in microphone, allowed without asking.
-test.use({
-  storageState: OWNER_SESSION,
-  permissions: ["microphone"],
-  launchOptions: {
-    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
-  },
+// Launch options of its own would put this spec in a browser of its own, run
+// after 99-sign-out has ended the owner's session. So the microphone is a
+// tone made in the page instead.
+test.use({ storageState: OWNER_SESSION });
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const audio = new AudioContext();
+      const tone = audio.createOscillator();
+      const out = audio.createMediaStreamDestination();
+      tone.connect(out);
+      tone.start();
+      return out.stream;
+    };
+  });
 });
 
 const BOARD = /\/brainstorm\/([0-9a-f-]{36})$/;
