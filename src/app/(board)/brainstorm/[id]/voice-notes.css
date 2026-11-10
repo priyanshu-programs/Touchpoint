@@ -9,13 +9,28 @@
   pointer-events: none;
 }
 
+/* The card is drawn here, not by the whiteboard, so it keeps the app's dark
+   card and lime in both themes: the dark theme's filter would turn a dark box
+   on the canvas light. The whiteboard's selection frame sits just outside it. */
 .voice-card {
   position: absolute;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 12px 0 14px;
-  color: var(--foreground);
+  border-radius: 14px;
+  background-color: var(--spotlight);
+  background-image: radial-gradient(
+    120% 140% at 100% 0%,
+    oklch(0.9154 0.2402 128.2393 / 0.22),
+    transparent 60%
+  );
+  color: var(--spotlight-foreground);
+  /* A lime edge, so the card still stands apart on the dark theme's black board. */
+  box-shadow:
+    inset 0 0 0 1px oklch(0.9154 0.2402 128.2393 / 0.35),
+    0 1px 2px rgb(0 0 0 / 0.3),
+    0 8px 18px -6px rgb(0 0 0 / 0.45);
 }
 
 .voice-play,
@@ -31,13 +46,13 @@
   width: 52px;
   height: 52px;
   border-radius: 999px;
-  background: #1c7ed6;
-  color: white;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 0 0 4px oklch(0.9154 0.2402 128.2393 / 0.18);
 }
 
 .voice-play:hover {
-  background: #1971c2;
+  filter: brightness(0.92);
 }
 
 .voice-text {
@@ -59,7 +74,7 @@
 .voice-time {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  opacity: 0.7;
+  color: var(--primary);
 }
 
 .voice-tool {
@@ -69,22 +84,23 @@
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  opacity: 0.75;
+  color: var(--spotlight-muted);
 }
 
 .voice-tool:hover {
-  background: rgb(0 0 0 / 0.08);
-  opacity: 1;
+  background: rgb(255 255 255 / 0.1);
+  color: var(--primary);
 }
 
 .voice-heading-input {
   width: 100%;
   min-width: 0;
   border-radius: 6px;
-  border: 1px solid #74c0fc;
-  background: var(--background);
+  border: 1px solid var(--primary);
+  background: rgb(0 0 0 / 0.35);
   padding: 2px 6px;
   font-size: 16px;
   font-weight: 600;
-  color: var(--foreground);
+  color: var(--spotlight-foreground);
+  outline: none;
 }

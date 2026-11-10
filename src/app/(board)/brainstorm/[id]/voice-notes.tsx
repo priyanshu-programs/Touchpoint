@@ -2,7 +2,7 @@
 
 import { CaptureUpdateAction, newElementWith, ROUNDNESS } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { Download, Loader2, Mic, Pause, Pencil, Play, Square } from "lucide-react";
+import { Download, FolderDown, Loader2, Mic, Pause, Pencil, Play, Square } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type Ref } from "react";
 import {
   formatSeconds,
@@ -17,6 +17,7 @@ import {
   type VoiceCard,
   type VoiceMark,
 } from "@/modules/brainstorm/voice";
+import { DOWNLOAD_MESSAGES, downloadVoiceNotes } from "./voice-download";
 import "./voice-notes.css";
 
 // Opus first: the smallest for a voice at the same clearness. Older Safari
@@ -130,7 +131,7 @@ export function RecordButton({
       <button
         type="button"
         onClick={onStop}
-        className={`h-9 items-center gap-1.5 self-center rounded-lg bg-red-600 px-2.5 text-sm font-medium text-white shadow-sm hover:bg-red-700 ${className}`}
+        className={`h-9 shrink-0 items-center gap-1.5 self-center rounded-lg bg-primary px-2.5 text-sm font-medium whitespace-nowrap text-primary-foreground shadow-sm hover:brightness-95 ${className}`}
       >
         <Square aria-hidden className="size-3.5 fill-current" />
         <span className="tabular-nums" aria-live="polite">
@@ -147,14 +148,56 @@ export function RecordButton({
       type="button"
       onClick={onStart}
       disabled={disabled || status.state === "starting"}
-      className={`h-9 items-center gap-1.5 self-center rounded-lg bg-card px-2.5 text-sm shadow-sm ring-1 ring-foreground/10 hover:bg-accent disabled:opacity-60 ${className}`}
+      className={`${DARK_BUTTON} ${className}`}
     >
       {status.state === "starting" ? (
         <Loader2 aria-hidden className="size-4 animate-spin" />
       ) : (
-        <Mic aria-hidden className="size-4 text-red-600" />
+        <Mic aria-hidden className="size-4 text-primary" />
       )}
       <span className="sr-only sm:not-sr-only">Voice note</span>
+    </button>
+  );
+}
+
+// The app's dark card and lime, as the voice cards are.
+const DARK_BUTTON =
+  "h-9 shrink-0 items-center gap-1.5 self-center rounded-lg bg-spotlight px-2.5 text-sm whitespace-nowrap text-spotlight-foreground shadow-sm ring-1 ring-primary/35 hover:brightness-125 disabled:opacity-60";
+
+// Saves every voice note on the board as one zip, from the board itself.
+export function ExportVoiceButton({
+  boardId,
+  onProblem,
+  className,
+}: {
+  boardId: string;
+  onProblem: (message: string) => void;
+  className?: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const exportAll = async () => {
+    setBusy(true);
+    const outcome = await downloadVoiceNotes(boardId);
+    setBusy(false);
+    if (outcome !== "saved") onProblem(DOWNLOAD_MESSAGES[outcome]);
+  };
+  return (
+    <button
+      type="button"
+      onClick={() => void exportAll()}
+      disabled={busy}
+      aria-label="Export voice notes"
+      title="Download every voice note on this board as one zip"
+      className={`${DARK_BUTTON} ${className}`}
+    >
+      {busy ? (
+        <Loader2 aria-hidden className="size-4 animate-spin" />
+      ) : (
+        <FolderDown aria-hidden className="size-4 text-primary" />
+      )}
+      <span aria-hidden className="hidden sm:inline">
+        Export
+      </span>
     </button>
   );
 }
@@ -172,8 +215,9 @@ export function voiceCardElement(at: { x: number; y: number }, voice: VoiceMark)
     y: at.y,
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    backgroundColor: "#e7f5ff",
-    strokeColor: "#74c0fc",
+    // Covered by the card drawn over it; dark, so a moment's gap shows nothing light.
+    backgroundColor: "#1f2419",
+    strokeColor: "transparent",
     strokeWidth: 1,
     fillStyle: "solid" as const,
     roughness: 0,

@@ -1441,3 +1441,5 @@
 - [2026-11-10] src/modules/brainstorm/pictures.test.ts: a brainstorm board takes a picture past 100 and refuses one at 300
 - [2026-11-10] security.md, docs/PRD.md and plan.md: 300 pictures a brainstorm board
 - [2026-11-10] e2e/43: the microphone is a tone made in the page, so the spec keeps the shared browser and runs before 99-sign-out
+- [2026-11-10] Voice cards in the app's dark card and lime, drawn over the board so they look the same in both themes; Voice note button dark with a lime mic
+- [2026-11-10] Brainstorm board: an Export button beside Voice note downloads every voice note as one zip, shown once the board has any

@@ -81,6 +81,11 @@ test("every voice note on the board downloads as one zip", async ({ page }) => {
   await page.goto(`/brainstorm/${boardId}`);
   await expect(page.locator(".voice-title")).toHaveText("Launch pricing");
 
+  // From the board's own Export button.
+  const exported = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export voice notes" }).click();
+  expect((await exported).suggestedFilename()).toBe("Voice ideas - voice notes.zip");
+
   await page.getByRole("button", { name: "Board actions" }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("menuitem", { name: "Download voice notes" }).click();
@@ -105,6 +110,9 @@ test("a board with no voice notes says so instead of downloading", async ({ page
   await dialog.getByLabel("Name").fill("Quiet board");
   await dialog.getByRole("button", { name: "Create board" }).click();
   await expect(page).toHaveURL(BOARD);
+  // The board's Export button shows only once there is something to export.
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Export voice notes" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Board actions" }).click();
   await page.getByRole("menuitem", { name: "Download voice notes" }).click();

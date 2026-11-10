@@ -66,6 +66,7 @@ import {
   type VoiceMark,
 } from "@/modules/brainstorm/voice";
 import {
+  ExportVoiceButton,
   nextVoiceTitle,
   RecordButton,
   sendVoiceNote,
@@ -350,6 +351,8 @@ function Whiteboard({
   const sheen = useRef<HTMLDivElement>(null);
   const voiceLayer = useRef<HTMLDivElement>(null);
   const [cards, setCards] = useState<VoiceCard[]>([]);
+  // Whether any card on the board, on the screen or not, plays a recording.
+  const [hasVoice, setHasVoice] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [voiceSaving, setVoiceSaving] = useState(false);
   const [voiceProblem, setVoiceProblem] = useState<{
@@ -541,6 +544,12 @@ function Whiteboard({
             setNotes((before) => (sameNotes(before, onScreen) ? before : onScreen));
             const voices = voiceCards(all, seen);
             setCards((before) => (sameCards(before, voices) ? before : voices));
+            // Only the mark's presence is looked for: a board of handwriting
+            // holds thousands of elements and this runs many times a second.
+            setHasVoice(
+              voices.length > 0 ||
+                all.some((element) => !element.isDeleted && element.customData?.voice),
+            );
             board.current?.toggleAttribute(
               "data-writing-on-note",
               writingOnNote(all, appState.editingTextElement),
@@ -585,6 +594,13 @@ function Whiteboard({
               disabled={voiceSaving}
               className="hidden sm:inline-flex"
             />
+            {hasVoice && (
+              <ExportVoiceButton
+                boardId={boardId}
+                onProblem={(message) => setVoiceProblem({ message })}
+                className="hidden sm:inline-flex"
+              />
+            )}
             <SaveStatus state={shownState} />
           </div>
         )}
@@ -665,6 +681,13 @@ function Whiteboard({
         disabled={voiceSaving}
         className="absolute right-4 bottom-48 z-10 inline-flex sm:hidden"
       />
+      {hasVoice && (
+        <ExportVoiceButton
+          boardId={boardId}
+          onProblem={(message) => setVoiceProblem({ message })}
+          className="absolute right-4 bottom-60 z-10 inline-flex sm:hidden"
+        />
+      )}
     </div>
   );
 }
