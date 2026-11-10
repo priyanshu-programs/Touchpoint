@@ -160,6 +160,12 @@ const element = drawnElement
           .optional(),
         // A box put down as a sticky note, which the board draws as one.
         sticky: z.literal(true).optional(),
+        // A voice note's card pasted from a brainstorm board: a workflow keeps
+        // no recordings, so it stays a plain box rather than stopping the save.
+        voice: z
+          .unknown()
+          .transform(() => undefined)
+          .optional(),
       })
       .optional(),
   })

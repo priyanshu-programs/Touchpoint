@@ -9,6 +9,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { FullscreenButton } from "@/components/fullscreen-button";
 import { requireOwner } from "@/lib/session";
 import { getBrainstorm } from "@/modules/brainstorm/queries";
+import { countVoiceNotes } from "@/modules/brainstorm/voice-notes";
 import { PAPER_COOKIE, paperOf } from "../../workflows/[id]/paper";
 import { BrainstormCanvas } from "./brainstorm-canvas";
 import { BrainstormMenu } from "./brainstorm-menu";
@@ -30,6 +31,7 @@ export default async function BrainstormBoardPage({
   if (!id.success) notFound();
   const board = await getBrainstorm(owner.id, id.data);
   if (!board) notFound();
+  const voiceNotes = await countVoiceNotes(owner.id, board.id);
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
@@ -47,7 +49,7 @@ export default async function BrainstormBoardPage({
           {board.name}
         </h1>
         <FullscreenButton />
-        <BrainstormMenu id={board.id} name={board.name} />
+        <BrainstormMenu id={board.id} name={board.name} voiceNotes={voiceNotes} />
       </header>
       <main className="relative min-h-0 flex-1 bg-background">
         <BrainstormCanvas

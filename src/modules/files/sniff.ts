@@ -72,3 +72,14 @@ export function fileType(bytes: Buffer) {
     null
   );
 }
+
+// A recording as a browser makes one, read from its first bytes: WebM (Chrome,
+// Edge, Firefox, newer Safari) opens with the EBML mark and names its kind soon
+// after; MP4 (older Safari) opens with an `ftyp` box. Null for anything else.
+export function audioType(bytes: Buffer) {
+  if (bytes.length < 16) return null;
+  if (bytes.readUInt32BE(0) === 0x1a45dfa3) {
+    return bytes.subarray(4, 64).includes("webm", 0, "latin1") ? "audio/webm" : null;
+  }
+  return bytes.subarray(4, 8).toString("latin1") === "ftyp" ? "audio/mp4" : null;
+}
