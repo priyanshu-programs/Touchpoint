@@ -1443,3 +1443,13 @@
 - [2026-11-10] e2e/43: the microphone is a tone made in the page, so the spec keeps the shared browser and runs before 99-sign-out
 - [2026-11-10] Voice cards in the app's dark card and lime, drawn over the board so they look the same in both themes; Voice note button dark with a lime mic
 - [2026-11-10] Brainstorm board: an Export button beside Voice note downloads every voice note as one zip, shown once the board has any
+- [2026-11-15] Brainstorm folders: migration 0046 (additive) adds brainstorm_folders (name unique per owner without regard to case, 50 an owner) and a nullable brainstorm_boards.folder_id that is set to null when its folder is deleted
+- [2026-11-15] src/modules/brainstorm/folders.ts: create, rename and delete a folder, and move a board into or out of one (first in its new place, Last edited kept), each under the owner's lock and audited
+- [2026-11-15] Brainstorming page: "New folder" beside "New board", a Folders section of cards above a Boards section of the boards in no folder; a board's handle drags it onto a folder card to put it inside
+- [2026-11-15] A folder opens at /brainstorm?folder=<id> with its own boards, a strip to drag a board onto to take it out, Rename and Delete (its boards go back to Brainstorming), and New board makes the board inside it
+- [2026-11-15] Each board row has a folder button that moves it to a folder or out of one without dragging, for the keyboard and phones
+- [2026-11-15] A search on the Brainstorming page finds boards in every folder, says which folder each is in, and filters the folder cards by name
+- [2026-11-15] A board's header link goes back to its folder when it is in one
+- [2026-11-15] Data export: brainstorm_folders in data.json and a Folder column in brainstorm-boards.csv
+- [2026-11-15] Unit tests for folders: listing with counts, names and limit, moving in and out, deleting a folder, and another owner's folders and boards
+- [2026-11-15] plan.md and security.md: brainstorm folders

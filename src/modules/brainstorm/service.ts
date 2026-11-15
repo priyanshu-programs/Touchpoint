@@ -3,6 +3,7 @@ import { db, type Tx } from "@/db/client";
 import { brainstormBoards, brainstormElements } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
 import { dropUnusedFiles } from "@/modules/files/service";
+import { folderOwned } from "./folders";
 import {
   MAX_BOARD_BYTES,
   MAX_BOARD_ELEMENTS,
@@ -39,14 +40,20 @@ async function nameTaken(tx: Tx, ownerId: string, name: string, except?: string)
   return Boolean(row);
 }
 
+// A new board goes first on the page it is made from: the Brainstorming page,
+// or inside the folder given.
 export async function createBrainstorm(
   ownerId: string,
   { name }: BrainstormName,
+  folderId: string | null = null,
 ): Promise<BrainstormResult> {
   return db.transaction(async (tx) => {
     await lockOwner(tx, ownerId);
     const count = await tx.$count(brainstormBoards, eq(brainstormBoards.ownerId, ownerId));
     if (count >= MAX_BRAINSTORM_BOARDS) return { ok: false, reason: "limit" };
+    if (folderId && !(await folderOwned(tx, ownerId, folderId))) {
+      return { ok: false, reason: "not_found" };
+    }
     if (await nameTaken(tx, ownerId, name)) return { ok: false, reason: "name_taken" };
 
     const [{ first }] = await tx
@@ -55,7 +62,7 @@ export async function createBrainstorm(
       .where(eq(brainstormBoards.ownerId, ownerId));
     const [row] = await tx
       .insert(brainstormBoards)
-      .values({ ownerId, name, position: first - 1 })
+      .values({ ownerId, name, position: first - 1, folderId })
       .returning({ id: brainstormBoards.id });
     await audit(tx, {
       ownerId,
@@ -63,7 +70,7 @@ export async function createBrainstorm(
       action: "brainstorm.create",
       entityType: "brainstorm",
       entityId: row.id,
-      after: { name },
+      after: { name, folderId },
     });
     return { ok: true, id: row.id };
   });

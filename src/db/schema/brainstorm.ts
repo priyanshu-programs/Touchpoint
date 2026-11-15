@@ -16,6 +16,22 @@ import { citext, createdAt, id, ownerId, updatedAt } from "./columns";
 import { files } from "./files";
 import type { BoardScene } from "./workflows";
 
+// A folder on the Brainstorming page that boards are grouped under by topic.
+// Folders hold boards only, not other folders.
+export const brainstormFolders = pgTable(
+  "brainstorm_folders",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    name: citext("name").notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("brainstorm_folders_owner_name_idx").on(table.ownerId, table.name),
+  ],
+);
+
 // A whiteboard of the owner's own for thinking things through: no stages, and
 // belonging to no company and no person.
 export const brainstormBoards = pgTable(
@@ -43,6 +59,11 @@ export const brainstormBoards = pgTable(
     pruned: bigint("pruned", { mode: "number" }).notNull().default(0),
     // Where the owner has put it on the Brainstorming page, lowest first.
     position: integer("position").notNull().default(0),
+    // The folder it is kept in, or none: on the Brainstorming page itself.
+    // Deleting a folder puts its boards back there.
+    folderId: uuid("folder_id").references(() => brainstormFolders.id, {
+      onDelete: "set null",
+    }),
     createdAt,
     updatedAt,
   },
@@ -51,6 +72,7 @@ export const brainstormBoards = pgTable(
     uniqueIndex("brainstorm_boards_owner_name_idx").on(table.ownerId, table.name),
     index("brainstorm_boards_owner_updated_idx").on(table.ownerId, table.updatedAt),
     index("brainstorm_boards_owner_position_idx").on(table.ownerId, table.position),
+    index("brainstorm_boards_folder_idx").on(table.folderId),
   ],
 );
 

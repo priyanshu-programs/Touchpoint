@@ -8,7 +8,7 @@ import { liveRoomOrigin } from "@/lib/live-room";
 import { BrandMark } from "@/components/brand-mark";
 import { FullscreenButton } from "@/components/fullscreen-button";
 import { requireOwner } from "@/lib/session";
-import { getBrainstorm } from "@/modules/brainstorm/queries";
+import { getBrainstorm, getBrainstormFolder } from "@/modules/brainstorm/queries";
 import { countVoiceNotes } from "@/modules/brainstorm/voice-notes";
 import { PAPER_COOKIE, paperOf } from "../../workflows/[id]/paper";
 import { BrainstormCanvas } from "./brainstorm-canvas";
@@ -31,18 +31,21 @@ export default async function BrainstormBoardPage({
   if (!id.success) notFound();
   const board = await getBrainstorm(owner.id, id.data);
   if (!board) notFound();
-  const voiceNotes = await countVoiceNotes(owner.id, board.id);
+  const [voiceNotes, folder] = await Promise.all([
+    countVoiceNotes(owner.id, board.id),
+    board.folderId ? getBrainstormFolder(owner.id, board.folderId) : null,
+  ]);
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
       <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b bg-background/90 px-3 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <BrandMark className="size-7" />
         <Link
-          href="/brainstorm"
+          href={folder ? `/brainstorm?folder=${folder.id}` : "/brainstorm"}
           className="inline-flex max-w-[40%] shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <ArrowLeft aria-hidden className="size-4 shrink-0" />
-          <span className="truncate">Brainstorming</span>
+          <span className="truncate">{folder?.name ?? "Brainstorming"}</span>
         </Link>
         <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
         <h1 className="min-w-0 flex-1 truncate font-semibold tracking-tight">

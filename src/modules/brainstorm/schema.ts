@@ -10,12 +10,25 @@ import { voiceMark } from "./voice";
 export { MAX_SCENE_BYTES } from "@/modules/workflows/schema";
 
 export const MAX_BRAINSTORM_BOARDS = 200;
+export const MAX_BRAINSTORM_FOLDERS = 50;
 export const BRAINSTORM_PAGE_SIZE = 50;
 
 export const brainstormName = z.strictObject({
   name: z.string().trim().min(1, "Give the board a name").max(100),
 });
 export type BrainstormName = z.infer<typeof brainstormName>;
+
+export const brainstormFolderName = z.strictObject({
+  name: z.string().trim().min(1, "Give the folder a name").max(100),
+});
+export type BrainstormFolderName = z.infer<typeof brainstormFolderName>;
+
+// A board put in a folder, or taken out of one (no folder).
+export const brainstormMove = z.strictObject({
+  boardId: z.uuid(),
+  folderId: z.uuid().nullable(),
+});
+export type BrainstormMove = z.infer<typeof brainstormMove>;
 
 export const brainstormIcon = z.strictObject({
   boardId: z.uuid(),
@@ -31,6 +44,8 @@ export const brainstormOrder = z
   .refine((ids) => new Set(ids).size === ids.length);
 
 export const brainstormListParams = z.object({
+  // The folder being looked in; none for the Brainstorming page itself.
+  folder: z.uuid().optional().catch(undefined),
   q: z.string().trim().max(100).optional().catch(undefined),
   page: z.coerce.number().int().min(1).max(1000).optional().catch(undefined),
 });

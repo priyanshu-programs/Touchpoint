@@ -3,6 +3,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
   activities,
   brainstormBoards,
+  brainstormFolders,
   companyStatuses,
   contacts,
   invoiceAdjustments,
@@ -521,11 +522,18 @@ const workflowSheet: Sheet = {
 const brainstormSheet: Sheet = {
   file: "brainstorm-boards.csv",
   async *lines(db, { ownerId, timezone }) {
-    yield BOM + csvLine(["Name", "Elements", "Created", "Last edited"]);
+    yield BOM + csvLine(["Name", "Folder", "Elements", "Created", "Last edited"]);
     const rows = pages((offset) =>
       db
-        .select()
+        .select({
+          name: brainstormBoards.name,
+          folder: brainstormFolders.name,
+          live: brainstormBoards.live,
+          createdAt: brainstormBoards.createdAt,
+          updatedAt: brainstormBoards.updatedAt,
+        })
         .from(brainstormBoards)
+        .leftJoin(brainstormFolders, eq(brainstormFolders.id, brainstormBoards.folderId))
         .where(eq(brainstormBoards.ownerId, ownerId))
         .orderBy(sql`lower(${brainstormBoards.name})`, asc(brainstormBoards.id))
         .limit(PAGE_ROWS)
@@ -534,7 +542,13 @@ const brainstormSheet: Sheet = {
     for await (const page of rows) {
       yield page
         .map((row) =>
-          csvLine([row.name, row.live, when(row.createdAt, timezone), when(row.updatedAt, timezone)]),
+          csvLine([
+            row.name,
+            row.folder,
+            row.live,
+            when(row.createdAt, timezone),
+            when(row.updatedAt, timezone),
+          ]),
         )
         .join("");
     }
