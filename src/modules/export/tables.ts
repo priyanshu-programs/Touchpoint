@@ -33,6 +33,7 @@ export const EXPORTED_TABLES: readonly PgTable[] = [
   schema.workflowAttachments,
   schema.workflowNotes,
   schema.workflowPictures,
+  schema.brainstormFolders,
   schema.brainstormBoards,
   schema.brainstormElements,
   schema.brainstormPictures,

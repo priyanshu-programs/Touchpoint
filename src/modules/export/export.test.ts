@@ -187,7 +187,7 @@ describe("data export", () => {
     expect(files["csv/payments.csv"]).toContain(
       "2026-10-20,Maple Studio,40000.00,INR,,UPI,UTR-1,30000.00,10000.00,INV-1 (30000.00),",
     );
-    expect(files["csv/brainstorm-boards.csv"]).toContain("Ideas,1,");
+    expect(files["csv/brainstorm-boards.csv"]).toContain("Ideas,,1,");
   });
 
   it("writes an amount in its currency's own digits", () => {
