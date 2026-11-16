@@ -24,7 +24,7 @@ test("first run: create the owner and finish onboarding", async ({ page }) => {
   await page.getByRole("button", { name: "Finish setup" }).click();
 
   await expect(page).toHaveURL(/localhost:\d+\/$/);
-  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
   // A CSP violation would surface here as a console error.
   expect(consoleErrors).toEqual([]);
 
