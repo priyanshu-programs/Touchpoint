@@ -1483,3 +1483,4 @@
 - [2026-11-16] ESLint skips the vendored chatcn and CrystalizedBall files, kept as they ship
 - [2026-11-16] e2e/44 and 45 read replies inside the chat log, since chatcn's live region repeats a finished reply for screen readers
 - [2026-11-16] security.md: replies' Markdown drawn as React elements, and the vendored chat and animation code
+- [2026-11-17] e2e/01 and 30 find Today's page heading by level, after a run just past midnight in the owner's zone also matched "Due today (1)" and failed main's CI

@@ -295,7 +295,7 @@ test("a meeting that isn't there opens nothing", async ({ page }) => {
 test("the card goes when Google is disconnected", async ({ page }) => {
   await pool.query(`delete from integration_connections`);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
   await expect(page.getByText("Meetings", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Maple review" })).toHaveCount(0);
 });
