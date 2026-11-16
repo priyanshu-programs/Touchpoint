@@ -1,3 +1,5 @@
+import { companyHref, contactHref } from "@/lib/record-href";
+
 const LABELS: Record<string, string> = {
   past_client: "Past client",
   do_not_contact: "Do not contact",
@@ -11,17 +13,8 @@ export function labelFor(value: string) {
   return LABELS[value] ?? value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-// A company opens as a panel over the companies list, so its address is a query string.
-export const companyHref = (
-  id: string,
-  tab?: "contacts" | "activity" | "tasks" | "workflows" | "money",
-) => `/people/organizations?company=${id}${tab ? `&tab=${tab}` : ""}`;
-
-// A person opens as a panel over the people list.
-export const contactHref = (
-  id: string,
-  tab?: "activity" | "tasks" | "workflows" | "money",
-) => `/people/contacts?contact=${id}${tab ? `&tab=${tab}` : ""}`;
+// Kept in lib so the assistant's module can build the same addresses.
+export { companyHref, contactHref };
 
 // A contact at a company can also be shown inside that company's panel.
 export const contactPanelHref = (organizationId: string, contactId: string) =>

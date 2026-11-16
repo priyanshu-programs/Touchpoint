@@ -110,6 +110,27 @@ describe("chat", () => {
     });
   });
 
+  it("lets a follow-up use the tools the chat's questions called for", async () => {
+    openrouter.streamReply.mockReturnValue(
+      streamed([{ type: "text-delta", text: "Done" }, finish]),
+    );
+    const first = await beginChat(owner, { message: "What are my tasks for today" });
+    if (!first.ok) throw new Error(first.reason);
+    expect(first.turn.groups).toContain("tasks");
+    await collect(reply(first.turn, new AbortController().signal));
+
+    const again = await beginChat(owner, {
+      conversationId: first.turn.conversationId,
+      message: "Try again",
+    });
+    if (!again.ok) throw new Error(again.reason);
+    expect(again.turn.groups).toContain("tasks");
+
+    const fresh = await beginChat(owner, { message: "Try again" });
+    if (!fresh.ok) throw new Error(fresh.reason);
+    expect(fresh.turn.groups).toEqual([]);
+  });
+
   it("sends the chat so far with the next message", async () => {
     openrouter.streamReply.mockReturnValue(
       streamed([{ type: "text-delta", text: "First answer" }, finish]),
