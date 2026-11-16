@@ -42,7 +42,7 @@ export default async function ExportPage({ searchParams }: PageProps<"/settings/
         </ul>
         <p className="text-muted-foreground">
           Left out: your password and sign-in sessions, your Google client and the access it
-          granted, and the contents of uploaded files and
+          granted, your OpenRouter key, and the contents of uploaded files and
           pictures. The spreadsheet of files lists each one; open them in Touchpoint.
         </p>
         {refusedRate && (

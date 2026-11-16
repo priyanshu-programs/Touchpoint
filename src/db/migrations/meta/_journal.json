@@ -330,6 +330,13 @@
       "when": 1794731636254,
       "tag": "0046_brainstorm_folders",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794813877839,
+      "tag": "0047_assistant_setup",
+      "breakpoints": true
     }
   ]
 }

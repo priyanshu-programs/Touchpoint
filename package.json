@@ -18,7 +18,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "worker": "tsx --env-file-if-exists=.env.local worker.ts",
-    "fixtures:google": "tsx --env-file-if-exists=.env.local scripts/record-google-fixtures.ts"
+    "fixtures:google": "tsx --env-file-if-exists=.env.local scripts/record-google-fixtures.ts",
+    "models:try": "tsx --env-file-if-exists=.env.local scripts/try-assistant-models.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -26,6 +27,7 @@
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.2.2",
     "@excalidraw/excalidraw": "0.18.1",
+    "@openrouter/ai-sdk-provider": "3.1.0",
     "@tiptap/core": "3.32.2",
     "@tiptap/extension-bold": "3.32.2",
     "@tiptap/extension-document": "3.32.2",
@@ -36,6 +38,7 @@
     "@tiptap/extensions": "3.32.2",
     "@tiptap/pm": "3.32.2",
     "@tiptap/react": "3.32.2",
+    "ai": "7.0.159",
     "arctic": "3.7.0",
     "better-auth": "1.7.7",
     "class-variance-authority": "^0.7.1",

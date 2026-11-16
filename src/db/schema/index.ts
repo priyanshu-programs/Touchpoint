@@ -1,4 +1,5 @@
 export * from "./activities";
+export * from "./assistant";
 export * from "./auth";
 export * from "./brainstorm";
 export * from "./core";

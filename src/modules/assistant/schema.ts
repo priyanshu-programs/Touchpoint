@@ -1,0 +1,36 @@
+import { z } from "zod";
+
+export const MAX_MESSAGE_CHARS = 4000;
+
+export const assistantKeyInput = z.strictObject({
+  apiKey: z
+    .string()
+    .trim()
+    .regex(
+      /^sk-or-[A-Za-z0-9_-]{16,200}$/,
+      "That isn't an OpenRouter key. It starts with sk-or- and has no spaces.",
+    ),
+});
+
+// A free model only, so a typed id can never spend money.
+const modelId = z
+  .string()
+  .trim()
+  .max(100, "That model id is too long.")
+  .regex(
+    /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*:free$/,
+    "Enter a free model's id from OpenRouter, like google/gemma-4-31b-it:free.",
+  );
+
+export const assistantModelsInput = z.strictObject({
+  mainModel: modelId,
+  helperModel: modelId,
+  backupModel: modelId,
+});
+export type AssistantModels = z.infer<typeof assistantModelsInput>;
+
+export const chatInput = z.strictObject({
+  conversationId: z.uuid().optional(),
+  message: z.string().trim().min(1).max(MAX_MESSAGE_CHARS),
+});
+export type ChatInput = z.infer<typeof chatInput>;

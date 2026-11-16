@@ -1453,3 +1453,14 @@
 - [2026-11-15] Data export: brainstorm_folders in data.json and a Folder column in brainstorm-boards.csv
 - [2026-11-15] Unit tests for folders: listing with counts, names and limit, moving in and out, deleting a folder, and another owner's folders and boards
 - [2026-11-15] plan.md and security.md: brainstorm folders
+- [2026-11-16] Added `ai` 7.0.159 and `@openrouter/ai-sdk-provider` 3.1.0, pinned; `pnpm audit --prod` clean
+- [2026-11-16] Migration 0047 (additive): `ai_settings` (the sealed OpenRouter key and the three models), `ai_conversations` and `ai_messages`
+- [2026-11-16] src/ai/openrouter.ts: the key check through OpenRouter's fixed `/api/v1/key` (today's free requests) and one streamed model call a message, with the backup model as OpenRouter's fallback and no retries
+- [2026-11-16] src/modules/assistant: key and models saved and audited, chats kept by owner, 20 messages a minute, 200 a chat and 500 chats, failures told in the app's own sentences
+- [2026-11-16] POST /api/assistant/chat streams the answer as one JSON event a line, with the session, Origin and size guards
+- [2026-11-16] Settings → Assistant: the OpenRouter key (save, test, replace, remove), the data-use notice and the free models
+- [2026-11-16] The assistant panel from a sparkle button in the top bar on every page, Assistant in the sidebar, and /assistant, /assistant/new and /assistant/<id> for the history
+- [2026-11-16] Data export: chats and messages in data.json, the OpenRouter key left out and said so
+- [2026-11-16] e2e/fake-model and reroute.mjs: the suite answers OpenRouter's calls from a fake on loopback and never reaches the real one; e2e/44 covers setup, chat, history, a failure, a phone and removing the key
+- [2026-11-16] scripts/try-assistant-models.ts (`pnpm models:try`): the owner's by-hand trial of free models on made-up rows, to pick the models and check tool calling
+- [2026-11-16] security.md, plan.md and the Privacy page: Phase 6 step 1, the assistant's key, chats and what reaches OpenRouter

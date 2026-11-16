@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { callName, greeting } from "@/lib/greeting";
 import { requireOwner } from "@/lib/session";
+import { assistantSettings } from "@/modules/assistant/service";
 import { googleNeedsReconnect } from "@/modules/integrations/service";
 import { getSettings } from "@/modules/settings/service";
 
@@ -12,7 +13,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const owner = await requireOwner();
   const settings = await getSettings(owner.id);
   if (!settings) redirect("/onboarding");
-  const reconnect = await googleNeedsReconnect(owner.id);
+  const [reconnect, assistant] = await Promise.all([
+    googleNeedsReconnect(owner.id),
+    assistantSettings(owner.id),
+  ]);
   const jar = await cookies();
   const sidebar = jar.get("sidebar")?.value;
   const rawWidth = Number(jar.get("sidebar-width")?.value);
@@ -37,6 +41,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       }}
       timezone={settings.timezone}
       greeting={greeting(called, settings.timezone)}
+      assistantReady={assistant.key === "ready"}
       defaultCollapsed={sidebar !== "expanded"}
       defaultWidth={defaultWidth}
     >

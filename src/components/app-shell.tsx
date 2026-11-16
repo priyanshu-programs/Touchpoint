@@ -9,6 +9,7 @@ import {
   Receipt,
   Search,
   Settings,
+  Sparkles,
   Sun,
   Workflow,
   type LucideIcon,
@@ -23,12 +24,14 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { BrandMark } from "@/components/brand-mark";
 import { ButtonLink } from "@/components/button-link";
 import { CommandPalette } from "@/components/command-palette";
 import { FullscreenButton } from "@/components/fullscreen-button";
 import { Greeting } from "@/components/greeting";
 import { ProfilePanel, type ProfileValues } from "@/components/profile-panel";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 // Only screens that exist are listed; each module adds its entry when it ships.
@@ -67,6 +70,12 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
       prefix: "/brainstorm",
     },
     {
+      href: "/assistant",
+      label: "Assistant",
+      icon: Sparkles,
+      prefix: "/assistant",
+    },
+    {
       href: "/settings/profile",
       label: "Settings",
       icon: Settings,
@@ -76,7 +85,9 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
 // The phone bar has room for four destinations; the rest are reached through "Go to".
 const MOBILE_NAV = NAV.filter(
   (item) =>
-    !["/workflows", "/materials", "/money", "/brainstorm"].includes(item.href),
+    !["/workflows", "/materials", "/money", "/brainstorm", "/assistant"].includes(
+      item.href,
+    ),
 );
 
 const COLLAPSED_WIDTH = 56;
@@ -133,6 +144,7 @@ export function AppShell({
   profile,
   timezone,
   greeting,
+  assistantReady,
   defaultCollapsed,
   defaultWidth,
   children,
@@ -142,6 +154,7 @@ export function AppShell({
   profile: ProfileValues;
   timezone: string;
   greeting: string;
+  assistantReady: boolean;
   defaultCollapsed: boolean;
   defaultWidth?: number;
   children: ReactNode;
@@ -149,6 +162,7 @@ export function AppShell({
   const pathname = usePathname();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [width, setWidth] = useState(() =>
     defaultWidth !== undefined
       ? clampWidth(defaultWidth)
@@ -259,6 +273,15 @@ export function AppShell({
           />
         </p>
         <FullscreenButton />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Assistant"
+          title="Assistant"
+          onClick={() => setAssistantOpen(true)}
+        >
+          <Sparkles aria-hidden />
+        </Button>
         <ButtonLink
           href="/quick-add"
           size="icon"
@@ -419,6 +442,11 @@ export function AppShell({
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         screens={NAV}
+      />
+      <AssistantPanel
+        open={assistantOpen}
+        onOpenChange={setAssistantOpen}
+        ready={assistantReady}
       />
       <ProfilePanel
         open={profileOpen}
