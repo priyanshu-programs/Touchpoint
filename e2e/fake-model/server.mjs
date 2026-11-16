@@ -18,6 +18,54 @@ function chunk(response, body) {
   response.write(`data: ${JSON.stringify({ id: "fake-1", model: body.model, ...body.extra })}\n\n`);
 }
 
+const offers = (body, name) =>
+  Array.isArray(body.tools) && body.tools.some((tool) => tool.function?.name === name);
+
+// Asked about tasks with the task tool on offer, it calls the tool first, as a model
+// would, then answers with the titles the tool gave back.
+function callTasks(body, response) {
+  response.writeHead(200, { "content-type": "text/event-stream" });
+  chunk(response, {
+    model: body.model,
+    extra: {
+      choices: [
+        {
+          index: 0,
+          delta: {
+            role: "assistant",
+            tool_calls: [
+              {
+                index: 0,
+                id: "call_fake_1",
+                type: "function",
+                function: { name: "tasksDue", arguments: JSON.stringify({ scope: "today" }) },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  });
+  chunk(response, {
+    model: body.model,
+    extra: {
+      choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+      usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 },
+    },
+  });
+  response.end("data: [DONE]\n\n");
+}
+
+function toolTitles(messages) {
+  const result = messages.filter((message) => message.role === "tool").at(-1);
+  try {
+    const data = JSON.parse(result.content);
+    return (data.tasks ?? []).map((task) => task.title).join(", ") || "nothing";
+  } catch {
+    return "nothing";
+  }
+}
+
 // The answer repeats the owner's last words, so a test can tell which message it answers.
 // A message holding "busy" is answered as when the free models are busy.
 function complete(body, response) {
@@ -28,8 +76,12 @@ function complete(body, response) {
     return send(response, 429, { error: { code: 429, message: "Upstream fake detail" } });
   }
   used += 1;
+  const answered = messages.at(-1)?.role === "tool";
+  if (!answered && /task|overdue/i.test(said) && offers(body, "tasksDue")) {
+    return callTasks(body, response);
+  }
   response.writeHead(200, { "content-type": "text/event-stream" });
-  for (const text of ["Noted: ", said]) {
+  for (const text of answered ? ["Your tasks: ", toolTitles(messages)] : ["Noted: ", said]) {
     chunk(response, {
       model: body.model,
       extra: { choices: [{ index: 0, delta: { role: "assistant", content: text } }] },

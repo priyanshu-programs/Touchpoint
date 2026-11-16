@@ -8,6 +8,7 @@ import {
   type ReplyProblem,
 } from "@/ai/openrouter";
 import { instructionsFor } from "@/ai/prompt";
+import { groupsFor, linksIn, toolsFor, type ToolGroup, type ToolUse } from "@/ai/tools";
 import { db } from "@/db/client";
 import { aiConversations, aiMessages, user } from "@/db/schema";
 import { callName } from "@/lib/greeting";
@@ -15,6 +16,7 @@ import { formatTime } from "@/lib/time";
 import { getSettings } from "@/modules/settings/service";
 import { MAX_CONVERSATIONS, MAX_MESSAGES, textOf } from "./conversations";
 import type { AssistantModels, ChatInput } from "./schema";
+import { readContext, type ReadContext, type RecordLink } from "./read";
 import { openAssistant } from "./service";
 
 // OpenRouter's own limit on free models.
@@ -33,7 +35,9 @@ export type ChatRefusal =
 
 export type ChatEvent =
   | { type: "start"; conversationId: string; title: string }
+  | { type: "looking"; at: string }
   | { type: "text"; text: string }
+  | { type: "links"; links: RecordLink[] }
   | { type: "done"; daily: DailyUse | null }
   | { type: "error"; message: string; daily: DailyUse | null };
 
@@ -46,6 +50,18 @@ type Turn = {
   instructions: string;
   timezone: string;
   history: ModelMessage[];
+  read: ReadContext;
+  groups: ToolGroup[];
+};
+
+// What the panel says while a tool runs.
+const LOOKING: Record<string, string> = {
+  findRecords: "your records",
+  recordHistory: "a record's history",
+  tasksDue: "your tasks",
+  meetings: "your meetings",
+  moneySummary: "your money",
+  reports: "your reports",
 };
 
 export function titleOf(message: string) {
@@ -125,6 +141,7 @@ export async function beginChat(
 
   // A model expects the first thing it reads to be the owner's.
   const from = kept.latest.findIndex((message) => message.role === "user");
+  const groups = groupsFor(input.message);
   return {
     ok: true,
     turn: {
@@ -136,8 +153,11 @@ export async function beginChat(
       instructions: instructionsFor({
         name: callName(owner.name, settings?.preferredName ?? null),
         timezone,
+        groups,
       }),
       timezone,
+      read: await readContext(owner.id),
+      groups,
       history: kept.latest
         .slice(from)
         .map(({ role, parts }) => ({ role, content: textOf(parts) })),
@@ -148,6 +168,7 @@ export async function beginChat(
 async function keepReply(
   turn: Turn,
   text: string,
+  links: RecordLink[],
   answered: { model: string; inputTokens?: number; outputTokens?: number } | null,
 ) {
   await db.transaction(async (tx) => {
@@ -155,7 +176,7 @@ async function keepReply(
       ownerId: turn.ownerId,
       conversationId: turn.conversationId,
       role: "assistant",
-      parts: [{ type: "text", text }],
+      parts: [{ type: "text", text }, ...(links.length ? [{ type: "links" as const, links }] : [])],
       provider: "openrouter",
       model: answered?.model,
       inputTokens: answered?.inputTokens,
@@ -196,15 +217,18 @@ export function problemMessage(
 export async function* reply(turn: Turn, signal: AbortSignal): AsyncGenerator<ChatEvent> {
   yield { type: "start", conversationId: turn.conversationId, title: turn.title };
 
+  const use: ToolUse = { links: [], looked: [] };
   const result = streamReply({
     apiKey: turn.apiKey,
     mainModel: turn.models.mainModel,
     backupModel: turn.models.backupModel,
     instructions: turn.instructions,
     messages: turn.history,
+    tools: turn.groups.length > 0 ? toolsFor(turn.read, turn.groups, use) : undefined,
     signal,
   });
   let text = "";
+  let links: RecordLink[] = [];
   let problem: ReplyProblem | "empty" | null = null;
   let finished = false;
   let usage: { inputTokens?: number; outputTokens?: number } = {};
@@ -213,6 +237,8 @@ export async function* reply(turn: Turn, signal: AbortSignal): AsyncGenerator<Ch
       if (part.type === "text-delta") {
         text += part.text;
         yield { type: "text", text: part.text };
+      } else if (part.type === "tool-call") {
+        yield { type: "looking", at: LOOKING[part.toolName] ?? "your records" };
       } else if (part.type === "finish") {
         finished = true;
         usage = part.totalUsage;
@@ -225,14 +251,17 @@ export async function* reply(turn: Turn, signal: AbortSignal): AsyncGenerator<Ch
     }
   } finally {
     if (text) {
+      links = linksIn(text, use.links);
       await keepReply(
         turn,
         text,
+        links,
         finished ? { model: (await result.response).modelId, ...usage } : null,
       );
     }
   }
   if (!problem && !text) problem = "empty";
+  if (links.length > 0) yield { type: "links", links };
 
   const status = await keyStatus(turn.apiKey);
   const daily = status.ok ? status.daily : null;

@@ -7,7 +7,11 @@ export const CONVERSATIONS_PER_PAGE = 30;
 export const MAX_CONVERSATIONS = 500;
 export const MAX_MESSAGES = 200;
 
-export const textOf = (parts: AiMessagePart[]) => parts.map((part) => part.text).join("");
+export const textOf = (parts: AiMessagePart[]) =>
+  parts.map((part) => (part.type === "text" ? part.text : "")).join("");
+
+export const linksOf = (parts: AiMessagePart[]) =>
+  parts.flatMap((part) => (part.type === "links" ? part.links : []));
 
 const own = (ownerId: string, id: string) =>
   and(eq(aiConversations.ownerId, ownerId), eq(aiConversations.id, id));
@@ -45,7 +49,12 @@ export async function getConversation(ownerId: string, id: string) {
     .limit(MAX_MESSAGES);
   return {
     ...conversation,
-    messages: messages.map(({ id, role, parts }) => ({ id, role, text: textOf(parts) })),
+    messages: messages.map(({ id, role, parts }) => ({
+      id,
+      role,
+      text: textOf(parts),
+      links: linksOf(parts),
+    })),
   };
 }
 
