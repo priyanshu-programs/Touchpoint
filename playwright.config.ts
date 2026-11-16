@@ -33,6 +33,11 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
+      command: "node e2e/fake-model/server.mjs",
+      url: "http://127.0.0.1:3103/__fake/health",
+      reuseExistingServer: false,
+    },
+    {
       // The real room, run on this machine. It reaches nothing outside.
       command: `pnpm exec wrangler dev --config live-room/wrangler.toml --ip 127.0.0.1 --port 3102 --var LIVE_ROOM_SECRET:${LIVE_ROOM_SECRET}`,
       url: `http://${LIVE_ROOM}/health`,

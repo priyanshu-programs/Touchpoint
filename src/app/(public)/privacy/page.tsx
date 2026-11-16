@@ -21,6 +21,12 @@ export default function PrivacyPage() {
         stored in the owner&apos;s own database. It isn&apos;t sold, shared with anyone or used
         for advertising. The owner can download all of it from Settings at any time.
       </p>
+      <p>
+        If the owner turns on the assistant, what they type to it is kept as a chat and sent,
+        with the chat so far and the name they go by, to OpenRouter and the company that runs
+        the model they chose, which may keep it. Nothing else is sent: the assistant doesn&apos;t
+        read their records, calendar or email.
+      </p>
 
       <h2 className="text-lg font-semibold">Data from Google</h2>
       <p>When the owner connects their Google account, Touchpoint receives:</p>

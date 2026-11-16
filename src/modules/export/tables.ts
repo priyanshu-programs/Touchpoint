@@ -50,12 +50,14 @@ export const EXPORTED_TABLES: readonly PgTable[] = [
   schema.calendarEvents,
   schema.calendarEventContacts,
   schema.removedCalendarEvents,
+  schema.aiConversations,
+  schema.aiMessages,
   schema.auditLog,
 ];
 
 // Sign-in (passwords, sessions, tokens), Google's client secret and the access it
-// granted, and the app's own bookkeeping. The owner's name and email are written at
-// the top of data.json instead of the user row.
+// granted, the assistant's OpenRouter key, and the app's own bookkeeping. The owner's
+// name and email are written at the top of data.json instead of the user row.
 export const LEFT_OUT_TABLES = [
   "user",
   "session",
@@ -65,6 +67,7 @@ export const LEFT_OUT_TABLES = [
   "jobs",
   "integration_clients",
   "integration_connections",
+  "ai_settings",
 ] as const;
 
 // A file's or a picture's bytes, and the search index built from the other columns.
