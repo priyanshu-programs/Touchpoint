@@ -19,6 +19,7 @@ import type { ChatEvent, ChatRefusal } from "@/modules/assistant/chat";
 import type { QuickAsk } from "@/modules/assistant/quick";
 import type { RecordLink } from "@/modules/assistant/read";
 import { MAX_MESSAGE_CHARS } from "@/modules/assistant/schema";
+import { ReplyText } from "./reply-text";
 
 export type ChatMessage = {
   id: string;
@@ -255,30 +256,40 @@ export function ChatView({
               message.role === "user" ? "self-end" : "self-start",
             )}
           >
-            <p
+            <div
               className={cn(
-                "rounded-lg px-3 py-2 break-words whitespace-pre-wrap",
-                message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
+                "px-3.5 py-2.5 text-sm leading-relaxed break-words",
+                message.role === "user"
+                  ? "rounded-2xl rounded-br-md bg-primary whitespace-pre-wrap text-primary-foreground"
+                  : "rounded-2xl rounded-tl-md border bg-muted/60 text-foreground/90",
               )}
             >
               <span className="sr-only">
                 {message.role === "user" ? "You: " : "Assistant: "}
               </span>
-              {message.text ||
-                (sending && index === messages.length - 1 && (
-                  <span className="text-muted-foreground">
+              {message.text ? (
+                message.role === "user" ? (
+                  message.text
+                ) : (
+                  <ReplyText text={message.text} />
+                )
+              ) : (
+                sending &&
+                index === messages.length - 1 && (
+                  <span className="animate-pulse text-muted-foreground">
                     {looking ? `Looking at ${looking}…` : "Thinking…"}
                   </span>
-                ))}
-            </p>
+                )
+              )}
+            </div>
             {message.links && message.links.length > 0 && (
-              <nav aria-label="Records used" className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+              <nav aria-label="Records used" className="flex flex-wrap gap-1.5 text-xs">
                 {message.links.filter(({ href }) => ownPage(href)).map(({ href, label }) => (
                   <Link
                     key={href}
                     href={href}
                     onClick={onOpenRecord}
-                    className="break-words underline underline-offset-4"
+                    className="rounded-full border px-2.5 py-1 break-words text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
                   >
                     {label}
                   </Link>

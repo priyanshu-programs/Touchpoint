@@ -1473,3 +1473,7 @@
 - [2026-11-16] e2e/fake-model calls the task tool and answers from its result; e2e/45 covers the one-tap answers, a tool call, links to records and the history keeping them
 - [2026-11-16] plan.md and security.md: Phase 6 step 2, what the assistant reads and how its links are built
 - [2026-11-16] Assistant: a follow-up ("Try again", "and next week?") loads the tools its chat's last three questions called for, not only its own words, after the owner's "Try again" looked nothing up
+- [2026-11-16] Assistant replies show their Markdown (bold, headings, bullet and numbered lists, code) as formatting instead of raw ** and -, drawn as React elements so no HTML gets through; softer chat bubbles and record links as small pills
+- [2026-11-16] The assistant's instructions now ask for light Markdown (short paragraphs, '- ' bullets, **bold** for key names and figures) instead of plain text, since the panel now draws it
+- [2026-11-16] e2e/45: a reply's bold, bullet and numbered lists show as formatting, and HTML in a reply stays text
+- [2026-11-16] Reply bullets use the app's dark-on-light, lime-on-dark accent so they stay visible in the light theme
