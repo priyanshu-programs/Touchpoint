@@ -1477,3 +1477,9 @@
 - [2026-11-16] The assistant's instructions now ask for light Markdown (short paragraphs, '- ' bullets, **bold** for key names and figures) instead of plain text, since the panel now draws it
 - [2026-11-16] e2e/45: a reply's bold, bullet and numbered lists show as formatting, and HTML in a reply stays text
 - [2026-11-16] Reply bullets use the app's dark-on-light, lime-on-dark accent so they stay visible in the light theme
+- [2026-11-16] Assistant panel rebuilt on chatcn's conversation, message, prompt input, suggestions and scroll-to-bottom (shadcn registry), in Touchpoint's colours through globals.css; streamdown, tool cards, attachments and the model picker left out
+- [2026-11-16] globals.css: chatcn's install switched Tailwind's dark variant to a .dark class; removed, and its dark palette now follows the system setting like the rest of the app
+- [2026-11-16] React Bits' CrystalizedBall (ogl 1.0.11) shows in mint while a reply is on its way, in its light look in both themes because the dark one turns white at 48 px
+- [2026-11-16] ESLint skips the vendored chatcn and CrystalizedBall files, kept as they ship
+- [2026-11-16] e2e/44 and 45 read replies inside the chat log, since chatcn's live region repeats a finished reply for screen readers
+- [2026-11-16] security.md: replies' Markdown drawn as React elements, and the vendored chat and animation code
