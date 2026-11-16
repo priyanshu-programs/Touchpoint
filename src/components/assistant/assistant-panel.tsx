@@ -57,7 +57,7 @@ export function AssistantPanel({
           </div>
         </SheetHeader>
         {ready ? (
-          <ChatView chat={chat} />
+          <ChatView chat={chat} onOpenRecord={() => onOpenChange(false)} />
         ) : (
           <div className="grid content-start gap-3 p-4">
             <p>

@@ -1464,3 +1464,12 @@
 - [2026-11-16] e2e/fake-model and reroute.mjs: the suite answers OpenRouter's calls from a fake on loopback and never reaches the real one; e2e/44 covers setup, chat, history, a failure, a phone and removing the key
 - [2026-11-16] scripts/try-assistant-models.ts (`pnpm models:try`): the owner's by-hand trial of free models on made-up rows, to pick the models and check tool calling
 - [2026-11-16] security.md, plan.md and the Privacy page: Phase 6 step 1, the assistant's key, chats and what reaches OpenRouter
+- [2026-11-16] src/lib/record-href.ts: `companyHref` and `contactHref` moved out of the people labels so the assistant's module can build the same addresses; labels.ts re-exports them
+- [2026-11-16] src/modules/assistant/read.ts: what the assistant reads (records by name, a record's history, tasks, meetings, money, reports), owner-filtered, with server-built links to the records used
+- [2026-11-16] src/ai/tools.ts: six read-only tools, loaded by the words in a message (records, tasks, meetings, money), and links kept only for the records an answer names
+- [2026-11-16] Chat: up to 5 model steps when tools are loaded, the last with none; "Looking at your tasks…" while a tool runs; links under an answer, kept with the chat
+- [2026-11-16] One-tap questions on an empty chat (today's meetings, what's due, money this month) answered from the same reads with no model call, kept as a chat
+- [2026-11-16] The assistant's instructions now say what this message can look up, that tool results are data, and to quote figures as given
+- [2026-11-16] e2e/fake-model calls the task tool and answers from its result; e2e/45 covers the one-tap answers, a tool call, links to records and the history keeping them
+- [2026-11-16] plan.md and security.md: Phase 6 step 2, what the assistant reads and how its links are built
+- [2026-11-16] Assistant: a follow-up ("Try again", "and next week?") loads the tools its chat's last three questions called for, not only its own words, after the owner's "Try again" looked nothing up
