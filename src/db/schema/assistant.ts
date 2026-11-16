@@ -58,7 +58,10 @@ export const aiConversations = pgTable(
 export const AI_MESSAGE_ROLES = ["user", "assistant"] as const;
 export type AiMessageRole = (typeof AI_MESSAGE_ROLES)[number];
 
-export type AiMessagePart = { type: "text"; text: string };
+// Links are built by the server from the records the tools read, never by a model.
+export type AiMessagePart =
+  | { type: "text"; text: string }
+  | { type: "links"; links: { href: string; label: string }[] };
 
 export const aiMessages = pgTable(
   "ai_messages",

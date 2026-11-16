@@ -11,14 +11,27 @@ import {
   type KeyboardEvent,
 } from "react";
 import type { DailyUse } from "@/ai/openrouter";
-import { assistantUseAction } from "@/app/(app)/assistant/actions";
+import { assistantUseAction, quickAnswerAction } from "@/app/(app)/assistant/actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { ChatEvent, ChatRefusal } from "@/modules/assistant/chat";
+import type { QuickAsk } from "@/modules/assistant/quick";
+import type { RecordLink } from "@/modules/assistant/read";
 import { MAX_MESSAGE_CHARS } from "@/modules/assistant/schema";
 
-export type ChatMessage = { id: string; role: "user" | "assistant"; text: string };
+export type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  links?: RecordLink[];
+};
+
+const QUICK: { ask: QuickAsk; label: string }[] = [
+  { ask: "today", label: "What's on today?" },
+  { ask: "due", label: "What's overdue or due today?" },
+  { ask: "money", label: "How's money this month?" },
+];
 
 const REFUSALS: Record<ChatRefusal, string> = {
   no_key: "Add your OpenRouter key in Settings, under Assistant, first.",
@@ -45,6 +58,9 @@ async function* eventsOf(body: ReadableStream<Uint8Array>): AsyncGenerator<ChatE
   }
 }
 
+// Only this app's own pages: the server builds these, and nothing else is ever a link.
+const ownPage = (href: string) => href.startsWith("/") && !href.startsWith("//");
+
 // A chat's state, held by whatever stays on screen: the app shell for the side panel,
 // so a reply keeps arriving while the panel is closed.
 export function useChat({
@@ -61,6 +77,7 @@ export function useChat({
   const [messages, setMessages] = useState(opened);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [looking, setLooking] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [daily, setDaily] = useState<DailyUse | null>(null);
 
@@ -68,6 +85,14 @@ export function useChat({
     const use = await assistantUseAction();
     if (use.state === "ready") setDaily(use.daily);
   }, []);
+
+  const toLast = (change: (last: ChatMessage) => ChatMessage) =>
+    setMessages((all) => [...all.slice(0, -1), change(all[all.length - 1])]);
+
+  function started(id: string) {
+    if (!conversationId) onStarted?.(id);
+    setConversationId(id);
+  }
 
   async function send() {
     const text = draft.trim();
@@ -94,13 +119,14 @@ export function useChat({
       } else {
         for await (const event of eventsOf(response.body)) {
           if (event.type === "start") {
-            if (!conversationId) onStarted?.(event.conversationId);
-            setConversationId(event.conversationId);
+            started(event.conversationId);
+          } else if (event.type === "looking") {
+            setLooking(event.at);
           } else if (event.type === "text") {
-            setMessages((all) => {
-              const last = all[all.length - 1];
-              return [...all.slice(0, -1), { ...last, text: last.text + event.text }];
-            });
+            setLooking(null);
+            toLast((last) => ({ ...last, text: last.text + event.text }));
+          } else if (event.type === "links") {
+            toLast((last) => ({ ...last, links: event.links }));
           } else {
             setDaily(event.daily);
             if (event.type === "error") failure = event.message;
@@ -112,7 +138,30 @@ export function useChat({
     }
     // A reply that never began leaves no empty bubble behind.
     setMessages((all) => (all[all.length - 1].text ? all : all.slice(0, -1)));
+    setLooking(null);
     setProblem(failure);
+    setSending(false);
+  }
+
+  async function quick(ask: QuickAsk) {
+    if (sending) return;
+    setProblem(null);
+    setSending(true);
+    try {
+      const result = await quickAnswerAction(ask, conversationId);
+      if (result.ok) {
+        started(result.conversationId);
+        setMessages((all) => [
+          ...all,
+          { id: crypto.randomUUID(), role: "user", text: QUICK.find((q) => q.ask === ask)!.label },
+          { id: crypto.randomUUID(), role: "assistant", text: result.text, links: result.links },
+        ]);
+      } else {
+        setProblem(REFUSALS[result.reason]);
+      }
+    } catch {
+      setProblem(NOT_SENT);
+    }
     setSending(false);
   }
 
@@ -122,17 +171,32 @@ export function useChat({
     setProblem(null);
   }
 
-  return { messages, draft, setDraft, sending, problem, daily, loadUse, send, startOver };
+  return {
+    messages,
+    draft,
+    setDraft,
+    sending,
+    looking,
+    problem,
+    daily,
+    loadUse,
+    send,
+    quick,
+    startOver,
+  };
 }
 
 export function ChatView({
   chat,
+  onOpenRecord,
   className,
 }: {
   chat: ReturnType<typeof useChat>;
+  // A link to a record was followed, so a panel over the page can close.
+  onOpenRecord?: () => void;
   className?: string;
 }) {
-  const { messages, draft, sending, problem, daily, loadUse } = chat;
+  const { messages, draft, sending, looking, problem, daily, loadUse } = chat;
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -141,7 +205,7 @@ export function ChatView({
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
-  }, [messages, problem]);
+  }, [messages, problem, looking]);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -163,29 +227,65 @@ export function ChatView({
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
       >
         {messages.length === 0 && (
-          <p className="text-muted-foreground">
-            Ask anything. The assistant can&apos;t see your companies, people or money yet,
-            so it can only talk things through with you.
-          </p>
+          <div className="grid gap-3">
+            <p className="text-muted-foreground">
+              Ask about a person or company by name, your tasks, meetings or money. These
+              answer at once and use no free requests:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {QUICK.map(({ ask, label }) => (
+                <Button
+                  key={ask}
+                  variant="outline"
+                  size="sm"
+                  disabled={sending}
+                  onClick={() => void chat.quick(ask)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
         )}
         {messages.map((message, index) => (
-          <p
+          <div
             key={message.id}
             className={cn(
-              "max-w-[85%] rounded-lg px-3 py-2 break-words whitespace-pre-wrap",
-              message.role === "user"
-                ? "self-end bg-primary text-primary-foreground"
-                : "self-start bg-muted",
+              "grid max-w-[85%] gap-2",
+              message.role === "user" ? "self-end" : "self-start",
             )}
           >
-            <span className="sr-only">
-              {message.role === "user" ? "You: " : "Assistant: "}
-            </span>
-            {message.text ||
-              (sending && index === messages.length - 1 && (
-                <span className="text-muted-foreground">Thinking…</span>
-              ))}
-          </p>
+            <p
+              className={cn(
+                "rounded-lg px-3 py-2 break-words whitespace-pre-wrap",
+                message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
+              )}
+            >
+              <span className="sr-only">
+                {message.role === "user" ? "You: " : "Assistant: "}
+              </span>
+              {message.text ||
+                (sending && index === messages.length - 1 && (
+                  <span className="text-muted-foreground">
+                    {looking ? `Looking at ${looking}…` : "Thinking…"}
+                  </span>
+                ))}
+            </p>
+            {message.links && message.links.length > 0 && (
+              <nav aria-label="Records used" className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                {message.links.filter(({ href }) => ownPage(href)).map(({ href, label }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={onOpenRecord}
+                    className="break-words underline underline-offset-4"
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </nav>
+            )}
+          </div>
         ))}
         {problem && (
           <p role="alert" className="text-destructive">

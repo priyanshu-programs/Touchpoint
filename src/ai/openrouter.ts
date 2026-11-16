@@ -1,5 +1,11 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { APICallError, streamText, type ModelMessage } from "ai";
+import {
+  APICallError,
+  stepCountIs,
+  streamText,
+  type ModelMessage,
+  type ToolSet,
+} from "ai";
 import { z } from "zod";
 import { logger } from "@/lib/logger";
 
@@ -58,14 +64,19 @@ export function replyProblem(error: unknown): ReplyProblem {
   return "unavailable";
 }
 
-// One model call. OpenRouter moves on to the backup itself when the main model is
-// down or busy, and nothing is retried here, so a reply never costs more than it shows.
+// Each step is one request against the free daily limit.
+export const MAX_STEPS = 5;
+
+// One model call, or with tools up to five: the last step has none, so it must answer.
+// OpenRouter moves on to the backup itself when the main model is down or busy, and
+// nothing is retried here, so a reply never costs more than it shows.
 export function streamReply({
   apiKey,
   mainModel,
   backupModel,
   instructions,
   messages,
+  tools,
   signal,
 }: {
   apiKey: string;
@@ -73,6 +84,7 @@ export function streamReply({
   backupModel: string;
   instructions: string;
   messages: ModelMessage[];
+  tools?: ToolSet;
   signal: AbortSignal;
 }) {
   const openrouter = createOpenRouter({ apiKey, compatibility: "strict" });
@@ -82,6 +94,12 @@ export function streamReply({
     }),
     instructions,
     messages,
+    ...(tools && {
+      tools,
+      stopWhen: stepCountIs(MAX_STEPS),
+      prepareStep: ({ stepNumber }) =>
+        stepNumber >= MAX_STEPS - 1 ? { activeTools: [] } : undefined,
+    }),
     maxRetries: 0,
     timeout: REPLY_TIMEOUT_MS,
     abortSignal: signal,
