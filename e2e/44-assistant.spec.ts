@@ -54,13 +54,13 @@ test("a question in the panel is answered and kept in the history", async ({ pag
   await page.goto("/tasks");
   await page.getByRole("button", { name: "Assistant" }).click();
   await ask(page, "Plan my week with Maple Studio");
-  await expect(panel(page).getByText("Noted: Plan my week with Maple Studio")).toBeVisible();
+  await expect(panel(page).getByRole("log", { name: "Chat" }).getByText("Noted: Plan my week with Maple Studio")).toBeVisible();
   await expect(panel(page).getByText(/\d+ of 50 free requests left today/)).toBeVisible();
 
   // Closing and opening again keeps the chat.
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Assistant" }).click();
-  await expect(panel(page).getByText("Noted: Plan my week with Maple Studio")).toBeVisible();
+  await expect(panel(page).getByRole("log", { name: "Chat" }).getByText("Noted: Plan my week with Maple Studio")).toBeVisible();
 
   await panel(page).getByRole("link", { name: "History" }).click();
   await expect(page).toHaveURL(/\/assistant$/);
@@ -95,7 +95,7 @@ test("the panel and history fit a phone", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Assistant" }).click();
   await ask(page, "Hello from a phone");
-  await expect(panel(page).getByText("Noted: Hello from a phone")).toBeVisible();
+  await expect(panel(page).getByRole("log", { name: "Chat" }).getByText("Noted: Hello from a phone")).toBeVisible();
   expect(await fits(page)).toBe(true);
 
   await page.goto("/assistant");

@@ -60,7 +60,7 @@ test("a question about tasks makes the model look them up, and links what it nam
   const box = panel(page).getByRole("textbox", { name: "Message the assistant" });
   await box.fill("Which tasks are overdue?");
   await box.press("Enter");
-  await expect(panel(page).getByText(`Your tasks: ${TASK}`)).toBeVisible();
+  await expect(panel(page).getByRole("log", { name: "Chat" }).getByText(`Your tasks: ${TASK}`)).toBeVisible();
   await expect(
     panel(page).getByRole("navigation", { name: "Records used" }).getByRole("link", { name: TASK }),
   ).toBeVisible();
@@ -73,6 +73,22 @@ test("a question about tasks makes the model look them up, and links what it nam
   await expect(
     page.getByRole("navigation", { name: "Records used" }).getByRole("link", { name: TASK }),
   ).toBeVisible();
+});
+
+test("a reply's Markdown shows as formatting, and HTML in it stays text", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Assistant" }).click();
+  const box = panel(page).getByRole("textbox", { name: "Message the assistant" });
+  await box.fill("the **snapshot**\n\n- **Money in:** 0 received\n- <b>Owed</b> nothing\n1. first");
+  await box.press("Enter");
+
+  const reply = panel(page).getByRole("log", { name: "Chat" }).locator('[data-role="assistant"] [data-slot="message-content"]').last();
+  await expect(reply.locator("strong", { hasText: "snapshot" })).toBeVisible();
+  await expect(reply.locator("ul > li")).toHaveCount(2);
+  await expect(reply.locator("ul > li").first().locator("strong")).toHaveText("Money in:");
+  await expect(reply.locator("ol > li")).toHaveText("first");
+  await expect(reply.getByText("<b>Owed</b> nothing")).toBeVisible();
+  await expect(reply).not.toContainText("**");
 });
 
 test("the key is removed again", async ({ page }) => {

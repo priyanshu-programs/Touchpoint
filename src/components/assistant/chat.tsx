@@ -1,24 +1,28 @@
 "use client";
 
-import { ArrowUp } from "lucide-react";
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-} from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { DailyUse } from "@/ai/openrouter";
 import { assistantUseAction, quickAnswerAction } from "@/app/(app)/assistant/actions";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Conversation, ConversationContent } from "@/components/ui/chatcn/conversation";
+import { Message, MessageContent } from "@/components/ui/chatcn/message";
+import {
+  PromptInput,
+  PromptInputActions,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputToolbar,
+  PromptInputTools,
+} from "@/components/ui/chatcn/prompt-input";
+import { ScrollToBottom } from "@/components/ui/chatcn/scroll-to-bottom";
+import { Suggestion, Suggestions } from "@/components/ui/chatcn/suggestions";
 import { cn } from "@/lib/utils";
 import type { ChatEvent, ChatRefusal } from "@/modules/assistant/chat";
 import type { QuickAsk } from "@/modules/assistant/quick";
 import type { RecordLink } from "@/modules/assistant/read";
 import { MAX_MESSAGE_CHARS } from "@/modules/assistant/schema";
+import { ReplyText } from "./reply-text";
+import { ThinkingBall } from "./thinking-ball";
 
 export type ChatMessage = {
   id: string;
@@ -197,126 +201,106 @@ export function ChatView({
   className?: string;
 }) {
   const { messages, draft, sending, looking, problem, daily, loadUse } = chat;
-  const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void loadUse();
   }, [loadUse]);
 
-  useEffect(() => {
-    end.current?.scrollIntoView({ block: "end" });
-  }, [messages, problem, looking]);
-
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    void chat.send();
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      void chat.send();
-    }
-  }
-
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
-      <div
-        role="log"
-        aria-label="Chat"
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
-      >
-        {messages.length === 0 && (
-          <div className="grid gap-3">
-            <p className="text-muted-foreground">
-              Ask about a person or company by name, your tasks, meetings or money. These
-              answer at once and use no free requests:
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {QUICK.map(({ ask, label }) => (
-                <Button
-                  key={ask}
-                  variant="outline"
-                  size="sm"
-                  disabled={sending}
-                  onClick={() => void chat.quick(ask)}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-        {messages.map((message, index) => (
-          <div
-            key={message.id}
-            className={cn(
-              "grid max-w-[85%] gap-2",
-              message.role === "user" ? "self-end" : "self-start",
-            )}
-          >
-            <p
-              className={cn(
-                "rounded-lg px-3 py-2 break-words whitespace-pre-wrap",
-                message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
-              )}
-            >
-              <span className="sr-only">
-                {message.role === "user" ? "You: " : "Assistant: "}
-              </span>
-              {message.text ||
-                (sending && index === messages.length - 1 && (
-                  <span className="text-muted-foreground">
-                    {looking ? `Looking at ${looking}…` : "Thinking…"}
-                  </span>
-                ))}
-            </p>
-            {message.links && message.links.length > 0 && (
-              <nav aria-label="Records used" className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
-                {message.links.filter(({ href }) => ownPage(href)).map(({ href, label }) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={onOpenRecord}
-                    className="break-words underline underline-offset-4"
-                  >
+      <Conversation className="flex-1">
+        <ConversationContent label="Chat" className="max-w-none gap-5 px-4 pt-5 pb-4 sm:px-5">
+          {messages.length === 0 && (
+            <div className="grid gap-4">
+              <p className="text-sm text-muted-foreground">
+                Ask about a person or company by name, your tasks, meetings or money. These
+                answer at once and use no free requests:
+              </p>
+              <Suggestions variant="rows" label="Quick questions">
+                {QUICK.map(({ ask, label }) => (
+                  <Suggestion key={ask} disabled={sending} onSelect={() => void chat.quick(ask)}>
                     {label}
-                  </Link>
+                  </Suggestion>
                 ))}
-              </nav>
-            )}
-          </div>
-        ))}
-        {problem && (
-          <p role="alert" className="text-destructive">
-            {problem}
-          </p>
-        )}
-        <div ref={end} />
-      </div>
+              </Suggestions>
+            </div>
+          )}
+          {messages.map((message, index) => {
+            const waiting = sending && index === messages.length - 1;
+            if (message.role === "assistant" && !message.text) {
+              return waiting ? (
+                <ThinkingBall
+                  key={message.id}
+                  label={looking ? `Looking at ${looking}…` : "Thinking…"}
+                />
+              ) : null;
+            }
+            return (
+              <Message
+                key={message.id}
+                from={message.role}
+                state={waiting ? "streaming" : "done"}
+                latest={index === messages.length - 1}
+              >
+                <MessageContent
+                  className={cn(
+                    "chatcn-text-14",
+                    message.role === "user"
+                      ? "max-w-[85%] bg-primary whitespace-pre-wrap text-primary-foreground"
+                      : "max-w-none",
+                  )}
+                >
+                  <span className="sr-only">
+                    {message.role === "user" ? "You: " : "Assistant: "}
+                  </span>
+                  {message.role === "user" ? message.text : <ReplyText text={message.text} />}
+                </MessageContent>
+                {message.links && message.links.length > 0 && (
+                  <nav aria-label="Records used" className="flex flex-wrap gap-1.5 text-xs">
+                    {message.links.filter(({ href }) => ownPage(href)).map(({ href, label }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={onOpenRecord}
+                        className="rounded-full border px-2.5 py-1 break-words text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+                      >
+                        {label}
+                      </Link>
+                    ))}
+                  </nav>
+                )}
+              </Message>
+            );
+          })}
+          {problem && (
+            <p role="alert" className="text-sm text-destructive">
+              {problem}
+            </p>
+          )}
+        </ConversationContent>
+        <ScrollToBottom />
+      </Conversation>
 
-      <form onSubmit={onSubmit} className="grid gap-2 border-t p-4">
-        <div className="flex items-end gap-2">
-          <Textarea
+      <div className="grid gap-2 border-t p-3">
+        <PromptInput
+          value={draft}
+          onValueChange={chat.setDraft}
+          onSubmit={() => void chat.send()}
+          status={sending ? "submitting" : "idle"}
+        >
+          <PromptInputTextarea
             aria-label="Message the assistant"
             placeholder="Message the assistant…"
-            value={draft}
-            onChange={(event) => chat.setDraft(event.target.value)}
-            onKeyDown={onKeyDown}
             maxLength={MAX_MESSAGE_CHARS}
-            rows={1}
-            className="max-h-40 min-h-10"
           />
-          <Button
-            type="submit"
-            size="icon"
-            aria-label="Send"
-            disabled={sending || !draft.trim()}
-          >
-            <ArrowUp aria-hidden />
-          </Button>
-        </div>
-        <p className="flex flex-wrap justify-between gap-x-4 text-xs text-muted-foreground">
+          <PromptInputToolbar>
+            <PromptInputTools />
+            <PromptInputActions>
+              <PromptInputSubmit labels={{ send: "Send" }} />
+            </PromptInputActions>
+          </PromptInputToolbar>
+        </PromptInput>
+        <p className="flex flex-wrap justify-between gap-x-4 px-1 text-xs text-muted-foreground">
           <span>
             {daily
               ? `${daily.remaining} of ${daily.limit} free requests left today`
@@ -326,7 +310,7 @@ export function ChatView({
             Assistant settings
           </Link>
         </p>
-      </form>
+      </div>
     </div>
   );
 }
