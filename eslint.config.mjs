@@ -16,6 +16,11 @@ const eslintConfig = defineConfig([
     "graft/**",
     ".trail/**",
     "**/.wrangler/**",
+    // Vendored from the chatcn and React Bits registries, kept as they ship.
+    "src/components/ui/chatcn/**",
+    "src/hooks/use-chatcn-*",
+    "src/lib/chatcn-icons.tsx",
+    "src/components/crystalized-ball.tsx",
   ]),
 ]);
 
