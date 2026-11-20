@@ -164,6 +164,13 @@ describe("which tools a message loads", () => {
     expect(groupsFor("When did I last talk to Maple Studio?")).toContain("records");
     expect(groupsFor("Has Komal replied")).toContain("records");
     expect(groupsFor("What should I focus on today?")).toEqual(["tasks", "meetings"]);
+    expect(groupsFor("Remind me to call Komal on Friday")).toEqual(
+      expect.arrayContaining(["records", "tasks", "actions"]),
+    );
+    expect(groupsFor("Move my 3pm to tomorrow")).toEqual(
+      expect.arrayContaining(["records", "meetings", "actions"]),
+    );
+    expect(groupsFor("How much money came in this quarter?")).not.toContain("actions");
   });
 
   it("links only the records an answer names, once each", () => {

@@ -2,6 +2,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { aiConversations, aiMessages, type AiMessagePart } from "@/db/schema";
 import { audit } from "@/modules/audit/service";
+import { cardsOf } from "./actions";
 
 export const CONVERSATIONS_PER_PAGE = 30;
 export const MAX_CONVERSATIONS = 500;
@@ -12,6 +13,9 @@ export const textOf = (parts: AiMessagePart[]) =>
 
 export const linksOf = (parts: AiMessagePart[]) =>
   parts.flatMap((part) => (part.type === "links" ? part.links : []));
+
+const actionIdsOf = (parts: AiMessagePart[]) =>
+  parts.flatMap((part) => (part.type === "actions" ? part.ids : []));
 
 const own = (ownerId: string, id: string) =>
   and(eq(aiConversations.ownerId, ownerId), eq(aiConversations.id, id));
@@ -47,14 +51,19 @@ export async function getConversation(ownerId: string, id: string) {
     .where(and(eq(aiMessages.ownerId, ownerId), eq(aiMessages.conversationId, id)))
     .orderBy(asc(aiMessages.createdAt), asc(aiMessages.id))
     .limit(MAX_MESSAGES);
+  const cards = await cardsOf(ownerId, messages.flatMap(({ parts }) => actionIdsOf(parts)));
   return {
     ...conversation,
-    messages: messages.map(({ id, role, parts }) => ({
-      id,
-      role,
-      text: textOf(parts),
-      links: linksOf(parts),
-    })),
+    messages: messages.map(({ id, role, parts }) => {
+      const ids = actionIdsOf(parts);
+      return {
+        id,
+        role,
+        text: textOf(parts),
+        links: linksOf(parts),
+        actions: cards.filter((card) => ids.includes(card.id)),
+      };
+    }),
   };
 }
 

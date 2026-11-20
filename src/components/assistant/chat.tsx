@@ -17,10 +17,12 @@ import {
 import { ScrollToBottom } from "@/components/ui/chatcn/scroll-to-bottom";
 import { Suggestion, Suggestions } from "@/components/ui/chatcn/suggestions";
 import { cn } from "@/lib/utils";
+import type { ActionCard } from "@/modules/assistant/actions";
 import type { ChatEvent, ChatRefusal } from "@/modules/assistant/chat";
 import type { QuickAsk } from "@/modules/assistant/quick";
 import type { RecordLink } from "@/modules/assistant/read";
 import { MAX_MESSAGE_CHARS } from "@/modules/assistant/schema";
+import { ActionCardView } from "./action-card";
 import { ReplyText } from "./reply-text";
 import { ThinkingBall } from "./thinking-ball";
 
@@ -29,6 +31,7 @@ export type ChatMessage = {
   role: "user" | "assistant";
   text: string;
   links?: RecordLink[];
+  actions?: ActionCard[];
 };
 
 const QUICK: { ask: QuickAsk; label: string }[] = [
@@ -131,6 +134,8 @@ export function useChat({
             toLast((last) => ({ ...last, text: last.text + event.text }));
           } else if (event.type === "links") {
             toLast((last) => ({ ...last, links: event.links }));
+          } else if (event.type === "actions") {
+            toLast((last) => ({ ...last, actions: event.cards }));
           } else {
             setDaily(event.daily);
             if (event.type === "error") failure = event.message;
@@ -141,7 +146,10 @@ export function useChat({
       failure = NOT_SENT;
     }
     // A reply that never began leaves no empty bubble behind.
-    setMessages((all) => (all[all.length - 1].text ? all : all.slice(0, -1)));
+    setMessages((all) => {
+      const last = all[all.length - 1];
+      return last.text || last.actions?.length ? all : all.slice(0, -1);
+    });
     setLooking(null);
     setProblem(failure);
     setSending(false);
@@ -227,7 +235,8 @@ export function ChatView({
           )}
           {messages.map((message, index) => {
             const waiting = sending && index === messages.length - 1;
-            if (message.role === "assistant" && !message.text) {
+            const cards = message.actions ?? [];
+            if (message.role === "assistant" && !message.text && cards.length === 0) {
               return waiting ? (
                 <ThinkingBall
                   key={message.id}
@@ -242,19 +251,28 @@ export function ChatView({
                 state={waiting ? "streaming" : "done"}
                 latest={index === messages.length - 1}
               >
-                <MessageContent
-                  className={cn(
-                    "chatcn-text-14",
-                    message.role === "user"
-                      ? "max-w-[85%] bg-primary whitespace-pre-wrap text-primary-foreground"
-                      : "max-w-none",
-                  )}
-                >
-                  <span className="sr-only">
-                    {message.role === "user" ? "You: " : "Assistant: "}
-                  </span>
-                  {message.role === "user" ? message.text : <ReplyText text={message.text} />}
-                </MessageContent>
+                {(message.role === "user" || message.text) && (
+                  <MessageContent
+                    className={cn(
+                      "chatcn-text-14",
+                      message.role === "user"
+                        ? "max-w-[85%] bg-primary whitespace-pre-wrap text-primary-foreground"
+                        : "max-w-none",
+                    )}
+                  >
+                    <span className="sr-only">
+                      {message.role === "user" ? "You: " : "Assistant: "}
+                    </span>
+                    {message.role === "user" ? message.text : <ReplyText text={message.text} />}
+                  </MessageContent>
+                )}
+                {cards.length > 0 && (
+                  <div className="grid w-full gap-2">
+                    {cards.map((card) => (
+                      <ActionCardView key={card.id} card={card} onOpen={onOpenRecord} />
+                    ))}
+                  </div>
+                )}
                 {message.links && message.links.length > 0 && (
                   <nav aria-label="Records used" className="flex flex-wrap gap-1.5 text-xs">
                     {message.links.filter(({ href }) => ownPage(href)).map(({ href, label }) => (

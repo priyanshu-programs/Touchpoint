@@ -14,6 +14,7 @@ import { aiConversations, aiMessages, user } from "@/db/schema";
 import { callName } from "@/lib/greeting";
 import { formatTime } from "@/lib/time";
 import { getSettings } from "@/modules/settings/service";
+import type { ActionCard } from "./actions";
 import { MAX_CONVERSATIONS, MAX_MESSAGES, textOf } from "./conversations";
 import type { AssistantModels, ChatInput } from "./schema";
 import { readContext, type ReadContext, type RecordLink } from "./read";
@@ -40,6 +41,7 @@ export type ChatEvent =
   | { type: "looking"; at: string }
   | { type: "text"; text: string }
   | { type: "links"; links: RecordLink[] }
+  | { type: "actions"; cards: ActionCard[] }
   | { type: "done"; daily: DailyUse | null }
   | { type: "error"; message: string; daily: DailyUse | null };
 
@@ -54,6 +56,8 @@ type Turn = {
   history: ModelMessage[];
   read: ReadContext;
   groups: ToolGroup[];
+  // A tool in this chat has read text a stranger could have written.
+  untrusted: boolean;
 };
 
 // What the panel says while a tool runs.
@@ -64,6 +68,11 @@ const LOOKING: Record<string, string> = {
   meetings: "your meetings",
   moneySummary: "your money",
   reports: "your reports",
+  addTask: "your tasks",
+  addNote: "your records",
+  scheduleMeeting: "your calendar",
+  moveMeeting: "your calendar",
+  cancelMeeting: "your calendar",
 };
 
 export function titleOf(message: string) {
@@ -96,10 +105,14 @@ export async function beginChat(
     );
     if (recent >= MESSAGES_PER_MINUTE) return "rate" as const;
 
-    let conversation: { id: string; title: string };
+    let conversation: { id: string; title: string; readUntrustedAt: Date | null };
     if (input.conversationId) {
       const [found] = await tx
-        .select({ id: aiConversations.id, title: aiConversations.title })
+        .select({
+          id: aiConversations.id,
+          title: aiConversations.title,
+          readUntrustedAt: aiConversations.readUntrustedAt,
+        })
         .from(aiConversations)
         .where(
           and(
@@ -117,7 +130,11 @@ export async function beginChat(
       [conversation] = await tx
         .insert(aiConversations)
         .values({ ownerId: owner.id, title: titleOf(input.message) })
-        .returning({ id: aiConversations.id, title: aiConversations.title });
+        .returning({
+          id: aiConversations.id,
+          title: aiConversations.title,
+          readUntrustedAt: aiConversations.readUntrustedAt,
+        });
     }
 
     await tx.insert(aiMessages).values({
@@ -167,6 +184,7 @@ export async function beginChat(
       timezone,
       read: await readContext(owner.id),
       groups,
+      untrusted: kept.conversation.readUntrustedAt !== null,
       history: kept.latest
         .slice(from)
         .map(({ role, parts }) => ({ role, content: textOf(parts) })),
@@ -178,6 +196,7 @@ async function keepReply(
   turn: Turn,
   text: string,
   links: RecordLink[],
+  cards: ActionCard[],
   answered: { model: string; inputTokens?: number; outputTokens?: number } | null,
 ) {
   await db.transaction(async (tx) => {
@@ -185,7 +204,11 @@ async function keepReply(
       ownerId: turn.ownerId,
       conversationId: turn.conversationId,
       role: "assistant",
-      parts: [{ type: "text", text }, ...(links.length ? [{ type: "links" as const, links }] : [])],
+      parts: [
+        { type: "text", text },
+        ...(links.length ? [{ type: "links" as const, links }] : []),
+        ...(cards.length ? [{ type: "actions" as const, ids: cards.map(({ id }) => id) }] : []),
+      ],
       provider: "openrouter",
       model: answered?.model,
       inputTokens: answered?.inputTokens,
@@ -226,14 +249,20 @@ export function problemMessage(
 export async function* reply(turn: Turn, signal: AbortSignal): AsyncGenerator<ChatEvent> {
   yield { type: "start", conversationId: turn.conversationId, title: turn.title };
 
-  const use: ToolUse = { links: [], looked: [] };
+  const use: ToolUse = { links: [], looked: [], cards: [] };
+  const act = {
+    ownerId: turn.ownerId,
+    timezone: turn.timezone,
+    conversationId: turn.conversationId,
+    untrusted: turn.untrusted,
+  };
   const result = streamReply({
     apiKey: turn.apiKey,
     mainModel: turn.models.mainModel,
     backupModel: turn.models.backupModel,
     instructions: turn.instructions,
     messages: turn.history,
-    tools: turn.groups.length > 0 ? toolsFor(turn.read, turn.groups, use) : undefined,
+    tools: turn.groups.length > 0 ? toolsFor(turn.read, turn.groups, use, act) : undefined,
     signal,
   });
   let text = "";
@@ -259,18 +288,21 @@ export async function* reply(turn: Turn, signal: AbortSignal): AsyncGenerator<Ch
       }
     }
   } finally {
-    if (text) {
+    // An action taken is kept even when the model wrote nothing about it.
+    if (text || use.cards.length > 0) {
       links = linksIn(text, use.links);
       await keepReply(
         turn,
         text,
         links,
+        use.cards,
         finished ? { model: (await result.response).modelId, ...usage } : null,
       );
     }
   }
-  if (!problem && !text) problem = "empty";
+  if (!problem && !text && use.cards.length === 0) problem = "empty";
   if (links.length > 0) yield { type: "links", links };
+  if (use.cards.length > 0) yield { type: "actions", cards: use.cards };
 
   const status = await keyStatus(turn.apiKey);
   const daily = status.ok ? status.daily : null;

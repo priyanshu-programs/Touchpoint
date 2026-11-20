@@ -1484,3 +1484,12 @@
 - [2026-11-16] e2e/44 and 45 read replies inside the chat log, since chatcn's live region repeats a finished reply for screen readers
 - [2026-11-16] security.md: replies' Markdown drawn as React elements, and the vendored chat and animation code
 - [2026-11-17] e2e/01 and 30 find Today's page heading by level, after a run just past midnight in the owner's zone also matched "Due today (1)" and failed main's CI
+- [2026-11-21] migration 0048 (additive): ai_tool_executions keeps every change the assistant asks for, and ai_conversations.read_untrusted_at marks a chat that read a stranger's text
+- [2026-11-21] Assistant actions: add a task or reminder and add a note run at once with a card to open or undo them; schedule, move or cancel a meeting wait for the owner's Confirm
+- [2026-11-21] Assistant: once a chat has read meeting titles, a task or note asked for in it waits for the owner's tap too, so a planted calendar invite can't add one
+- [2026-11-21] Meetings: moving a meeting the owner organized to a new time (Google's events PATCH), with the same checks and hourly limit as cancelling, audited as meeting.move
+- [2026-11-21] Assistant: the meetings tool gives each meeting's id, so a move or cancel names the right one
+- [2026-11-21] Tasks and notes the assistant adds are marked as from the assistant (task origin and activity source 'ai')
+- [2026-11-21] Data export includes ai_tool_executions
+- [2026-11-21] Unit tests for the action tiers, Confirm pressed twice, other owners and a planted invite, and for moving a meeting; e2e/46 adds a task from the chat, opens it and undoes it; the fake model and fake Google learn addTask and PATCH
+- [2026-11-21] plan.md and security.md: Phase 6 step 3, the assistant's actions

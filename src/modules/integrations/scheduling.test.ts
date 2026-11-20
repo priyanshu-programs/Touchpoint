@@ -25,7 +25,10 @@ import { syncCalendar } from "./calendar";
 import { meetingInput, MEETINGS_PER_HOUR } from "./schema";
 import {
   cancelMeeting,
+  checkCancel,
   checkMeeting,
+  checkMove,
+  moveMeeting,
   firstInvitee,
   isCancellable,
   meetingSummary,
@@ -44,6 +47,7 @@ const google = vi.hoisted(() => ({
   listEvents: vi.fn(),
   getEvent: vi.fn(),
   deleteEvent: vi.fn(),
+  moveEvent: vi.fn(),
 }));
 vi.mock("@/integrations/google/calendar", async (actual) => ({
   ...(await actual<typeof import("@/integrations/google/calendar")>()),
@@ -571,6 +575,7 @@ describe("cancelling a meeting", () => {
     vi.clearAllMocks();
     google.getEvent.mockReset();
     google.deleteEvent.mockReset();
+    google.moveEvent.mockReset();
     await resetDatabase();
     ownerId = await createTestOwner();
     const timezone = await ownerTimezone(db, ownerId);
@@ -680,6 +685,74 @@ describe("cancelling a meeting", () => {
     expect(await refusal()).toContain("can't say whether the meeting was cancelled");
     expect(await copies()).toHaveLength(1);
     expect(await cancelAudits()).toEqual([]);
+  });
+
+  it("says what cancelling will do before anything is asked of Google", async () => {
+    const checked = await checkCancel(ownerId, { eventId: meetingId, emailGuests: true });
+    expect(checked).toMatchObject({
+      ok: true,
+      summary: expect.stringMatching(/^Google will cancel "Intro call" on .+ and email its guest that it's cancelled\.$/),
+    });
+    expect(google.getEvent).not.toHaveBeenCalled();
+  });
+
+  describe("moving it", () => {
+    const at = async (offset: number) =>
+      toLocalInput(new Date(Date.now() + offset), await ownerTimezone(db, ownerId));
+    const moveTo = async (emailGuests = true) => ({
+      eventId: meetingId,
+      startsAt: await at(2 * DAY),
+      endsAt: await at(2 * DAY + HOUR),
+      emailGuests,
+    });
+
+    it("says what Google will do, and calls nothing", async () => {
+      const checked = await checkMove(ownerId, await moveTo(false));
+      expect(checked).toMatchObject({
+        ok: true,
+        summary: expect.stringMatching(/^Google will move "Intro call" from .+ to .+, emailing nobody\.$/),
+      });
+      expect(google.moveEvent).not.toHaveBeenCalled();
+    });
+
+    it("moves it at Google, keeps the new time and audits it", async () => {
+      const input = await moveTo();
+      const startsAt = new Date(Date.now() + 2 * DAY);
+      google.moveEvent.mockImplementation(async () => {
+        const event = madeAtGoogle("asha@maple.test");
+        return {
+          ...event,
+          meeting: { ...event.meeting!, startsAt, endsAt: new Date(startsAt.getTime() + HOUR) },
+        };
+      });
+      expect(await moveMeeting(ownerId, input)).toEqual({ ok: true });
+      expect(google.moveEvent).toHaveBeenCalledWith(
+        "ya29.access",
+        EXTERNAL,
+        expect.objectContaining({ timezone: expect.any(String) }),
+        true,
+      );
+      const [copy] = await copies();
+      expect(Math.abs(copy.startsAt!.getTime() - startsAt.getTime())).toBeLessThan(60_000);
+      expect(
+        await db.$count(auditLog, eq(auditLog.action, "meeting.move")),
+      ).toBe(1);
+    });
+
+    it("refuses an end before the start, and one someone else now organizes", async () => {
+      const backwards = { ...(await moveTo()), endsAt: await at(DAY) };
+      expect(await moveMeeting(ownerId, backwards)).toEqual({
+        ok: false,
+        message: "A meeting has to end after it starts.",
+      });
+      const event = madeAtGoogle("asha@maple.test");
+      google.getEvent.mockResolvedValueOnce({
+        ...event,
+        meeting: { ...event.meeting!, organizedByOwner: false },
+      });
+      expect(await moveMeeting(ownerId, await moveTo())).toMatchObject({ ok: false });
+      expect(google.moveEvent).not.toHaveBeenCalled();
+    });
   });
 
   it("offers the button only on the owner's own meetings still to come", () => {

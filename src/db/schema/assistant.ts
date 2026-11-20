@@ -6,6 +6,7 @@ import {
   jsonb,
   pgTable,
   text,
+  timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
@@ -43,6 +44,9 @@ export const aiConversations = pgTable(
     id: id(),
     ownerId: ownerId(),
     title: text("title").notNull(),
+    // Set once a tool in this chat has read text a stranger could have written (a
+    // calendar invite). From then on, even a task or a note waits for the owner's tap.
+    readUntrustedAt: timestamp("read_untrusted_at", { withTimezone: true }),
     createdAt,
     updatedAt,
   },
@@ -61,7 +65,8 @@ export type AiMessageRole = (typeof AI_MESSAGE_ROLES)[number];
 // Links are built by the server from the records the tools read, never by a model.
 export type AiMessagePart =
   | { type: "text"; text: string }
-  | { type: "links"; links: { href: string; label: string }[] };
+  | { type: "links"; links: { href: string; label: string }[] }
+  | { type: "actions"; ids: string[] };
 
 export const aiMessages = pgTable(
   "ai_messages",
@@ -89,5 +94,53 @@ export const aiMessages = pgTable(
       "ai_messages_tokens_check",
       sql`(${table.inputTokens} is null or ${table.inputTokens} >= 0) and (${table.outputTokens} is null or ${table.outputTokens} >= 0)`,
     ),
+  ],
+);
+
+export const AI_ACTION_TOOLS = [
+  "addTask",
+  "addNote",
+  "scheduleMeeting",
+  "moveMeeting",
+  "cancelMeeting",
+] as const;
+export type AiActionTool = (typeof AI_ACTION_TOOLS)[number];
+
+// undo: runs at once and shows a card with Undo. confirm: waits for the owner's tap.
+export const AI_ACTION_TIERS = ["undo", "confirm"] as const;
+export type AiActionTier = (typeof AI_ACTION_TIERS)[number];
+
+export const AI_ACTION_STATUSES = ["waiting", "running", "done", "declined", "undone"] as const;
+export type AiActionStatus = (typeof AI_ACTION_STATUSES)[number];
+
+// Every change the assistant asks for. A model can only add a row: whether it runs is
+// decided here by its tier, and a waiting row runs only from the owner's press.
+export const aiToolExecutions = pgTable(
+  "ai_tool_executions",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => aiConversations.id, { onDelete: "cascade" }),
+    tool: text("tool").$type<AiActionTool>().notNull(),
+    tier: text("tier").$type<AiActionTier>().notNull(),
+    status: text("status").$type<AiActionStatus>().notNull(),
+    // The input as checked by the server, run as is on the owner's press.
+    input: jsonb("input").$type<Record<string, unknown>>().notNull(),
+    // What will happen, or happened, written by the server, never by the model.
+    summary: text("summary").notNull(),
+    // The record it made, for Open and Undo.
+    resultId: uuid("result_id"),
+    // Why the last press didn't go through, in this app's words.
+    problem: text("problem"),
+    createdAt,
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("ai_tool_executions_tool_check", oneOf(table.tool, AI_ACTION_TOOLS)),
+    check("ai_tool_executions_tier_check", oneOf(table.tier, AI_ACTION_TIERS)),
+    check("ai_tool_executions_status_check", oneOf(table.status, AI_ACTION_STATUSES)),
+    index("ai_tool_executions_conversation_idx").on(table.conversationId, table.createdAt),
   ],
 );
