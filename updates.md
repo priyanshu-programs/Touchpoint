@@ -1488,3 +1488,4 @@
 - [2026-11-07] Applied migrations 0040–0044 to the local dev database; they were never run there, so signed-in pages on localhost:3000 crashed on missing columns (e.g. settings.task_color_*)
 - [2026-11-07] Removed the skull emoji from task deadlines (form labels and task list); it was not wanted
 - [2026-11-21] The magic wand look now covers both Enrich and Re-enrich, since main added Enrich for a company not read yet
+- [2026-11-21] globals.css: close the chatcn :root block before the magic-button styles; the missing } failed the Vercel build

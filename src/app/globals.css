@@ -993,6 +993,8 @@
   --chatcn-primary-fg: var(--primary-foreground);
   --chatcn-primary-hover: color-mix(in oklch, var(--primary) 88%, var(--foreground));
   --chatcn-red: var(--destructive);
+}
+
 /*
  * The Re-enrich button: always the brand lime, with a calm glow, a slow shimmer
  * and sparkles on the wand. Everything animated is a pseudo-element or a shadow,
