@@ -84,7 +84,6 @@ export function TaskList({
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                 {due && (
                   <span className={overdue ? "text-destructive" : undefined}>
-                    <span aria-hidden>💀 </span>
                     {overdue ? `Overdue: ${due}` : due}
                   </span>
                 )}

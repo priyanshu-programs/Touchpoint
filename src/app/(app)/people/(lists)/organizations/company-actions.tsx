@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { WandSparkles } from "lucide-react";
 import { useActionState, type ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,11 +33,13 @@ export function CompanyActions({
           <form action={enrich}>
             <Button
               type="submit"
-              variant="outline"
               size="sm"
+              className="magic-button"
               disabled={pending || reading}
             >
-              <RefreshCw aria-hidden />
+              <span aria-hidden className="magic-wand">
+                <WandSparkles />
+              </span>
               {enriched ? "Re-enrich" : "Enrich"}
             </Button>
           </form>

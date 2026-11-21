@@ -1493,5 +1493,10 @@
 - [2026-11-21] Data export includes ai_tool_executions
 - [2026-11-21] Unit tests for the action tiers, Confirm pressed twice, other owners and a planted invite, and for moving a meeting; e2e/46 adds a task from the chat, opens it and undoes it; the fake model and fake Google learn addTask and PATCH
 - [2026-11-21] plan.md and security.md: Phase 6 step 3, the assistant's actions
+- [2026-11-07] The Re-enrich button is permanently green with a magic-wand icon, a calm glow, a slow shimmer and twinkling sparkles (no motion under reduced-motion), so re-reading a company's website feels magical without changing what it does
+- [2026-11-07] Applied migrations 0040–0044 to the local dev database; they were never run there, so signed-in pages on localhost:3000 crashed on missing columns (e.g. settings.task_color_*)
+- [2026-11-07] Removed the skull emoji from task deadlines (form labels and task list); it was not wanted
+- [2026-11-21] The magic wand look now covers both Enrich and Re-enrich, since main added Enrich for a company not read yet
+- [2026-11-21] globals.css: close the chatcn :root block before the magic-button styles; the missing } failed the Vercel build
 - [2026-11-21] Next.js and eslint-config-next 16.4.1 → 16.4.6: pnpm audit --prod in CI failed on 7 new Next advisories (GHSA-pc58-hwjq-p385 and others), fixed from 16.4.5
 - [2026-11-21] e2e/46: wait for the chat's own page before reloading; on CI the reload ran on the chat list and the Task added card never showed
