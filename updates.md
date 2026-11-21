@@ -1500,6 +1500,8 @@
 - [2026-11-21] globals.css: close the chatcn :root block before the magic-button styles; the missing } failed the Vercel build
 - [2026-11-21] Next.js and eslint-config-next 16.4.1 → 16.4.6: pnpm audit --prod in CI failed on 7 new Next advisories (GHSA-pc58-hwjq-p385 and others), fixed from 16.4.5
 - [2026-11-21] e2e/46: wait for the chat's own page before reloading; on CI the reload ran on the chat list and the Task added card never showed
+- [2026-11-21] Assistant: an orb with blinking eyes, in Touchpoint's lime, replaces the star in the sidebar, the top bar and the command palette, sits beside each reply, and greets an empty chat; it squishes when pressed and holds still under reduced motion
+- [2026-11-21] Added motion 14.10.1 for the orb's press and hover; security.md notes it
 - [2026-11-21] Assistant: a task waits on its card, which asks only what the chat didn't say (deadline, priority, reminder, repeats, who, notes) with Skip this step and Skip all, and adds it on Save or Skip all
 - [2026-11-21] Assistant: asking to ask, tell, email, chase or follow up with someone loads the actions, and the assistant asks whether to add a task, since it can't send anything
 - [2026-11-21] Assistant: a failure after a reply starts is logged and sent as an error, the reply and its cards are still kept, and Retry shows what was kept before asking again without storing the message twice
