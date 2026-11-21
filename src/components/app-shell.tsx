@@ -30,7 +30,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { FullscreenButton } from "@/components/fullscreen-button";
 import { Greeting } from "@/components/greeting";
 import { ProfilePanel, type ProfileValues } from "@/components/profile-panel";
-import { AssistantIcon } from "@/components/ui/ai-avatar";
+import { AssistantIcon, AssistantOutlineIcon } from "@/components/ui/ai-avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -74,7 +74,7 @@ const NAV: { href: string; label: string; icon: NavIcon; prefix?: string }[] =
     {
       href: "/assistant",
       label: "Assistant",
-      icon: AssistantIcon,
+      icon: AssistantOutlineIcon,
       prefix: "/assistant",
     },
     {

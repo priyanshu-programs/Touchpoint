@@ -30,7 +30,6 @@ import type { RecordLink } from "@/modules/assistant/read";
 import { MAX_MESSAGE_CHARS } from "@/modules/assistant/schema";
 import { ActionCardView } from "./action-card";
 import { ReplyText } from "./reply-text";
-import { ThinkingBall } from "./thinking-ball";
 
 export type ChatMessage = {
   id: string;
@@ -268,7 +267,7 @@ export function ChatView({
         <ConversationContent label="Chat" className="max-w-none gap-5 px-4 pt-5 pb-4 sm:px-5">
           {messages.length === 0 && (
             <div className="grid gap-4">
-              <AiAvatar size="lg" className="justify-self-center" />
+              <AiAvatar size="lg" trackCursor className="justify-self-center" />
               <p className="text-sm text-muted-foreground">
                 Ask about a person or company by name, your tasks, meetings or money. These
                 answer at once and use no free requests:
@@ -287,10 +286,14 @@ export function ChatView({
             const cards = message.actions ?? [];
             if (message.role === "assistant" && !message.text && cards.length === 0) {
               return waiting ? (
-                <ThinkingBall
-                  key={message.id}
-                  label={looking ? `Looking at ${looking}…` : "Thinking…"}
-                />
+                <Message key={message.id} from="assistant" state="streaming" announce={false}>
+                  <MessageAvatar className="overflow-visible bg-transparent shadow-none">
+                    <AiAvatar size="xs" decorative thinking />
+                  </MessageAvatar>
+                  <span role="status" className="chatcn-shimmer text-sm leading-6">
+                    {looking ? `Looking at ${looking}…` : "Thinking…"}
+                  </span>
+                </Message>
               ) : null;
             }
             return (
@@ -303,7 +306,7 @@ export function ChatView({
                 {message.role === "assistant" && (
                   // The orb's glow and its squish reach past the slot's usual 24 px circle.
                   <MessageAvatar className="overflow-visible bg-transparent shadow-none">
-                    <AiAvatar size="xs" decorative />
+                    <AiAvatar size="xs" decorative trackCursor />
                   </MessageAvatar>
                 )}
                 {(message.role === "user" || message.text) && (
