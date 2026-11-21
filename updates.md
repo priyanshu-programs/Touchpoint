@@ -1489,3 +1489,4 @@
 - [2026-11-07] Removed the skull emoji from task deadlines (form labels and task list); it was not wanted
 - [2026-11-21] The magic wand look now covers both Enrich and Re-enrich, since main added Enrich for a company not read yet
 - [2026-11-21] globals.css: close the chatcn :root block before the magic-button styles; the missing } failed the Vercel build
+- [2026-11-21] Next.js and eslint-config-next 16.4.1 → 16.4.6: pnpm audit --prod in CI failed on 7 new Next advisories (GHSA-pc58-hwjq-p385 and others), fixed from 16.4.5
