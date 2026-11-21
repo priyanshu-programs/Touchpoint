@@ -1484,3 +1484,4 @@
 - [2026-11-16] e2e/44 and 45 read replies inside the chat log, since chatcn's live region repeats a finished reply for screen readers
 - [2026-11-16] security.md: replies' Markdown drawn as React elements, and the vendored chat and animation code
 - [2026-11-17] e2e/01 and 30 find Today's page heading by level, after a run just past midnight in the owner's zone also matched "Due today (1)" and failed main's CI
+- [2026-11-21] Next.js and eslint-config-next 16.4.1 → 16.4.6: pnpm audit --prod in CI failed on 7 new Next advisories (GHSA-pc58-hwjq-p385 and others), fixed from 16.4.5
