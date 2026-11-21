@@ -1500,3 +1500,8 @@
 - [2026-11-21] globals.css: close the chatcn :root block before the magic-button styles; the missing } failed the Vercel build
 - [2026-11-21] Next.js and eslint-config-next 16.4.1 → 16.4.6: pnpm audit --prod in CI failed on 7 new Next advisories (GHSA-pc58-hwjq-p385 and others), fixed from 16.4.5
 - [2026-11-21] e2e/46: wait for the chat's own page before reloading; on CI the reload ran on the chat list and the Task added card never showed
+- [2026-11-21] Assistant: a task waits on its card, which asks only what the chat didn't say (deadline, priority, reminder, repeats, who, notes) with Skip this step and Skip all, and adds it on Save or Skip all
+- [2026-11-21] Assistant: asking to ask, tell, email, chase or follow up with someone loads the actions, and the assistant asks whether to add a task, since it can't send anything
+- [2026-11-21] Assistant: a failure after a reply starts is logged and sent as an error, the reply and its cards are still kept, and Retry shows what was kept before asking again without storing the message twice
+- [2026-11-21] Meetings: scheduling or moving one reads Google Calendar first; an overlap is refused with the next free time 30 minutes clear, and one within 30 minutes of another is booked only after a warning naming it and the gap
+- [2026-11-21] plan.md and security.md: the task card's answers, the clash check and Retry

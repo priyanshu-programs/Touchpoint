@@ -234,6 +234,44 @@ describe("chat", () => {
     expect(chat?.messages.at(-1)).toMatchObject({ role: "assistant", text: "Half an" });
   });
 
+  it("answers a stream that breaks with an error, not a cut connection, and keeps what came", async () => {
+    openrouter.streamReply.mockReturnValue({
+      stream: (async function* () {
+        yield { type: "text-delta", text: "Done, added" };
+        throw new Error("the socket closed");
+      })(),
+      response: Promise.resolve({ modelId: "google/gemma-4-31b-it:free" }),
+    });
+    const begun = await beginChat(owner, { message: "Add a task: call Ravi" });
+    if (!begun.ok) throw new Error(begun.reason);
+    const events = await collect(reply(begun.turn, new AbortController().signal));
+    expect(events.at(-1)).toMatchObject({ type: "error" });
+    const chat = await getConversation(owner.id, begun.turn.conversationId);
+    expect(chat?.messages.at(-1)).toMatchObject({ role: "assistant", text: "Done, added" });
+  });
+
+  it("asks a message that got no reply again on Retry, without keeping it twice", async () => {
+    openrouter.streamReply.mockReturnValue(streamed([finish]));
+    const first = await beginChat(owner, { message: "Hi" });
+    if (!first.ok) throw new Error(first.reason);
+    const conversationId = first.turn.conversationId;
+
+    const again = await beginChat(owner, { message: "Hi", conversationId, retry: true });
+    if (!again.ok) throw new Error(again.reason);
+    expect(again.turn.history).toEqual([{ role: "user", content: "Hi" }]);
+    expect(await db.$count(aiMessages)).toBe(1);
+
+    // Once it was answered, the same words are a new message.
+    await db.insert(aiMessages).values({
+      ownerId: owner.id,
+      conversationId,
+      role: "assistant",
+      parts: [{ type: "text", text: "Hello" }],
+    });
+    await beginChat(owner, { message: "Hi", conversationId, retry: true });
+    expect(await db.$count(aiMessages)).toBe(3);
+  });
+
   it("keeps only the question when nothing came back", async () => {
     openrouter.streamReply.mockReturnValue(streamed([finish]));
     const begun = await beginChat(owner, { message: "Hi" });

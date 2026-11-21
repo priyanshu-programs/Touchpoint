@@ -7,9 +7,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import type { AiActionStatus, AiActionTool } from "@/db/schema";
 import { cn } from "@/lib/utils";
 import type { ActionCard } from "@/modules/assistant/actions";
+import { TaskQuestions } from "./task-questions";
 
 const HEADINGS: Record<AiActionTool, Partial<Record<AiActionStatus, string>>> = {
-  addTask: { waiting: "Add this task?", done: "Task added", undone: "Task removed", declined: "Task not added" },
+  addTask: { waiting: "New task", done: "Task added", undone: "Task removed", declined: "Task not added" },
   addNote: { waiting: "Add this note?", done: "Note added", undone: "Note removed", declined: "Note not added" },
   scheduleMeeting: { waiting: "Schedule this meeting?", done: "Meeting scheduled", declined: "Not scheduled" },
   moveMeeting: { waiting: "Move this meeting?", done: "Meeting moved", declined: "Not moved" },
@@ -39,11 +40,11 @@ export function ActionCardView({
   const [pending, start] = useTransition();
   const heading = HEADINGS[card.tool][card.status] ?? "";
 
-  const press = (which: ActionPress) =>
+  const press = (which: ActionPress, details?: Record<string, string>) =>
     start(async () => {
       setProblem(null);
       try {
-        const next = await pressActionAction(card.id, which);
+        const next = await pressActionAction(card.id, which, details);
         if (next) setCard(next);
       } catch {
         setProblem(NOT_SENT);
@@ -67,11 +68,20 @@ export function ActionCardView({
           {problem ?? card.problem}
         </p>
       )}
+      {card.status === "waiting" && card.task && card.task.ask.length > 0 && (
+        <TaskQuestions
+          draft={card.task}
+          pending={pending}
+          onSave={(details) => press("confirm", details)}
+        />
+      )}
       {card.status === "waiting" && (
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" disabled={pending} onClick={() => press("confirm")}>
-            {CONFIRM[card.tool]}
-          </Button>
+          {!(card.task && card.task.ask.length > 0) && (
+            <Button type="button" size="sm" disabled={pending} onClick={() => press("confirm")}>
+              {CONFIRM[card.tool]}
+            </Button>
+          )}
           <Button
             type="button"
             size="sm"

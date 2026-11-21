@@ -62,6 +62,13 @@ const fits = (page: Page) =>
     () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
   );
 const panel = (page: Page) => page.getByRole("dialog");
+// The form starts near now, where a test's seeded meetings sit. Meetings can't overlap or
+// come within 30 minutes of each other without a warning, so each takes its own clear hour.
+async function clearTime(page: Page, slot: number) {
+  const hour = String(9 + 2 * slot).padStart(2, "0");
+  await panel(page).getByLabel("Starts").fill(`${localDate(3)}T${hour}:00`);
+  await panel(page).getByLabel("Ends").fill(`${localDate(3)}T${hour}:30`);
+}
 const meetingsCard = (page: Page) =>
   page.locator("[data-slot=card]").filter({ hasText: "Meetings" }).first();
 
@@ -310,9 +317,11 @@ for (const device of devices) {
       const rows = (title: string) => count(`from calendar_events where title = $1`, [title]);
       const audited = (title: string) =>
         count(`from audit_log where action = 'meeting.schedule' and after->>'title' = $1`, [title]);
+      let slot = 0;
       const openForm = async (title: string) => {
         await page.goto(`/people/contacts?contact=${contactId}&tab=activity&schedule=new`);
         await panel(page).getByLabel("Title").fill(title);
+        await clearTime(page, slot++);
       };
       const toConfirm = async () => {
         await panel(page).getByRole("button", { name: "Continue" }).click();
@@ -334,6 +343,11 @@ for (const device of devices) {
       const plain = `${device.first} intro`;
       await openForm(plain);
       await toConfirm();
+      const summary = panel(page).getByRole("status");
+      await expect(summary).toContainText(`Google will add "${plain}" to your calendar (`);
+      await expect(summary).toContainText("with a Google Meet link");
+      await expect(summary).toContainText(`It will email an invitation to ${person} (${email}).`);
+      expect(await fits(page)).toBe(true);
       expect(forTitle(await fakeState(), plain)).toHaveLength(0);
       await schedule();
       await expect(panel(page).getByRole("heading", { name: plain })).toBeVisible();
@@ -356,12 +370,37 @@ for (const device of devices) {
       await panel(page).getByLabel("Email the invitation to guests").uncheck();
       await panel(page).getByLabel("Add a Google Meet link").uncheck();
       await toConfirm();
+      await expect(panel(page).getByRole("status")).toContainText(
+        `It will list ${person} (${email}) as invited and email nobody.`,
+      );
+      await expect(panel(page).getByRole("status")).not.toContainText("Google Meet");
+      // Two hours after the intro: no warning.
+      await expect(panel(page).getByRole("status")).not.toContainText("You have");
       await schedule();
       await expect(panel(page).getByRole("heading", { name: quiet })).toBeVisible();
       await expect(panel(page).getByRole("link", { name: "Join meeting" })).toHaveCount(0);
       const [silent] = forTitle(await fakeState(), quiet);
       expect(silent.query.sendUpdates).toBe("none");
       expect(silent.query.conferenceDataVersion).toBeUndefined();
+
+      // 15 minutes after the quiet one: the confirmation names it. On top of it: refused.
+      await page.goto(`/people/contacts?contact=${contactId}&tab=activity&schedule=new`);
+      await panel(page).getByLabel("Title").fill(`${device.first} close`);
+      await panel(page).getByLabel("Starts").fill(`${localDate(3)}T11:45`);
+      await panel(page).getByLabel("Ends").fill(`${localDate(3)}T12:15`);
+      await toConfirm();
+      await expect(panel(page).getByRole("status")).toContainText(`You have "${quiet}" from`);
+      await expect(panel(page).getByRole("status")).toContainText(
+        "this one starts 15 minutes after it ends.",
+      );
+      await panel(page).getByRole("button", { name: "Go back" }).click();
+      await panel(page).getByLabel("Starts").fill(`${localDate(3)}T11:15`);
+      await panel(page).getByLabel("Ends").fill(`${localDate(3)}T11:45`);
+      await panel(page).getByRole("button", { name: "Continue" }).click();
+      await expect(panel(page).getByRole("alert")).toContainText(
+        `It overlaps "${quiet}" (11:00 to 11:30), so it can't be booked.`,
+      );
+      expect(forTitle(await fakeState(), `${device.first} close`)).toHaveLength(0);
 
       // Google fails: nothing is kept, and the page says what is known.
       const failed = `${device.first} failed`;
@@ -527,6 +566,7 @@ for (const device of devices) {
 
       await page.goto(`/people/contacts?contact=${contactId}&tab=activity&schedule=new`);
       await title.fill(draft);
+      await clearTime(page, 5);
 
       // The panel's arrow.
       await toConfirm();
