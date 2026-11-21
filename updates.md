@@ -1500,3 +1500,5 @@
 - [2026-11-21] globals.css: close the chatcn :root block before the magic-button styles; the missing } failed the Vercel build
 - [2026-11-21] Next.js and eslint-config-next 16.4.1 → 16.4.6: pnpm audit --prod in CI failed on 7 new Next advisories (GHSA-pc58-hwjq-p385 and others), fixed from 16.4.5
 - [2026-11-21] e2e/46: wait for the chat's own page before reloading; on CI the reload ran on the chat list and the Task added card never showed
+- [2026-11-21] Assistant: an orb with blinking eyes, in Touchpoint's lime, replaces the star in the sidebar, the top bar and the command palette, sits beside each reply, and greets an empty chat; it squishes when pressed and holds still under reduced motion
+- [2026-11-21] Added motion 14.10.1 for the orb's press and hover; security.md notes it

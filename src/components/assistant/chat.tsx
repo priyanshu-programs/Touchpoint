@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { DailyUse } from "@/ai/openrouter";
 import { assistantUseAction, quickAnswerAction } from "@/app/(app)/assistant/actions";
 import { Conversation, ConversationContent } from "@/components/ui/chatcn/conversation";
-import { Message, MessageContent } from "@/components/ui/chatcn/message";
+import AiAvatar from "@/components/ui/ai-avatar";
+import { Message, MessageAvatar, MessageContent } from "@/components/ui/chatcn/message";
 import {
   PromptInput,
   PromptInputActions,
@@ -220,6 +221,7 @@ export function ChatView({
         <ConversationContent label="Chat" className="max-w-none gap-5 px-4 pt-5 pb-4 sm:px-5">
           {messages.length === 0 && (
             <div className="grid gap-4">
+              <AiAvatar size="lg" className="justify-self-center" />
               <p className="text-sm text-muted-foreground">
                 Ask about a person or company by name, your tasks, meetings or money. These
                 answer at once and use no free requests:
@@ -251,6 +253,12 @@ export function ChatView({
                 state={waiting ? "streaming" : "done"}
                 latest={index === messages.length - 1}
               >
+                {message.role === "assistant" && (
+                  // The orb's glow and its squish reach past the slot's usual 24 px circle.
+                  <MessageAvatar className="overflow-visible bg-transparent shadow-none">
+                    <AiAvatar size="xs" decorative />
+                  </MessageAvatar>
+                )}
                 {(message.role === "user" || message.text) && (
                   <MessageContent
                     className={cn(
