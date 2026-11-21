@@ -10,8 +10,10 @@ import {
 } from "@/db/schema";
 import {
   deleteEvent,
+  eventIdOf,
   getEvent,
   insertEvent,
+  listEvents,
   moveEvent,
 } from "@/integrations/google/calendar";
 import { CALENDAR_WRITE, GoogleApiError } from "@/integrations/google/oauth";
@@ -150,7 +152,105 @@ async function check(ownerId: string, input: MeetingInput, atCompany: string | n
   }
   const away = atCompany && (await outsiders(db, ownerId, atCompany, input.contactIds));
   if (away) return refuse(outsidersMessage(away));
-  return { ok: true, connection, timezone, startsAt, endsAt, guests } as const;
+  // A press again after Google's answer was lost finds this very meeting there already.
+  const room = await roomFor(ownerId, startsAt, endsAt, timezone, eventIdOf(input.key));
+  if (!room.ok) return room;
+  return { ok: true, connection, timezone, startsAt, endsAt, guests, near: room.near } as const;
+}
+
+// The owner's rule (2026-11-21): meetings never overlap, and one closer than this to
+// another is booked only after a warning naming it.
+export const MEETING_GAP_MS = 30 * 60_000;
+const DAY_MS = 24 * 3_600_000;
+
+type Busy = { title: string; startsAt: Date; endsAt: Date };
+
+function span(ms: number) {
+  const total = Math.round(ms / 60_000);
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  const parts = [];
+  if (hours) parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
+  if (mins || !hours) parts.push(`${mins} minute${mins === 1 ? "" : "s"}`);
+  return parts.join(" ");
+}
+
+// The first start at or after `from` that keeps the gap on both sides, within a day.
+function nextFree(busy: Busy[], from: Date, length: number) {
+  const starts = [from.getTime(), ...busy.map(({ endsAt }) => endsAt.getTime() + MEETING_GAP_MS)]
+    .filter((start) => start >= from.getTime() && start < from.getTime() + DAY_MS)
+    .sort((a, b) => a - b);
+  return starts.find((start) =>
+    busy.every(
+      ({ startsAt, endsAt }) =>
+        endsAt.getTime() + MEETING_GAP_MS <= start ||
+        startsAt.getTime() >= start + length + MEETING_GAP_MS,
+    ),
+  );
+}
+
+// Read from Google itself, since the stored copy can be a day old. `skip` is the meeting
+// being moved, which doesn't clash with itself.
+async function roomFor(
+  ownerId: string,
+  startsAt: Date,
+  endsAt: Date,
+  timezone: string,
+  skip?: string,
+): Promise<Refusal | { ok: true; near: string[] }> {
+  let busy: Busy[];
+  try {
+    const listed = await withToken(ownerId, (token) =>
+      listEvents(token, {
+        timeMin: new Date(startsAt.getTime() - DAY_MS),
+        timeMax: new Date(endsAt.getTime() + DAY_MS),
+      }),
+    );
+    busy = listed.events.flatMap(({ externalId, meeting }) =>
+      meeting && !meeting.allDay && meeting.startsAt && meeting.endsAt && externalId !== skip
+        ? [{ title: meeting.title, startsAt: meeting.startsAt, endsAt: meeting.endsAt }]
+        : [],
+    );
+  } catch (error) {
+    if (error instanceof ConnectionUnavailableError) {
+      return refuse("Google no longer accepts this connection. Reconnect in Settings to go on.");
+    }
+    logger.error("meeting.clash_check_failed", { ownerId, error });
+    return refuse(
+      "Google didn't answer, so Touchpoint couldn't check your calendar for clashes. Try again in a moment.",
+    );
+  }
+
+  const day = dateIn(timezone, startsAt);
+  const at = (when: Date) =>
+    dateIn(timezone, when) === day ? formatTime(when, timezone) : formatDateTime(when, timezone);
+  const times = (meeting: Busy) => `${at(meeting.startsAt)} to ${at(meeting.endsAt)}`;
+
+  const clash = busy.find((meeting) => meeting.startsAt < endsAt && meeting.endsAt > startsAt);
+  if (clash) {
+    const length = endsAt.getTime() - startsAt.getTime();
+    const free = nextFree(busy, startsAt, length);
+    return refuse(
+      `It overlaps "${clash.title}" (${times(clash)}), so it can't be booked. ` +
+        (free === undefined
+          ? `Pick a time at least ${span(MEETING_GAP_MS)} clear of other meetings.`
+          : `The next free time, ${span(MEETING_GAP_MS)} clear of other meetings, is ${times({ title: "", startsAt: new Date(free), endsAt: new Date(free + length) })}.`),
+    );
+  }
+
+  const near = busy.flatMap((meeting) => {
+    const before = meeting.endsAt <= startsAt;
+    const gap = before
+      ? startsAt.getTime() - meeting.endsAt.getTime()
+      : meeting.startsAt.getTime() - endsAt.getTime();
+    if (gap >= MEETING_GAP_MS) return [];
+    return [
+      `You have "${meeting.title}" from ${times(meeting)}: this one ${
+        before ? `starts ${span(gap)} after it ends` : `ends ${span(gap)} before it starts`
+      }.`,
+    ];
+  });
+  return { ok: true, near };
 }
 
 const listed = new Intl.ListFormat("en-GB", { type: "conjunction" });
@@ -187,10 +287,10 @@ export async function checkMeeting(
   if (!checked.ok) return checked;
   return {
     ok: true as const,
-    summary: meetingSummary(input, {
-      ...checked,
-      accountEmail: checked.connection.accountEmail,
-    }),
+    summary: [
+      meetingSummary(input, { ...checked, accountEmail: checked.connection.accountEmail }),
+      ...checked.near,
+    ].join(" "),
   };
 }
 
@@ -425,6 +525,8 @@ export async function checkMove(ownerId: string, input: MoveInput) {
   const times = timesOf(input, timezone);
   if (!times.ok) return times;
   const { startsAt, endsAt } = times;
+  const room = await roomFor(ownerId, startsAt, endsAt, timezone, meeting.externalId);
+  if (!room.ok) return room;
   const sameDay = dateIn(timezone, startsAt) === dateIn(timezone, endsAt);
   const end = sameDay ? formatTime(endsAt, timezone) : formatDateTime(endsAt, timezone);
   return {
@@ -434,7 +536,10 @@ export async function checkMove(ownerId: string, input: MoveInput) {
     timezone,
     startsAt,
     endsAt,
-    summary: `Google will move "${meeting.title}" from ${whenOf(meeting, timezone)} to ${formatDateTime(startsAt, timezone)} to ${end}${guestsTold(meeting.attendees.length, input.emailGuests, "the new time")}`,
+    summary: [
+      `Google will move "${meeting.title}" from ${whenOf(meeting, timezone)} to ${formatDateTime(startsAt, timezone)} to ${end}${guestsTold(meeting.attendees.length, input.emailGuests, "the new time")}`,
+      ...room.near,
+    ].join(" "),
   };
 }
 

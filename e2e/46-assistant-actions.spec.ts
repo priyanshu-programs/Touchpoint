@@ -17,7 +17,7 @@ test("the assistant is set up with a key", async ({ page }) => {
   await expect(page.getByText("Configured · key ending …6789")).toBeVisible();
 });
 
-test("asked to, the assistant adds a task at once with a card to open or undo it", async ({
+test("asked to, the assistant asks for the task's details on a card, adds it on Save, and can undo it", async ({
   page,
 }) => {
   await page.goto("/");
@@ -26,9 +26,24 @@ test("asked to, the assistant adds a task at once with a card to open or undo it
   await box.fill(`Add a task: ${TASK}`);
   await box.press("Enter");
 
+  // Nothing is added until the card's questions are answered or skipped.
+  const asking = panel(page).getByRole("region", { name: "New task" });
+  // Two model calls and the task's checks come first.
+  await expect(asking).toContainText(`Task "${TASK}".`, { timeout: 20_000 });
+  await expect(
+    panel(page).getByText(`The task: waiting, Task "${TASK}".`, { exact: true }),
+  ).toBeVisible();
+  await expect(asking.getByText("1 of 5")).toBeVisible();
+
+  await asking.getByLabel("Deadline date").fill("2030-03-04");
+  await asking.getByRole("button", { name: "Next" }).click();
+  await expect(asking.getByLabel("Priority")).toBeVisible();
+  await asking.getByRole("button", { name: "Skip this step" }).click();
+  await expect(asking.getByLabel("Reminder")).toBeVisible();
+  await asking.getByRole("button", { name: "Skip all" }).click();
+
   const card = panel(page).getByRole("region", { name: "Task added" });
-  await expect(card).toContainText(`Task "${TASK}".`);
-  await expect(panel(page).getByText(`The task: done, Task "${TASK}".`)).toBeVisible();
+  await expect(card).toContainText(`Task "${TASK}", due Mon, 4 Mar 2030.`);
 
   await card.getByRole("link", { name: "Open" }).click();
   await expect(page).toHaveURL(/\/tasks\/[0-9a-f-]{36}$/);

@@ -110,7 +110,7 @@ test("reading alone explains the permission and asks Google for it", async ({ pa
 });
 
 for (const device of DEVICES) {
-  test(`the form checks first and says what Google will do, on ${device.name}`, async ({ page }) => {
+  test(`the form opens with its guest and boxes, and reads the calendar before it confirms, on ${device.name}`, async ({ page }) => {
     await connection([READ, WRITE]);
     await page.setViewportSize({ width: device.width, height: device.height });
     await page.goto(`/people/contacts?contact=${withEmail}&tab=activity`);
@@ -122,29 +122,16 @@ for (const device of DEVICES) {
     await expect(panel(page).getByLabel("Add a Google Meet link")).toBeChecked();
     expect(await fits(page)).toBe(true);
 
+    // This connection holds no access Google would take, so the clash check can't read the
+    // calendar and nothing is offered to confirm. e2e/33 confirms against the fake Google.
     await panel(page).getByLabel("Title").fill("Intro call");
     await panel(page).getByRole("button", { name: "Continue" }).click();
-
-    const summary = panel(page).getByRole("status");
-    await expect(summary).toContainText('Google will add "Intro call" to your calendar (owner@gmail.test)');
-    await expect(summary).toContainText("with a Google Meet link");
-    await expect(summary).toContainText(
-      "It will email an invitation to Asha Schedule (asha@schedule.test).",
+    await expect(panel(page).getByRole("alert")).toHaveText(
+      "Google no longer accepts this connection. Reconnect in Settings to go on.",
     );
-    await expect(panel(page).getByRole("button", { name: "Schedule", exact: true })).toBeVisible();
-    await expect(panel(page).getByLabel("Title")).toBeHidden();
-    expect(await fits(page)).toBe(true);
-
-    await panel(page).getByRole("button", { name: "Go back" }).click();
+    await expect(panel(page).getByRole("button", { name: "Schedule", exact: true })).toHaveCount(0);
     await expect(panel(page).getByLabel("Title")).toHaveValue("Intro call");
-
-    await panel(page).getByLabel("Email the invitation to guests").uncheck();
-    await panel(page).getByLabel("Add a Google Meet link").uncheck();
-    await panel(page).getByRole("button", { name: "Continue" }).click();
-    await expect(panel(page).getByRole("status")).toContainText(
-      "It will list Asha Schedule (asha@schedule.test) as invited and email nobody.",
-    );
-    await expect(panel(page).getByRole("status")).not.toContainText("Google Meet");
+    expect(await fits(page)).toBe(true);
   });
 }
 

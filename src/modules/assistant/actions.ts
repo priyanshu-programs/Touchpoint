@@ -27,6 +27,7 @@ import {
   scheduleMeeting,
 } from "@/modules/integrations/scheduling";
 import { meetingInput, type MeetingInput } from "@/modules/integrations/schema";
+import { ownerTimezone } from "@/modules/settings/service";
 import { createTask } from "@/modules/tasks/service";
 import { taskInput, type TaskInput } from "@/modules/tasks/schema";
 
@@ -77,12 +78,46 @@ export const actionInputs = {
 type Inputs = { [T in AiActionTool]: z.infer<(typeof actionInputs)[T]> };
 
 // Text a stranger wrote has been read in this chat, so it might be steering the model.
+// A task always waits: its card asks the owner for the details first (owner's choice,
+// 2026-11-21), and only their Save or Skip all adds it.
 export function tierOf(tool: AiActionTool, untrusted: boolean): AiActionTier {
-  if (tool === "addTask" || tool === "addNote") return untrusted ? "confirm" : "undo";
+  if (tool === "addNote") return untrusted ? "confirm" : "undo";
   return "confirm";
 }
 
 const UNDOABLE: AiActionTool[] = ["addTask", "addNote"];
+
+// What a task card asks, in this order, each only when the chat didn't already say it.
+export const TASK_STEPS = ["deadline", "priority", "reminder", "repeat", "who", "notes"] as const;
+export type TaskStep = (typeof TASK_STEPS)[number];
+
+const TASK_FIELDS = [
+  "notes",
+  "priority",
+  "dueDate",
+  "dueTime",
+  "repeat",
+  "repeatEvery",
+  "remindAt",
+  "contactId",
+  "organizationId",
+] as const;
+type TaskFields = Record<(typeof TASK_FIELDS)[number], string>;
+
+// The owner's answers on a task card, read as the task form reads its fields.
+export const taskDetails = z
+  .strictObject(Object.fromEntries(TASK_FIELDS.map((field) => [field, z.string().max(5000)])))
+  .partial() as z.ZodType<Partial<TaskFields>>;
+
+// A task waiting on its card: the form's values so far, the names of who it's with,
+// and the steps still to ask.
+export type TaskDraft = {
+  values: TaskFields;
+  contactName: string | null;
+  organizationName: string | null;
+  ask: TaskStep[];
+};
+type StoredTask = { task: TaskInput; draft: TaskDraft };
 
 export type ActionCard = {
   id: string;
@@ -92,9 +127,14 @@ export type ActionCard = {
   problem: string | null;
   href: string | null;
   canUndo: boolean;
+  task: TaskDraft | null;
 };
 
 type Row = typeof aiToolExecutions.$inferSelect;
+
+// Tasks proposed before 2026-11-21 were kept as the bare input.
+const taskOf = (stored: Record<string, unknown>) =>
+  ("task" in stored ? (stored as StoredTask).task : stored) as TaskInput;
 
 function hrefOf(row: Row) {
   if (!row.resultId || row.status !== "done") return null;
@@ -118,6 +158,10 @@ export const cardOf = (row: Row): ActionCard => ({
   problem: row.problem,
   href: hrefOf(row),
   canUndo: row.status === "done" && UNDOABLE.includes(row.tool),
+  task:
+    row.tool === "addTask" && row.status !== "done" && "draft" in row.input
+      ? (row.input as StoredTask).draft
+      : null,
 });
 
 type Refusal = { ok: false; message: string };
@@ -145,6 +189,54 @@ async function names(ownerId: string, personIds: string[], companyId?: string) {
 const NOT_FOUND = "That person or company isn't in Touchpoint. Look it up with findRecords first.";
 const listed = new Intl.ListFormat("en-GB", { type: "conjunction" });
 
+async function nameOf(ownerId: string, table: typeof contacts | typeof organizations, id: string) {
+  const name = table === contacts ? contacts.fullName : organizations.name;
+  const [row] = await db
+    .select({ name })
+    .from(table)
+    .where(and(eq(table.ownerId, ownerId), eq(table.id, id)));
+  return row?.name ?? null;
+}
+
+// A task's fields as the task form sends them, checked as that form's are, with the
+// owner's words for it.
+async function taskStored(
+  ownerId: string,
+  timezone: string,
+  title: string,
+  values: TaskFields,
+  ask: TaskStep[],
+): Promise<Prepared | Refusal> {
+  const parsed = taskInput.safeParse({ title, ...values });
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
+  const task = parsed.data;
+  const [contactName, organizationName] = await Promise.all([
+    task.contactId ? nameOf(ownerId, contacts, task.contactId) : null,
+    task.organizationId ? nameOf(ownerId, organizations, task.organizationId) : null,
+  ]);
+  if ((task.contactId && !contactName) || (task.organizationId && !organizationName)) {
+    return { ok: false, message: NOT_FOUND };
+  }
+  const who = [organizationName, contactName].filter((name) => name !== null);
+  const parts = [`"${task.title}"`];
+  if (task.dueDate) parts.push(`due ${formatDate(task.dueDate)}${task.dueTime ? ` at ${task.dueTime}` : ""}`);
+  if (task.repeat) parts.push(repeatWords(task.repeat, task.repeatEvery));
+  if (who.length) parts.push(`with ${listed.format(who)}`);
+  if (task.priority !== "normal") parts.push(`${task.priority} priority`);
+  if (task.remindAt) {
+    parts.push(`a reminder ${formatDateTime(fromLocalInput(task.remindAt, timezone), timezone)}`);
+  }
+  const stored: StoredTask = {
+    task,
+    draft: { values, contactName, organizationName, ask },
+  };
+  return { ok: true, stored, summary: `Task ${parts.join(", ")}.` };
+}
+
+const EVERY = { DAILY: "day", WEEKLY: "week", MONTHLY: "month", YEARLY: "year" } as const;
+const repeatWords = (repeat: keyof typeof EVERY, every: number) =>
+  every === 1 ? `repeating every ${EVERY[repeat]}` : `repeating every ${every} ${EVERY[repeat]}s`;
+
 // The owner's words for what will happen, written from checked rows, and the input the
 // service will be given, kept as is until it runs.
 async function prepare(
@@ -156,30 +248,25 @@ async function prepare(
 ): Promise<Prepared | Refusal> {
   if (tool === "addTask") {
     const input = raw as Inputs["addTask"];
-    const parsed = taskInput.safeParse({
-      title: input.title,
+    const ask = TASK_STEPS.filter((step) => {
+      if (step === "deadline") return !input.dueDate && !input.dueTime;
+      if (step === "priority") return !input.priority;
+      if (step === "reminder") return !input.remindAt;
+      if (step === "who") return !input.personId && !input.companyId;
+      if (step === "notes") return !input.notes;
+      return true;
+    });
+    return taskStored(ownerId, timezone, input.title, {
       notes: input.notes ?? "",
       priority: input.priority ?? "normal",
       dueDate: input.dueDate ?? "",
       dueTime: input.dueTime ?? "",
       repeat: "",
-      repeatEvery: 1,
+      repeatEvery: "1",
       remindAt: input.remindAt ?? "",
       contactId: input.personId ?? "",
       organizationId: input.companyId ?? "",
-    });
-    if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
-    const task = parsed.data;
-    const who = await names(ownerId, task.contactId ? [task.contactId] : [], task.organizationId ?? undefined);
-    if (!who) return { ok: false, message: NOT_FOUND };
-    const parts = [`"${task.title}"`];
-    if (task.dueDate) parts.push(`due ${formatDate(task.dueDate)}${task.dueTime ? ` at ${task.dueTime}` : ""}`);
-    if (who.length) parts.push(`with ${listed.format(who)}`);
-    if (task.priority !== "normal") parts.push(`${task.priority} priority`);
-    if (task.remindAt) {
-      parts.push(`a reminder ${formatDateTime(fromLocalInput(task.remindAt, timezone), timezone)}`);
-    }
-    return { ok: true, stored: task, summary: `Task ${parts.join(", ")}.` };
+    }, ask);
   }
 
   if (tool === "addNote") {
@@ -261,7 +348,7 @@ async function perform(
   stored: Record<string, unknown>,
 ): Promise<{ ok: true; resultId: string | null } | Refusal> {
   if (tool === "addTask") {
-    const result = await createTask(ownerId, stored as TaskInput, false, "ai");
+    const result = await createTask(ownerId, taskOf(stored), false, "ai");
     if (result.ok) return { ok: true, resultId: result.id };
     return {
       ok: false,
@@ -346,10 +433,40 @@ const STUCK = sql`now() - interval '2 minutes'`;
 
 // The owner's press. Only one press can take a waiting action, so pressing twice runs
 // it once; a refusal leaves it waiting with the reason, to press again or turn down.
-export async function confirmAction(ownerId: string, id: string) {
+export async function confirmAction(
+  ownerId: string,
+  id: string,
+  // A task card's answers, which become the task's details before it's added.
+  details?: Partial<TaskFields>,
+) {
+  let answered: { input: Record<string, unknown>; summary: string } | null = null;
+  if (details) {
+    const [row] = await db.select().from(aiToolExecutions).where(own(ownerId, id));
+    if (!row || row.status !== "waiting" || row.tool !== "addTask" || !("draft" in row.input)) {
+      return row ? cardOf(row) : null;
+    }
+    const { task, draft } = row.input as StoredTask;
+    const prepared = await taskStored(
+      ownerId,
+      await ownerTimezone(db, ownerId),
+      task.title,
+      { ...draft.values, ...details },
+      draft.ask,
+    );
+    if (!prepared.ok) {
+      const [kept] = await db
+        .update(aiToolExecutions)
+        .set({ problem: prepared.message })
+        .where(and(own(ownerId, id), eq(aiToolExecutions.status, "waiting")))
+        .returning();
+      return kept ? cardOf(kept) : current(ownerId, id);
+    }
+    answered = { input: prepared.stored, summary: prepared.summary };
+  }
+
   const [claimed] = await db
     .update(aiToolExecutions)
-    .set({ status: "running", decidedAt: sql`now()` })
+    .set({ status: "running", decidedAt: sql`now()`, ...answered })
     .where(
       and(
         own(ownerId, id),

@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { DailyUse } from "@/ai/openrouter";
-import { assistantUseAction, quickAnswerAction } from "@/app/(app)/assistant/actions";
+import {
+  assistantUseAction,
+  chatSoFarAction,
+  quickAnswerAction,
+} from "@/app/(app)/assistant/actions";
 import { Conversation, ConversationContent } from "@/components/ui/chatcn/conversation";
 import { Message, MessageContent } from "@/components/ui/chatcn/message";
 import {
@@ -16,6 +20,7 @@ import {
 } from "@/components/ui/chatcn/prompt-input";
 import { ScrollToBottom } from "@/components/ui/chatcn/scroll-to-bottom";
 import { Suggestion, Suggestions } from "@/components/ui/chatcn/suggestions";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ActionCard } from "@/modules/assistant/actions";
 import type { ChatEvent, ChatRefusal } from "@/modules/assistant/chat";
@@ -86,6 +91,8 @@ export function useChat({
   const [sending, setSending] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // The message to ask again, when a reply broke off.
+  const [retry, setRetry] = useState<string | null>(null);
   const [daily, setDaily] = useState<DailyUse | null>(null);
 
   const loadUse = useCallback(async () => {
@@ -101,11 +108,12 @@ export function useChat({
     setConversationId(id);
   }
 
-  async function send() {
-    const text = draft.trim();
+  async function send(again?: string) {
+    const text = again ?? draft.trim();
     if (!text || sending) return;
-    setDraft("");
+    if (!again) setDraft("");
     setProblem(null);
+    setRetry(null);
     setSending(true);
     setMessages((all) => [
       ...all,
@@ -114,15 +122,21 @@ export function useChat({
     ]);
 
     let failure: string | null = null;
+    let retryable = false;
     try {
       const response = await fetch("/api/assistant/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, ...(conversationId && { conversationId }) }),
+        body: JSON.stringify({
+          message: text,
+          ...(conversationId && { conversationId }),
+          ...(again && { retry: true }),
+        }),
       });
       if (!response.ok || !response.body) {
         const { reason } = await response.json().catch(() => ({ reason: undefined }));
         failure = REFUSALS[reason as ChatRefusal] ?? NOT_SENT;
+        retryable = !REFUSALS[reason as ChatRefusal];
       } else {
         for await (const event of eventsOf(response.body)) {
           if (event.type === "start") {
@@ -138,12 +152,16 @@ export function useChat({
             toLast((last) => ({ ...last, actions: event.cards }));
           } else {
             setDaily(event.daily);
-            if (event.type === "error") failure = event.message;
+            if (event.type === "error") {
+              failure = event.message;
+              retryable = true;
+            }
           }
         }
       }
     } catch {
       failure = NOT_SENT;
+      retryable = true;
     }
     // A reply that never began leaves no empty bubble behind.
     setMessages((all) => {
@@ -152,12 +170,38 @@ export function useChat({
     });
     setLooking(null);
     setProblem(failure);
+    setRetry(failure && retryable ? text : null);
     setSending(false);
+  }
+
+  // After a reply broke off, show what the server kept: a reply it finished, with its
+  // cards, is shown and not asked for again, so a task it added isn't added twice.
+  async function retryLast() {
+    if (!retry || sending) return;
+    const text = retry;
+    setSending(true);
+    const kept = conversationId ? await chatSoFarAction(conversationId).catch(() => null) : null;
+    setSending(false);
+    const [asked, answer] = kept?.slice(-2) ?? [];
+    if (kept && asked?.role === "user" && asked.text === text && answer?.role === "assistant") {
+      setMessages(kept);
+      setProblem(null);
+      setRetry(null);
+      return;
+    }
+    if (kept) {
+      const last = kept[kept.length - 1];
+      setMessages(last?.role === "user" && last.text === text ? kept.slice(0, -1) : kept);
+    } else {
+      setMessages((all) => all.slice(0, all.findLastIndex((message) => message.role === "user")));
+    }
+    await send(text);
   }
 
   async function quick(ask: QuickAsk) {
     if (sending) return;
     setProblem(null);
+    setRetry(null);
     setSending(true);
     try {
       const result = await quickAnswerAction(ask, conversationId);
@@ -181,6 +225,7 @@ export function useChat({
     setConversationId(null);
     setMessages([]);
     setProblem(null);
+    setRetry(null);
   }
 
   return {
@@ -190,6 +235,8 @@ export function useChat({
     sending,
     looking,
     problem,
+    canRetry: retry !== null,
+    retryLast,
     daily,
     loadUse,
     send,
@@ -291,9 +338,22 @@ export function ChatView({
             );
           })}
           {problem && (
-            <p role="alert" className="text-sm text-destructive">
-              {problem}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p role="alert" className="text-sm text-destructive">
+                {problem}
+              </p>
+              {chat.canRetry && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={sending}
+                  onClick={() => void chat.retryLast()}
+                >
+                  Retry
+                </Button>
+              )}
+            </div>
           )}
         </ConversationContent>
         <ScrollToBottom />
