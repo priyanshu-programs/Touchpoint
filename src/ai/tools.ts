@@ -39,8 +39,10 @@ const WORDS: Record<ToolGroup, RegExp> = {
     /\b(meeting(s)?|meet|call(s)?|calendar|schedule(d)?|agenda|today|tomorrow|this week|next week|appointment(s)?)\b/,
   money:
     /\b(money|revenue|income|earn(ed|ings)?|paid|pay(ment|ments)?|invoice(s|d)?|owe(d|s)?|outstanding|receiv(e|ed)|cash|bill(ed|ing)?|report(s)?|rate|conversion|accept(ed|ance)?|repl(y|ies|ied)|best client(s)?|top client(s)?|month|quarter|year)\b/,
+  // Asking to reach someone ("ask Inoya Rouge for the logo files") is one too: the
+  // assistant can't send anything, so it offers a task to do it instead.
   actions:
-    /\b(add|create|remind me|note( down)?|jot|log|schedule|book|set up|arrange|move|reschedule|postpone|push( it)? back|cancel|call off)\b/,
+    /\b(add|create|remind( me)?|note( down)?|jot|log|schedule|book|set up|arrange|move|reschedule|postpone|push( it)? back|cancel|call off|ask|tell|email|e-mail|mail|message|text|send|chase|ping|follow(-| )?up|get back to)\b/,
 };
 
 // A name typed with a capital after the first word ("When did I last see Komal?") is
@@ -74,6 +76,8 @@ const period = z.enum(PERIODS).describe("The period, this-month if none is named
 const WAITS =
   "Not done yet: a card under your reply asks the owner to confirm it. Tell them what will happen and that it waits for their tap. Never say it is done.";
 const DONE = "Done. The owner can undo it from the card under your reply.";
+const ASKS =
+  "Not added yet: a card under your reply asks the owner for the task's details, and adds it when they save or skip. Say so in a few words, and don't ask for those details yourself. Never say it is added.";
 
 // The tools of the groups named, each reading as this owner and keeping the records it
 // used, so the answer can link to them.
@@ -101,7 +105,8 @@ export function toolsFor(
     if (!proposed.ok) return { done: false, problem: proposed.message };
     use.cards.push(proposed.card);
     const { status, summary } = proposed.card;
-    return { done: status === "done", what: summary, note: status === "done" ? DONE : WAITS };
+    const note = status === "done" ? DONE : tool === "addTask" ? ASKS : WAITS;
+    return { done: status === "done", what: summary, note };
   };
 
   const all: Record<ToolGroup, ToolSet> = {

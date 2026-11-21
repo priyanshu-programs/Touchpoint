@@ -12,6 +12,7 @@ import { groupsFor, linksIn, toolsFor, type ToolGroup, type ToolUse } from "@/ai
 import { db } from "@/db/client";
 import { aiConversations, aiMessages, user } from "@/db/schema";
 import { callName } from "@/lib/greeting";
+import { logger } from "@/lib/logger";
 import { formatTime } from "@/lib/time";
 import { getSettings } from "@/modules/settings/service";
 import type { ActionCard } from "./actions";
@@ -137,12 +138,24 @@ export async function beginChat(
         });
     }
 
-    await tx.insert(aiMessages).values({
-      ownerId: owner.id,
-      conversationId: conversation.id,
-      role: "user",
-      parts: [{ type: "text", text: input.message }],
-    });
+    // A retry of a message that got no reply asks it again, rather than keeping it twice.
+    const [last] = input.retry
+      ? await tx
+          .select({ role: aiMessages.role, parts: aiMessages.parts })
+          .from(aiMessages)
+          .where(eq(aiMessages.conversationId, conversation.id))
+          .orderBy(desc(aiMessages.createdAt), desc(aiMessages.id))
+          .limit(1)
+      : [];
+    const unanswered = last?.role === "user" && textOf(last.parts) === input.message;
+    if (!unanswered) {
+      await tx.insert(aiMessages).values({
+        ownerId: owner.id,
+        conversationId: conversation.id,
+        role: "user",
+        parts: [{ type: "text", text: input.message }],
+      });
+    }
     await tx
       .update(aiConversations)
       .set({ updatedAt: sql`now()` })
@@ -287,17 +300,26 @@ export async function* reply(turn: Turn, signal: AbortSignal): AsyncGenerator<Ch
         problem = "unavailable";
       }
     }
+  } catch (error) {
+    // Logged and answered as an error event: a thrown generator would only cut the
+    // stream, which reads in the panel as a lost connection.
+    logger.error("assistant.reply_broke", { ownerId: turn.ownerId, error });
+    problem = "unavailable";
   } finally {
     // An action taken is kept even when the model wrote nothing about it.
     if (text || use.cards.length > 0) {
       links = linksIn(text, use.links);
-      await keepReply(
-        turn,
-        text,
-        links,
-        use.cards,
-        finished ? { model: (await result.response).modelId, ...usage } : null,
-      );
+      try {
+        await keepReply(
+          turn,
+          text,
+          links,
+          use.cards,
+          finished ? { model: (await result.response).modelId, ...usage } : null,
+        );
+      } catch (error) {
+        logger.error("assistant.reply_not_kept", { ownerId: turn.ownerId, error });
+      }
     }
   }
   if (!problem && !text && use.cards.length === 0) problem = "empty";

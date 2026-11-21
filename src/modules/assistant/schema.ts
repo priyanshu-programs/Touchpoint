@@ -32,5 +32,7 @@ export type AssistantModels = z.infer<typeof assistantModelsInput>;
 export const chatInput = z.strictObject({
   conversationId: z.uuid().optional(),
   message: z.string().trim().min(1).max(MAX_MESSAGE_CHARS),
+  // Sent again after a reply broke off.
+  retry: z.literal(true).optional(),
 });
 export type ChatInput = z.infer<typeof chatInput>;

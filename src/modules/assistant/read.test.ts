@@ -171,6 +171,11 @@ describe("which tools a message loads", () => {
       expect.arrayContaining(["records", "meetings", "actions"]),
     );
     expect(groupsFor("How much money came in this quarter?")).not.toContain("actions");
+    // The assistant can't send anything, so asking it to reach someone offers a task.
+    expect(groupsFor("ask inoya rouge for their logo files")).toEqual(
+      expect.arrayContaining(["records", "actions"]),
+    );
+    expect(groupsFor("email Ravi about the invoice")).toContain("actions");
   });
 
   it("links only the records an answer names, once each", () => {

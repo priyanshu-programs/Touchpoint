@@ -50,8 +50,8 @@ describe("assistant actions", () => {
     planted.meetingsIn.mockReset();
   });
 
-  it("puts tasks and notes behind a tap once stranger text was read, and meetings always", () => {
-    expect(tierOf("addTask", false)).toBe("undo");
+  it("puts notes behind a tap once stranger text was read, and tasks and meetings always", () => {
+    expect(tierOf("addTask", false)).toBe("confirm");
     expect(tierOf("addNote", false)).toBe("undo");
     expect(tierOf("addTask", true)).toBe("confirm");
     expect(tierOf("addNote", true)).toBe("confirm");
@@ -60,29 +60,70 @@ describe("assistant actions", () => {
     }
   });
 
-  it("adds a task at once, from the assistant, and Undo takes it back", async () => {
+  it("a task waits on its card for what the chat didn't say; Save adds it with the answers, and Undo takes it back", async () => {
     const proposed = await propose(context, "addTask", {
       title: "Send Maple Studio the deck",
       dueDate: "2030-03-04",
       dueTime: "10:00",
     });
-    expect(proposed).toMatchObject({
-      ok: true,
-      card: {
-        status: "done",
-        summary: 'Task "Send Maple Studio the deck", due Mon, 4 Mar 2030 at 10:00.',
-        canUndo: true,
-      },
-    });
     if (!proposed.ok) throw new Error();
+    expect(proposed.card).toMatchObject({
+      status: "waiting",
+      summary: 'Task "Send Maple Studio the deck", due Mon, 4 Mar 2030 at 10:00.',
+      canUndo: false,
+      task: { ask: ["priority", "reminder", "repeat", "who", "notes"] },
+    });
+    expect(await db.$count(tasks)).toBe(0);
+
+    const saved = await confirmAction(ownerId, proposed.card.id, {
+      priority: "high",
+      repeat: "WEEKLY",
+      repeatEvery: "2",
+      notes: "The March one",
+    });
+    expect(saved).toMatchObject({
+      status: "done",
+      summary:
+        'Task "Send Maple Studio the deck", due Mon, 4 Mar 2030 at 10:00, repeating every 2 weeks, high priority.',
+      canUndo: true,
+      task: null,
+    });
     const [task] = await db.select().from(tasks).where(eq(tasks.ownerId, ownerId));
-    expect(task).toMatchObject({ title: "Send Maple Studio the deck", origin: "ai" });
-    expect(proposed.card.href).toBe(`/tasks/${task.id}`);
+    expect(task).toMatchObject({
+      title: "Send Maple Studio the deck",
+      origin: "ai",
+      priority: "high",
+      notes: "The March one",
+      recurrenceRule: expect.stringContaining("WEEKLY"),
+    });
+    expect(saved?.href).toBe(`/tasks/${task.id}`);
 
     expect(await undoAction(ownerId, proposed.card.id)).toMatchObject({ status: "undone" });
     expect(await db.$count(tasks)).toBe(0);
     // Pressed again, nothing more happens.
     expect(await undoAction(ownerId, proposed.card.id)).toMatchObject({ status: "undone" });
+  });
+
+  it("Skip all adds the task with only what the chat said", async () => {
+    const proposed = await propose(context, "addTask", { title: "Ask Inoya Rouge for their logo files" });
+    if (!proposed.ok) throw new Error();
+    expect(proposed.card.task?.ask).toEqual(["deadline", "priority", "reminder", "repeat", "who", "notes"]);
+    expect(await confirmAction(ownerId, proposed.card.id)).toMatchObject({ status: "done" });
+    const [task] = await db.select().from(tasks).where(eq(tasks.ownerId, ownerId));
+    expect(task).toMatchObject({ priority: "normal", dueOn: null, notes: null });
+  });
+
+  it("keeps a task waiting with the reason when an answer doesn't fit, and adds nothing", async () => {
+    const proposed = await propose(context, "addTask", { title: "Call Ravi" });
+    if (!proposed.ok) throw new Error();
+    expect(await confirmAction(ownerId, proposed.card.id, { dueTime: "10:00" })).toMatchObject({
+      status: "waiting",
+      problem: "Choose a deadline date to go with the time",
+    });
+    expect(
+      await confirmAction(ownerId, proposed.card.id, { contactId: "0190a1b2-c3d4-4e5f-8a9b-0c1d2e3f4a5b" }),
+    ).toMatchObject({ status: "waiting", problem: expect.stringContaining("isn't in Touchpoint") });
+    expect(await db.$count(tasks)).toBe(0);
   });
 
   it("refuses a person who isn't the owner's, and writes nothing", async () => {
@@ -186,7 +227,8 @@ describe("assistant actions", () => {
     const other = await createTestOwner("other@example.com");
     expect(await undoAction(other, proposed.card.id)).toBeNull();
     expect(await confirmAction(other, proposed.card.id)).toBeNull();
+    expect(await confirmAction(other, proposed.card.id, { priority: "high" })).toBeNull();
     expect(await declineAction(other, proposed.card.id)).toBeNull();
-    expect(await db.$count(tasks)).toBe(1);
+    expect(await db.$count(tasks)).toBe(0);
   });
 });

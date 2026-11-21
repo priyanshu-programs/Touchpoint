@@ -223,12 +223,14 @@ export async function getEvent(accessToken: string, id: string): Promise<ListedE
   return parseEvent(await response.json()) ?? { externalId: id, meeting: null };
 }
 
+// Google's ids are base32hex, which a uuid's hex digits already are.
+export const eventIdOf = (key: string) => key.replaceAll("-", "");
+
 export async function insertEvent(
   accessToken: string,
   event: NewEvent,
 ): Promise<{ created: boolean; event: ListedEvent }> {
-  // Google's ids are base32hex, which a uuid's hex digits already are.
-  const id = event.key.replaceAll("-", "");
+  const id = eventIdOf(event.key);
   const url = new URL(EVENTS_URL);
   url.searchParams.set("sendUpdates", event.emailGuests ? "all" : "none");
   if (event.addMeet) url.searchParams.set("conferenceDataVersion", "1");

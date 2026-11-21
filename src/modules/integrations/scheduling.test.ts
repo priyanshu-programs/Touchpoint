@@ -15,7 +15,7 @@ import {
   GoogleApiError,
   GrantRevokedError,
 } from "@/integrations/google/oauth";
-import { toLocalInput } from "@/lib/time";
+import { dateIn, formatTime, fromLocalInput, toLocalInput } from "@/lib/time";
 import { saveMeetingNotes } from "@/modules/activities/meeting-notes";
 import { newContactInput } from "@/modules/contacts/schema";
 import { addContactCompany, createContact } from "@/modules/contacts/service";
@@ -155,6 +155,8 @@ describe("scheduling a meeting", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     google.insertEvent.mockReset();
+    google.listEvents.mockReset();
+    google.listEvents.mockResolvedValue({ events: [] });
     oauth.refreshAccess.mockReset();
     await resetDatabase();
     ownerId = await createTestOwner();
@@ -235,6 +237,100 @@ describe("scheduling a meeting", () => {
       ).toBe(
         "Touchpoint can schedule up to 90 days ahead. For a later meeting, use Google Calendar.",
       );
+    });
+
+    describe("room between meetings", () => {
+      const MINUTE = 60_000;
+      // 10:00 tomorrow in the owner's zone, so every time named falls on one day.
+      const ten = () =>
+        fromLocalInput(`${dateIn(timezone, new Date(Date.now() + DAY))}T10:00`, timezone).getTime();
+      const at = (ms: number) => toLocalInput(new Date(ms), timezone);
+      const time = (ms: number) => formatTime(new Date(ms), timezone);
+      const held = (title: string, start: number, end: number): ListedEvent => {
+        const { meeting } = madeAtGoogle("ravi@other.test");
+        return {
+          externalId: `held${start}`,
+          meeting: { ...meeting!, title, startsAt: new Date(start), endsAt: new Date(end) },
+        };
+      };
+
+      it("refuses an overlap, naming the meeting and the next free time, and books nothing", async () => {
+        const base = ten();
+        google.listEvents.mockResolvedValue({
+          events: [held("Design review", base, base + 30 * MINUTE)],
+        });
+        const input = form({ startsAt: at(base + 15 * MINUTE), endsAt: at(base + 45 * MINUTE) });
+        const message =
+          `It overlaps "Design review" (${time(base)} to ${time(base + 30 * MINUTE)}), so it can't be booked. ` +
+          `The next free time, 30 minutes clear of other meetings, is ${time(base + 60 * MINUTE)} to ${time(base + 90 * MINUTE)}.`;
+        expect(await refusal(input)).toBe(message);
+        expect(await scheduleMeeting(ownerId, input)).toEqual({ ok: false, message });
+        expect(google.insertEvent).not.toHaveBeenCalled();
+        expect(google.listEvents).toHaveBeenCalledWith("ya29.access", {
+          timeMin: new Date(base + 15 * MINUTE - DAY),
+          timeMax: new Date(base + 45 * MINUTE + DAY),
+        });
+      });
+
+      it("warns of a meeting closer than 30 minutes on either side, and still books it", async () => {
+        const base = ten();
+        google.listEvents.mockResolvedValue({
+          events: [
+            held("Design review", base, base + 30 * MINUTE),
+            held("Lunch with Ravi", base + 90 * MINUTE, base + 2 * HOUR),
+          ],
+        });
+        const input = form({ startsAt: at(base + 45 * MINUTE), endsAt: at(base + 80 * MINUTE) });
+        const checked = await checkMeeting(ownerId, input);
+        expect(checked.ok).toBe(true);
+        if (!checked.ok) return;
+        expect(checked.summary).toContain(
+          `You have "Design review" from ${time(base)} to ${time(base + 30 * MINUTE)}: this one starts 15 minutes after it ends.`,
+        );
+        expect(checked.summary).toContain(
+          `You have "Lunch with Ravi" from ${time(base + 90 * MINUTE)} to ${time(base + 2 * HOUR)}: this one ends 10 minutes before it starts.`,
+        );
+
+        google.insertEvent.mockResolvedValueOnce({
+          created: true,
+          event: madeAtGoogle("asha@maple.test"),
+        });
+        expect(await scheduleMeeting(ownerId, input)).toMatchObject({ ok: true });
+      });
+
+      it("doesn't count the meeting this form already made at Google as a clash", async () => {
+        const base = ten();
+        const input = form({ startsAt: at(base), endsAt: at(base + 30 * MINUTE) });
+        const { meeting } = madeAtGoogle("asha@maple.test");
+        google.listEvents.mockResolvedValue({
+          events: [
+            {
+              externalId: EXTERNAL,
+              meeting: { ...meeting!, startsAt: new Date(base), endsAt: new Date(base + 30 * MINUTE) },
+            },
+          ],
+        });
+        expect(await checkMeeting(ownerId, input)).toMatchObject({ ok: true });
+      });
+
+      it("says nothing of a meeting 30 minutes away or more", async () => {
+        const base = ten();
+        google.listEvents.mockResolvedValue({
+          events: [held("Design review", base, base + 30 * MINUTE)],
+        });
+        const checked = await checkMeeting(
+          ownerId,
+          form({ startsAt: at(base + HOUR), endsAt: at(base + 90 * MINUTE) }),
+        );
+        expect(checked).toMatchObject({ ok: true, summary: expect.not.stringContaining("You have") });
+      });
+
+      it("refuses when Google can't say what's on the calendar", async () => {
+        google.listEvents.mockRejectedValue(new GoogleApiError(503));
+        expect(await refusal(form())).toBe(
+          "Google didn't answer, so Touchpoint couldn't check your calendar for clashes. Try again in a moment.",
+        );
+      });
     });
 
     it("refuses someone with no email and someone who isn't the owner's", async () => {
@@ -573,6 +669,8 @@ describe("cancelling a meeting", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    google.listEvents.mockReset();
+    google.listEvents.mockResolvedValue({ events: [] });
     google.getEvent.mockReset();
     google.deleteEvent.mockReset();
     google.moveEvent.mockReset();
@@ -713,6 +811,29 @@ describe("cancelling a meeting", () => {
         summary: expect.stringMatching(/^Google will move "Intro call" from .+ to .+, emailing nobody\.$/),
       });
       expect(google.moveEvent).not.toHaveBeenCalled();
+    });
+
+    it("doesn't count the meeting being moved as a clash, but does any other", async () => {
+      const input = await moveTo();
+      const start = new Date(Date.now() + 2 * DAY);
+      const held = madeAtGoogle("asha@maple.test");
+      google.listEvents.mockResolvedValue({
+        events: [{ ...held, meeting: { ...held.meeting!, startsAt: start, endsAt: new Date(start.getTime() + HOUR) } }],
+      });
+      expect(await checkMove(ownerId, input)).toMatchObject({ ok: true });
+
+      google.listEvents.mockResolvedValue({
+        events: [
+          {
+            externalId: "another",
+            meeting: { ...held.meeting!, title: "Design review", startsAt: start, endsAt: new Date(start.getTime() + HOUR) },
+          },
+        ],
+      });
+      expect(await checkMove(ownerId, input)).toMatchObject({
+        ok: false,
+        message: expect.stringMatching(/^It overlaps "Design review"/),
+      });
     });
 
     it("moves it at Google, keeps the new time and audits it", async () => {
