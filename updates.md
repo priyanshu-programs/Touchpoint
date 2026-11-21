@@ -1494,3 +1494,4 @@
 - [2026-11-21] Unit tests for the action tiers, Confirm pressed twice, other owners and a planted invite, and for moving a meeting; e2e/46 adds a task from the chat, opens it and undoes it; the fake model and fake Google learn addTask and PATCH
 - [2026-11-21] plan.md and security.md: Phase 6 step 3, the assistant's actions
 - [2026-11-21] Next.js and eslint-config-next 16.4.1 → 16.4.6: pnpm audit --prod in CI failed on 7 new Next advisories (GHSA-pc58-hwjq-p385 and others), fixed from 16.4.5
+- [2026-11-21] e2e/46: wait for the chat's own page before reloading; on CI the reload ran on the chat list and the Task added card never showed

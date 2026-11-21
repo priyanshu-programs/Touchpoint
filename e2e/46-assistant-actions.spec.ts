@@ -37,6 +37,7 @@ test("asked to, the assistant adds a task at once with a card to open or undo it
   // Kept with the chat: after a reload the card still offers Undo.
   await page.goto("/assistant");
   await page.getByRole("link", { name: `Add a task: ${TASK}` }).click();
+  await expect(page).toHaveURL(/\/assistant\/[0-9a-f-]{36}$/);
   await page.reload();
   const kept = page.getByRole("region", { name: "Task added" });
   await kept.getByRole("button", { name: "Undo" }).click();
