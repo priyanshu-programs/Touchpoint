@@ -1507,3 +1507,6 @@
 - [2026-11-21] Assistant: a failure after a reply starts is logged and sent as an error, the reply and its cards are still kept, and Retry shows what was kept before asking again without storing the message twice
 - [2026-11-21] Meetings: scheduling or moving one reads Google Calendar first; an overlap is refused with the next free time 30 minutes clear, and one within 30 minutes of another is booked only after a warning naming it and the gap
 - [2026-11-21] plan.md and security.md: the task card's answers, the clash check and Retry
+- [2026-11-21] Sidebar, phone bar and command palette: the assistant is an outline orb drawn like the icons around it, with the same blink; the top bar keeps the coloured orb
+- [2026-11-21] Assistant panel: the orbs' eyes follow the pointer (not under reduced motion)
+- [2026-11-21] Assistant: while a reply is on its way, a small orb glances around and breathes beside "Thinking…", in place of the crystal ball, which looked wrong in dark mode; the crystal ball and the ogl package are removed

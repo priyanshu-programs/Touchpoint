@@ -1,7 +1,7 @@
 "use client";
 
-import { useId } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { useEffect, useId, useRef, type RefObject } from "react";
+import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
 import { cn } from "@/lib/utils";
 
 // The assistant's face: an orb with two blinking eyes that squishes when pressed. Adapted
@@ -31,6 +31,10 @@ export interface AvatarProps {
   shape?: AvatarShape;
   // Next to words that already say it's the assistant: hidden from screen readers.
   decorative?: boolean;
+  // Its eyes follow the pointer anywhere on the page.
+  trackCursor?: boolean;
+  // Its eyes look around and it breathes, while a reply is on its way.
+  thinking?: boolean;
   className?: string;
 }
 
@@ -143,6 +147,45 @@ const SIZE: Record<AvatarSize, { orb: string; eye: string; eyeGap: string; eyeY:
   lg: { orb: "size-16", eye: "w-2 h-3", eyeGap: "gap-3.5", eyeY: "-translate-y-1" },
 };
 
+// How far the eyes may move from the centre, in px, at each size.
+const LOOK: Record<AvatarSize, number> = { icon: 1, xs: 2, sm: 3, md: 4, lg: 6 };
+
+// Eyes that turn toward the pointer, smoothed so they glide rather than jump.
+function useGaze(orb: RefObject<HTMLDivElement | null>, enabled: boolean, reach: number) {
+  const x = useSpring(useMotionValue(0), { stiffness: 220, damping: 22 });
+  const y = useSpring(useMotionValue(0), { stiffness: 220, damping: 22 });
+
+  useEffect(() => {
+    if (!enabled) {
+      x.set(0);
+      y.set(0);
+      return;
+    }
+    let frame = 0;
+    const follow = (event: PointerEvent) => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const box = orb.current?.getBoundingClientRect();
+        if (!box) return;
+        const dx = event.clientX - (box.left + box.width / 2);
+        const dy = event.clientY - (box.top + box.height / 2);
+        const distance = Math.hypot(dx, dy) || 1;
+        // Full reach once the pointer is a few orb-widths away; less when it's close.
+        const pull = Math.min(1, distance / (box.width * 3));
+        x.set((dx / distance) * reach * pull);
+        y.set((dy / distance) * reach * pull);
+      });
+    };
+    window.addEventListener("pointermove", follow, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("pointermove", follow);
+    };
+  }, [orb, enabled, reach, x, y]);
+
+  return { x, y };
+}
+
 const SHAPE_RADIUS: Record<AvatarShape, string> = {
   circle: "rounded-full",
   square: "rounded-[0%]",
@@ -177,12 +220,18 @@ function Avatar({
   size = "md",
   shape = "circle",
   decorative = false,
+  trackCursor = false,
+  thinking = false,
   className,
 }: AvatarProps) {
   const uid = useId().replace(/\W/g, "");
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReducedMotion() ?? false;
   const preset = PRESETS[color];
   const dims = SIZE[size];
+  const reach = LOOK[size];
+  const orb = useRef<HTMLDivElement>(null);
+  const gaze = useGaze(orb, trackCursor && !thinking && !reduceMotion, reach);
+  const pondering = thinking && !reduceMotion;
   // The fine grain is lost at icon size, and two filters per sidebar row cost for nothing.
   const grain = size !== "icon";
 
@@ -193,10 +242,18 @@ function Avatar({
         {BLINK_KEYFRAMES}
       </style>
       <motion.div
+        ref={orb}
         {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": "Assistant" })}
-        whileHover={reduceMotion ? undefined : { scale: 1.06 }}
+        animate={pondering ? { scale: [1, 1.06, 1] } : undefined}
+        whileHover={reduceMotion || pondering ? undefined : { scale: 1.06 }}
         whileTap={reduceMotion ? undefined : { scaleX: 1.15, scaleY: 1.3 }}
-        transition={{ type: "tween", duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
+        transition={{
+          type: "tween",
+          duration: 0.8,
+          ease: [0.34, 1.56, 0.64, 1],
+          // Only the breathing loops; a press while thinking still squishes once.
+          ...(pondering && { scale: { duration: 1.6, ease: "easeInOut", repeat: Infinity } }),
+        }}
         className={cn(
           "relative flex shrink-0 cursor-pointer items-center justify-center overflow-hidden",
           dims.orb,
@@ -264,16 +321,79 @@ function Avatar({
           }}
         />
 
-        <div className={cn("relative z-10 flex items-center", dims.eyeGap, dims.eyeY)}>
-          <Eye blinking={blinking} delayMs={0} irisGradient={preset.iris} sizeClass={dims.eye} />
-          <Eye blinking={blinking} delayMs={60} irisGradient={preset.iris} sizeClass={dims.eye} />
-        </div>
+        <motion.div
+          className={cn("relative z-10 flex items-center", dims.eyeGap, dims.eyeY)}
+          style={{ x: gaze.x, y: gaze.y }}
+        >
+          <motion.div
+            className={cn("flex items-center", dims.eyeGap)}
+            // Glancing left, up and right, as if working something out.
+            animate={
+              pondering
+                ? {
+                    x: [0, -reach, -reach, reach, reach, 0],
+                    y: [0, -reach * 0.6, -reach * 0.6, -reach * 0.6, 0, 0],
+                  }
+                : { x: 0, y: 0 }
+            }
+            transition={
+              pondering
+                ? { duration: 2.8, ease: "easeInOut", repeat: Infinity, times: [0, 0.15, 0.4, 0.55, 0.8, 1] }
+                : { duration: 0.3 }
+            }
+          >
+            <Eye blinking={blinking} delayMs={0} irisGradient={preset.iris} sizeClass={dims.eye} />
+            <Eye blinking={blinking} delayMs={60} irisGradient={preset.iris} sizeClass={dims.eye} />
+          </motion.div>
+        </motion.div>
       </motion.div>
     </>
   );
 }
 
-// The sidebar and the top bar take it in place of an icon.
+// In the sidebar, the phone's bar and the command palette: drawn in outline like the
+// icons around it, in their colour, with the same blink.
+export function AssistantOutlineIcon({ className }: { className?: string; "aria-hidden"?: boolean }) {
+  return (
+    <>
+      <style href="ai-avatar-blink" precedence="default">
+        {BLINK_KEYFRAMES}
+      </style>
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={cn("size-4", className)}
+      >
+        <circle cx="12" cy="12" r="10" />
+        {[9.5, 14.5].map((cx, index) => (
+          <rect
+            key={cx}
+            x={cx - 1}
+            y={8.5}
+            width={2}
+            height={4.5}
+            rx={1}
+            fill="currentColor"
+            stroke="none"
+            className="av-eye"
+            style={{
+              transformBox: "fill-box",
+              transformOrigin: "center",
+              animation: `av-blink 3.6s ease-in-out ${index * 60}ms infinite`,
+            }}
+          />
+        ))}
+      </svg>
+    </>
+  );
+}
+
+// The top bar's button takes the orb itself, in colour.
 // It is always hidden from screen readers: the button or link around it names it.
 export function AssistantIcon({ className }: { className?: string; "aria-hidden"?: boolean }) {
   return <Avatar size="icon" decorative className={className} />;
