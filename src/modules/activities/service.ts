@@ -5,6 +5,7 @@ import {
   activityContacts,
   contacts,
   organizations,
+  type ACTIVITY_SOURCES,
 } from "@/db/schema";
 import { fromLocalInput } from "@/lib/time";
 import { audit } from "@/modules/audit/service";
@@ -113,6 +114,7 @@ async function lockActivity(tx: Tx, ownerId: string, id: string) {
 export async function logActivity(
   ownerId: string,
   input: LogActivityInput,
+  source: (typeof ACTIVITY_SOURCES)[number] = "manual",
 ): Promise<ActivityResult> {
   return db.transaction(async (tx) => {
     const problem = await unknownLink(tx, ownerId, input);
@@ -125,7 +127,7 @@ export async function logActivity(
     const timezone = await ownerTimezone(tx, ownerId);
     const [row] = await tx
       .insert(activities)
-      .values({ ownerId, ...columns(input, timezone) })
+      .values({ ownerId, source, ...columns(input, timezone) })
       .returning();
     await linkContacts(tx, ownerId, row.id, input.contactIds);
     await audit(tx, {

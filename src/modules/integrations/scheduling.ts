@@ -12,10 +12,11 @@ import {
   deleteEvent,
   getEvent,
   insertEvent,
+  moveEvent,
 } from "@/integrations/google/calendar";
 import { CALENDAR_WRITE, GoogleApiError } from "@/integrations/google/oauth";
 import { logger } from "@/lib/logger";
-import { dateIn, formatDateTime, formatTime, fromLocalInput } from "@/lib/time";
+import { dateIn, formatDate, formatDateTime, formatTime, fromLocalInput } from "@/lib/time";
 import { audit } from "@/modules/audit/service";
 import { outsiders, outsidersMessage } from "@/modules/contacts/at-company";
 import { ownerTimezone } from "@/modules/settings/service";
@@ -35,11 +36,15 @@ import {
 
 const ACTION = "meeting.schedule";
 const CANCEL_ACTION = "meeting.cancel";
+const MOVE_ACTION = "meeting.move";
 // The confirmation is read before it is pressed, so a start in this very minute still counts.
 const START_GRACE_MS = 60_000;
 
 const NOT_ANSWERED =
   "Google didn't answer, so Touchpoint can't say whether the meeting was made. Check your calendar, or press Schedule again: it won't make a second one.";
+
+const MOVE_NOT_ANSWERED =
+  "Google didn't answer, so Touchpoint can't say whether the meeting was moved. Check your calendar, or press Confirm again.";
 
 const CANCEL_NOT_ANSWERED =
   "Google didn't answer, so Touchpoint can't say whether the meeting was cancelled. Check your calendar, or press Cancel meeting again.";
@@ -89,6 +94,22 @@ async function guestsOf(ownerId: string, contactIds: string[]) {
 type Refusal = { ok: false; message: string };
 const refuse = (message: string): Refusal => ({ ok: false, message });
 
+function timesOf(input: { startsAt: string; endsAt: string }, timezone: string) {
+  const startsAt = fromLocalInput(input.startsAt, timezone);
+  const endsAt = fromLocalInput(input.endsAt, timezone);
+  if (endsAt <= startsAt) {
+    return refuse("A meeting has to end after it starts.");
+  }
+  const now = Date.now();
+  if (startsAt.getTime() < now - START_GRACE_MS) {
+    return refuse("That start time has already passed.");
+  }
+  if (startsAt.getTime() >= now + WINDOW_AHEAD_MS) {
+    return refuse("Touchpoint can schedule up to 90 days ahead. For a later meeting, use Google Calendar.");
+  }
+  return { ok: true as const, startsAt, endsAt };
+}
+
 // `atCompany` is the company the meeting is scheduled from, whose people alone it is with.
 async function check(ownerId: string, input: MeetingInput, atCompany: string | null) {
   const [connection] = await db
@@ -115,18 +136,9 @@ async function check(ownerId: string, input: MeetingInput, atCompany: string | n
   }
 
   const timezone = await ownerTimezone(db, ownerId);
-  const startsAt = fromLocalInput(input.startsAt, timezone);
-  const endsAt = fromLocalInput(input.endsAt, timezone);
-  if (endsAt <= startsAt) {
-    return refuse("A meeting has to end after it starts.");
-  }
-  const now = Date.now();
-  if (startsAt.getTime() < now - START_GRACE_MS) {
-    return refuse("That start time has already passed.");
-  }
-  if (startsAt.getTime() >= now + WINDOW_AHEAD_MS) {
-    return refuse("Touchpoint can schedule up to 90 days ahead. For a later meeting, use Google Calendar.");
-  }
+  const times = timesOf(input, timezone);
+  if (!times.ok) return times;
+  const { startsAt, endsAt } = times;
 
   const guests: { email: string; name: string }[] = [];
   for (const guest of await guestsOf(ownerId, input.contactIds)) {
@@ -196,7 +208,7 @@ async function withToken<T>(ownerId: string, call: (token: string) => Promise<T>
 function refusalFrom(
   ownerId: string,
   error: unknown,
-  doing: "make" | "cancel" = "make",
+  doing: "make" | "cancel" | "move" = "make",
 ): Refusal {
   if (error instanceof ConnectionUnavailableError) {
     return {
@@ -204,7 +216,7 @@ function refusalFrom(
       message: "Google no longer accepts this connection. Reconnect in Settings to go on.",
     };
   }
-  logger.error(doing === "make" ? "meeting.schedule_failed" : "meeting.cancel_failed", {
+  logger.error(`meeting.${doing === "make" ? "schedule" : doing}_failed`, {
     ownerId,
     error,
   });
@@ -221,13 +233,17 @@ function refusalFrom(
   if (error instanceof GoogleApiError && error.status < 500) {
     return {
       ok: false,
-      message:
-        doing === "make"
-          ? "Google refused to make this meeting, so nothing was added."
-          : "Google refused to cancel this meeting, so it still stands.",
+      message: {
+        make: "Google refused to make this meeting, so nothing was added.",
+        cancel: "Google refused to cancel this meeting, so it still stands.",
+        move: "Google refused to move this meeting, so it stays where it was.",
+      }[doing],
     };
   }
-  return { ok: false, message: doing === "make" ? NOT_ANSWERED : CANCEL_NOT_ANSWERED };
+  return {
+    ok: false,
+    message: { make: NOT_ANSWERED, cancel: CANCEL_NOT_ANSWERED, move: MOVE_NOT_ANSWERED }[doing],
+  };
 }
 
 export type ScheduleResult =
@@ -322,10 +338,14 @@ export function isCancellable(meeting: {
 
 export type CancelResult = Refusal | { ok: true };
 
-export async function cancelMeeting(
+// A meeting the owner organized that hasn't started, on a connection that may change it,
+// under the hourly limit for this kind of change.
+async function changeable(
   ownerId: string,
-  input: { eventId: string; emailGuests: boolean },
-): Promise<CancelResult> {
+  eventId: string,
+  action: string,
+  verb: "cancel" | "move",
+) {
   const [connection] = await db
     .select()
     .from(integrationConnections)
@@ -341,12 +361,12 @@ export async function cancelMeeting(
     auditLog,
     and(
       eq(auditLog.ownerId, ownerId),
-      eq(auditLog.action, CANCEL_ACTION),
+      eq(auditLog.action, action),
       gt(auditLog.createdAt, sql`now() - interval '1 hour'`),
     ),
   );
   if (recent >= MEETINGS_PER_HOUR) {
-    return refuse(`Touchpoint cancels at most ${MEETINGS_PER_HOUR} meetings an hour. Try again later.`);
+    return refuse(`Touchpoint ${verb}s at most ${MEETINGS_PER_HOUR} meetings an hour. Try again later.`);
   }
 
   const [meeting] = await db
@@ -355,28 +375,132 @@ export async function cancelMeeting(
     .where(
       and(
         eq(calendarEvents.ownerId, ownerId),
-        eq(calendarEvents.id, input.eventId),
+        eq(calendarEvents.id, eventId),
         eq(calendarEvents.connectionId, connection.id),
         eq(calendarEvents.organizedByOwner, true),
         cancellableNow,
       ),
     );
   if (!meeting) {
-    return refuse("Only a meeting you organized that hasn't started can be cancelled here.");
+    return refuse(
+      `Only a meeting you organized that hasn't started can be ${verb === "cancel" ? "cancelled" : "moved"} here.`,
+    );
+  }
+  return { ok: true as const, connection, meeting };
+}
+
+const whenOf = (meeting: typeof calendarEvents.$inferSelect, timezone: string) =>
+  meeting.allDay ? `${formatDate(meeting.startsOn!)}, all day` : formatDateTime(meeting.startsAt!, timezone);
+
+const guestsTold = (count: number, emailGuests: boolean, what: string) =>
+  emailGuests && count > 0
+    ? ` and email ${count === 1 ? "its guest" : `its ${count} guests`} ${what}.`
+    : ", emailing nobody.";
+
+// What Google will do, written here from the stored copy, for the owner to confirm.
+export async function checkCancel(
+  ownerId: string,
+  input: { eventId: string; emailGuests: boolean },
+) {
+  const ready = await changeable(ownerId, input.eventId, CANCEL_ACTION, "cancel");
+  if (!ready.ok) return ready;
+  const { meeting } = ready;
+  const timezone = await ownerTimezone(db, ownerId);
+  return {
+    ok: true as const,
+    summary: `Google will cancel "${meeting.title}" on ${whenOf(meeting, timezone)}${guestsTold(meeting.attendees.length, input.emailGuests, "that it's cancelled")}`,
+  };
+}
+
+type MoveInput = { eventId: string; startsAt: string; endsAt: string; emailGuests: boolean };
+
+export async function checkMove(ownerId: string, input: MoveInput) {
+  const ready = await changeable(ownerId, input.eventId, MOVE_ACTION, "move");
+  if (!ready.ok) return ready;
+  const { connection, meeting } = ready;
+  if (meeting.allDay) {
+    return refuse("An all-day meeting can't be moved here. Move it in Google Calendar.");
+  }
+  const timezone = await ownerTimezone(db, ownerId);
+  const times = timesOf(input, timezone);
+  if (!times.ok) return times;
+  const { startsAt, endsAt } = times;
+  const sameDay = dateIn(timezone, startsAt) === dateIn(timezone, endsAt);
+  const end = sameDay ? formatTime(endsAt, timezone) : formatDateTime(endsAt, timezone);
+  return {
+    ok: true as const,
+    connection,
+    meeting,
+    timezone,
+    startsAt,
+    endsAt,
+    summary: `Google will move "${meeting.title}" from ${whenOf(meeting, timezone)} to ${formatDateTime(startsAt, timezone)} to ${end}${guestsTold(meeting.attendees.length, input.emailGuests, "the new time")}`,
+  };
+}
+
+// The copy can be a day old: Google says who organizes it now. Null: gone at Google.
+async function heldAtGoogle(ownerId: string, externalId: string) {
+  return withToken(ownerId, async (token) => {
+    try {
+      return (await getEvent(token, externalId)).meeting;
+    } catch (error) {
+      if (error instanceof GoogleApiError && (error.status === 404 || error.status === 410)) {
+        return null;
+      }
+      throw error;
+    }
+  });
+}
+
+export async function moveMeeting(ownerId: string, input: MoveInput): Promise<CancelResult> {
+  const checked = await checkMove(ownerId, input);
+  if (!checked.ok) return checked;
+  const { connection, meeting, timezone, startsAt, endsAt } = checked;
+
+  let moved;
+  try {
+    const held = await heldAtGoogle(ownerId, meeting.externalId);
+    if (!held) return refuse("That meeting was removed at Google, so there's nothing to move.");
+    if (!held.organizedByOwner) {
+      return refuse("You didn't organize this meeting, so only its organizer can move it.");
+    }
+    moved = await withToken(ownerId, (token) =>
+      moveEvent(token, meeting.externalId, { startsAt, endsAt, timezone }, input.emailGuests),
+    );
+  } catch (error) {
+    return refusalFrom(ownerId, error, "move");
   }
 
+  await audit(db, {
+    ownerId,
+    actor: "user",
+    action: MOVE_ACTION,
+    entityType: "calendar_event",
+    entityId: meeting.id,
+    before: { startsAt: meeting.startsAt, endsAt: meeting.endsAt },
+    after: { externalId: meeting.externalId, startsAt, endsAt, emailGuests: input.emailGuests },
+  });
   try {
-    // The copy can be a day old: Google says who organizes it now.
-    const held = await withToken(ownerId, async (token) => {
-      try {
-        return (await getEvent(token, meeting.externalId)).meeting;
-      } catch (error) {
-        if (error instanceof GoogleApiError && (error.status === 404 || error.status === 410)) {
-          return null;
-        }
-        throw error;
-      }
+    await db.transaction(async (tx) => {
+      if (!moved.meeting || !(await stillConnected(tx, connection))) return;
+      await upsertMeetings(tx, connection, [{ externalId: moved.externalId, meeting: moved.meeting }]);
     });
+  } catch (error) {
+    logger.error("meeting.copy_failed", { ownerId, error });
+  }
+  return { ok: true };
+}
+
+export async function cancelMeeting(
+  ownerId: string,
+  input: { eventId: string; emailGuests: boolean },
+): Promise<CancelResult> {
+  const ready = await changeable(ownerId, input.eventId, CANCEL_ACTION, "cancel");
+  if (!ready.ok) return ready;
+  const { connection, meeting } = ready;
+
+  try {
+    const held = await heldAtGoogle(ownerId, meeting.externalId);
     if (held && !held.organizedByOwner) {
       return refuse("You didn't organize this meeting, so only its organizer can cancel it. Decline it in Google Calendar.");
     }

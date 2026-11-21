@@ -283,3 +283,29 @@ export async function deleteEvent(accessToken: string, id: string, emailGuests: 
   if (response.ok || response.status === 404 || response.status === 410) return;
   throw new GoogleApiError(response.status);
 }
+
+// Moves a timed event; Google tells the guests only when asked to.
+export async function moveEvent(
+  accessToken: string,
+  id: string,
+  times: { startsAt: Date; endsAt: Date; timezone: string },
+  emailGuests: boolean,
+): Promise<ListedEvent> {
+  const url = new URL(`${EVENTS_URL}/${encodeURIComponent(id)}`);
+  url.searchParams.set("sendUpdates", emailGuests ? "all" : "none");
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      start: { dateTime: times.startsAt.toISOString(), timeZone: times.timezone },
+      end: { dateTime: times.endsAt.toISOString(), timeZone: times.timezone },
+    }),
+    signal: AbortSignal.timeout(10_000),
+    redirect: "error",
+  });
+  if (!response.ok) throw new GoogleApiError(response.status);
+  return parseEvent(await response.json()) ?? { externalId: id, meeting: null };
+}

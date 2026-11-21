@@ -201,6 +201,7 @@ export async function createTask(
   ownerId: string,
   input: TaskInput,
   atCompany = false,
+  origin: (typeof TASK_ORIGINS)[number] = "manual",
 ): Promise<TaskResult> {
   return db.transaction(async (tx) => {
     const problem = await unknownLink(tx, ownerId, input);
@@ -209,7 +210,7 @@ export async function createTask(
     if (away) return { ok: false, reason: "not_at_company", outsiders: away };
 
     const timezone = await ownerTimezone(tx, ownerId);
-    return { ok: true, id: await insertTask(tx, ownerId, timezone, input) };
+    return { ok: true, id: await insertTask(tx, ownerId, timezone, input, origin) };
   });
 }
 

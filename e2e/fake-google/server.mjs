@@ -160,6 +160,12 @@ function handleCalendar(request, url, body, response) {
   }
   const held = state.events.get(decodeURIComponent(url.pathname.slice(EVENTS_PATH.length + 1)));
   if (!held) return send(response, 404, { error: { code: 404, message: "Not Found" } });
+  if (request.method === "PATCH") {
+    const change = JSON.parse(body);
+    const event = { ...held.event, start: change.start ?? held.event.start, end: change.end ?? held.event.end };
+    store(event);
+    return send(response, 200, event);
+  }
   if (request.method !== "DELETE") return send(response, 200, held.event);
   // As Google does, a deleted event stays as cancelled, so a sync token reports it.
   if (held.event.status === "cancelled") {

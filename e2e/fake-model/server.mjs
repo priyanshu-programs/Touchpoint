@@ -24,6 +24,10 @@ const offers = (body, name) =>
 // Asked about tasks with the task tool on offer, it calls the tool first, as a model
 // would, then answers with the titles the tool gave back.
 function callTasks(body, response) {
+  return callTool(body, response, "tasksDue", { scope: "today" });
+}
+
+function callTool(body, response, name, input) {
   response.writeHead(200, { "content-type": "text/event-stream" });
   chunk(response, {
     model: body.model,
@@ -38,7 +42,7 @@ function callTasks(body, response) {
                 index: 0,
                 id: "call_fake_1",
                 type: "function",
-                function: { name: "tasksDue", arguments: JSON.stringify({ scope: "today" }) },
+                function: { name, arguments: JSON.stringify(input) },
               },
             ],
           },
@@ -60,6 +64,8 @@ function toolTitles(messages) {
   const result = messages.filter((message) => message.role === "tool").at(-1);
   try {
     const data = JSON.parse(result.content);
+    if (data.what) return data.done ? `done, ${data.what}` : `waiting, ${data.what}`;
+    if (data.problem) return `refused, ${data.problem}`;
     return (data.tasks ?? []).map((task) => task.title).join(", ") || "nothing";
   } catch {
     return "nothing";
@@ -77,11 +83,18 @@ function complete(body, response) {
   }
   used += 1;
   const answered = messages.at(-1)?.role === "tool";
+  // "Add a task: <title>" asks for that task, as a model would.
+  const asked = /^add a task: (.+)$/i.exec(said);
+  if (!answered && asked && offers(body, "addTask")) {
+    return callTool(body, response, "addTask", { title: asked[1] });
+  }
   if (!answered && /task|overdue/i.test(said) && offers(body, "tasksDue")) {
     return callTasks(body, response);
   }
   response.writeHead(200, { "content-type": "text/event-stream" });
-  for (const text of answered ? ["Your tasks: ", toolTitles(messages)] : ["Noted: ", said]) {
+  const told = toolTitles(messages);
+  const opening = told.startsWith("done") || told.startsWith("waiting") ? "The task: " : "Your tasks: ";
+  for (const text of answered ? [opening, told] : ["Noted: ", said]) {
     chunk(response, {
       model: body.model,
       extra: { choices: [{ index: 0, delta: { role: "assistant", content: text } }] },

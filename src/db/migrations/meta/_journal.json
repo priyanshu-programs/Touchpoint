@@ -337,6 +337,13 @@
       "when": 1794813877839,
       "tag": "0047_assistant_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795214857007,
+      "tag": "0048_assistant_actions",
+      "breakpoints": true
     }
   ]
 }

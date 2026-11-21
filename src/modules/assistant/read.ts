@@ -177,6 +177,7 @@ export async function meetingsIn(context: ReadContext, span: MeetingSpan) {
     data: {
       note: UNTRUSTED_NOTE,
       meetings: rows.map((meeting) => ({
+        id: meeting.id,
         title: meeting.title,
         when: meeting.allDay
           ? `${formatDate(meeting.startsOn!)}, all day`
