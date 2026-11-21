@@ -15,8 +15,6 @@ import { searchOrganizationsAction } from "../people/organizations/actions";
 import type { PriorityColors } from "@/modules/settings/priority-colors";
 import { PriorityColorSwatches } from "./priority-colors";
 
-const Skull = () => <span aria-hidden>💀 </span>;
-
 export function TaskForm({
   action,
   initial,
@@ -74,23 +72,13 @@ export function TaskForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
           name="dueDate"
-          label={
-            <>
-              <Skull />
-              Deadline date
-            </>
-          }
+          label="Deadline date"
           type="date"
           defaultValue={values.dueDate}
         />
         <TextField
           name="dueTime"
-          label={
-            <>
-              <Skull />
-              Deadline time
-            </>
-          }
+          label="Deadline time"
           type="time"
           hint="Leave empty for an all-day task."
           defaultValue={values.dueTime}

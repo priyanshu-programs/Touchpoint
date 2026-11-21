@@ -1484,4 +1484,9 @@
 - [2026-11-16] e2e/44 and 45 read replies inside the chat log, since chatcn's live region repeats a finished reply for screen readers
 - [2026-11-16] security.md: replies' Markdown drawn as React elements, and the vendored chat and animation code
 - [2026-11-17] e2e/01 and 30 find Today's page heading by level, after a run just past midnight in the owner's zone also matched "Due today (1)" and failed main's CI
+- [2026-11-07] The Re-enrich button is permanently green with a magic-wand icon, a calm glow, a slow shimmer and twinkling sparkles (no motion under reduced-motion), so re-reading a company's website feels magical without changing what it does
+- [2026-11-07] Applied migrations 0040–0044 to the local dev database; they were never run there, so signed-in pages on localhost:3000 crashed on missing columns (e.g. settings.task_color_*)
+- [2026-11-07] Removed the skull emoji from task deadlines (form labels and task list); it was not wanted
+- [2026-11-21] The magic wand look now covers both Enrich and Re-enrich, since main added Enrich for a company not read yet
+- [2026-11-21] globals.css: close the chatcn :root block before the magic-button styles; the missing } failed the Vercel build
 - [2026-11-21] Next.js and eslint-config-next 16.4.1 → 16.4.6: pnpm audit --prod in CI failed on 7 new Next advisories (GHSA-pc58-hwjq-p385 and others), fixed from 16.4.5
