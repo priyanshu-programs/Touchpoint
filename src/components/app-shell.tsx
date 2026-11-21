@@ -9,14 +9,13 @@ import {
   Receipt,
   Search,
   Settings,
-  Sparkles,
   Sun,
   Workflow,
-  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  type ComponentType,
   useCallback,
   useEffect,
   useRef,
@@ -31,11 +30,14 @@ import { CommandPalette } from "@/components/command-palette";
 import { FullscreenButton } from "@/components/fullscreen-button";
 import { Greeting } from "@/components/greeting";
 import { ProfilePanel, type ProfileValues } from "@/components/profile-panel";
+import { AssistantIcon } from "@/components/ui/ai-avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 // Only screens that exist are listed; each module adds its entry when it ships.
-const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] =
+export type NavIcon = ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+
+const NAV: { href: string; label: string; icon: NavIcon; prefix?: string }[] =
   [
     { href: "/", label: "Today", icon: Sun },
     {
@@ -72,7 +74,7 @@ const NAV: { href: string; label: string; icon: LucideIcon; prefix?: string }[] 
     {
       href: "/assistant",
       label: "Assistant",
-      icon: Sparkles,
+      icon: AssistantIcon,
       prefix: "/assistant",
     },
     {
@@ -280,7 +282,7 @@ export function AppShell({
           title="Assistant"
           onClick={() => setAssistantOpen(true)}
         >
-          <Sparkles aria-hidden />
+          <AssistantIcon className="size-5" />
         </Button>
         <ButtonLink
           href="/quick-add"

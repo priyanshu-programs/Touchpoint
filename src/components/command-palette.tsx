@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import type { NavIcon } from "@/components/app-shell";
 import { useEffect, useState } from "react";
 import {
   searchEverythingAction,
@@ -59,7 +60,7 @@ export function CommandPalette({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  screens: { href: string; label: string; icon: LucideIcon }[];
+  screens: { href: string; label: string; icon: NavIcon }[];
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
