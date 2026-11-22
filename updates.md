@@ -1523,3 +1523,8 @@
 - [2026-11-22] plan.md, docs/PRD.md and security.md: Step 4 (Memory) as built
 - [2026-11-22] e2e/46: check the key is removed by its box and after a reload; the dialog's title matched the label, so the test left before the removal was kept
 - [2026-11-22] Assistant: memories and the read context are fetched at once before a reply, so remembering adds no wait of its own
+- [2026-11-22] Package: d3-force 3.0.0 (pinned; 3.0.1 is under three weeks old) and @types/d3-force 3.0.10, to lay out the memory graph
+- [2026-11-22] Settings → Memory: a Graph view, first, beside List: you, people and companies, and memories as glowing dots, joined by who they're about, by company, and by shared words; pan, zoom, fit, hover and pick to edit
+- [2026-11-22] Memory: word helpers moved to src/modules/memory/words.ts so the server's recall and the browser's graph share them
+- [2026-11-22] e2e/47: the Memory page opens on the graph; the list checks use ?view=list
+- [2026-11-22] plan.md and security.md: the memory graph and its package

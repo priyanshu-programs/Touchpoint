@@ -93,7 +93,7 @@ export function AddMemoryForm({ full, limits }: { full: boolean; limits: MemoryL
   );
 }
 
-type Row = {
+export type MemoryRowData = {
   id: string;
   content: string;
   terms: string | null;
@@ -102,7 +102,7 @@ type Row = {
   fromAssistant: boolean;
 };
 
-export function MemoryRow({ memory, limits }: { memory: Row; limits: MemoryLimits }) {
+export function MemoryRow({ memory, limits }: { memory: MemoryRowData; limits: MemoryLimits }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [state, action, pending] = useActionState(

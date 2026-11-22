@@ -11,16 +11,30 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MEMORY_MAX_LENGTH, MEMORY_TERMS_MAX_LENGTH, type AiMemoryScope } from "@/db/schema";
+import { callName } from "@/lib/greeting";
 import { companyHref, contactHref } from "@/lib/record-href";
 import { requireOwner } from "@/lib/session";
-import { countMemories, listMemories, MEMORY_LIMIT, type ListedMemory } from "@/modules/memory/service";
+import { cn } from "@/lib/utils";
+import { memoryGraph, memoryNode } from "@/modules/memory/graph";
+import {
+  companiesOfRemembered,
+  countMemories,
+  listMemories,
+  MEMORY_LIMIT,
+  type ListedMemory,
+} from "@/modules/memory/service";
+import { getSettings } from "@/modules/settings/service";
+import { GraphPanel } from "./graph-panel";
 import { AddMemoryForm, MemoryRow } from "./memory-forms";
 
 export const metadata: Metadata = { title: "Memory" };
 
 const LIMITS = { content: MEMORY_MAX_LENGTH, terms: MEMORY_TERMS_MAX_LENGTH };
 
-const params = z.object({ q: z.string().trim().max(100).catch("").default("") });
+const params = z.object({
+  q: z.string().trim().max(100).catch("").default(""),
+  view: z.enum(["graph", "list"]).catch("graph").default("graph"),
+});
 
 const SECTIONS: { scope: AiMemoryScope; title: string; empty: string }[] = [
   { scope: "you", title: "About you", empty: "Nothing about you yet." },
@@ -35,10 +49,39 @@ const hrefOf = (memory: ListedMemory) =>
       : companyHref(memory.recordId)
     : null;
 
+const rowOf = (memory: ListedMemory) => ({
+  id: memory.id,
+  content: memory.content,
+  terms: memory.terms,
+  recordName: memory.recordName,
+  recordHref: hrefOf(memory),
+  fromAssistant: memory.source === "ai",
+});
+
+const VIEWS = [
+  { view: "graph", label: "Graph" },
+  { view: "list", label: "List" },
+] as const;
+
 export default async function MemorySettingsPage({ searchParams }: PageProps<"/settings/memory">) {
   const owner = await requireOwner();
-  const { q } = params.parse(await searchParams);
-  const [memories, total] = await Promise.all([listMemories(owner.id, q), countMemories(owner.id)]);
+  const { q, view } = params.parse(await searchParams);
+  const graphing = view === "graph";
+  const [memories, total, all, atCompany, settings] = await Promise.all([
+    listMemories(owner.id, q),
+    countMemories(owner.id),
+    graphing && q ? listMemories(owner.id) : null,
+    graphing ? companiesOfRemembered(owner.id) : [],
+    graphing ? getSettings(owner.id) : null,
+  ]);
+  const everything = all ?? memories;
+  const graph = graphing
+    ? memoryGraph(callName(owner.name, settings?.preferredName ?? null), everything, atCompany)
+    : null;
+  const hrefFor = (view: string) => {
+    const query = new URLSearchParams({ view, ...(q && { q }) });
+    return `/settings/memory?${query}`;
+  };
 
   return (
     <div className="grid gap-6">
@@ -57,7 +100,26 @@ export default async function MemorySettingsPage({ searchParams }: PageProps<"/s
       </Card>
 
       {total > 0 && (
+        <nav aria-label="Memory view" className="flex gap-2 text-sm">
+          {VIEWS.map((option) => (
+            <Link
+              key={option.view}
+              href={hrefFor(option.view)}
+              aria-current={option.view === view ? "page" : undefined}
+              className={cn(
+                "rounded-md border px-2 py-1 text-muted-foreground",
+                option.view === view && "bg-muted font-medium text-foreground",
+              )}
+            >
+              {option.label}
+            </Link>
+          ))}
+        </nav>
+      )}
+
+      {total > 0 && (
         <form role="search" className="flex max-w-md gap-2">
+          <input type="hidden" name="view" value={view} />
           <Input
             type="search"
             name="q"
@@ -70,7 +132,7 @@ export default async function MemorySettingsPage({ searchParams }: PageProps<"/s
             Search
           </Button>
           {q && (
-            <Link href="/settings/memory" className="self-center text-sm underline">
+            <Link href={`/settings/memory?view=${view}`} className="self-center text-sm underline">
               Clear
             </Link>
           )}
@@ -81,7 +143,31 @@ export default async function MemorySettingsPage({ searchParams }: PageProps<"/s
         <p className="text-sm text-muted-foreground">No memories match “{q}”.</p>
       )}
 
-      {SECTIONS.map(({ scope, title, empty }) => {
+      {graph && total > 0 && (
+        <GraphPanel
+          nodes={graph.nodes}
+          links={graph.links}
+          matches={
+            q
+              ? memories.flatMap((memory) => [
+                  memoryNode(memory.id),
+                  ...(memory.recordId ? [`${memory.scope}:${memory.recordId}`] : []),
+                ])
+              : null
+          }
+          memories={Object.fromEntries(everything.map((memory) => [memoryNode(memory.id), rowOf(memory)]))}
+          hrefs={Object.fromEntries(
+            graph.nodes.flatMap((node) =>
+              node.recordId
+                ? [[node.id, node.kind === "person" ? contactHref(node.recordId) : companyHref(node.recordId)]]
+                : [],
+            ),
+          )}
+          limits={LIMITS}
+        />
+      )}
+
+      {(!graphing || total === 0) && SECTIONS.map(({ scope, title, empty }) => {
         const rows = memories.filter((memory) => memory.scope === scope);
         if (q && rows.length === 0) return null;
         return (
@@ -95,17 +181,7 @@ export default async function MemorySettingsPage({ searchParams }: PageProps<"/s
               <ul className="grid gap-2">
                 {rows.map((memory) => (
                   <li key={memory.id}>
-                    <MemoryRow
-                      limits={LIMITS}
-                      memory={{
-                        id: memory.id,
-                        content: memory.content,
-                        terms: memory.terms,
-                        recordName: memory.recordName,
-                        recordHref: hrefOf(memory),
-                        fromAssistant: memory.source === "ai",
-                      }}
-                    />
+                    <MemoryRow limits={LIMITS} memory={rowOf(memory)} />
                   </li>
                 ))}
               </ul>

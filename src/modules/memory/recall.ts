@@ -1,13 +1,13 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { aiMemories, contacts, organizations, type AiMemoryScope } from "@/db/schema";
+import { plain, wordsOf } from "./words";
 
 // Found before every reply with no model call: the owner's own memories, those on the
 // people and companies the message names, then those sharing its words.
 const ABOUT_YOU = 30;
 const ON_RECORDS = 20;
 const BY_WORDS = 10;
-const MAX_WORDS = 12;
 
 export type Recalled = {
   id: string;
@@ -16,27 +16,8 @@ export type Recalled = {
   content: string;
 };
 
-// Lower case, with anything not a letter or a digit as one space, padded so a name can
-// be found as whole words.
-const plain = (text: string) =>
-  ` ${text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
 const plainSql = (column: unknown) =>
   sql`' ' || btrim(lower(regexp_replace(${column}, '[^[:alnum:]]+', ' ', 'g'))) || ' '`;
-
-const STOP = new Set(
-  "the and for with that this what when where who whom how did does was were are you your have has had about from they them their there then than not but can will would could should into onto our out all any just also more most some such only own same very too its it's i'm i've let tell said say".split(
-    " ",
-  ),
-);
-
-export function wordsOf(text: string) {
-  const words = plain(text)
-    .trim()
-    .split(" ")
-    // "or" and "and" would read as operators in a search.
-    .filter((word) => word.length >= 3 && !STOP.has(word) && word !== "or");
-  return [...new Set(words)].slice(0, MAX_WORDS);
-}
 
 const name = sql<string | null>`coalesce(${contacts.fullName}, ${organizations.name})`;
 const columns = {
