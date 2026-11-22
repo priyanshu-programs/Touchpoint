@@ -28,17 +28,17 @@ function Rows({ memories }: { memories: ListedMemory[] }) {
 
 function AddMemory({
   total,
-  record,
+  records,
 }: {
   total: number;
-  record: { about: "person" | "company"; id: string };
+  records: { about: "person" | "company"; id: string; name: string }[];
 }) {
   return (
     <section aria-labelledby="add-memory-heading" className="grid gap-2">
       <h3 id="add-memory-heading" className={SECTION_HEADING}>
         Add a memory
       </h3>
-      <AddMemoryForm full={total >= MEMORY_LIMIT} limits={LIMITS} record={record} />
+      <AddMemoryForm full={total >= MEMORY_LIMIT} limits={LIMITS} records={records} />
     </section>
   );
 }
@@ -55,7 +55,8 @@ function Names({ people }: { people: { id: string; name: string; href: string }[
 }
 
 // A company's Memory tab: the company in the middle of a graph with everyone at it, people
-// with nothing remembered as hollow dots, and the same as a list.
+// with nothing remembered as hollow dots, and the same as a list. A memory added here is
+// about the company or any one of its people.
 export async function CompanyMemory({
   ownerId,
   organization,
@@ -145,7 +146,13 @@ export async function CompanyMemory({
         }
         list={list}
       />
-      <AddMemory total={total} record={{ about: "company", id: organization.id }} />
+      <AddMemory
+        total={total}
+        records={[
+          { about: "company", id: organization.id, name: organization.name },
+          ...people.map((person) => ({ about: "person" as const, ...person })),
+        ]}
+      />
     </div>
   );
 }
@@ -189,7 +196,10 @@ export async function PersonMemory({
           See them with everyone at <Names people={companies} />.
         </p>
       )}
-      <AddMemory total={total} record={{ about: "person", id: contact.id }} />
+      <AddMemory
+        total={total}
+        records={[{ about: "person", id: contact.id, name: contact.fullName }]}
+      />
     </div>
   );
 }

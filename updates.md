@@ -1535,3 +1535,4 @@
 - [2026-11-23] Settings → Memory: ?focus= opens the graph centred on a person or company, which their Memory tab's "See in the whole graph" uses
 - [2026-11-23] Memory actions refresh the people and company panels too, and a memory can be added for a record by its id from its own tab
 - [2026-11-23] Tests: the company graph, the per-record queries, and e2e/49 for the Memory tabs, full screen and See in the whole graph
+- [2026-11-23] Company Memory tab: Add a memory has an About choice, the company or any one of its people

@@ -9,6 +9,7 @@ const companyTabs = (page: Page) => page.getByRole("navigation", { name: "Compan
 const contactTabs = (page: Page) => page.getByRole("navigation", { name: "Contact", exact: true });
 const COMPANY_FACT = "Invoices go to the finance team";
 const PERSON_FACT = "Approves invoices on Mondays";
+const FROM_COMPANY = "Signs off designs on Thursdays";
 
 async function openMemory(page: Page) {
   await page.goto("/people/organizations");
@@ -34,8 +35,16 @@ test("a company's Memory tab draws it with everyone at it, adds a memory, and li
   await panel(page).getByRole("button", { name: "Add memory" }).click();
   await expect(panel(page).getByRole("alert")).toHaveText("That is remembered already.");
 
+  // About one of the company's people, added from the company.
+  await panel(page).getByLabel("About", { exact: true }).selectOption("Arjun Rao");
+  await panel(page).getByLabel("Remember", { exact: true }).fill(FROM_COMPANY);
+  await panel(page).getByRole("button", { name: "Add memory" }).click();
+  await expect(panel(page).getByRole("img", { name: /^Memory graph: 2 memories,/ })).toBeVisible();
+  await expect(panel(page).getByLabel("About", { exact: true })).toHaveValue("0");
+
   await panel(page).getByRole("group", { name: "Memory view" }).getByRole("button", { name: "List" }).click();
   await expect(panel(page).getByRole("region", { name: "Acme Design" }).getByText(COMPANY_FACT)).toBeVisible();
+  await expect(panel(page).getByRole("region", { name: "Arjun Rao" }).getByText(FROM_COMPANY)).toBeVisible();
   await expect(
     panel(page).getByRole("region", { name: "Nothing remembered yet" }).getByRole("link", { name: "Priya Sharma" }),
   ).toBeVisible();
@@ -60,7 +69,7 @@ test("a person's Memory tab adds a memory about them, which then hangs off them 
 
   await panel(page).getByRole("link", { name: "Acme Design" }).last().click();
   await expect(page).toHaveURL(/company=[0-9a-f-]+&tab=memory$/);
-  await expect(panel(page).getByRole("img", { name: /^Memory graph: 2 memories,/ })).toBeVisible();
+  await expect(panel(page).getByRole("img", { name: /^Memory graph: 3 memories,/ })).toBeVisible();
   await panel(page).getByRole("group", { name: "Memory view" }).getByRole("button", { name: "List" }).click();
   await expect(panel(page).getByRole("region", { name: "Priya Sharma" }).getByText(PERSON_FACT)).toBeVisible();
 });
@@ -91,7 +100,7 @@ test("See in the whole graph opens Settings → Memory on the company, full scre
 
 test("the memories are deleted from the company's list", async ({ page }) => {
   await openMemory(page);
-  for (const fact of [COMPANY_FACT, PERSON_FACT]) {
+  for (const fact of [COMPANY_FACT, PERSON_FACT, FROM_COMPANY]) {
     await panel(page).getByRole("group", { name: "Memory view" }).getByRole("button", { name: "List" }).click();
     await panel(page).getByRole("button", { name: `Delete memory: ${fact}` }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete memory" }).click();

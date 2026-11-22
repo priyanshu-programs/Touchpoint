@@ -32,20 +32,24 @@ export type MemoryLimits = { content: number; terms: number };
 export function AddMemoryForm({
   full,
   limits,
-  record,
+  records,
 }: {
   full: boolean;
   limits: MemoryLimits;
-  // Set in a person's or company's Memory tab: the memory is about that record.
-  record?: { about: "person" | "company"; id: string };
+  // Set in a person's or company's Memory tab: the memory is about one of these, the first
+  // unless another is picked (a company's tab offers the company and everyone at it).
+  records?: { about: "person" | "company"; id: string; name: string }[];
 }) {
   const [about, setAbout] = useState("you");
+  const [chosen, setChosen] = useState(0);
+  const record = records?.[chosen];
   const [formKey, setFormKey] = useState(0);
   const [state, action, pending] = useActionState(
     async (previous: Parameters<typeof addMemoryAction>[0], data: FormData) => {
       const result = await (record ? addRecordMemoryAction : addMemoryAction)(previous, data);
       if (result?.ok) {
         setAbout("you");
+        setChosen(0);
         setFormKey((key) => key + 1);
       }
       return result;
@@ -67,6 +71,22 @@ export function AddMemoryForm({
         <>
           <input type="hidden" name="about" value={record.about} />
           <input type="hidden" name="recordId" value={record.id} />
+          {records!.length > 1 && (
+            <div className="grid gap-2">
+              <Label htmlFor="memory-record">About</Label>
+              <NativeSelect
+                id="memory-record"
+                value={chosen}
+                onChange={(event) => setChosen(Number(event.target.value))}
+              >
+                {records!.map((option, index) => (
+                  <NativeSelectOption key={option.id} value={index}>
+                    {option.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+          )}
         </>
       ) : (
       <div className="flex flex-wrap gap-4">
