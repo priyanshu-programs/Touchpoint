@@ -12,7 +12,7 @@ import {
   MAX_MESSAGES,
 } from "./conversations";
 import { chatInput } from "./schema";
-import { saveAssistantKey } from "./service";
+import { saveAssistantKey, saveAssistantPrivateModel } from "./service";
 
 const openrouter = vi.hoisted(() => ({ streamReply: vi.fn(), keyStatus: vi.fn() }));
 vi.mock("@/ai/openrouter", async (actual) => ({
@@ -58,6 +58,46 @@ describe("chat", () => {
     await saveAssistantKey(owner.id, KEY);
     openrouter.streamReply.mockReset();
     openrouter.keyStatus.mockReset().mockResolvedValue({ ok: true, daily: DAILY });
+  });
+
+  it("sends a chat that read meetings only the private way, with the owner's private model", async () => {
+    openrouter.streamReply.mockReturnValue(streamed([{ type: "text-delta", text: "Ok" }, finish]));
+    const fresh = await beginChat(owner, { message: "Hi" });
+    if (!fresh.ok) throw new Error(fresh.reason);
+    expect(fresh.turn).toMatchObject({ privateOnly: false, privateModel: null });
+    await collect(reply(fresh.turn, new AbortController().signal));
+    const call = openrouter.streamReply.mock.calls[0][0];
+    expect(call).toMatchObject({ privateOnly: false, privateModel: null });
+    expect(call.privateNow()).toBe(false);
+
+    await saveAssistantPrivateModel(owner.id, "mistralai/mistral-small-3.2-24b-instruct");
+    await db
+      .update(aiConversations)
+      .set({ readUntrustedAt: new Date() })
+      .where(eq(aiConversations.id, fresh.turn.conversationId));
+    const later = await beginChat(owner, { conversationId: fresh.turn.conversationId, message: "And tomorrow?" });
+    if (!later.ok) throw new Error(later.reason);
+    expect(later.turn).toMatchObject({
+      privateOnly: true,
+      privateModel: "mistralai/mistral-small-3.2-24b-instruct",
+    });
+  });
+
+  it("says why when no model keeps Google data private", async () => {
+    const begun = await beginChat(owner, { message: "Hi" });
+    if (!begun.ok) throw new Error(begun.reason);
+    const notFound = new APICallError({
+      message: "No endpoints found matching your data policy",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      requestBodyValues: {},
+      statusCode: 404,
+    });
+    openrouter.streamReply.mockReturnValue(streamed([{ type: "error", error: notFound }]));
+    const events = await collect(reply({ ...begun.turn, privateOnly: true }, new AbortController().signal));
+    expect(events.at(-1)).toMatchObject({
+      type: "error",
+      message: expect.stringContaining("Google doesn't allow it to go to a model that keeps or trains on it"),
+    });
   });
 
   it("refuses without a key and writes nothing", async () => {

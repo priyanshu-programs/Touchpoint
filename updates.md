@@ -1528,3 +1528,9 @@
 - [2026-11-22] Memory: word helpers moved to src/modules/memory/words.ts so the server's recall and the browser's graph share them
 - [2026-11-22] e2e/47: the Memory page opens on the graph; the list checks use ?view=list
 - [2026-11-22] plan.md and security.md: the memory graph and its package
+- [2026-11-22] Migration 0050: ai_settings.private_model, the model for requests that hold Google data
+- [2026-11-22] Assistant: once a reply reads meetings, its later steps and the rest of the chat go only to providers that keep nothing (OpenRouter data_collection deny), with the panel saying why if none qualifies; Google forbids training on its users' data
+- [2026-11-22] Settings → Assistant: Model for your calendar, any OpenRouter id, paid ones too
+- [2026-11-22] Privacy page: calendar data reaches the assistant only through providers that keep nothing, and a meeting can be moved
+- [2026-11-22] e2e/48 and the fake model: the calendar model setting, and a no-training request to a free model refused
+- [2026-11-22] plan.md and security.md: the no-training rule for Google data, and Gmail to be read live without a copy

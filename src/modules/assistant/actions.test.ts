@@ -162,7 +162,10 @@ describe("assistant actions", () => {
     });
     const use: ToolUse = { links: [], looked: [], cards: [] };
     const tools = toolsFor(await readContext(ownerId), ["meetings", "actions"], use, context);
+    expect(context.googleRead).toBeFalsy();
     await tools.meetings.execute!({ span: "today" }, call);
+    // Google data is in the chat now: the next steps may only go to providers that keep nothing.
+    expect(context.googleRead).toBe(true);
     const answer = await tools.addTask.execute!({ title: "Pay invoice 99" }, call);
 
     expect(answer).toMatchObject({ done: false });

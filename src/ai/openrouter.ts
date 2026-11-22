@@ -55,14 +55,36 @@ export async function keyStatus(apiKey: string): Promise<KeyStatus> {
   return { ok: true, daily: parsed.data.data.free_model_daily_requests ?? null };
 }
 
-export type ReplyProblem = "rejected" | "limit" | "unavailable";
+export type ReplyProblem = "rejected" | "limit" | "unavailable" | "no_private_model";
 
-// What went wrong, by OpenRouter's status alone. Its own words are never shown.
-export function replyProblem(error: unknown): ReplyProblem {
+// What went wrong, by OpenRouter's status alone. Its own words are never shown. A request
+// kept from providers that store data finds none for its model with a 404.
+export function replyProblem(error: unknown, privateOnly = false): ReplyProblem {
   const status = APICallError.isInstance(error) ? error.statusCode : undefined;
   if (status === 401 || status === 403) return "rejected";
   if (status === 429) return "limit";
+  if (status === 404 && privateOnly) return "no_private_model";
   return "unavailable";
+}
+
+// Google forbids letting a provider train on its users' data, so a request holding any
+// goes only to providers that keep nothing, through the owner's private model if set.
+export function routeFor({
+  mainModel,
+  backupModel,
+  privateModel,
+  privateOnly,
+}: {
+  mainModel: string;
+  backupModel: string;
+  privateModel: string | null;
+  privateOnly: boolean;
+}) {
+  if (!privateOnly) {
+    return { model: mainModel, settings: backupModel === mainModel ? {} : { models: [backupModel] } };
+  }
+  const model = privateModel ?? mainModel;
+  return { model, settings: { provider: { data_collection: "deny" as const } } };
 }
 
 // Each step is one request against the free daily limit.
@@ -75,6 +97,9 @@ export function streamReply({
   apiKey,
   mainModel,
   backupModel,
+  privateModel = null,
+  privateOnly = false,
+  privateNow,
   instructions,
   messages,
   tools,
@@ -83,23 +108,37 @@ export function streamReply({
   apiKey: string;
   mainModel: string;
   backupModel: string;
+  privateModel?: string | null;
+  // The chat already holds Google data (meetings, later email).
+  privateOnly?: boolean;
+  // A tool in this reply has just returned Google data: later steps go the private way.
+  privateNow?: () => boolean;
   instructions: string;
   messages: ModelMessage[];
   tools?: ToolSet;
   signal: AbortSignal;
 }) {
   const openrouter = createOpenRouter({ apiKey, compatibility: "strict" });
+  const chatModel = (onlyPrivate: boolean) => {
+    const route = routeFor({ mainModel, backupModel, privateModel, privateOnly: onlyPrivate });
+    return openrouter.chat(route.model, route.settings);
+  };
   return streamText({
-    model: openrouter.chat(mainModel, {
-      models: backupModel === mainModel ? undefined : [backupModel],
-    }),
+    model: chatModel(privateOnly),
     instructions,
     messages,
     ...(tools && {
       tools,
       stopWhen: stepCountIs(MAX_STEPS),
-      prepareStep: ({ stepNumber }) =>
-        stepNumber >= MAX_STEPS - 1 ? { activeTools: [] } : undefined,
+      prepareStep: ({ stepNumber }) => {
+        const last = stepNumber >= MAX_STEPS - 1;
+        const turnPrivate = !privateOnly && Boolean(privateNow?.());
+        if (!last && !turnPrivate) return undefined;
+        return {
+          ...(last && { activeTools: [] }),
+          ...(turnPrivate && { model: chatModel(true) }),
+        };
+      },
     }),
     maxRetries: 0,
     timeout: REPLY_TIMEOUT_MS,

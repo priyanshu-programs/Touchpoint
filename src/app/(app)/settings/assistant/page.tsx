@@ -9,7 +9,7 @@ import {
 import { canEncrypt } from "@/lib/crypto";
 import { requireOwner } from "@/lib/session";
 import { assistantSettings } from "@/modules/assistant/service";
-import { KeyCard, ModelsForm } from "./key-form";
+import { KeyCard, ModelsForm, PrivateModelForm } from "./key-form";
 
 export const metadata: Metadata = { title: "Assistant" };
 
@@ -39,7 +39,7 @@ export default async function AssistantSettingsPage() {
     );
   }
 
-  const { key, keyEnding, models } = await assistantSettings(owner.id);
+  const { key, keyEnding, models, privateModel } = await assistantSettings(owner.id);
 
   return (
     <div className="grid gap-6">
@@ -127,6 +127,30 @@ export default async function AssistantSettingsPage() {
         </CardHeader>
         <CardContent>
           <ModelsForm key={JSON.stringify(models)} models={models} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Your calendar and a model that keeps nothing</CardTitle>
+          <CardDescription>
+            Google doesn&apos;t allow your calendar to go to a company that may keep it or train
+            its models on it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 text-sm">
+          <p>
+            So once the assistant reads your meetings, the rest of that answer, and of that chat,
+            goes only to providers that keep nothing. OpenRouter checks this on every request.
+            Free models rarely qualify, so name one here that does. A paid model costs a fraction
+            of a cent a question, from credit on your OpenRouter account. If none of yours
+            qualifies, the assistant says so and answers nothing about your meetings.
+          </p>
+          <p className="text-muted-foreground">
+            On a model&apos;s OpenRouter page, its providers&apos; data policies show whether they
+            keep or train on prompts. Questions without your calendar keep using the free models.
+          </p>
+          <PrivateModelForm privateModel={privateModel} />
         </CardContent>
       </Card>
     </div>

@@ -20,6 +20,7 @@ import {
   removeAssistantKeyAction,
   saveAssistantKeyAction,
   saveAssistantModelsAction,
+  saveAssistantPrivateModelAction,
   testAssistantKeyAction,
 } from "./actions";
 
@@ -165,6 +166,35 @@ export function ModelsForm({ models }: { models: AssistantModels }) {
       <FormMessage state={state} />
       <Button type="submit" disabled={pending} className="justify-self-start">
         {pending ? "Saving…" : "Save models"}
+      </Button>
+    </form>
+  );
+}
+
+export function PrivateModelForm({ privateModel }: { privateModel: string | null }) {
+  const [state, action, pending] = useActionState(saveAssistantPrivateModelAction, null);
+
+  return (
+    <form action={action} className="grid max-w-md gap-4">
+      <div className="grid gap-2">
+        <Label htmlFor="privateModel">Model for your calendar</Label>
+        <Input
+          id="privateModel"
+          name="privateModel"
+          defaultValue={privateModel ?? ""}
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={100}
+          className="font-mono"
+          placeholder="Your main model"
+        />
+        <p className="text-sm text-muted-foreground">
+          Any model OpenRouter lists, paid ones too. Leave it empty to try your main model.
+        </p>
+      </div>
+      <FormMessage state={state} />
+      <Button type="submit" disabled={pending} className="justify-self-start">
+        {pending ? "Saving…" : "Save"}
       </Button>
     </form>
   );

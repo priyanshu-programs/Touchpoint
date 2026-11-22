@@ -81,6 +81,10 @@ function complete(body, response) {
   if (said.includes("busy")) {
     return send(response, 429, { error: { code: 429, message: "Upstream fake detail" } });
   }
+  // As OpenRouter does when no provider of the model promises to keep nothing.
+  if (body.provider?.data_collection === "deny" && String(body.model).endsWith(":free")) {
+    return send(response, 404, { error: { code: 404, message: "No endpoints found matching your data policy" } });
+  }
   used += 1;
   const answered = messages.at(-1)?.role === "tool";
   // "Add a task: <title>" asks for that task, as a model would.
