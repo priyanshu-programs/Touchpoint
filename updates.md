@@ -1510,3 +1510,5 @@
 - [2026-11-21] Sidebar, phone bar and command palette: the assistant is an outline orb drawn like the icons around it, with the same blink; the top bar keeps the coloured orb
 - [2026-11-21] Assistant panel: the orbs' eyes follow the pointer (not under reduced motion)
 - [2026-11-21] Assistant: while a reply is on its way, a small orb glances around and breathes beside "Thinking…", in place of the crystal ball, which looked wrong in dark mode; the crystal ball and the ogl package are removed
+- [2026-11-22] docs/GOOGLE-CHECKLIST.md: steps 1 to 3 passed by the owner, step 4 passed on the live database (connected 22 days, refreshed today), steps 5 and 6 skipped at the owner's choice
+- [2026-11-22] plan.md: Phase 5 accepted; current phase is Phase 6 with Step 4 (Memory) next, and pnpm models:try skipped at the owner's choice

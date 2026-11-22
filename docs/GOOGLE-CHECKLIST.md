@@ -12,9 +12,9 @@ Automated tests run against a fake Google server. This checklist is the one run 
 
 | # | Step | You should see | Date | Result |
 |---|---|---|---|---|
-| 1 | In Google Calendar, add a meeting for later today called "Checklist call". Wait up to 15 minutes, then open Today on a computer and on a phone. | "Checklist call" in the Meetings card, on both. Opening it shows the time and "Open in Google Calendar". | | |
-| 2 | In Google Calendar, add a meeting starting in about 5 minutes, called "Checklist with Maple", and invite the email address of one of your people. Once it has started and synced, open that person, then Activity. | "Checklist with Maple" in their activity, with a Meeting badge. | | |
-| 3 | On that person's Activity tab, press Schedule meeting. Title "Checklist invite", guest your own second address, both boxes ticked. Press Continue, read the sentence, then press Schedule. | The meeting opens in Touchpoint. It's in Google Calendar with a Meet link, and your second address got exactly one invitation. | | |
+| 1 | In Google Calendar, add a meeting for later today called "Checklist call". Wait up to 15 minutes, then open Today on a computer and on a phone. | "Checklist call" in the Meetings card, on both. Opening it shows the time and "Open in Google Calendar". | before 2026-11-22 | Passed (owner) |
+| 2 | In Google Calendar, add a meeting starting in about 5 minutes, called "Checklist with Maple", and invite the email address of one of your people. Once it has started and synced, open that person, then Activity. | "Checklist with Maple" in their activity, with a Meeting badge. | before 2026-11-22 | Passed (owner) |
+| 3 | On that person's Activity tab, press Schedule meeting. Title "Checklist invite", guest your own second address, both boxes ticked. Press Continue, read the sentence, then press Schedule. | The meeting opens in Touchpoint. It's in Google Calendar with a Meet link, and your second address got exactly one invitation. | before 2026-11-22 | Passed (owner) |
 
 Delete "Checklist call", "Checklist with Maple" and "Checklist invite" in Google Calendar afterwards. They leave Touchpoint at the next sync.
 
@@ -22,9 +22,9 @@ Delete "Checklist call", "Checklist with Maple" and "Checklist invite" in Google
 
 | # | Step | You should see | Date | Result |
 |---|---|---|---|---|
-| 4 | Ask Claude to read the connection. It reads `status`, `connected_at` and `last_refresh_at` from the live database, and no token. | Status is connected, the connection is at least 8 days old, and the last refresh is within the last day. | | |
-| 5 | **Do this last, because it ends the connection.** At https://myaccount.google.com/connections, remove Touchpoint's access. Then, on the live site, open Settings → Integrations and press Test connection or Sync now. | The Expired state, and a banner on every page. Today, Tasks and your records all work, and the meetings are still there. Nothing new arrives from Google. | | |
-| 6 | Press Reconnect and allow access, including adding meetings. | The banner goes, and Sync now works again. | | |
+| 4 | Ask Claude to read the connection. It reads `status`, `connected_at` and `last_refresh_at` from the live database, and no token. | Status is connected, the connection is at least 8 days old, and the last refresh is within the last day. | 2026-11-22 | Passed: connected, connected 2026-10-31 10:45 UTC (22 days), last refresh 2026-11-22 13:45 UTC |
+| 5 | **Do this last, because it ends the connection.** At https://myaccount.google.com/connections, remove Touchpoint's access. Then, on the live site, open Settings → Integrations and press Test connection or Sync now. | The Expired state, and a banner on every page. Today, Tasks and your records all work, and the meetings are still there. Nothing new arrives from Google. | — | Skipped by the owner (2026-11-22); the expired state is covered by e2e/33 against the fake Google |
+| 6 | Press Reconnect and allow access, including adding meetings. | The banner goes, and Sync now works again. | — | Skipped by the owner (2026-11-22), along with step 5 |
 
 The owner's client is in production, so Google's 7-day limit for apps in Testing shouldn't apply. It's still unverified, and Google doesn't spell out what happens to tokens for an unverified app, which is what step 4 shows.
 
