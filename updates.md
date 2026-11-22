@@ -1528,3 +1528,4 @@
 - [2026-11-22] Memory: word helpers moved to src/modules/memory/words.ts so the server's recall and the browser's graph share them
 - [2026-11-22] e2e/47: the Memory page opens on the graph; the list checks use ?view=list
 - [2026-11-22] plan.md and security.md: the memory graph and its package
+- [2026-11-22] Assistant: asked about emails, it first says it can't see the inbox yet, then what Touchpoint has logged, instead of answering as if no emails existed
