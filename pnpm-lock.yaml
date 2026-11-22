@@ -243,6 +243,9 @@ importers:
       cn:
         specifier: ^0.4.0
         version: 0.4.0
+      d3-force:
+        specifier: 3.0.0
+        version: 3.0.0
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@cloudflare/workers-types@5.20261031.1)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
@@ -289,6 +292,9 @@ importers:
       '@tailwindcss/turbopack':
         specifier: ^4
         version: 4.3.3
+      '@types/d3-force':
+        specifier: 3.0.10
+        version: 3.0.10
       '@types/node':
         specifier: ^24.19.1
         version: 24.19.1

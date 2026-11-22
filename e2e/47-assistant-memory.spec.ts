@@ -35,6 +35,10 @@ test("told something lasting, the assistant remembers it with Undo, uses it in a
 
   await card.getByRole("link", { name: "Open" }).click();
   await expect(page).toHaveURL(/\/settings\/memory$/);
+  // The graph opens first; the list shows the same memories as text.
+  await expect(page.getByRole("img", { name: /^Memory graph: 1 memory, 0 people and companies\./ })).toBeVisible();
+  await page.getByRole("navigation", { name: "Memory view" }).getByRole("link", { name: "List" }).click();
+  await expect(page).toHaveURL(/view=list/);
   const yours = page.getByRole("region", { name: "About you" });
   await expect(yours.getByText(FACT, { exact: true })).toBeVisible();
   await expect(yours.getByText("Saved by the assistant")).toBeVisible();
@@ -58,7 +62,7 @@ test("told something lasting, the assistant remembers it with Undo, uses it in a
 test("on the Memory page, a memory is added, refused for an unknown company, found, edited and deleted", async ({
   page,
 }) => {
-  await page.goto("/settings/memory");
+  await page.goto("/settings/memory?view=list");
   await page.getByLabel("About", { exact: true }).selectOption("company");
   await page.getByLabel("Company's name").fill("Nowhere Holdings");
   await page.getByLabel("Remember", { exact: true }).fill("Pays on the 1st");
@@ -85,9 +89,16 @@ test("on the Memory page, a memory is added, refused for an unknown company, fou
 
   await expect(page.getByText("No memories match")).toHaveCount(0);
 
+  // The graph keeps the search and draws every memory, the found ones lit.
+  await page.getByRole("navigation", { name: "Memory view" }).getByRole("link", { name: "Graph" }).click();
+  await expect(page).toHaveURL(/view=graph&q=morning/);
+  await expect(page.getByRole("img", { name: /^Memory graph: 1 memory,/ })).toBeVisible();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await page.getByRole("button", { name: "Fit to view" }).click();
+
   // From the whole list, which still holds it after a reload; a search for "morning" would
   // drop it once edited.
-  await page.goto("/settings/memory");
+  await page.goto("/settings/memory?view=list");
   await page.reload();
   await yours.getByRole("button", { name: "Edit memory: Prefers calls in the morning" }).click();
   await yours.getByLabel("Memory", { exact: true }).fill("Prefers calls before noon");

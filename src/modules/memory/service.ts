@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   aiMemories,
+  contactOrganizations,
   contacts,
   organizations,
   user,
@@ -202,4 +203,28 @@ export async function listMemories(ownerId: string, query = ""): Promise<ListedM
 
 export async function countMemories(ownerId: string) {
   return db.$count(aiMemories, eq(aiMemories.ownerId, ownerId));
+}
+
+// The companies of the people memories are about, so the graph can tie them together.
+export async function companiesOfRemembered(ownerId: string) {
+  return db
+    .select({
+      contactId: contactOrganizations.contactId,
+      organizationId: contactOrganizations.organizationId,
+      name: organizations.name,
+    })
+    .from(contactOrganizations)
+    .innerJoin(organizations, eq(organizations.id, contactOrganizations.organizationId))
+    .where(
+      and(
+        eq(contactOrganizations.ownerId, ownerId),
+        inArray(
+          contactOrganizations.contactId,
+          db
+            .select({ id: aiMemories.contactId })
+            .from(aiMemories)
+            .where(and(eq(aiMemories.ownerId, ownerId), eq(aiMemories.scope, "person"))),
+        ),
+      ),
+    );
 }
