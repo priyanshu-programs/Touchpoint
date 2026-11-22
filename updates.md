@@ -1512,3 +1512,14 @@
 - [2026-11-21] Assistant: while a reply is on its way, a small orb glances around and breathes beside "Thinking…", in place of the crystal ball, which looked wrong in dark mode; the crystal ball and the ogl package are removed
 - [2026-11-22] docs/GOOGLE-CHECKLIST.md: steps 1 to 3 passed by the owner, step 4 passed on the live database (connected 22 days, refreshed today), steps 5 and 6 skipped at the owner's choice
 - [2026-11-22] plan.md: Phase 5 accepted; current phase is Phase 6 with Step 4 (Memory) next, and pnpm models:try skipped at the owner's choice
+- [2026-11-22] Migration 0049: ai_memories (about you, a person or a company, deleted with that record) and ai_settings.memories_tidied_at; ai_tool_executions may name saveMemory
+- [2026-11-22] Assistant: saveMemory is offered with every message and keeps a lasting fact with a Remembered card and Undo, or waits for a tap after stranger text; a duplicate or a 501st is refused
+- [2026-11-22] Assistant: before every reply the owner's own memories, those on records the message names and those sharing its words are given to the model, with no model call
+- [2026-11-22] Settings → Memory: memories by About you, People and Companies, with search, add, edit and delete behind a confirmation
+- [2026-11-22] Jobs: memory.tidy merges duplicate memories once a night with one helper-model request, only once 10 are new, each merge audited
+- [2026-11-22] Export: ai_memories is in the data export
+- [2026-11-22] Settings → Assistant and the Privacy page: say the assistant sends the records it looks up and the memories that bear on a message
+- [2026-11-22] e2e/47 and the fake model: saving, using, undoing and managing memories
+- [2026-11-22] plan.md, docs/PRD.md and security.md: Step 4 (Memory) as built
+- [2026-11-22] e2e/46: check the key is removed by its box and after a reload; the dialog's title matched the label, so the test left before the removal was kept
+- [2026-11-22] Assistant: memories and the read context are fetched at once before a reply, so remembering adds no wait of its own

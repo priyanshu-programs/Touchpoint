@@ -344,6 +344,13 @@
       "when": 1795214857007,
       "tag": "0048_assistant_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795360324284,
+      "tag": "0049_assistant_memory",
+      "breakpoints": true
     }
   ]
 }

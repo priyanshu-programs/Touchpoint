@@ -13,6 +13,7 @@ import {
   enqueueGoogleChecks,
   GOOGLE_CHECK_JOB,
 } from "@/modules/integrations/service";
+import { enqueueMemoryTidies, MEMORY_TIDY_JOB, runMemoryTidy } from "@/modules/memory/tidy";
 import { REMINDER_JOB, sendReminder } from "@/modules/tasks/service";
 import { enqueue, runDueJobs, type JobHandlers } from "./service";
 
@@ -26,12 +27,14 @@ export const handlers: JobHandlers = {
   [PHOTO_JOB]: (job) => fetchPhoto(job),
   [GOOGLE_CHECK_JOB]: checkGoogleConnection,
   [CALENDAR_SYNC_JOB]: runCalendarSync,
+  [MEMORY_TIDY_JOB]: runMemoryTidy,
 };
 
 export async function tick(budgetMs: number) {
   await enqueue({ kind: HEARTBEAT, dedupeKey: HEARTBEAT });
   await enqueueGoogleChecks();
   await enqueueCalendarSyncs();
+  await enqueueMemoryTidies();
   return runDueJobs(handlers, budgetMs);
 }
 

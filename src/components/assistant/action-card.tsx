@@ -12,6 +12,7 @@ import { TaskQuestions } from "./task-questions";
 const HEADINGS: Record<AiActionTool, Partial<Record<AiActionStatus, string>>> = {
   addTask: { waiting: "New task", done: "Task added", undone: "Task removed", declined: "Task not added" },
   addNote: { waiting: "Add this note?", done: "Note added", undone: "Note removed", declined: "Note not added" },
+  saveMemory: { waiting: "Remember this?", done: "Remembered", undone: "Forgotten", declined: "Not remembered" },
   scheduleMeeting: { waiting: "Schedule this meeting?", done: "Meeting scheduled", declined: "Not scheduled" },
   moveMeeting: { waiting: "Move this meeting?", done: "Meeting moved", declined: "Not moved" },
   cancelMeeting: { waiting: "Cancel this meeting?", done: "Meeting cancelled", declined: "Not cancelled" },
@@ -20,6 +21,7 @@ const HEADINGS: Record<AiActionTool, Partial<Record<AiActionStatus, string>>> = 
 const CONFIRM: Record<AiActionTool, string> = {
   addTask: "Add task",
   addNote: "Add note",
+  saveMemory: "Remember",
   scheduleMeeting: "Schedule",
   moveMeeting: "Move",
   cancelMeeting: "Cancel meeting",

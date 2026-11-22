@@ -66,5 +66,8 @@ test("the key is removed again", async ({ page }) => {
   await page.goto("/settings/assistant");
   await page.getByRole("button", { name: "Remove", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Remove key" }).click();
-  await expect(page.getByLabel("OpenRouter key")).toBeVisible();
+  // By its box: the dialog's title ("Remove your OpenRouter key?") matches the label too.
+  await expect(page.getByRole("textbox", { name: "OpenRouter key" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "OpenRouter key" })).toBeVisible();
 });

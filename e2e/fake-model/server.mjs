@@ -91,10 +91,32 @@ function complete(body, response) {
   if (!answered && /task|overdue/i.test(said) && offers(body, "tasksDue")) {
     return callTasks(body, response);
   }
-  response.writeHead(200, { "content-type": "text/event-stream" });
+  // "Remember: <fact>" keeps a fact about the owner, as a model would.
+  const fact = /^remember: (.+)$/i.exec(said);
+  if (!answered && fact && offers(body, "saveMemory")) {
+    return callTool(body, response, "saveMemory", { about: "you", memory: fact[1] });
+  }
+  // "What do you remember?" answers with the memories the app gave in its instructions.
+  if (/what do you remember/i.test(said)) {
+    const textOf = (content) =>
+      Array.isArray(content) ? content.map((part) => part.text ?? "").join("\n") : String(content ?? "");
+    const lines = messages
+      .filter((message) => message.role === "system" || message.role === "developer")
+      .map((message) => textOf(message.content))
+      .join("\n")
+      .split("\n")
+      .filter((line) => line.startsWith("- About"));
+    const roles = messages.map((message) => message.role).join(", ");
+    return answer(body, response, [lines.join(" ") || `Nothing remembered (${roles})`]);
+  }
   const told = toolTitles(messages);
   const opening = told.startsWith("done") || told.startsWith("waiting") ? "The task: " : "Your tasks: ";
-  for (const text of answered ? [opening, told] : ["Noted: ", said]) {
+  return answer(body, response, answered ? [opening, told] : ["Noted: ", said]);
+}
+
+function answer(body, response, texts) {
+  response.writeHead(200, { "content-type": "text/event-stream" });
+  for (const text of texts) {
     chunk(response, {
       model: body.model,
       extra: { choices: [{ index: 0, delta: { role: "assistant", content: text } }] },
