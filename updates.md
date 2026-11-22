@@ -1528,3 +1528,10 @@
 - [2026-11-22] Memory: word helpers moved to src/modules/memory/words.ts so the server's recall and the browser's graph share them
 - [2026-11-22] e2e/47: the Memory page opens on the graph; the list checks use ?view=list
 - [2026-11-22] plan.md and security.md: the memory graph and its package
+- [2026-11-23] Memory graph: one builder for both graphs, and a company graph with the company pinned in the middle, everyone at it around it, and people with nothing remembered as hollow dots
+- [2026-11-23] Memory: personMemories and companyMemories read one person's or one company's memories (with the company's people, archived ones only while remembered)
+- [2026-11-23] Companies and people: a Memory tab in their panels, with the company's graph (Graph and List), the person's memories, and Add a memory for that record
+- [2026-11-23] Memory graph: a Full screen button that fills the window, Esc or the button leaves it, and Esc there doesn't close the record panel
+- [2026-11-23] Settings → Memory: ?focus= opens the graph centred on a person or company, which their Memory tab's "See in the whole graph" uses
+- [2026-11-23] Memory actions refresh the people and company panels too, and a memory can be added for a record by its id from its own tab
+- [2026-11-23] Tests: the company graph, the per-record queries, and e2e/49 for the Memory tabs, full screen and See in the whole graph

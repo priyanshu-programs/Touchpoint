@@ -11,6 +11,7 @@ import { RELATIONSHIP_TYPES } from "@/modules/contacts/schema";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
 import { RecordWorkflows } from "@/app/(app)/workflows/record-workflows";
+import { PersonMemory } from "@/app/(app)/settings/memory/record-memory";
 import { invoicedBlock } from "@/app/(app)/money/invoices/labels";
 import { RecordInvoices } from "@/app/(app)/money/invoices/record-invoices";
 import { moneyCount } from "@/modules/invoices/queries";
@@ -31,7 +32,7 @@ import type { ActivitySection } from "./list-controls";
 import { RecordActions } from "./record-actions";
 import { StatusMenu } from "./status-menu";
 
-type Tab = "activity" | "tasks" | "workflows" | "money" | undefined;
+type Tab = "activity" | "tasks" | "workflows" | "money" | "memory" | undefined;
 
 const TABS = [
   { tab: undefined, label: "Overview" },
@@ -39,6 +40,7 @@ const TABS = [
   { tab: "tasks", label: "Tasks" },
   { tab: "workflows", label: "Workflows" },
   { tab: "money", label: "Invoices" },
+  { tab: "memory", label: "Memory" },
 ] as const;
 
 // One person, shown in the panel over the people list or inside the panel of a company they are at.
@@ -267,6 +269,18 @@ export async function ContactPanel({
 
         {tab === "workflows" && (
           <RecordWorkflows ownerId={ownerId} subject={filter} />
+        )}
+
+        {tab === "memory" && (
+          <PersonMemory
+            ownerId={ownerId}
+            contact={contact}
+            companies={contact.companies.map(({ id, name }) => ({
+              id,
+              name,
+              href: companyHref(id, "memory"),
+            }))}
+          />
         )}
 
         {tab === "money" && (

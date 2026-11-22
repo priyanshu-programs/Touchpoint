@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   aiMemories,
@@ -227,4 +227,61 @@ export async function companiesOfRemembered(ownerId: string) {
         ),
       ),
     );
+}
+
+const recordOrder = [asc(aiMemories.scope), asc(recordName), desc(aiMemories.createdAt)];
+
+// What the assistant remembers about one person.
+export async function personMemories(ownerId: string, contactId: string): Promise<ListedMemory[]> {
+  return db
+    .select(listed)
+    .from(aiMemories)
+    .leftJoin(contacts, eq(contacts.id, aiMemories.contactId))
+    .leftJoin(organizations, eq(organizations.id, aiMemories.organizationId))
+    .where(and(eq(aiMemories.ownerId, ownerId), eq(aiMemories.contactId, contactId)))
+    .orderBy(desc(aiMemories.createdAt));
+}
+
+// A company's memories and those about the people at it, with everyone at it: people
+// with nothing remembered too, so the Memory tab shows who the assistant knows nothing about.
+export async function companyMemories(ownerId: string, organizationId: string) {
+  const atCompany = db
+    .select({ id: contactOrganizations.contactId })
+    .from(contactOrganizations)
+    .where(
+      and(
+        eq(contactOrganizations.ownerId, ownerId),
+        eq(contactOrganizations.organizationId, organizationId),
+      ),
+    );
+  const [memories, people] = await Promise.all([
+    db
+      .select(listed)
+      .from(aiMemories)
+      .leftJoin(contacts, eq(contacts.id, aiMemories.contactId))
+      .leftJoin(organizations, eq(organizations.id, aiMemories.organizationId))
+      .where(
+        and(
+          eq(aiMemories.ownerId, ownerId),
+          or(
+            eq(aiMemories.organizationId, organizationId),
+            inArray(aiMemories.contactId, atCompany),
+          ),
+        ),
+      )
+      .orderBy(...recordOrder),
+    db
+      .select({ id: contacts.id, name: contacts.fullName, archivedAt: contacts.archivedAt })
+      .from(contacts)
+      .where(and(eq(contacts.ownerId, ownerId), inArray(contacts.id, atCompany)))
+      .orderBy(asc(contacts.fullName)),
+  ]);
+  const remembered = new Set(memories.map((memory) => memory.recordId));
+  return {
+    memories,
+    // An archived person shows only while something about them is remembered.
+    people: people
+      .filter((person) => !person.archivedAt || remembered.has(person.id))
+      .map(({ id, name }) => ({ id, name })),
+  };
 }

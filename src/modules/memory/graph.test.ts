@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { memoryGraph, YOU, type GraphMemory } from "./graph";
+import { companyGraph, memoryGraph, YOU, type GraphMemory } from "./graph";
 
 const memory = (id: string, content: string, about?: { scope: "person" | "company"; id: string; name: string }): GraphMemory => ({
   id,
@@ -58,5 +58,40 @@ describe("memory graph", () => {
     const memories = Array.from({ length: 8 }, (_, index) => memory(`m${index}`, `Client ${index} wants updates`));
     const { links } = memoryGraph("Asha", memories, []);
     expect(links.filter(({ kind }) => kind === "word")).toEqual([]);
+  });
+});
+
+describe("company memory graph", () => {
+  it("puts the company in the middle, everyone at it around it, and hollow dots for people with nothing remembered", () => {
+    const priya = { scope: "person" as const, id: "p1", name: "Priya Sharma" };
+    const maple = { scope: "company" as const, id: "c1", name: "Maple Studio" };
+    const { nodes, links } = companyGraph(
+      { id: "c1", name: "Maple Studio" },
+      [
+        { id: "p1", name: "Priya Sharma" },
+        { id: "p2", name: "Leo Park" },
+      ],
+      [
+        memory("m1", "Invoices go to the finance team", maple),
+        memory("m2", "Approves invoices on Mondays", priya),
+      ],
+    );
+
+    expect(nodes.map(({ id, kind, centre, hollow }) => `${kind} ${id}${centre ? " centre" : ""}${hollow ? " hollow" : ""}`).sort()).toEqual([
+      "company company:c1 centre",
+      "memory memory:m1",
+      "memory memory:m2",
+      "person person:p1",
+      "person person:p2 hollow",
+    ]);
+    expect(links.map(({ source, target, kind }) => `${kind} ${source}-${target}`)).toEqual(
+      expect.arrayContaining([
+        "works company:c1-person:p1",
+        "works company:c1-person:p2",
+        "about company:c1-memory:m1",
+        "about person:p1-memory:m2",
+        "word memory:m1-memory:m2",
+      ]),
+    );
   });
 });

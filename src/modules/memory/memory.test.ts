@@ -7,6 +7,7 @@ import {
   aiMemories,
   aiSettings,
   auditLog,
+  contactOrganizations,
   contacts,
   jobs,
   organizations,
@@ -15,7 +16,16 @@ import {
 import { confirmAction, propose, tierOf, undoAction, type ActionContext } from "@/modules/assistant/actions";
 import { createTestOwner, resetDatabase } from "@/test/owner";
 import { recallMemories, recordByName } from "./recall";
-import { ALREADY, addMemory, deleteMemory, FULL, MEMORY_LIMIT, updateMemory } from "./service";
+import {
+  ALREADY,
+  addMemory,
+  companyMemories,
+  deleteMemory,
+  FULL,
+  MEMORY_LIMIT,
+  personMemories,
+  updateMemory,
+} from "./service";
 import { checkedMerges, enqueueMemoryTidies, runMemoryTidy } from "./tidy";
 
 const model = vi.hoisted(() => ({ askOnce: vi.fn() }));
@@ -137,6 +147,36 @@ describe("memory", () => {
     await db.delete(contacts).where(eq(contacts.id, priya));
     await db.delete(organizations).where(eq(organizations.id, maple));
     expect(await db.$count(aiMemories)).toBe(0);
+  });
+
+  it("gives a company its own memories, those about the people at it, and everyone at it", async () => {
+    const people = await db
+      .insert(contacts)
+      .values([
+        { ownerId, firstName: "Leo", lastName: "Park" },
+        { ownerId, firstName: "Ana", lastName: "Gray", archivedAt: new Date() },
+        { ownerId, firstName: "Kim", lastName: "Lee", archivedAt: new Date() },
+        { ownerId, firstName: "Sam", lastName: "Elsewhere" },
+      ])
+      .returning({ id: contacts.id });
+    const [leo, ana, kim, sam] = people.map(({ id }) => id);
+    await db.insert(contactOrganizations).values(
+      [priya, leo, ana, kim].map((contactId) => ({ ownerId, contactId, organizationId: maple })),
+    );
+    await addMemory(ownerId, { ...you("Pays late"), scope: "company", organizationId: maple }, "user");
+    await addMemory(ownerId, { ...you("Likes calls"), scope: "person", contactId: priya }, "user");
+    await addMemory(ownerId, { ...you("Left for a while"), scope: "person", contactId: ana }, "user");
+    await addMemory(ownerId, { ...you("Not at Maple"), scope: "person", contactId: sam }, "user");
+    await addMemory(ownerId, you("Works mornings"), "user");
+
+    const { memories, people: shown } = await companyMemories(ownerId, maple);
+    expect(memories.map(({ content }) => content).sort()).toEqual(["Left for a while", "Likes calls", "Pays late"]);
+    // Kim is archived with nothing remembered, so isn't shown; Leo is, with nothing remembered.
+    expect(shown.map(({ name }) => name)).toEqual(["Ana Gray", "Leo Park", "Priya Sharma"]);
+    expect((await personMemories(ownerId, priya)).map(({ content }) => content)).toEqual(["Likes calls"]);
+
+    const other = await createTestOwner("someone@example.com");
+    expect(await companyMemories(other, maple)).toEqual({ memories: [], people: [] });
   });
 
   it("edits and deletes with an audit row each", async () => {

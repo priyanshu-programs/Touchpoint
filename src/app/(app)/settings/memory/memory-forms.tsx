@@ -19,17 +19,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { addMemoryAction, deleteMemoryAction, editMemoryAction } from "./actions";
+import {
+  addMemoryAction,
+  addRecordMemoryAction,
+  deleteMemoryAction,
+  editMemoryAction,
+} from "./actions";
 
 // From the table's limits, passed in by the page so the schema stays on the server.
 export type MemoryLimits = { content: number; terms: number };
 
-export function AddMemoryForm({ full, limits }: { full: boolean; limits: MemoryLimits }) {
+export function AddMemoryForm({
+  full,
+  limits,
+  record,
+}: {
+  full: boolean;
+  limits: MemoryLimits;
+  // Set in a person's or company's Memory tab: the memory is about that record.
+  record?: { about: "person" | "company"; id: string };
+}) {
   const [about, setAbout] = useState("you");
   const [formKey, setFormKey] = useState(0);
   const [state, action, pending] = useActionState(
     async (previous: Parameters<typeof addMemoryAction>[0], data: FormData) => {
-      const result = await addMemoryAction(previous, data);
+      const result = await (record ? addRecordMemoryAction : addMemoryAction)(previous, data);
       if (result?.ok) {
         setAbout("you");
         setFormKey((key) => key + 1);
@@ -49,6 +63,12 @@ export function AddMemoryForm({ full, limits }: { full: boolean; limits: MemoryL
 
   return (
     <form key={formKey} action={action} className="grid max-w-xl gap-4">
+      {record ? (
+        <>
+          <input type="hidden" name="about" value={record.about} />
+          <input type="hidden" name="recordId" value={record.id} />
+        </>
+      ) : (
       <div className="flex flex-wrap gap-4">
         <div className="grid gap-2">
           <Label htmlFor="memory-about">About</Label>
@@ -70,6 +90,7 @@ export function AddMemoryForm({ full, limits }: { full: boolean; limits: MemoryL
           </div>
         )}
       </div>
+      )}
       <div className="grid gap-2">
         <Label htmlFor="memory-content">Remember</Label>
         <Textarea
