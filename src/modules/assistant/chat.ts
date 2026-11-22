@@ -60,6 +60,9 @@ type Turn = {
   groups: ToolGroup[];
   // A tool in this chat has read text a stranger could have written.
   untrusted: boolean;
+  privateModel: string | null;
+  // The request may hold Google data, so no provider that keeps it may answer.
+  privateOnly: boolean;
 };
 
 // What the panel says while a tool runs.
@@ -191,6 +194,9 @@ export async function beginChat(
       title: kept.conversation.title,
       apiKey: assistant.apiKey,
       models: assistant.models,
+      privateModel: assistant.privateModel,
+      // Meetings were read earlier in this chat, so its history holds them.
+      privateOnly: kept.conversation.readUntrustedAt !== null,
       instructions: instructionsFor({
         name: callName(owner.name, settings?.preferredName ?? null),
         timezone,
@@ -258,6 +264,9 @@ export function problemMessage(
     return "The free models are busy, or you've sent a lot in the last minute. Wait a minute and try again.";
   }
   if (problem === "empty") return "The model sent nothing back. Try again.";
+  if (problem === "no_private_model") {
+    return "This needs your calendar, and Google doesn't allow it to go to a model that keeps or trains on it. None of yours promises that. Choose one that does in Settings, under Assistant, or ask without meetings.";
+  }
   return "The model couldn't be reached. Try again in a moment.";
 }
 
@@ -272,11 +281,15 @@ export async function* reply(turn: Turn, signal: AbortSignal): AsyncGenerator<Ch
     timezone: turn.timezone,
     conversationId: turn.conversationId,
     untrusted: turn.untrusted,
+    googleRead: false,
   };
   const result = streamReply({
     apiKey: turn.apiKey,
     mainModel: turn.models.mainModel,
     backupModel: turn.models.backupModel,
+    privateModel: turn.privateModel,
+    privateOnly: turn.privateOnly,
+    privateNow: () => act.googleRead,
     instructions: turn.instructions,
     messages: turn.history,
     tools: toolsFor(turn.read, turn.groups, use, act),
@@ -298,7 +311,7 @@ export async function* reply(turn: Turn, signal: AbortSignal): AsyncGenerator<Ch
         finished = true;
         usage = part.totalUsage;
       } else if (part.type === "error") {
-        problem = replyProblem(part.error);
+        problem = replyProblem(part.error, turn.privateOnly || act.googleRead);
         break;
       } else if (part.type === "abort") {
         problem = "unavailable";

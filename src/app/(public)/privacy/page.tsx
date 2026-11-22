@@ -45,16 +45,22 @@ export default function PrivacyPage() {
         If the owner turns on scheduling, Touchpoint asks Google for permission to add events (
         <span className="font-mono">calendar.events</span>). It adds one only after the owner
         confirms it, with the title, times, location and guests they chose, and with Google
-        sending the invitation if they ask for that. It never changes an event. It removes one
-        only when the owner cancels a meeting they organized that hasn&apos;t started, after
-        confirming it, with Google telling the guests if they ask for that. Notes
+        sending the invitation if they ask for that. It changes an event only when the owner
+        moves a meeting they organized that hasn&apos;t started to a new time, after
+        confirming it. It removes one only when the owner cancels a meeting they organized that
+        hasn&apos;t started, after confirming it, with Google telling the guests if they ask for
+        that. Notes
         written for an invitation go to Google and aren&apos;t kept in Touchpoint. Touchpoint
         doesn&apos;t read, send or store email itself.
       </p>
       <p>
-        Calendar data is used only to show the owner their own meetings in Touchpoint. It is
-        not shared with or sold to anyone, not used for advertising, and not used to train any
-        AI model. People don&apos;t read it, apart from the owner. The access Google grants is
+        Calendar data is used only to show the owner their own meetings in Touchpoint and, when
+        they ask the assistant about their meetings, to answer them. For that answer, and the
+        rest of that chat, it goes through OpenRouter only to AI providers that don&apos;t keep or
+        train on what they receive: OpenRouter checks this on every request, and if no such
+        provider is available, nothing is sent and the assistant says so. It is not sold, not
+        used for advertising, and not used to train any AI model. People don&apos;t read it,
+        apart from the owner. The access Google grants is
         stored encrypted. Disconnecting in Settings, or removing Touchpoint at
         myaccount.google.com/permissions, ends it at once.
       </p>

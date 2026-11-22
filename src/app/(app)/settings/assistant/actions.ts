@@ -5,12 +5,17 @@ import type { FormState } from "@/app/(app)/settings/actions";
 import { canEncrypt } from "@/lib/crypto";
 import { readFields } from "@/lib/form";
 import { requireOwner } from "@/lib/session";
-import { assistantKeyInput, assistantModelsInput } from "@/modules/assistant/schema";
+import {
+  assistantKeyInput,
+  assistantModelsInput,
+  assistantPrivateModelInput,
+} from "@/modules/assistant/schema";
 import {
   assistantUse,
   removeAssistantKey,
   saveAssistantKey,
   saveAssistantModels,
+  saveAssistantPrivateModel,
 } from "@/modules/assistant/service";
 
 export async function saveAssistantKeyAction(
@@ -51,6 +56,23 @@ export async function saveAssistantModelsAction(
   await saveAssistantModels(owner.id, parsed.data);
   revalidatePath("/settings/assistant");
   return { ok: true, message: "Models saved." };
+}
+
+export async function saveAssistantPrivateModelAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const owner = await requireOwner();
+  const parsed = assistantPrivateModelInput.safeParse(readFields(formData, ["privateModel"]));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  await saveAssistantPrivateModel(owner.id, parsed.data.privateModel || null);
+  revalidatePath("/settings/assistant");
+  return {
+    ok: true,
+    message: parsed.data.privateModel ? "Saved." : "Saved. Your main model will be tried.",
+  };
 }
 
 export async function testAssistantKeyAction(): Promise<FormState> {

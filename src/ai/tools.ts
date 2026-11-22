@@ -69,6 +69,8 @@ export function groupsFor(message: string): ToolGroup[] {
   return groups;
 }
 
+const MEETING_TOOLS: AiActionTool[] = ["scheduleMeeting", "moveMeeting", "cancelMeeting"];
+
 export type ToolUse = { links: RecordLink[]; looked: string[]; cards: ActionCard[] };
 
 const period = z.enum(PERIODS).describe("The period, this-month if none is named.");
@@ -93,14 +95,20 @@ export function toolsFor(
       use.looked.push(label);
       const found = await read(input);
       use.links.push(...found.links);
-      if ((found.data as { note?: string }).note === UNTRUSTED_NOTE && !act.untrusted) {
-        act.untrusted = true;
-        await markUntrusted(act.ownerId, act.conversationId);
+      // Meeting titles come from Google Calendar, and anyone can send an invite.
+      if ((found.data as { note?: string }).note === UNTRUSTED_NOTE) {
+        act.googleRead = true;
+        if (!act.untrusted) {
+          act.untrusted = true;
+          await markUntrusted(act.ownerId, act.conversationId);
+        }
       }
       return found.data;
     };
 
   const acting = (tool: AiActionTool) => async (input: unknown) => {
+    // Its answer can name a meeting from Google Calendar (one in the way, or the one moved).
+    if (MEETING_TOOLS.includes(tool)) act.googleRead = true;
     const proposed = await propose(act, tool, input);
     if (!proposed.ok) return { done: false, problem: proposed.message };
     use.cards.push(proposed.card);

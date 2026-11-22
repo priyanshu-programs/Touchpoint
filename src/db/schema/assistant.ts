@@ -35,6 +35,11 @@ export const aiSettings = pgTable("ai_settings", {
   backupModel: text("backup_model")
     .notNull()
     .default(DEFAULT_ASSISTANT_MODELS.backupModel),
+  // Answers anything holding Google data (calendar, later Gmail): Google forbids letting a
+  // provider train on it, so those requests only go to providers that keep nothing. Any
+  // model, paid ones too, since free ones rarely qualify. Null: the main model, which
+  // usually means such requests can't be answered.
+  privateModel: text("private_model"),
   // When the nightly tidy last merged duplicate memories; it runs again only after 10 more.
   memoriesTidiedAt: timestamp("memories_tidied_at", { withTimezone: true }),
   createdAt,

@@ -40,6 +40,7 @@ export async function assistantSettings(ownerId: string) {
     key: key.state,
     keyEnding: key.state === "ready" ? key.apiKey.slice(-4) : null,
     models: modelsOf(row),
+    privateModel: row?.privateModel ?? null,
   };
 }
 
@@ -49,13 +50,18 @@ export async function openAssistant(
 ): Promise<
   | { state: "none" }
   | { state: "unreadable" }
-  | { state: "ready"; apiKey: string; models: AssistantModels }
+  | { state: "ready"; apiKey: string; models: AssistantModels; privateModel: string | null }
 > {
   const row = await settingsRow(ownerId);
   const key = openKey(row);
   if (key.state === "none") return { state: "none" };
   if (key.state === "unreadable") return { state: "unreadable" };
-  return { state: "ready", apiKey: key.apiKey, models: modelsOf(row) };
+  return {
+    state: "ready",
+    apiKey: key.apiKey,
+    models: modelsOf(row),
+    privateModel: row?.privateModel ?? null,
+  };
 }
 
 export async function saveAssistantKey(ownerId: string, apiKey: string) {
@@ -124,6 +130,32 @@ export async function saveAssistantModels(ownerId: string, models: AssistantMode
       entityId: ownerId,
       before: modelsOf(existing ?? null),
       after: models,
+    });
+  });
+}
+
+export async function saveAssistantPrivateModel(ownerId: string, privateModel: string | null) {
+  await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ privateModel: aiSettings.privateModel })
+      .from(aiSettings)
+      .where(eq(aiSettings.ownerId, ownerId))
+      .for("update");
+    await tx
+      .insert(aiSettings)
+      .values({ ownerId, privateModel })
+      .onConflictDoUpdate({
+        target: aiSettings.ownerId,
+        set: { privateModel, updatedAt: new Date() },
+      });
+    await audit(tx, {
+      ownerId,
+      actor: "user",
+      action: "assistant.private_model_save",
+      entityType: "assistant",
+      entityId: ownerId,
+      before: { privateModel: existing?.privateModel ?? null },
+      after: { privateModel },
     });
   });
 }

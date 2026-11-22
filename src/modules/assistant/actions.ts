@@ -422,6 +422,9 @@ export type ActionContext = {
   timezone: string;
   conversationId: string;
   untrusted: boolean;
+  // A tool in this reply returned Google data, so later steps may not go to a provider
+  // that keeps it.
+  googleRead?: boolean;
 };
 
 export type Proposed = { ok: true; card: ActionCard } | Refusal;
