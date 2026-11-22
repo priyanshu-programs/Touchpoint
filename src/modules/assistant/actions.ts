@@ -6,6 +6,9 @@ import {
   aiToolExecutions,
   contacts,
   organizations,
+  AI_MEMORY_SCOPES,
+  MEMORY_MAX_LENGTH,
+  MEMORY_TERMS_MAX_LENGTH,
   tasks,
   TASK_PRIORITIES,
   type AiActionStatus,
@@ -28,6 +31,8 @@ import {
 } from "@/modules/integrations/scheduling";
 import { meetingInput, type MeetingInput } from "@/modules/integrations/schema";
 import { ownerTimezone } from "@/modules/settings/service";
+import { recordByName } from "@/modules/memory/recall";
+import { addMemory, checkNewMemory, deleteMemory, type MemoryFields } from "@/modules/memory/service";
 import { createTask } from "@/modules/tasks/service";
 import { taskInput, type TaskInput } from "@/modules/tasks/schema";
 
@@ -53,6 +58,12 @@ export const actionInputs = {
     body: z.string().trim().max(5000).optional(),
     personId: z.uuid().optional(),
     companyId: z.uuid().optional(),
+  }),
+  saveMemory: z.strictObject({
+    about: z.enum(AI_MEMORY_SCOPES),
+    name: z.string().trim().min(1).max(200).optional(),
+    memory: z.string().trim().min(1).max(MEMORY_MAX_LENGTH),
+    searchTerms: z.string().trim().max(MEMORY_TERMS_MAX_LENGTH).optional(),
   }),
   scheduleMeeting: z.strictObject({
     title: z.string().trim().min(1).max(200),
@@ -81,11 +92,11 @@ type Inputs = { [T in AiActionTool]: z.infer<(typeof actionInputs)[T]> };
 // A task always waits: its card asks the owner for the details first (owner's choice,
 // 2026-11-21), and only their Save or Skip all adds it.
 export function tierOf(tool: AiActionTool, untrusted: boolean): AiActionTier {
-  if (tool === "addNote") return untrusted ? "confirm" : "undo";
+  if (tool === "addNote" || tool === "saveMemory") return untrusted ? "confirm" : "undo";
   return "confirm";
 }
 
-const UNDOABLE: AiActionTool[] = ["addTask", "addNote"];
+const UNDOABLE: AiActionTool[] = ["addTask", "addNote", "saveMemory"];
 
 // What a task card asks, in this order, each only when the chat didn't already say it.
 export const TASK_STEPS = ["deadline", "priority", "reminder", "repeat", "who", "notes"] as const;
@@ -145,6 +156,7 @@ function hrefOf(row: Row) {
       ? companyHref(note.organizationId, "activity")
       : contactHref(note.contactIds[0], "activity");
   }
+  if (row.tool === "saveMemory") return "/settings/memory";
   if (row.tool === "cancelMeeting") return null;
   return `/meetings/${row.resultId}`;
 }
@@ -294,6 +306,31 @@ async function prepare(
     };
   }
 
+  if (tool === "saveMemory") {
+    const input = raw as Inputs["saveMemory"];
+    const fields: MemoryFields = {
+      scope: input.about,
+      contactId: null,
+      organizationId: null,
+      content: input.memory,
+      terms: input.searchTerms || null,
+    };
+    let about = "you";
+    if (input.about !== "you") {
+      if (!input.name) {
+        return { ok: false, message: `Give the ${input.about === "person" ? "person's" : "company's"} name.` };
+      }
+      const record = await recordByName(ownerId, input.about, input.name);
+      if (!record.ok) return record;
+      if (input.about === "person") fields.contactId = record.id;
+      else fields.organizationId = record.id;
+      about = record.name;
+    }
+    const refused = await checkNewMemory(ownerId, fields);
+    if (refused) return refused;
+    return { ok: true, stored: fields, summary: `About ${about}: ${fields.content}` };
+  }
+
   if (tool === "scheduleMeeting") {
     const input = raw as Inputs["scheduleMeeting"];
     const parsed = meetingInput.safeParse({
@@ -362,6 +399,10 @@ async function perform(
       ok: false,
       message: result.reason === "not_at_company" ? outsidersMessage(result.outsiders) : TASK_REFUSALS[result.reason],
     };
+  }
+  if (tool === "saveMemory") {
+    const result = await addMemory(ownerId, stored as MemoryFields, "ai");
+    return result.ok ? { ok: true, resultId: result.id } : result;
   }
   if (tool === "scheduleMeeting") {
     const result = await scheduleMeeting(ownerId, stored as MeetingInput);
@@ -550,6 +591,9 @@ export async function undoAction(ownerId: string, id: string) {
   }
   if (claimed.tool === "addNote" && claimed.resultId) {
     await deleteActivity(ownerId, claimed.resultId);
+  }
+  if (claimed.tool === "saveMemory" && claimed.resultId) {
+    await deleteMemory(ownerId, claimed.resultId);
   }
   return cardOf(claimed);
 }

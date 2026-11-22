@@ -1,6 +1,7 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   APICallError,
+  generateText,
   stepCountIs,
   streamText,
   type ModelMessage,
@@ -110,4 +111,31 @@ export function streamReply({
       });
     },
   });
+}
+
+// One request with no tools, for a background job such as the nightly memory tidy.
+export async function askOnce({
+  apiKey,
+  model,
+  backupModel,
+  instructions,
+  prompt,
+}: {
+  apiKey: string;
+  model: string;
+  backupModel: string;
+  instructions: string;
+  prompt: string;
+}) {
+  const openrouter = createOpenRouter({ apiKey, compatibility: "strict" });
+  const result = await generateText({
+    model: openrouter.chat(model, {
+      models: backupModel === model ? undefined : [backupModel],
+    }),
+    instructions,
+    prompt,
+    maxRetries: 0,
+    timeout: REPLY_TIMEOUT_MS,
+  });
+  return result.text;
 }

@@ -14,6 +14,7 @@ import { aiConversations, aiMessages, user } from "@/db/schema";
 import { callName } from "@/lib/greeting";
 import { logger } from "@/lib/logger";
 import { formatTime } from "@/lib/time";
+import { recallMemories } from "@/modules/memory/recall";
 import { getSettings } from "@/modules/settings/service";
 import type { ActionCard } from "./actions";
 import { MAX_CONVERSATIONS, MAX_MESSAGES, textOf } from "./conversations";
@@ -74,6 +75,7 @@ const LOOKING: Record<string, string> = {
   scheduleMeeting: "your calendar",
   moveMeeting: "your calendar",
   cancelMeeting: "your calendar",
+  saveMemory: "what you've told me",
 };
 
 export function titleOf(message: string) {
@@ -174,13 +176,13 @@ export async function beginChat(
   // A model expects the first thing it reads to be the owner's.
   const from = kept.latest.findIndex((message) => message.role === "user");
   // A follow-up ("Try again", "and next week?") keeps what the chat was about.
-  const groups = groupsFor(
-    kept.latest
-      .filter((message) => message.role === "user")
-      .slice(-RECENT_QUESTIONS)
-      .map(({ parts }) => textOf(parts))
-      .join("\n"),
-  );
+  const recent = kept.latest
+    .filter((message) => message.role === "user")
+    .slice(-RECENT_QUESTIONS)
+    .map(({ parts }) => textOf(parts))
+    .join("\n");
+  const groups = groupsFor(recent);
+  const [memories, read] = await Promise.all([recallMemories(owner.id, recent), readContext(owner.id)]);
   return {
     ok: true,
     turn: {
@@ -193,9 +195,11 @@ export async function beginChat(
         name: callName(owner.name, settings?.preferredName ?? null),
         timezone,
         groups,
+        memories,
+        untrusted: kept.conversation.readUntrustedAt !== null,
       }),
       timezone,
-      read: await readContext(owner.id),
+      read,
       groups,
       untrusted: kept.conversation.readUntrustedAt !== null,
       history: kept.latest
@@ -275,7 +279,7 @@ export async function* reply(turn: Turn, signal: AbortSignal): AsyncGenerator<Ch
     backupModel: turn.models.backupModel,
     instructions: turn.instructions,
     messages: turn.history,
-    tools: turn.groups.length > 0 ? toolsFor(turn.read, turn.groups, use, act) : undefined,
+    tools: toolsFor(turn.read, turn.groups, use, act),
     signal,
   });
   let text = "";

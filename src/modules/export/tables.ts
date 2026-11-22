@@ -53,6 +53,7 @@ export const EXPORTED_TABLES: readonly PgTable[] = [
   schema.aiConversations,
   schema.aiMessages,
   schema.aiToolExecutions,
+  schema.aiMemories,
   schema.auditLog,
 ];
 

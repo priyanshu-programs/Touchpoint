@@ -10,7 +10,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
-import { createdAt, id, oneOf, ownerId, updatedAt } from "./columns";
+import { createdAt, id, oneOf, ownerId, tsvector, updatedAt } from "./columns";
+import { contacts, organizations } from "./people";
 
 // Chosen by a test of real requests and changed in Settings; free models come and go.
 export const DEFAULT_ASSISTANT_MODELS = {
@@ -34,6 +35,8 @@ export const aiSettings = pgTable("ai_settings", {
   backupModel: text("backup_model")
     .notNull()
     .default(DEFAULT_ASSISTANT_MODELS.backupModel),
+  // When the nightly tidy last merged duplicate memories; it runs again only after 10 more.
+  memoriesTidiedAt: timestamp("memories_tidied_at", { withTimezone: true }),
   createdAt,
   updatedAt,
 });
@@ -100,6 +103,7 @@ export const aiMessages = pgTable(
 export const AI_ACTION_TOOLS = [
   "addTask",
   "addNote",
+  "saveMemory",
   "scheduleMeeting",
   "moveMeeting",
   "cancelMeeting",
@@ -142,5 +146,59 @@ export const aiToolExecutions = pgTable(
     check("ai_tool_executions_tier_check", oneOf(table.tier, AI_ACTION_TIERS)),
     check("ai_tool_executions_status_check", oneOf(table.status, AI_ACTION_STATUSES)),
     index("ai_tool_executions_conversation_idx").on(table.conversationId, table.createdAt),
+  ],
+);
+
+// you: the owner and how their business runs, always given to the model. person and
+// company: given when a message names that record, and deleted with it.
+export const AI_MEMORY_SCOPES = ["you", "person", "company"] as const;
+export type AiMemoryScope = (typeof AI_MEMORY_SCOPES)[number];
+
+export const AI_MEMORY_SOURCES = ["ai", "user"] as const;
+export type AiMemorySource = (typeof AI_MEMORY_SOURCES)[number];
+
+export const MEMORY_MAX_LENGTH = 500;
+export const MEMORY_TERMS_MAX_LENGTH = 200;
+
+export const aiMemories = pgTable(
+  "ai_memories",
+  {
+    id: id(),
+    ownerId: ownerId(),
+    scope: text("scope").$type<AiMemoryScope>().notNull(),
+    contactId: uuid("contact_id").references(() => contacts.id, { onDelete: "cascade" }),
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
+    content: text("content").notNull(),
+    // Other words the owner might use to ask about it, saved by the model with it.
+    terms: text("terms"),
+    source: text("source").$type<AiMemorySource>().notNull(),
+    // English stems the memory's own words; simple keeps the extra terms as typed.
+    search: tsvector("search").generatedAlwaysAs(
+      sql`to_tsvector('english', "ai_memories"."content") || to_tsvector('simple', coalesce("ai_memories"."terms", ''))`,
+    ),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    check("ai_memories_scope_check", oneOf(table.scope, AI_MEMORY_SCOPES)),
+    check("ai_memories_source_check", oneOf(table.source, AI_MEMORY_SOURCES)),
+    check(
+      "ai_memories_record_check",
+      sql`(${table.scope} = 'you' and ${table.contactId} is null and ${table.organizationId} is null)
+        or (${table.scope} = 'person' and ${table.contactId} is not null and ${table.organizationId} is null)
+        or (${table.scope} = 'company' and ${table.organizationId} is not null and ${table.contactId} is null)`,
+    ),
+    check(
+      "ai_memories_length_check",
+      sql`char_length(${table.content}) between 1 and ${sql.raw(String(MEMORY_MAX_LENGTH))}
+        and char_length(coalesce(${table.terms}, '')) <= ${sql.raw(String(MEMORY_TERMS_MAX_LENGTH))}`,
+    ),
+    index("ai_memories_owner_scope_idx").on(table.ownerId, table.scope, table.createdAt),
+    index("ai_memories_contact_idx").on(table.contactId),
+    index("ai_memories_organization_idx").on(table.organizationId),
+    index("ai_memories_search_idx").using("gin", table.search),
+    index("ai_memories_content_trgm_idx").using("gin", table.content.op("gin_trgm_ops")),
   ],
 );

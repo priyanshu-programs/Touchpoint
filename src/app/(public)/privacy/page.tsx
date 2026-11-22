@@ -24,8 +24,11 @@ export default function PrivacyPage() {
       <p>
         If the owner turns on the assistant, what they type to it is kept as a chat and sent,
         with the chat so far and the name they go by, to OpenRouter and the company that runs
-        the model they chose, which may keep it. Nothing else is sent: the assistant doesn&apos;t
-        read their records, calendar or email.
+        the model they chose, which may keep it. When a question needs them, the records the
+        assistant looks up are sent too. The assistant keeps short facts the owner tells it, about
+        themselves and about the people and companies they work with, and sends those that bear
+        on a message. The owner can see, change and delete them in Settings, and a fact about a
+        person or company is deleted with that record. The assistant doesn&apos;t read email.
       </p>
 
       <h2 className="text-lg font-semibold">Data from Google</h2>

@@ -93,8 +93,10 @@ export default async function AssistantSettingsPage() {
             Touchpoint can&apos;t prevent that, so the choice of model is yours.
           </p>
           <p>
-            Nothing else leaves Touchpoint: the assistant can&apos;t yet read your
-            companies, people, money, calendar or email.
+            When a question needs them, the records the assistant looks up go too: your
+            companies, people, tasks, meetings and money. So does what it remembers about you
+            and about the people and companies a message names (see Memory). It doesn&apos;t
+            read your email.
           </p>
           <p>
             To see who runs a model and what they keep, open its page on OpenRouter:{" "}

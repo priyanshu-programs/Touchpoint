@@ -188,7 +188,17 @@ export function toolsFor(
       }),
     },
   };
-  return Object.assign({}, ...groups.map((group) => all[group]));
+  // Loaded with every message (owner's choice, 2026-11-22), so a fact said in passing
+  // can be kept; each save shows a card with Undo.
+  const memory: ToolSet = {
+    saveMemory: tool({
+      description:
+        "Remember a lasting fact for later chats: about the owner (you), or about one person or company, named as the owner named them. memory is one short sentence; searchTerms are other words the owner might use to ask about it.",
+      inputSchema: actionInputs.saveMemory,
+      execute: acting("saveMemory"),
+    }),
+  };
+  return Object.assign({}, memory, ...groups.map((group) => all[group]));
 }
 
 // The records an answer names, once each, in the order it used them.
