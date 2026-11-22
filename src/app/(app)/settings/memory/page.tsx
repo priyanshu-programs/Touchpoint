@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { MEMORY_MAX_LENGTH, MEMORY_TERMS_MAX_LENGTH, type AiMemoryScope } from "@/db/schema";
+import type { AiMemoryScope } from "@/db/schema";
 import { callName } from "@/lib/greeting";
 import { companyHref, contactHref } from "@/lib/record-href";
 import { requireOwner } from "@/lib/session";
@@ -21,19 +21,23 @@ import {
   countMemories,
   listMemories,
   MEMORY_LIMIT,
-  type ListedMemory,
 } from "@/modules/memory/service";
 import { getSettings } from "@/modules/settings/service";
 import { GraphPanel } from "./graph-panel";
 import { AddMemoryForm, MemoryRow } from "./memory-forms";
+import { LIMITS, rowOf } from "./rows";
 
 export const metadata: Metadata = { title: "Memory" };
-
-const LIMITS = { content: MEMORY_MAX_LENGTH, terms: MEMORY_TERMS_MAX_LENGTH };
 
 const params = z.object({
   q: z.string().trim().max(100).catch("").default(""),
   view: z.enum(["graph", "list"]).catch("graph").default("graph"),
+  // A person or company to open the graph on, from their Memory tab.
+  focus: z
+    .string()
+    .regex(/^(person|company):[0-9a-f-]{36}$/)
+    .optional()
+    .catch(undefined),
 });
 
 const SECTIONS: { scope: AiMemoryScope; title: string; empty: string }[] = [
@@ -42,22 +46,6 @@ const SECTIONS: { scope: AiMemoryScope; title: string; empty: string }[] = [
   { scope: "company", title: "Companies", empty: "Nothing about companies yet." },
 ];
 
-const hrefOf = (memory: ListedMemory) =>
-  memory.recordId
-    ? memory.scope === "person"
-      ? contactHref(memory.recordId)
-      : companyHref(memory.recordId)
-    : null;
-
-const rowOf = (memory: ListedMemory) => ({
-  id: memory.id,
-  content: memory.content,
-  terms: memory.terms,
-  recordName: memory.recordName,
-  recordHref: hrefOf(memory),
-  fromAssistant: memory.source === "ai",
-});
-
 const VIEWS = [
   { view: "graph", label: "Graph" },
   { view: "list", label: "List" },
@@ -65,7 +53,7 @@ const VIEWS = [
 
 export default async function MemorySettingsPage({ searchParams }: PageProps<"/settings/memory">) {
   const owner = await requireOwner();
-  const { q, view } = params.parse(await searchParams);
+  const { q, view, focus } = params.parse(await searchParams);
   const graphing = view === "graph";
   const [memories, total, all, atCompany, settings] = await Promise.all([
     listMemories(owner.id, q),
@@ -164,6 +152,7 @@ export default async function MemorySettingsPage({ searchParams }: PageProps<"/s
             ),
           )}
           limits={LIMITS}
+          centreOn={focus ?? null}
         />
       )}
 

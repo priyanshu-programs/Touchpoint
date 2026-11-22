@@ -35,6 +35,7 @@ import { listTasks } from "@/modules/tasks/queries";
 import { RecordTimeline } from "@/app/(app)/activities/record-timeline";
 import { RecordTasks } from "@/app/(app)/tasks/record-tasks";
 import { RecordWorkflows } from "@/app/(app)/workflows/record-workflows";
+import { CompanyMemory } from "@/app/(app)/settings/memory/record-memory";
 import {
   addCompanyContactAction,
   addExistingContactAction,
@@ -104,6 +105,7 @@ const TABS = [
   { tab: "tasks", label: "Tasks" },
   { tab: "workflows", label: "Workflows" },
   { tab: "money", label: "Invoices" },
+  { tab: "memory", label: "Memory" },
 ] as const;
 
 // Tasks are counted from one capped page, so a full page is shown as "100+".
@@ -484,6 +486,21 @@ export async function CompanyPanel({
 
           {params.tab === "workflows" && (
             <RecordWorkflows ownerId={ownerId} subject={filter} />
+          )}
+
+          {params.tab === "memory" && (
+            <CompanyMemory
+              ownerId={ownerId}
+              organization={organization}
+              personHref={(id) =>
+                companiesHref(params, {
+                  contact: id,
+                  tab: "memory",
+                  after: undefined,
+                  section: undefined,
+                })
+              }
+            />
           )}
 
           {params.tab === "money" && (

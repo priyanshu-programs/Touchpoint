@@ -11,7 +11,7 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
-import { Maximize2, Minus, Plus } from "lucide-react";
+import { Expand, Maximize2, Minus, Plus, Shrink } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { GraphLink, GraphNode } from "@/modules/memory/graph";
@@ -35,11 +35,14 @@ const RADIUS: Record<GraphNode["kind"], number> = { you: 11, company: 7, person:
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 6;
 // Dots grow slower than the zoom, so zooming in spreads them apart rather than fattening them.
-const radiusAt = (kind: GraphNode["kind"], k: number) => RADIUS[kind] / Math.sqrt(k);
+const radiusOf = (node: GraphNode) => (node.centre ? RADIUS.you : RADIUS[node.kind]);
+const radiusAt = (node: GraphNode, k: number) => radiusOf(node) / Math.sqrt(k);
 // A small graph isn't blown up to fill the screen.
 const MAX_FIT_ZOOM = 2.5;
 const MEMORY_LABEL_ZOOM = 1.4;
 const MEMORY_LABEL_CHARS = 36;
+// How close "See in graph" opens on the record it was asked from.
+const CENTRE_ZOOM = 1.6;
 
 const neighboursOf = (links: Link[], id: string) => {
   const near = new Set([id]);
@@ -58,6 +61,9 @@ export function MemoryGraph({
   matches,
   selected,
   onSelect,
+  full = false,
+  onFull,
+  centreOn = null,
 }: {
   nodes: GraphNode[];
   links: GraphLink[];
@@ -65,6 +71,11 @@ export function MemoryGraph({
   matches: Set<string> | null;
   selected: string | null;
   onSelect: (node: GraphNode | null) => void;
+  // Filling the window; the box then takes its size from what holds it.
+  full?: boolean;
+  onFull?: () => void;
+  // The node to open on instead of fitting the whole graph.
+  centreOn?: string | null;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -112,14 +123,21 @@ export function MemoryGraph({
 
       for (const node of nodes) {
         const on = lit(node.id);
-        const radius = radiusAt(node.kind, k);
+        const radius = radiusAt(node, k);
         context.globalAlpha = on ? 1 : 0.2;
         context.shadowColor = COLORS[node.kind];
-        context.shadowBlur = on && node.kind !== "memory" ? 12 : 0;
-        context.fillStyle = COLORS[node.kind];
         context.beginPath();
         context.arc(node.x!, node.y!, radius, 0, Math.PI * 2);
-        context.fill();
+        if (node.hollow) {
+          context.shadowBlur = 0;
+          context.strokeStyle = COLORS[node.kind];
+          context.lineWidth = 1.2 / Math.sqrt(k);
+          context.stroke();
+        } else {
+          context.shadowBlur = on && node.kind !== "memory" ? 12 : 0;
+          context.fillStyle = COLORS[node.kind];
+          context.fill();
+        }
         if (node.id === selected) {
           context.shadowBlur = 0;
           context.strokeStyle = "#ffffff";
@@ -139,7 +157,7 @@ export function MemoryGraph({
           if (node.kind === "memory") continue;
           context.globalAlpha = lit(node.id) ? 1 : 0.25;
           context.fillStyle = COLORS.label;
-          context.fillText(node.label, node.x!, node.y! + radiusAt(node.kind, k) + 14 / k);
+          context.fillText(node.label, node.x!, node.y! + radiusAt(node, k) + 14 / k);
         }
       }
       // Each memory's words beside its dot, once zoomed in close enough to read them.
@@ -152,7 +170,7 @@ export function MemoryGraph({
           context.fillStyle = COLORS.label;
           const text =
             node.label.length > MEMORY_LABEL_CHARS ? `${node.label.slice(0, MEMORY_LABEL_CHARS - 1)}…` : node.label;
-          context.fillText(text, node.x! + radiusAt("memory", k) + 4 / k, node.y! + 3 / k);
+          context.fillText(text, node.x! + radiusAt(node, k) + 4 / k, node.y! + 3 / k);
         }
       }
       context.globalAlpha = 1;
@@ -176,17 +194,24 @@ export function MemoryGraph({
       const width = Math.round(entry.contentRect.width);
       setSize({
         width,
-        height: Math.round(Math.min(Math.max(window.innerHeight * 0.6, 360), 640)),
+        height: full
+          ? Math.round(entry.contentRect.height)
+          : Math.round(Math.min(Math.max(window.innerHeight * 0.6, 360), 640)),
         ratio: window.devicePixelRatio || 1,
       });
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [full]);
 
   useEffect(() => {
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const nodes: Node[] = given.map((node) => ({ ...node, ...placed.current.get(node.id) }));
+    // A company graph's company stays in the middle; dragging it lets it go.
+    const nodes: Node[] = given.map((node) => ({
+      ...node,
+      ...placed.current.get(node.id),
+      ...(node.centre && !placed.current.has(node.id) && { fx: 0, fy: 0 }),
+    }));
     const links: Link[] = givenLinks.map((link) => ({ ...link }));
     graph.current = { nodes, links };
     const sim = forceSimulation<Node, Link>(nodes)
@@ -198,7 +223,7 @@ export function MemoryGraph({
           .strength((link) => (link.kind === "word" ? 0.05 : 0.6)),
       )
       .force("charge", forceManyBody<Node>().strength((node) => (node.kind === "memory" ? -18 : -120)))
-      .force("collide", forceCollide<Node>((node) => RADIUS[node.kind] + 2))
+      .force("collide", forceCollide<Node>((node) => radiusOf(node) + 2))
       .force("x", forceX<Node>(0).strength(0.03))
       .force("y", forceY<Node>(0).strength(0.03))
       .on("tick", () => {
@@ -238,7 +263,7 @@ export function MemoryGraph({
     let bestDistance = Infinity;
     for (const node of graph.current.nodes) {
       const distance = Math.hypot(node.x! - point.x, node.y! - point.y);
-      if (distance <= radiusAt(node.kind, view.current.k) + reach && distance < bestDistance) {
+      if (distance <= radiusAt(node, view.current.k) + reach && distance < bestDistance) {
         best = node;
         bestDistance = distance;
       }
@@ -277,9 +302,26 @@ export function MemoryGraph({
     draw();
     return true;
   }, [draw, size]);
+  // The first view: on the record asked for when there is one, else the whole graph.
+  const firstView = useCallback(() => {
+    const node = centreOn ? graph.current.nodes.find(({ id }) => id === centreOn) : null;
+    if (!node || size.width === 0) return fit();
+    view.current = { k: CENTRE_ZOOM, x: -node.x! * CENTRE_ZOOM, y: -node.y! * CENTRE_ZOOM };
+    draw();
+    return true;
+  }, [centreOn, draw, fit, size]);
   useEffect(() => {
-    fitLatest.current = fit;
-  }, [fit]);
+    fitLatest.current = firstView;
+  }, [firstView]);
+
+  // Going in or out of full screen fits again, unless the view was moved by hand.
+  const sizeSeen = useRef(size);
+  useEffect(() => {
+    const before = sizeSeen.current;
+    sizeSeen.current = size;
+    if (before.width === 0 || !fitted.current || moved.current) return;
+    if (before.width !== size.width || before.height !== size.height) fitLatest.current();
+  }, [size]);
 
   useEffect(() => {
     const element = canvas.current;
@@ -355,7 +397,10 @@ export function MemoryGraph({
   const subjects = given.filter((node) => node.kind === "person" || node.kind === "company").length;
 
   return (
-    <div ref={wrap} className="relative overflow-hidden rounded-md border">
+    <div
+      ref={wrap}
+      className={full ? "absolute inset-0 overflow-hidden" : "relative overflow-hidden rounded-md border"}
+    >
       <canvas
         ref={canvas}
         width={size.width * size.ratio}
@@ -389,6 +434,18 @@ export function MemoryGraph({
         <Button type="button" size="icon-sm" variant="secondary" aria-label="Fit to view" onClick={fit}>
           <Maximize2 aria-hidden />
         </Button>
+        {onFull && (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="secondary"
+            aria-label={full ? "Leave full screen" : "Full screen"}
+            title={full ? "Leave full screen (Esc)" : "Full screen"}
+            onClick={onFull}
+          >
+            {full ? <Shrink aria-hidden /> : <Expand aria-hidden />}
+          </Button>
+        )}
       </div>
     </div>
   );

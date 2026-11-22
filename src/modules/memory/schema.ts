@@ -27,3 +27,11 @@ export const memoryEditInput = z.strictObject({
 });
 
 export const memoryIdInput = z.strictObject({ id: z.uuid() });
+
+// Added from a person's or company's own Memory tab, so the record is known, not named.
+export const memoryRecordAddInput = z.strictObject({
+  about: z.enum(["person", "company"]),
+  recordId: z.uuid(),
+  content,
+  terms,
+});
